@@ -52,3 +52,8 @@ logging table empty and with a checked set, and the rest timer sheet. Note the d
 closed display the status area is a **vertical strip on the trailing edge** (Island pill, clock,
 battery), so the content is narrower than the panel and the safe area is asymmetric.
 
+`ref-*.png` are native apps on the same Duo (Claude, Flighty, Apple Fitness), closed and open wide:
+the vertical tab bar in the trailing strip, a real sidebar, a floating leading panel with horizontal
+bars, and a card grid in dark mode. Use them as the look-and-feel reference; `duo-layout.md`
+explains what they show.
+

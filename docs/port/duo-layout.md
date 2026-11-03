@@ -98,3 +98,21 @@ angle; rotate left, Option-click to rotate right; Device > Slow Animations to in
 Apple's checklist, which `verify-ui` follows: both displays, closed/open/partially folded, rotate in
 each; walk every view, sheet and popover; inspect vertical bars; find anything that lands in the
 fold or positions awkwardly across a fold/open.
+
+## Observed on real apps (Eric's Duo, 2026-11-03; `screenshots/ref-*.png`, local only)
+
+Apps Eric likes the feel of: Claude, Flighty, Apple Fitness.
+
+- **Closed display, every app**: the tab bar is a vertical Liquid Glass capsule at the bottom of
+  the trailing strip; toolbar actions (avatar, ⋯, search, share) stack above it in the same column;
+  Island and status on top. Content uses the full height. There is no bottom bar anywhere, so the
+  web's bottom tab capsule and dock have no native counterpart; the active-workout accessory
+  therefore sits in the system's accessory slot, wherever the system puts it.
+- **Open wide, Claude**: leading sidebar (section list), content in the middle, toolbar actions
+  in the trailing strip. This is the shape of our shell: Templates/History/Exercises in the sidebar.
+- **Open wide, Flighty**: full-bleed map with a floating panel at the **leading** edge that carries
+  its own **horizontal** tab bar, while the trailing strip holds the map toolbar. Apple's
+  placement rule, seen live: leading/centered panels get horizontal bars, the trailing edge is
+  vertical. Model for any floating pane over media.
+- **Fitness**: a 2-column card grid when closed, mixed-width cards when open, vertical tab bar
+  in both, dark mode. Direct model for the template grid and the History dashboard cards.
