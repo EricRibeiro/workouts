@@ -106,7 +106,7 @@ Live Activity → notifications → logging, then templates, exercises, history.
   all-words accent-insensitive search over name and aliases, archive rule. Needs: 0.1, 0.2. Proof: `./dev kit Library`.
 - [x] **0.4 Settings store** `WorkoutsKit/Settings/SettingsStore`: `@Observable`, `UserDefaults` backend behind a protocol,
   `DECISIONS.md` defaults, one key list. Proof: `./dev kit Settings`.
-- [ ] **0.5a Shell and tabs**: `TabView(.sidebarAdaptable)` + `.defaultAdaptableTabBarPlacement(.sidebar)`, empty History · Workout
+- [x] **0.5a Shell and tabs**: `TabView(.sidebarAdaptable)` + `.defaultAdaptableTabBarPlacement(.sidebar)`, empty History · Workout
   · Exercises skeletons (Workout selected), Settings gear + `tabViewSidebarBottomBar` + empty Form sheet. Proof: `./dev run` +
   closed-pose screenshot (record where the bar lands).
 - [ ] **0.5b ArrangementView cover spike**: empty root `fullScreenCover` holding an empty `ArrangementView` (spike for 2.10).
