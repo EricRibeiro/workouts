@@ -97,6 +97,8 @@ Eric deferred the technical choices to Claude. These close every item in `docs/p
 - Size classes only; never `UIScreen.main`, idiom, orientation, or hardcoded sizes. Width can
   change mid-session (fold/unfold) and the app must keep selection, scroll and the active workout.
 - Asymmetric safe areas are normal; use `.safeAreaInset`/`.safeAreaPadding`, no magic numbers.
+  Observed on Eric's Duo (closed, portrait): the status area is a vertical strip on the trailing
+  edge, not a top bar, so trailing-aligned controls sit against it (`docs/port/screenshots/duo-closed-*`).
 - All four orientations supported (already in the project). Launch screen generated (already).
 - Verify in four poses on the `iPhone Duo` simulator: closed portrait, closed landscape, open
   tall, open wide (`.claude/skills/verify-ui`).

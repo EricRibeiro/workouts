@@ -44,3 +44,10 @@ https://workouts.traefik.ca if missing) holds the web app as captured on 2026-11
 Duo / any iPhone) and `expanded-<tab>.png` at 867×669 (open Duo, landscape). They show the
 streamlined flow to preserve, not pixels to copy; the native app uses system bars, sidebar and
 Liquid Glass. Read one with the Read tool before building its screen.
+
+`duo-closed-*.png` are real photos of the PWA on Eric's iPhone Duo, closed, portrait (2026-11-03):
+the Workout tab, the template preview sheet, the exercise peek/detail sheets with the video loop, the
+logging table empty and with a checked set, and the rest timer sheet. Note the device chrome: on the
+closed display the status area is a **vertical strip on the trailing edge** (Island pill, clock,
+battery), so the content is narrower than the panel and the safe area is asymmetric.
+
