@@ -71,8 +71,10 @@ Rules for the loop:
   `xcode-integration` in Claude Code, `xcrun agent plugin path --plugin-format codex` in Codex) are an **optional**
   shortcut when they connect: `RenderPreview` returns a preview image without launching the app, `DeviceInteraction*` taps
   and reads the accessibility tree (they need `workspaceIdentifier` from `XcodeOpenWorkspace` on the absolute `.xcodeproj`
-  path first). It failed to connect in every review session so far; a task's proof must never depend on it. Skill:
-  `verify-ui`.
+  path first). The bridge is a stdio process that Claude Code marks failed once it drops, and nothing an agent can do
+  restarts it: only Eric typing `/mcp reconnect all` (or picking Reconnect in `/mcp`) does. If the `mcp__…xcode__*`
+  tools are missing, say so once and ask him to run it, then continue with the fallback proofs above; a task's proof must
+  never depend on the MCP. Skill: `verify-ui`.
 - **Do not change** the deployment target, supported platforms, signing, or add a remote package
   without being asked.
 
