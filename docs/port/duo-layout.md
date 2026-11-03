@@ -106,8 +106,9 @@ Apps Eric likes the feel of: Claude, Flighty, Apple Fitness.
 - **Closed display, every app**: the tab bar is a vertical Liquid Glass capsule at the bottom of
   the trailing strip; toolbar actions (avatar, ⋯, search, share) stack above it in the same column;
   Island and status on top. Content uses the full height. There is no bottom bar anywhere, so the
-  web's bottom tab capsule and dock have no native counterpart; the active-workout accessory
-  therefore sits in the system's accessory slot, wherever the system puts it.
+  web's bottom tab capsule and dock have no native counterpart. The minimised workout therefore
+  lives in the bars: a pinned toolbar pill in the trailing strip when closed, a card pinned at
+  the bottom of the sidebar when open (decided with Eric, 2026-11-03).
 - **Open wide, Claude**: leading sidebar (section list), content in the middle, toolbar actions
   in the trailing strip. This is the shape of our shell: Templates/History/Exercises in the sidebar.
 - **Open wide, Flighty**: full-bleed map with a floating panel at the **leading** edge that carries

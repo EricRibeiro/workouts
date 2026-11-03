@@ -64,12 +64,15 @@ Eric deferred the technical choices to Claude. These close every item in `docs/p
   note) as secondary, following the focused exercise. Apple's arrangement view splits side by side
   when wide, stacks when tall, and places the two halves on either side of the fold when the phone
   is partially open, which gives the half-open bench layout for free (`docs/port/duo-layout.md`). Folding only changes the size class inside the cover, so draft, focus and
-  scroll are untouched. Minimise dismisses the cover; the bottom accessory (and Live Activity)
+  scroll are untouched. Minimise dismisses the cover; the resume control (and Live Activity)
   restore it, and a running workout survives any tab change.
-- Minimised workout: `.tabViewBottomAccessory` (the system mini-player slot above the tab bar; it
-  adapts to the sidebar). It reads `tabViewBottomAccessoryPlacement`: `.expanded` shows name ·
-  elapsed · rest countdown · Skip; `.inline` only the countdown (or elapsed). Tap restores.
-  History and Exercises lists set `tabBarMinimizeBehavior(.onScrollDown)` (not Apple's
+- Minimised workout lives in the system bars, never in a bottom pill (Eric, 2026-11-03: no
+  native app on the Duo has a bottom bar; Flighty's trailing strip is the model). Closed display:
+  a pinned toolbar item in the trailing strip above the tab bar, a glass pill with the timer
+  glyph and the rest countdown (elapsed time when not resting), tap restores. Open display: a
+  card pinned at the bottom of the sidebar (`tabViewSidebarBottomBar`) with name · elapsed ·
+  rest countdown · Skip, tap restores. `.tabViewBottomAccessory` is not used. History and
+  Exercises lists set `tabBarMinimizeBehavior(.onScrollDown)` (not Apple's
   `toolbarMinimizeBehavior`: absent from the 27.2 interface).
 - `AppNavigation` (@Observable) with typed routes, so Live Activity buttons and notification
   actions can open the logging screen or a template. App Intents exist only as the mechanism
@@ -276,8 +279,10 @@ risk: shell → engine → Live Activity → notifications → logging, then tem
   `isIdleTimerDisabled` gate. Proof: flow (start empty workout, log a set).
 - [ ] **2.3 Rest bar and minimise**: `safeAreaBar` countdown with glass −10 s / +10 s / Skip,
   header timer `ToolbarItem`, chevron/drag minimise. Proof: flow (check a set → bar counts down).
-- [ ] **2.4 Bottom accessory and resume**: `.tabViewBottomAccessory` on `.expanded`/`.inline`,
-  tap restores; resume on launch. Proof: flow on both widths.
+- [ ] **2.4 Resume control and resume on launch**: closed → pinned trailing-strip toolbar pill
+  (timer glyph + countdown/elapsed) on every tab; open → `tabViewSidebarBottomBar` card with
+  name · elapsed · countdown · Skip; tap restores the cover; resume sheet on launch. Proof: flow
+  on both widths, the pill visible from History and Exercises while a workout runs.
 - [ ] **2.5 Finish and Discard**: finish dialogs, summary with PR count, Discard confirmation,
   `.warning` / `.levelChange` haptics. Proof: preview + flow.
 - [ ] **2.6 Regular-width logging**: `ArrangementView(primary: SetTable, secondary: exercise pane)`
