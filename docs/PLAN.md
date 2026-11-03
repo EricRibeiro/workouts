@@ -93,7 +93,7 @@ Live Activity → notifications → logging, then templates, exercises, history.
 
 ### Phase 0 — Foundations
 
-- [ ] **0.1 SwiftData schema** in `WorkoutsKit/Model/`: the nine `@Model` types from `docs/port/data-model.md` (read "Native
+- [x] **0.1 SwiftData schema** in `WorkoutsKit/Model/`: the nine `@Model` types from `docs/port/data-model.md` (read "Native
   deltas" first), `SchemaV1` + `VersionedSchema`, `ModelContainer.workouts(inMemory:cloudKit:)`, optional
   `Workout.restEndsAt`/`restSeconds`/`restSetID`. Proof: `./dev kit Schema` (inserts, cascade-delete, nullify, builds with
   `cloudKitDatabase: .none`).
@@ -104,7 +104,7 @@ Live Activity → notifications → logging, then templates, exercises, history.
   MB), `./dev build` sees the folder, `./dev kit Library`.
 - [ ] **0.3 ExerciseStore** (kit): `LibraryCatalog` decode, custom merge (`exercise(id:)` = catalog ∪ custom), name sort,
   all-words accent-insensitive search over name and aliases, archive rule. Needs: 0.1, 0.2. Proof: `./dev kit Library`.
-- [ ] **0.4 Settings store** `WorkoutsKit/Settings/SettingsStore`: `@Observable`, `UserDefaults` backend behind a protocol,
+- [x] **0.4 Settings store** `WorkoutsKit/Settings/SettingsStore`: `@Observable`, `UserDefaults` backend behind a protocol,
   `DECISIONS.md` defaults, one key list. Proof: `./dev kit Settings`.
 - [ ] **0.5a Shell and tabs**: `TabView(.sidebarAdaptable)` + `.defaultAdaptableTabBarPlacement(.sidebar)`, empty History · Workout
   · Exercises skeletons (Workout selected), Settings gear + `tabViewSidebarBottomBar` + empty Form sheet. Proof: `./dev run` +
