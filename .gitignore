@@ -19,3 +19,9 @@ xcuserdata/
 .claude/settings.local.json
 
 # Package.resolved is intentionally tracked
+
+# Playwright MCP scratch output
+.playwright-mcp/
+
+# Web-app reference screenshots contain personal workout data; kept local only
+docs/port/screenshots/
