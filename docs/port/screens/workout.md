@@ -107,24 +107,32 @@ owns folder and template management.
 
 - Root: regular width (open Duo) `NavigationSplitView` with the folder/template list and the template preview in
   the detail column ("Select a template" placeholder), mirroring web's expanded list + preview panes (`ui.md:150`);
-  compact (closed Duo) a `NavigationStack` list with the preview as a **medium-detent sheet**, Start Workout
-  pinned at its foot (`IOS.md` C5). Selection and an open editor draft live in model state: width can change mid
+  compact (closed Duo) a `NavigationStack` list with the preview as a **medium-detent sheet**: Close (`xmark`)
+  then Edit (`pencil`) in the strip; content is the title, "Last performed", a `.borderedProminent` **Start
+  Workout** (`play.fill`) capsule directly under it (Flighty's `+ Add Friend`), then the exercise rows with an
+  `info.circle` accessory for the peek. Nothing is bottom-anchored (supersedes `IOS.md` C5). Selection and an open editor draft live in model state: width can change mid
   session and the draft must survive a fold (`ui.md:151`).
 - Folders: `List` with a `Section` per folder, header `"<name> (<count>)"`, collapsible (expansion persisted),
-  trailing ⋯ `Menu` (Rename Folder, Reorder Templates, Reorder Folders, Delete Folder). Templates as rows or a card
-  grid; keep name, 3-line exercise list, Last performed.
+  a `contextMenu` on the header (Rename Folder, Reorder Templates, Reorder Folders, Delete Folder); no ⋯. Templates
+  as rows or a card grid whose even column count comes from its own width (`PLAN.md` §2); keep name, 3-line
+  exercise list, Last performed.
 - Reorder: edit mode with `.onMove` (or iOS 27 `.reorderable`) for templates within a folder and for folders; the
   "Reorder Templates"/"Reorder Folders" menu entries enter edit mode, replacing the web's up/down sheets.
-- Template row: swipe actions (trailing Delete destructive, Duplicate, Move to Folder) plus a `contextMenu` and ⋯
-  `Menu` with Edit, Duplicate, Move to Folder, Delete.
+- Template row/card: swipe actions (trailing Delete destructive, Duplicate, Move to Folder) plus a `contextMenu`
+  with Edit, Duplicate, Move to Folder, Delete; no ⋯ (the ellipsis is the system's overflow). The page toolbar
+  carries Settings (`gearshape`) and Add (`plus`, a `Menu`: New Template / New Folder).
 - Destructive confirmations as `confirmationDialog` with message and Cancel: Delete Template, Delete Folder (empty),
   Delete Folder with templates (per-folder "Move to ..." actions + destructive delete-all), Discard Changes,
   Workout in progress (Resume / Discard and Start New). Rename, New Folder: alert or small sheet with a text field;
   folder pickers: sheet or `Menu`.
-- Editor: compact -> `fullScreenCover` (not a pushed route; web `ui.md:151`). Regular width -> same editor with a
-  side detail pane showing the selected exercise's video/instructions, set tables capped at 540 pt (web
-  `ui.md:151`); whether it shares the screen with the list is an open question. Exercise ⋯ = `Menu` with a nested
-  Preferences `Menu`. Exercise reorder: drag handle / `.onMove`. Per-set Delete: swipe action (replaces long-press).
+- Editor: pushed in both widths (Mail's model: one more level beside the sidebar), not a `fullScreenCover`. On
+  regular width the body is the same `ArrangementView(primary: SetTable, secondary: exercise pane)` as the logging
+  screen (`PLAN.md` task 2.6), so the Set | Previous | lbs | Reps table never straddles the fold in the book pose.
+  No width cap: fixed widths are forbidden. The name row is `navigationTitle` plus `toolbarTitleMenu` (Edit
+  Template Name, Add Note); Save and Close sit in the strip. Per-exercise ⋯ stays a content-level `Menu` with a
+  nested Preferences `Menu` (it is content, not a bar). **+ Add Set** is a plain trailing `Label("Add Set",
+  systemImage: "plus")` row, Reminders-style. Exercise reorder: drag handle / `.onMove`. Per-set Delete: swipe action
+  (replaces long-press).
 - Numeric entry: native keypad with Next/Done toolbar replaces web's NumPad (`POLISH.md` C3/C5). `sensoryFeedback`
   on card press and Start Workout (HP1). SwiftData persistence; `@AppStorage` for last-used folder.
 
@@ -141,8 +149,8 @@ owns folder and template management.
 
 1. `PLAN.md:143` lists a Templates-level **⋯ (reorder, collapse all)**; `ui.md:149` says compact has **no
    Templates-level menu** and no "collapse all" exists in SWP. Add Collapse All / Reorder Folders at that level?
-2. Open Duo: editor over the whole split view (web: full-screen layer with its own detail pane) or in the detail
-   column beside the list?
+2. ~~Open Duo: editor over the whole split view or in the detail column?~~ Closed 2026-11-03: pushed in both widths,
+   `ArrangementView` on regular (see §5).
 3. Card grid or plain list rows on compact width?
 4. What name does Duplicate give the copy? Sources only show `duplicateTemplate(id, newId())` (`store.ts:126`).
 5. Should the `collapsed` flag sync across devices via CloudKit, or be per-device?

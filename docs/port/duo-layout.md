@@ -57,8 +57,8 @@ status bar, toolbar items, tab bar. Rules that follow:
   trailing; choose with `presentationPlacement(_:)`. Sheets, popovers, alerts and menus move off
   the fold automatically.
 - Grids: prefer an **even number of columns** so nothing straddles the fold; keep outer margins
-  and widen the gap around the hinge (Apple's Fitness example). Our template grid is 2 columns on
-  compact and 4 (not 3) on regular.
+  and widen the gap around the hinge (Apple's Fitness example). Our template grid
+  derives an even column count from its own width (`PLAN.md` §2), not from the size class.
 - New windows can only be created on the inner display; not something this app needs.
 
 ## The fold: reserved regions and arrangement views (iOS 27.1)
@@ -107,8 +107,8 @@ Apps Eric likes the feel of: Claude, Flighty, Apple Fitness.
   the trailing strip; toolbar actions (avatar, ⋯, search, share) stack above it in the same column;
   Island and status on top. Content uses the full height. There is no bottom bar anywhere, so the
   web's bottom tab capsule and dock have no native counterpart. The minimised workout therefore
-  lives in the bars: a pinned toolbar pill in the trailing strip when closed, a card pinned at
-  the bottom of the sidebar when open (decided with Eric, 2026-11-03).
+  lives in the bars: a ring toolbar item (resume control, shown on the open display's strip too)
+  plus an additive card at the bottom of the sidebar (decided with Eric, 2026-11-03).
 - **Open wide, Claude**: leading sidebar (section list), content in the middle, toolbar actions
   in the trailing strip. This is the shape of our shell: Templates/History/Exercises in the sidebar.
 - **Open wide, Flighty**: full-bleed map with a floating panel at the **leading** edge that carries
@@ -117,3 +117,10 @@ Apps Eric likes the feel of: Claude, Flighty, Apple Fitness.
   vertical. Model for any floating pane over media.
 - **Fitness**: a 2-column card grid when closed, mixed-width cards when open, vertical tab bar
   in both, dark mode. Direct model for the template grid and the History dashboard cards.
+
+**Rules we derived**
+- No bottom surfaces: nothing is pinned to the bottom edge but a keyboard-adjacent input.
+- Icon-only strip items with symbol + title: toolbar items are glass symbols, never text pills.
+- The ellipsis is the system's: overflow is `ToolbarOverflowMenu`, no hand-made ⋯ menus.
+- Prominent action at the top of a panel: Start Workout sits under the title, like Flighty's `+ Add Friend`.
+- Nothing straddles the fold: even grid columns from width, `ArrangementView` for editors on regular width.

@@ -115,20 +115,27 @@ template editor and the active workout. Library content is read-only; only custo
 - Compact (closed Duo): `NavigationStack` with an inset `List` of letter sections; detail pushed. Regular
   (open Duo inner display): `NavigationSplitView` (list | detail) with `List(selection:)`, a
   `ContentUnavailableView` "Select an exercise" as the empty detail.
-- Search: `.searchable` over name + aliases, own normalisation (all-words, accent-insensitive, not
-  `localizedStandardContains` alone). Body part and category as search tokens or scope-like menus; native
-  section index replaces the hand-made A-Z rail (check the iOS 27 API; do not rebuild `AlphaIndex`).
-- Toolbar: `+` and a ⋯ `Menu` with a `Show retired` toggle; `Retired`/`Custom` as small row tags.
+- Search: `.searchable` only (no inline field), over name + aliases, own normalisation (all-words,
+  accent-insensitive, not `localizedStandardContains` alone); the system places the search circle at the foot of
+  the trailing strip (Flighty). Body part and category as two `Menu` pills at the top of the list (Flighty's chip
+  row) or `searchScopes` if there are 4 values or fewer. No sort control while Name A-Z is the only sort. **No A-Z
+  rail**: SwiftUI has no section index and the trailing edge is reserved for the system; do not rebuild `AlphaIndex`.
+- Toolbar: New Exercise (`plus`) and Show Retired (`eye`, a toggle item), each with symbol and title, left to the
+  system's overflow; no ⋯ `Menu`. `Retired`/`Custom` stay small row tags. Detail: Edit (`pencil`, custom only).
+- Picker variant: **Add (N)** (`Button("Add 3", systemImage: "plus")`) and **Superset** (`rectangle.stack`) are the
+  sheet's toolbar items, not a bottom capsule; Cancel sits in the Close slot.
 - Detail: segmented `Picker` for About / History / Charts / Records. Charts: **Swift Charts** line + point marks
   with `chartXSelection` for the readout; metric chips and a range segmented control. Records as a `Grid`.
-- Media: `AVPlayer` muted, looping, honouring Reduce Motion, with the poster frame; thumbnails as a still image
-  (optionally crossfading start/end frames). Custom form: sheet with `Form`; picker variant: sheet with
+- Media: `AVPlayer` muted, looping, honouring Reduce Motion, with the poster frame (the hero uses
+  `.backgroundExtensionEffect()` under a vertical bar); thumbnails as a still image (optionally crossfading
+  start/end frames). Custom form: sheet with `Form`; picker variant: sheet with
   multi-selection `List`; sticky note: sheet with `TextEditor`.
 - Workout links in the detail navigate to the History tab's workout detail.
 
 ## 6. Dropped or changed on purpose
 
-- Virtualised list, container queries, hand-built A-Z rail: native `List` and section index cover them.
+- Virtualised list, container queries: native `List` covers them. The hand-built A-Z rail is dropped outright (no
+  native section index; search replaces it).
 - Client store, Cache API, `/api/*` calls: SwiftData instead.
 - Server `q` substring search (`schema.md:89`): not used by the UI; only the all-words client rule carries over.
 - Single-option `Sort By` sheet and the A-Z rail's scrub gesture: only if more sorts return (question 3).

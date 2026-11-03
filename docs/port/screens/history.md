@@ -44,7 +44,7 @@ detail, which can be edited after the fact. Settings is a separate tab (section 
 - Tap a card -> workout detail (right pane when expanded, sheet when compact). Tapping another
   card while one is open swaps it; Close goes back to the list.
 - Card **⋯** (aria `<name> options`) -> menu: **Edit**, **Save as Template**, **Delete**.
-  The detail's bar has Close, Edit and ⋯ (**Save as Template**, **Delete**).
+  The detail's bar has Close, Edit and ⋯ (**Save as Template**, **Delete**). Native: no ⋯ (see §5).
 - **Edit** -> past-workout editor (full-screen layer): the template editor's blocks and menus, the
   active workout's check column (un-check a set to stop counting it), plus a start time
   (`datetime-local`) and duration in minutes under the name. A set that gets a value, or is added
@@ -63,7 +63,7 @@ detail, which can be edited after the fact. Settings is a separate tab (section 
   closes and the detail opens. Hint text below the grid.
 - **Target button** (chart header, shows the goal, aria `Weekly goal: N. Change it.`) -> sheet
   `Weekly goal` with a stepper 1-14 and Save; error `Could not save the goal.` Moving the goal moves
-  the line.
+  the line. Native: dropped; the goal lives in Settings only.
 - **Repeat as a new workout**: the web has none. The only reuse path is Save as Template, then start
   that template from the Workout tab. **Strong import**: no UI, it is a server CLI (`import-strong
   <csv>`, PLAN.md 56, 292-321); nothing in History or Settings exposes it.
@@ -88,17 +88,20 @@ detail, which can be edited after the fact. Settings is a separate tab (section 
   web uses a sheet; folding must keep the selection and the list's scroll, so drive both from one
   selection value).
 - List: `List` with a `Section` per month (header = month title), card rows, `.contextMenu` /
-  trailing `swipeActions` carrying Edit / Save as Template / Delete (keep a visible ⋯ `Menu` too for
-  parity). SwiftData `@Query` sorted by start descending replaces cursor paging; use lazy rows, no
+  trailing `swipeActions` carrying Edit / Save as Template / Delete; no ⋯ `Menu` (the ellipsis is the system's
+  overflow). Toolbar: Calendar (`calendar`). Workout detail toolbar: Edit (`pencil`), Save as Template
+  (`doc.on.doc`), Delete (`trash`, destructive), each with symbol and title. SwiftData `@Query` sorted by start descending replaces cursor paging; use lazy rows, no
   manual sentinel. `.confirmationDialog` for Delete. Search is not in the web; add `.searchable` only
   if Eric asks.
 - Weekly chart: Swift Charts `BarMark` per ISO week + `RuleMark` goal line (dashed), bar style by
-  `count >= goal`, goal button opens a sheet with `Stepper`. Compute weeks and days in the device
+  `count >= goal`; the chart header is plain (no goal button, the goal is a Settings `Stepper`). Compute weeks and days in the device
   calendar (no server); the web's "server time zone" quirk goes away.
 - Calendar: a sheet with a month grid (`Grid`, Monday first per source; consider the locale's first
   weekday), day tap -> workouts of the day -> push detail.
-- Edit past workout: reuse the shared exercise editor in a past mode (`.fullScreenCover` / sheet).
-- Save as Template: sheet with folder picker. Toast -> a brief banner or `sensoryFeedback(.success)`.
+- Edit past workout: reuse the shared exercise editor in a past mode, pushed from the workout detail (not a cover
+  or sheet); on regular width its body is the logging screen's `ArrangementView(primary: SetTable, secondary:
+  exercise pane)` so the table never straddles the fold.
+- Save as Template: sheet with folder picker. Toast -> `sensoryFeedback(.success)` and the sheet dismissing; no banner.
 - Units, volume, best sets and PR counts are derived on read in WorkoutsKit, not stored.
 - Duo: card list in the left pane, detail right; `Settings` can sit in the sidebar of the split view.
 - iCloud/CloudKit: no status exists in the web app. Natural place is a footer row in the Settings
@@ -120,7 +123,7 @@ detail, which can be edited after the fact. Settings is a separate tab (section 
 - Should we add "Repeat workout" (start a new workout prefilled from a past one)? The web has none.
 - PLAN.md 173 lists a card **set count**; the card UI (HistoryPage.tsx:62-69) shows duration, volume and
   PRs only, though `setCount` is in the payload. Show it?
-- Where should the weekly goal live on iPhone (chart button and Settings both, as in the web)?
+- ~~Where should the weekly goal live on iPhone?~~ Settings only (2026-11-03); the chart header is plain.
 - Keep Settings a fourth tab (PLAN.md 189: side column on the open screen) on compact too?
 - Weekly chart is 8 weeks fixed; PLAN.md 188 lists later charts (weekly volume, sets per muscle group,
   PR feed). In scope for the port?
