@@ -13,10 +13,9 @@ its proving command. Fable/Opus plans and reviews; Sonnet implements.
 A private, single-user, native SwiftUI iPhone app that keeps the web app's curated workout-tracking
 experience (feature complete, Eric-designed, "awesome") and adds what a PWA cannot do on the
 **iPhone Duo**: a real sidebar on the inner display, split layouts, Live Activity + Dynamic Island
-for the rest timer, notifications, haptics, and workouts recorded in Apple Fitness via HealthKit.
-Parity is the floor. Not goals: App Store release, other users, iPad/Mac, widgets, Shortcuts,
-Control Center (Eric: not needed), Apple Watch (a live Fitness session needs a watchOS app; later
-only if Eric wants it), the web app.
+for the rest timer, notifications, haptics. Parity is the floor. Not goals: App Store release,
+other users, iPad/Mac, widgets, Shortcuts, Control Center, HealthKit/Apple Fitness (Eric starts
+his Fitness workouts in Apple's app himself and likes it that way), Apple Watch, the web app.
 
 ## 2. Decisions (settled; see `AGENTS.md` → Product decisions for the ones made earlier)
 
@@ -38,7 +37,7 @@ Eric deferred the technical choices to Claude. These close every item in `docs/p
 - One-time history migration from the web Postgres: an **Import** action in Settings that reads a
   JSON export (produced later by a script against the web DB) through the normal SwiftData path,
   so it syncs. Exercise ids match because both sides use UUIDv5(source, sourceId); the namespace
-  is copied from the web's `store.ExerciseID` when the import script is written (task 8.3).
+  is copied from the web's `store.ExerciseID` when the import script is written (task 7.3).
 - Custom exercise: deletable when no history references it, otherwise "Archive" (= retire).
 
 **Navigation and layout**
@@ -84,14 +83,9 @@ Eric deferred the technical choices to Claude. These close every item in `docs/p
   Shared `WorkoutActivityAttributes` lives in `WorkoutsKit` (linked by app and extension).
 - **Haptics** via `.sensoryFeedback`: set checked `.impact(weight: .light)`, rest end `.success`,
   PR at finish `.levelChange`, destructive confirm `.warning`, minimise/restore `.selection`.
-- **HealthKit / Apple Fitness** (phase 7): an `HKWorkoutBuilder` for
-  `.traditionalStrengthTraining` begins at Start and ends at Finish (discard cancels it), so the
-  session appears in the Fitness app's Workouts with the app's name and credits the Exercise ring
-  for its minutes; an estimated active-energy sample (MET-based from duration) credits Move.
-  Nothing is read from Health. A *live* session (green indicator, heart rate, rings moving during
-  the workout) is Watch-only; it would need a watchOS companion, which is out of scope.
 - **Not built, by decision (2026-11-03)**: home/lock-screen widgets, Shortcuts/Siri intents,
-  Spotlight, Control Center controls.
+  Spotlight, Control Center controls, HealthKit (Eric runs Apple Fitness alongside; a live session
+  would need a Watch app anyway).
 - **Liquid Glass**: system bars and controls; `.glassEffect()` only for the floating rest pill;
   `.navigationTransition(.zoom)` card → preview, row → detail. Eric's palette becomes semantic
   colours in the asset catalog (accent, ok, danger, warm-up, set-kind colours) with light/dark
@@ -140,7 +134,7 @@ Workouts.xcodeproj
 ├─ WorkoutsLiveActivity/     widget extension holding only the Live Activity
 ├─ Packages/WorkoutsKit/     platform-free: Model (SwiftData @Model types), Math (done),
 │                            Library (seed/upsert), Media (MediaStore), Session (ActiveWorkoutEngine,
-│                            RestTimer), Activity (WorkoutActivityAttributes), Health (workout writer)
+│                            RestTimer), Activity (WorkoutActivityAttributes)
 └─ scripts/build-library     Swift script: snapshot → library.json + thumbs (run on this Mac)
 ```
 
@@ -158,8 +152,7 @@ Workouts.xcodeproj
   an app-group-shared store (the extension gets a read-only snapshot in `UserDefaults(suiteName:)`
   and sends intents to the app).
 - **Entitlements**: iCloud (CloudKit), Push (CloudKit silent), Background Modes
-  (remote-notification), App Groups (`group.com.ericribeiro.Workouts`), HealthKit (phase 7, write
-  workouts only).
+  (remote-notification), App Groups (`group.com.ericribeiro.Workouts`).
   Added with `xcrun xcodeproj`/`AddEntitlement` once a team exists.
 - **Testing**: `./dev kit` for all WorkoutsKit logic (SwiftData in memory works on macOS);
   `./dev test` for the few app-level tests (navigation model, settings store); UI proof by
@@ -277,23 +270,14 @@ commits per task. "Done" means the proof passed and the orchestrator reviewed th
 - [ ] **6.3 Performance**: list scrolling with the full library, chart with 600 workouts
   (`xctrace` skill if needed).
 
-### Phase 7 — Apple Fitness
+### Phase 7 — Sync, migration, distribution (needs the Developer Program)
 
-- [ ] **7.1 HealthKit workout recording**: entitlement + `NSHealthShareUsageDescription`/
-  `NSHealthUpdateUsageDescription`, permission request on first Start, `HealthWorkoutRecorder` in
-  WorkoutsKit wrapping `HKWorkoutBuilder` (begin at Start, end at Finish, discard on Discard,
-  resume after relaunch), optional MET-based active energy. Proof: `./dev kit Health` with a
-  protocol-mocked store; on the simulator the workout shows in the Health app under Workouts.
-  Needs a team (phase 8.1) for the entitlement on device; simulator works without.
-
-### Phase 8 — Sync, migration, distribution (needs the Developer Program)
-
-- [ ] **8.1 Team + entitlements**: `DEVELOPMENT_TEAM`, iCloud container, App Group, push.
-- [ ] **8.2 CloudKit on**: flip the flag, verify two simulators sync, add the schema to the
+- [ ] **7.1 Team + entitlements**: `DEVELOPMENT_TEAM`, iCloud container, App Group, push.
+- [ ] **7.2 CloudKit on**: flip the flag, verify two simulators sync, add the schema to the
   CloudKit dashboard (development → production).
-- [ ] **8.3 Migration**: script exporting the web Postgres to the import JSON (uses the web's
+- [ ] **7.3 Migration**: script exporting the web Postgres to the import JSON (uses the web's
   UUIDv5 namespace), the in-app Import, one-time run on Eric's phone.
-- [ ] **8.4 TestFlight**: `./dev testflight` (archive, export, upload with API key), first build on
+- [ ] **7.4 TestFlight**: `./dev testflight` (archive, export, upload with API key), first build on
   Eric's Duo. See memory/plan in `AGENTS.md` → Not set up yet.
 
 ## 7. Risks and unknowns
@@ -303,7 +287,7 @@ commits per task. "Done" means the proof passed and the orchestrator reviewed th
   `NavigationSplitView`, and consult Apple's "Preparing your app for iPhone Duo" when a screen
   needs hinge awareness.
 - **SwiftData + CloudKit**: no unique constraints, all-optional relationships, schema migrations
-  are additive only once CloudKit is on. Keep `SchemaV1` frozen after 8.2.
+  are additive only once CloudKit is on. Keep `SchemaV1` frozen after 7.2.
 - **Live Activity on the simulator** works; Dynamic Island rendering needs an Island device
   (`iPhone 18 Pro` sim) for screenshots.
 - **Media host dependency**: thumbnails are bundled, so only videos degrade when the server is
