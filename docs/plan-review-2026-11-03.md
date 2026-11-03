@@ -1,3 +1,5 @@
+Applied to PLAN.md on 2026-11-03; kept for the rationale.
+
 # Review of `docs/PLAN.md` — 2026-11-03
 
 Lens: is this the right plan for a Duo-first, iOS 27 native port of the web tracker? Facts were checked

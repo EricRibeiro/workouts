@@ -76,14 +76,15 @@ Rules for the loop:
   not for *how* to build it.
 - **Parity is the floor.** Keep the streamlined workout-tracking flow, but the point of going native
   is the iPhone Duo and what a PWA cannot do: sidebar on the inner display, Dynamic Island / Live
-  Activity for the active workout, notifications, widgets. When a web decision and a native idiom
+  Activity for the active workout, notifications. When a web decision and a native idiom
   disagree, choose the native idiom and say so in the task.
 
 - **Answered 2026-11-03 (do not re-ask):** no Strong CSV import and no `Workout.source` (a one-time
   history migration from the web app happens later through an in-app JSON import). Weights are
   `Double`. Exactly one in-progress workout, persisted across relaunch. Library exercises are
-  read-only; only custom exercises get rename/unit/bar/rest. Three tabs (History, Workout,
-  Exercises); Settings is a gear toolbar button on History opening a `Form` sheet, not a tab.
+  read-only; only custom exercises get rename/unit/bar/rest. Three tabs in the web's order
+  (History · Workout · Exercises) with **Workout the default tab**; Settings is a gear toolbar
+  button on the Workout tab (and in the sidebar's bottom) opening a `Form` sheet, not a tab.
   Folder `collapsed` is per-device state, not synced. Weeks start Monday in the device time zone.
   Exercise media (thumbnails + videos) is wanted; delivery mechanism decided in `docs/port/media.md`.
   No widgets, Shortcuts, Control Center or HealthKit: Eric starts his Apple Fitness workout in
