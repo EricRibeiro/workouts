@@ -127,6 +127,13 @@ Eric deferred the technical choices to Claude. These close every item in `docs/p
   becomes semantic asset-catalog colours (accent, ok, danger, warm-up, set-kind), light/dark; everything else is system material.
 - **Accessibility**: every interactive element labelled (agents and XCUITests navigate by the tree); Dynamic Type everywhere; at
   AX sizes each set row becomes a two-line stack via `ViewThatFits`.
+- **Natural-language search is in-app only** (Eric, 2026-11-03; PLAN 4.6). The on-device Foundation Models model
+  (`SystemLanguageModel.default`, `@Generable` → kit `ExerciseQuery`) turns a sentence typed into the Exercises/picker search field
+  into body-part/category/equipment/word filters, and only when plain all-words search finds nothing. Additive by design: model
+  unavailable (ineligible device, Apple Intelligence off, model not ready) or any error means the field is the plain search, silently.
+  **No Siri route**: Siri AI reaches an app through App Intents entities indexed with `IndexedEntity`/Spotlight under an assistant
+  schema, there is no fitness/exercise schema (WWDC26 lists messages, mail, photos), its third-party availability is still unclear,
+  and App Intents here stay behind the Live Activity buttons. Revisit only if Apple ships a fitness schema.
 
 ## Duo rules (distilled in `docs/port/duo-layout.md`, also `AGENTS.md`): size classes and the system's bars, never breakpoints or fixed widths.
 

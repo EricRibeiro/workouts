@@ -13,7 +13,7 @@ for one Sonnet worker, names what it **Needs** (never dispatch it before those a
 A private, single-user, native SwiftUI iPhone app that keeps the web app's curated workout-tracking experience (feature
 complete, Eric-designed, "awesome") and adds what a PWA cannot do on the **iPhone Duo**: a real sidebar on the inner
 display, split layouts, Live Activity + Dynamic Island for the rest timer, notifications, haptics. Parity is the floor.
-Not goals: App Store release, other users, iPad/Mac, widgets, Shortcuts, Control Center, HealthKit/Apple Fitness (Eric
+Not goals: App Store release, other users, iPad/Mac, widgets, Shortcuts, Siri (natural-language search is in-app only, 4.6), Control Center, HealthKit/Apple Fitness (Eric
 starts his Fitness workouts in Apple's app himself), Apple Watch, the web app, multi-window and keyboard shortcuts (one
 scene; no `UIApplicationSupportsMultipleScenes`), localisation (English only: `Text("…")` literals, no catalog upkeep,
 no `String(localized:)` in the kit).
@@ -38,7 +38,8 @@ decisions in `DECISIONS.md` with an absolute date.
   volume · PRs, trophy). Rows push the detail (zoom transition, both widths) holding PR lines, trophies and the per-exercise
   Exercise | Best Set table. `.searchable` over workout and exercise names with `searchScopes` (All · PRs). Saving a template
   gives `sensoryFeedback(.success)` and the sheet dismissing, no banner. Which cards: ask Eric.
-- **Exercises tab**: `.searchable` only, body part and category as two `Menu` pills, no sort control, **no A-Z rail**; rows with
+- **Exercises tab**: `.searchable` only, body part and category as two `Menu` pills, no sort control, **no A-Z rail**; the same
+  field also takes a plain sentence ("something for rear delts with dumbbells") when Apple Intelligence is on (4.6); rows with
   thumbnail + latest best set and tags; detail with segmented About / History / Charts / Records, video loop at the top
   (`.backgroundExtensionEffect()`), sticky note editable here too.
 - **Settings sheet**: `docs/port/screens/history.md` §8, plus Import / Export…, `#if DEBUG` Load sample data, iCloud status.
@@ -224,6 +225,14 @@ Live Activity → notifications → logging, then templates, exercises, history.
 - [ ] **4.5 Sticky note** editor in the detail, shared with the logging pane; swaps `ExerciseDetailView(embedded)` into
   `ExercisePane` (2.10, 3.4), adds 3.6's Sticky Note entry and re-proves the 2.10 fold flow. Needs: 4.2, 2.10, 3.6, 0.9, 0.10. Proof: preview
   + flow.
+- [ ] **4.6 Natural-language exercise search** (kit + app; `DECISIONS.md` "Native layer"): kit `ExerciseQuery` (Codable, Sendable:
+  `bodyParts`, `categories`, `equipment`, `words`) and `ExerciseStore.matches(_ query:)` layered on 0.3's all-words search; app-target
+  `ExerciseQueryParser` (`import FoundationModels`, never in the kit) with a `@Generable` mirror of `ExerciseQuery`, one
+  `LanguageModelSession` prewarmed on tab appear, `respond(to:generating:)` on the debounced `.searchable` text **only when the plain
+  search finds nothing** and `SystemLanguageModel.default.availability == .available`; any other state (ineligible device, Apple
+  Intelligence off, model not ready, guardrail or decode error) leaves the field exactly as today, no banner. Same field in the Exercises
+  list and the picker (2.1a). Needs: 0.3, 4.1b, 2.1a. Proof: `./dev kit Query` (matching with hand-built structs) + preview with the parser
+  stubbed; one on-device parse checked by hand, since the simulator borrows the host Mac's model.
 
 ### Phase 5 — History
 
@@ -282,3 +291,5 @@ Live Activity → notifications → logging, then templates, exercises, history.
 - **SwiftData + CloudKit**: no unique constraints, optional relationships, additive-only migrations once CloudKit is on; keep
   `SchemaV1` frozen after 7.2. **Island screenshots** need an Island sim (`iPhone 18 Pro`; the Duo's inner display has none);
   **TestFlight** needs the paid program (simulator-only until then).
+- **Foundation Models in the simulator** run on the host Mac's model, so 4.6 only parses when the server Mac has Apple Intelligence
+  enabled (and macOS/Xcode match the sim's iOS). The kit never imports it and the preview stubs the parser, so no proof depends on it.
