@@ -66,6 +66,18 @@ Rules for the loop:
 - **Do not change** the deployment target, supported platforms, signing, or add a remote package
   without being asked.
 
+## Product decisions (2026-11-03)
+
+- **Local-first.** SwiftData with CloudKit sync. No backend, no API client, no auth. Design models
+  CloudKit-compatible: optional relationships, default values, no `@Attribute(.unique)`.
+- **The web app is reference only.** It keeps running untouched and will be retired later; there is
+  no data sync or migration between the two. Read its `PLAN.md`/`docs/` for *what* the product does,
+  not for *how* to build it.
+- **Parity is the floor.** Keep the streamlined workout-tracking flow, but the point of going native
+  is the iPhone Duo and what a PWA cannot do: sidebar on the inner display, Dynamic Island / Live
+  Activity for the active workout, notifications, widgets. When a web decision and a native idiom
+  disagree, choose the native idiom and say so in the task.
+
 ## Code conventions
 
 - SwiftUI only, `@Observable` models, `NavigationStack`/`NavigationSplitView`, `TabView`. No
@@ -110,4 +122,4 @@ commit. Remote: `git@github.com:EricRibeiro/workouts.git`.
 - CI (no macOS runner decision made).
 - Code signing / device builds — simulator only for now. Distribution will be TestFlight (no
   direct-to-device installs); blocked on Apple Developer Program approval, then `./dev testflight`.
-- App data model, persistence, sync — see the web app's `PLAN.md`; port in later tasks.
+- App data model and screens — see `docs/port/` once written; port in later tasks.
