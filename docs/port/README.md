@@ -57,3 +57,9 @@ the vertical tab bar in the trailing strip, a real sidebar, a floating leading p
 bars, and a card grid in dark mode. Use them as the look-and-feel reference; `duo-layout.md`
 explains what they show.
 
+`duo-open-wide-*.png` are the PWA on the open Duo (wide, dark mode): template preview in the
+detail column, the logging screen with the exercise pane beside it, rest presets and countdown,
+History list | detail, the workout menu, the Finish and Update-template dialogs and the summary.
+Use them for *behaviour and copy* (dialog wording, what each screen shows); the layout model for
+native is `duo-layout.md`, not these.
+
