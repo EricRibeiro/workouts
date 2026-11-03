@@ -108,5 +108,6 @@ commit. Remote: `git@github.com:EricRibeiro/workouts.git`.
 ## Not set up yet (deliberately)
 
 - CI (no macOS runner decision made).
-- Code signing / device builds — simulator only for now.
+- Code signing / device builds — simulator only for now. Distribution will be TestFlight (no
+  direct-to-device installs); blocked on Apple Developer Program approval, then `./dev testflight`.
 - App data model, persistence, sync — see the web app's `PLAN.md`; port in later tasks.
