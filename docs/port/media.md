@@ -5,7 +5,7 @@ Decided 2026-11-03 from measurements of the snapshot at
 
 | File | Each | All | Decision |
 |---|---|---|---|
-| `start.png`, `end.png` (178×100) | ~9.6 KB | 19 MB | **Bundled** with the library, folder reference `Workouts/Resources/Library/thumbs/<id>-{start,end}.png` |
+| `start.png`, `end.png` (178×100) | ~9.6 KB | 19 MB | **Bundled** with the library, folder reference `Resources/Library/thumbs/<id>-{start,end}.png` |
 | `video-light.mp4` (6 s, 1080p) | ~1.05 MB | 1.06 GB | **Streamed on demand + cached** |
 | `video-dark.mp4` | ~0.9 MB | 0.9 GB | Streamed on demand when the colour scheme is dark |
 | `animation.gif` | ~1.8 MB | 1.8 GB | **Dropped**; the video replaces it |

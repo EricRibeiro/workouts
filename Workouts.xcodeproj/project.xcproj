@@ -29,6 +29,7 @@
         { "path": "<PRODUCTS>/WorkoutsUITests.xctest", "id": "744825B3309A702D009C335A", "type": "wrapper.cfbundle", "index": false },
       ],
     },
+    { "path": "Resources/Library", "target-membership": [ "Workouts/resources" ] },
   ],
   "targets": [
     {

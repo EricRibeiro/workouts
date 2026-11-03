@@ -1,0 +1,170 @@
+#!/usr/bin/env swift
+// Builds the bundled exercise library from the scraped snapshot (PLAN task 0.2).
+//
+//   scripts/build-library [snapshot-dir]
+//
+// Default snapshot: ~/Server/docker-volumes/workouts/snapshot (manifest.json, exercises/*.json, media/).
+// Writes Resources/Library/library.json and thumbs/<id>-{start,end}.png, replacing the folder.
+import CryptoKit
+import Foundation
+
+// MUST match Packages/WorkoutsKit/Sources/WorkoutsKit/Library/LibraryID.swift (namespace and algorithm).
+let libraryNamespace: [UInt8] = [
+    0xF1, 0x0F, 0xF7, 0x14, 0x3B, 0x99, 0x43, 0x02,
+    0x9C, 0xBC, 0x74, 0xE1, 0x76, 0x80, 0x44, 0xBE,
+]
+
+func libraryID(source: String, sourceID: String) -> String {
+    var data = Data(libraryNamespace)
+    data.append(Data("\(source):\(sourceID)".utf8))
+    var b = Array(Insecure.SHA1.hash(data: data).prefix(16))
+    b[6] = (b[6] & 0x0F) | 0x50
+    b[8] = (b[8] & 0x3F) | 0x80
+    return UUID(uuid: (
+        b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7],
+        b[8], b[9], b[10], b[11], b[12], b[13], b[14], b[15]
+    )).uuidString
+}
+
+func fail(_ message: String) -> Never {
+    FileHandle.standardError.write(Data("build-library: \(message)\n".utf8))
+    exit(1)
+}
+
+let fm = FileManager.default
+let scriptURL = URL(fileURLWithPath: CommandLine.arguments[0]).standardizedFileURL
+let repoRoot = scriptURL.deletingLastPathComponent().deletingLastPathComponent()
+let snapshot =
+    CommandLine.arguments.count > 1
+    ? URL(fileURLWithPath: (CommandLine.arguments[1] as NSString).expandingTildeInPath)
+    : URL(fileURLWithPath: NSHomeDirectory() + "/Server/docker-volumes/workouts/snapshot")
+let outDir = repoRoot.appendingPathComponent("Resources/Library")
+let thumbsDir = outDir.appendingPathComponent("thumbs")
+
+typealias JSON = [String: Any]
+
+func readJSON(_ url: URL) -> JSON {
+    guard let data = try? Data(contentsOf: url),
+        let object = try? JSONSerialization.jsonObject(with: data) as? JSON
+    else { fail("cannot read \(url.path)") }
+    return object
+}
+
+let manifest = readJSON(snapshot.appendingPathComponent("manifest.json"))
+let exerciseFiles =
+    ((try? fm.contentsOfDirectory(atPath: snapshot.appendingPathComponent("exercises").path)) ?? [])
+    .filter { $0.hasSuffix(".json") }.sorted()
+guard !exerciseFiles.isEmpty else { fail("no exercises in \(snapshot.path)/exercises") }
+let sources = exerciseFiles.map { readJSON(snapshot.appendingPathComponent("exercises/\($0)")) }
+
+func str(_ j: JSON, _ k: String) -> String { j[k] as? String ?? "" }
+func strs(_ j: JSON, _ k: String) -> [String] { j[k] as? [String] ?? [] }
+
+// source id -> library id (for resolving alternatives and recommended).
+var idBySourceID: [String: String] = [:]
+for e in sources {
+    idBySourceID[str(e, "sourceId")] = libraryID(source: str(e, "source"), sourceID: str(e, "sourceId"))
+}
+
+try? fm.removeItem(at: outDir)
+do { try fm.createDirectory(at: thumbsDir, withIntermediateDirectories: true) } catch { fail("\(error)") }
+
+// Thumbnails are already 178x100 (about 10 KB each, about 20 MB for the set), so they are copied
+// untouched. (`sips -Z` upscales small images, so do not use it to "cap" them.)
+func copyThumb(from: URL, to: URL) -> Bool {
+    guard fm.fileExists(atPath: from.path) else { return false }
+    do { try fm.copyItem(at: from, to: to) } catch { fail("\(error)") }
+    return true
+}
+
+var missingImages = 0
+var entries: [(name: String, id: String, json: JSON)] = []
+
+for e in sources {
+    let source = str(e, "source")
+    let sourceID = str(e, "sourceId")
+    let id = libraryID(source: source, sourceID: sourceID)
+    let media = e["media"] as? JSON ?? [:]
+
+    var hasThumbs = false
+    if !str(media, "thumbStart").isEmpty && !str(media, "thumbEnd").isEmpty {
+        let dir = snapshot.appendingPathComponent("media/\(sourceID)")
+        let start = thumbsDir.appendingPathComponent("\(id)-start.png")
+        let end = thumbsDir.appendingPathComponent("\(id)-end.png")
+        hasThumbs =
+            copyThumb(from: dir.appendingPathComponent("start.png"), to: start)
+            && copyThumb(from: dir.appendingPathComponent("end.png"), to: end)
+        if !hasThumbs {
+            try? fm.removeItem(at: start)
+            try? fm.removeItem(at: end)
+        }
+    }
+    if !hasThumbs { missingImages += 1 }
+
+    var entry: JSON = [
+        "id": id,
+        "source": source,
+        "sourceId": sourceID,
+        "name": str(e, "name"),
+        "bodyPart": str(e, "bodyPart"),
+        "equipment": strs(e, "equipment"),
+        "tags": strs(e, "tags"),
+        "weightType": str(e, "weightType"),
+        "mechanics": str(e, "mechanics"),
+        "laterality": str(e, "laterality"),
+        "muscles": e["muscles"] as? [String: Int] ?? [:],
+        "description": str(e, "description"),
+        "instructions": strs(e, "instructions"),
+        "tips": strs(e, "tips"),
+        "mistakes": strs(e, "mistakes"),
+        // Resolved to library ids; references to exercises absent from the snapshot are dropped.
+        "alternatives": strs(e, "alternatives").compactMap { idBySourceID[$0] },
+        "recommended": strs(e, "recommended").compactMap { idBySourceID[$0] },
+        "usedCount": e["usedCount"] as? Int ?? 0,
+        "sourceUrl": str(e, "sourceUrl"),
+        "alternates": e["alternates"] as? [String: String] ?? [:],
+        "retired": false,
+        "hasThumbnails": hasThumbs,
+        "hasVideos": !str(media, "videoLight").isEmpty && !str(media, "videoDark").isEmpty,
+    ]
+    let aliases = strs(e, "aliases")
+    if !aliases.isEmpty { entry["aliases"] = aliases }
+    let created = str(e, "createdAt")
+    if !created.isEmpty { entry["sourceCreatedAt"] = created }
+    entries.append((str(e, "name"), id, entry))
+}
+
+// Stable order: case/diacritic-insensitive name, then id.
+entries.sort {
+    let c = $0.name.compare($1.name, options: [.caseInsensitive, .diacriticInsensitive])
+    return c == .orderedSame ? $0.id < $1.id : c == .orderedAscending
+}
+
+let document: JSON = [
+    "version": 1,
+    "source": str(manifest, "source"),
+    "scrapedAt": str(manifest, "scrapedAt"),
+    "labels": [
+        "bodyParts": manifest["bodyParts"] as? [String: String] ?? [:],
+        "muscles": manifest["muscles"] as? [String: String] ?? [:],
+        "muscleGroups": manifest["muscleGroups"] as? [String: String] ?? [:],
+        "equipment": manifest["equipment"] as? [String: String] ?? [:],
+    ] as JSON,
+    "exercises": entries.map(\.json),
+]
+do {
+    let data = try JSONSerialization.data(
+        withJSONObject: document, options: [.sortedKeys, .withoutEscapingSlashes])
+    try data.write(to: outDir.appendingPathComponent("library.json"))
+} catch { fail("\(error)") }
+
+var bytes = 0
+if let walker = fm.enumerator(at: outDir, includingPropertiesForKeys: [.fileSizeKey]) {
+    for case let url as URL in walker {
+        bytes += (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+    }
+}
+let thumbCount = (try? fm.contentsOfDirectory(atPath: thumbsDir.path).count) ?? 0
+print(
+    "build-library: \(entries.count) exercises, \(thumbCount) thumbnails, \(missingImages) without images, "
+        + String(format: "%.1f MB", Double(bytes) / 1_000_000) + " -> \(outDir.path)")
