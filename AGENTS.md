@@ -3,8 +3,9 @@
 Native SwiftUI rewrite of the web app in `../mac-os-compose-collection/workouts/` (Go + React +
 Postgres). Targets iPhone, with the **iPhone Duo** (foldable) as the primary device. This file is
 the working contract for agents; `CLAUDE.md` is a symlink to it. **`docs/PLAN.md` is the roadmap**:
-decisions, architecture, and the ticked/unticked task list the orchestrator works from.
-`docs/port/` is the feature spec extracted from the web app.
+architecture and the ticked/unticked task list the orchestrator works from. **`docs/DECISIONS.md`** holds
+the settled technical decisions (read the heading a task cites; never re-litigate). `docs/port/` is the
+feature spec extracted from the web app.
 
 ## Toolchain (pinned by what is installed on this machine)
 
@@ -44,8 +45,8 @@ Codable/Sendable state those types wrap and the logic behind them.
 ## The loop
 
 ```
-./dev kit [filter]      swift test for WorkoutsKit        — seconds; use this first and most
-./dev build             xcodebuild, iPhone Duo sim         — ~10s warm
+./dev kit [filter]      swift test for WorkoutsKit        — ~1s; use this first and most
+./dev build             xcodebuild, iPhone Duo sim         — ~2s warm
 ./dev test [filter]     unit tests on the simulator        — ~25s; filter = Suite or Suite/test()
 ./dev lint | format     swift-format lint --strict / format --in-place
 ./dev ui-test [filter]  XCUITest flows on the simulator    — Suite/test(); the flow proof of record
@@ -53,6 +54,10 @@ Codable/Sendable state those types wrap and the logic behind them.
 ./dev screenshot [p]    PNG of the booted simulator (Duo has two displays; DEV_DISPLAY=primary|…)
 ./dev check             lint → kit → build → test; the pre-commit gate (~30s warm)
 ```
+
+Every test command prints one totals line on success (`kit: Test run with 100 tests …`, `test: 2 passed, …`) and
+**fails when the filter matched nothing**, so a misspelled suite can never pass. Silence means failure output
+only; read it.
 
 Rules for the loop:
 
@@ -64,6 +69,8 @@ Rules for the loop:
   `xcode-project`).
 - **Run the narrowest proof.** One failing test → `./dev kit 'Suite/test'` or `./dev test Suite/test()`,
   not `./dev check`. `check` is for the end of a task.
+- **Flows need the harness.** `WorkoutsUITests/SmokeUITests` is the one XCUITest to copy from; PLAN task 0.10 extends it
+  with the `-preview` gallery, and every task whose proof is a preview or a flow lists 0.10 in its `Needs`.
 - **The UI proof of record is the fallback, not the MCP.** A screen is proven by `./dev run -- -preview <Name>` (PLAN
   task 0.10; until it lands, plain `./dev run`; a `#if DEBUG` `PreviewGallery` hosting the same views as the `#Preview`s, fed by the sample container; set Dynamic Type and
   dark with `xcrun simctl ui booted ...`) followed by `./dev screenshot`; a flow is proven by an XCUITest in `WorkoutsUITests`
@@ -140,7 +147,9 @@ orchestrator after review. Workers do not commit.
 
 Commit directly to `main`, no feature branches unless asked. Commits are signed (see the
 machine notes in `~/.claude/CLAUDE.md` if signing fails). `./dev check` must pass before a
-commit. Remote: `git@github.com:EricRibeiro/workouts.git`.
+commit, and this is enforced: `check` touches `.build/check.stamp` on success and the PreToolUse hook
+`.claude/hooks/require-check.sh` refuses `git commit` while any non-doc file is newer than that stamp
+(docs-only commits pass). Remote: `git@github.com:EricRibeiro/workouts.git`.
 
 Eric wants agents to commit and push without him present, so `.claude/settings.json` allowlists
 `git add/rm/commit/push/status/diff/log`. Run them **bare** (`git push`, not `cd … && git push`

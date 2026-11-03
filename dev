@@ -24,10 +24,13 @@ cap() {
 
 # Run a command, logging combined output to $LOGS/$1.log (noise filtered, or xcbeautify if present).
 # Prints nothing on success; on failure prints an error excerpt and returns the command's exit code.
+# Logs and result bundles carry the PID so parallel workers running the same command do not clobber each other.
 run_logged() {
   local name="$1"; shift
-  local log="$LOGS/$name.log" rc
+  local log="$LOGS/$name-$$.log" rc
   mkdir -p "$LOGS"
+  find "$LOGS" -name '*.log' -mmin +240 -delete 2>/dev/null || true
+  LAST_LOG="$log"
   set +e
   if command -v xcbeautify >/dev/null 2>&1; then
     "$@" 2>&1 | xcbeautify --quiet >"$log"
@@ -81,15 +84,28 @@ report_failures() {
 
 run_tests() { # run_tests <name> <target> [filter]
   local name="$1" target="$2" filter="${3:-}"
-  local only="$target" bundle="$RESULTS/$name.xcresult" rc=0
+  local only="$target" bundle="$RESULTS/$name-$$.xcresult" rc=0
   [[ -n "$filter" ]] && only="$target/$filter"
   mkdir -p "$RESULTS"
-  rm -rf "$bundle"
+  find "$RESULTS" -maxdepth 1 -name '*.xcresult' -mmin +240 -exec rm -rf {} + 2>/dev/null || true
   run_logged "$name" xcb test -only-testing:"$only" -resultBundlePath "$bundle" || rc=$?
   if ((rc != 0)); then
     report_failures "$bundle"
     return "$rc"
   fi
+  test_summary "$name" "$only" "$bundle" && rm -rf "$bundle"
+}
+
+# One-line totals from an xcresult bundle; fails when no test ran (a filter that matched nothing exits 0).
+test_summary() { # test_summary <name> <only> <bundle>
+  local name="$1" only="$2" bundle="$3" json total
+  json=$(xcrun xcresulttool get test-results summary --path "$bundle" --compact 2>/dev/null) || json="{}"
+  total=$(jq '.totalTestCount // 0' <<<"$json" 2>/dev/null) || total=0
+  if ((total == 0)); then
+    echo "FAILED: $name — no tests matched '$only'" >&2
+    return 1
+  fi
+  jq -r --arg n "$name" '"\($n): \(.passedTests // 0) passed, \(.failedTests // 0) failed, \(.skippedTests // 0) skipped"' <<<"$json"
 }
 
 cmd_build() { run_logged build xcb build; }
@@ -102,6 +118,22 @@ cmd_kit() {
     run_logged kit bash -c 'cd "$1" && swift test --filter "$2"' _ "$KIT" "$1"
   else
     run_logged kit bash -c 'cd "$1" && swift test' _ "$KIT"
+  fi
+  kit_summary "${1:-}"
+}
+
+# swift test exits 0 when --filter matches nothing; turn that into a failure, else print the totals line.
+kit_summary() { # kit_summary <filter>
+  local log="$LAST_LOG" line
+  if grep -q 'No matching test cases were run' "$log"; then
+    echo "FAILED: kit — no tests matched filter '$1' (check the suite/test name)" >&2
+    return 1
+  fi
+  line=$(grep -E 'Test run with .* passed' "$log" | tail -n 1 || true)
+  if [[ -n "$line" ]]; then
+    echo "kit: Test run with ${line#*Test run with }"
+  else
+    echo "kit: ok"
   fi
 }
 cmd_kit_build() {
@@ -166,22 +198,24 @@ cmd_check() {
   cmd_kit
   cmd_build
   cmd_test
+  # The PreToolUse hook that gates `git commit` compares this stamp's mtime against changed files.
+  mkdir -p .build && touch .build/check.stamp
   echo "check: ok"
 }
 
 cmd_help() {
   cat <<'USAGE'
 build              build the app for $DEV_SIM (default "iPhone Duo")
-test [filter]      run WorkoutsTests (filter = suite or suite/test)
-ui-test [filter]   run WorkoutsUITests
-kit [filter]       swift test in Packages/WorkoutsKit
+test [filter]      run WorkoutsTests (filter = suite or suite/test); prints totals, fails if none ran
+ui-test [filter]   run WorkoutsUITests; prints totals, fails if none ran
+kit [filter]       swift test in Packages/WorkoutsKit; prints summary line, fails if filter matched nothing
 kit-build          swift build in Packages/WorkoutsKit
 lint               swift-format lint --strict
 format             swift-format in place
 run [-- args]      boot sim, build, install, launch; args go to the app (-- -preview <Name>); prints log command
 screenshot [path]  simulator screenshot (default .build/screenshots/<timestamp>.png)
 clean              rm -rf .build
-check              lint, kit, build, test; stops at first failure
+check              lint, kit, build, test; stops at first failure; on success touches .build/check.stamp
 help               this list
 USAGE
 }

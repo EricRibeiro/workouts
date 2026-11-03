@@ -80,7 +80,7 @@ single-instance draft. At most one workout runs at a time.
   next). No grab handle, drag, 1/3-height threshold, velocity rule or tab-tap: a `fullScreenCover` has no interactive
   dismissal and no tab bar. **Tap the ring item** (or the sidebar card) -> reopen.
 - **Other tabs while running** -> the logging screen is a full-screen layer above all tabs, not routed; minimised,
-  every tab works normally and the ring toolbar item stays visible (`PLAN.md` §2 "Minimised workout").
+  every tab works normally and the ring toolbar item stays visible (`DECISIONS.md` "Minimised workout").
 - **Ring item content**: a custom `ProgressViewStyle` ring (`Circle().trim` fed by `TimelineView`) with `Text(timerInterval:)` inside; elapsed time when no
   rest runs. The sidebar card (name · elapsed · countdown · Skip) is additive while the sidebar is visible.
 - **Screen stays on** while the logging screen is open if Settings "Keep screen on during a workout" (default on).
@@ -122,14 +122,14 @@ single-instance draft. At most one workout runs at a time.
 - **Rest end**: schedule a local `UNNotificationRequest` at `endsAt` ("Rest over"; cancel on Skip, uncheck, adjust, Finish).
   Foreground end: `sensoryFeedback` + flash instead of vibrate/beep; no AudioContext priming needed.
 - **Haptics**: `sensoryFeedback` on check, rest end, Finish, and minimise/restore.
-- **Minimised workout**: no dock and no bottom inset. See `PLAN.md` §2 "Minimised workout": the ring toolbar item on
+- **Minimised workout**: no dock and no bottom inset. See `DECISIONS.md` "Minimised workout": the ring toolbar item on
   every screen (trailing strip closed/open-wide, top bar open-tall) plus an additive `tabViewSidebarBottomBar` card
   while the sidebar is visible; tap reopens the full-screen cover. Do not read device idiom; use the size class.
 - **Logging screen**: `fullScreenCover` with the set table; Minimise and Finish are toolbar items (no drag-down, no
   `interactiveDismissDisabled` gesture). Rest controls are toolbar items (ring, then Skip / +30 s; the keyboard
   `ToolbarItemGroup` prepends the countdown, Skip and +30 s), never a `safeAreaBar`. Idle ring = `Menu`; running ring = the
   expanded sheet (trailing placement), Close in the strip.
-- **Regular width (open Duo)**: `ArrangementView(primary: SetTable, secondary: exercise pane)` per `PLAN.md` §2 / task
+- **Regular width (open Duo)**: `ArrangementView(primary: SetTable, secondary: exercise pane)` per `DECISIONS.md` / task
   2.10; the pane has no Close of its own (the web's X was the pane's, `duo-open-wide-active-workout-exercise-pane.png`).
 - **Keypad**: a custom numeric keypad was a web workaround for the iOS keyboard; native uses `.keyboardType(.decimalPad)`
   with a toolbar of -step, +step, Previous, Done and a Next (weight → reps → next row), keeping the same steps.
@@ -145,7 +145,7 @@ single-instance draft. At most one workout runs at a time.
 - Custom in-app keypad, its blur-close timing and click-through concerns.
 - Rest 3-second "forget after flash" is a web display detail; native may keep it for the in-app ring item.
 
-## 7. Open questions (all closed 2026-11-03; answers in `PLAN.md` §2)
+## 7. Open questions (all closed 2026-11-03; answers in `DECISIONS.md`)
 
 - ~~Start empty: where does it live and what is it called?~~ Workout tab → Add → Empty Workout, named "Workout".
 - ~~PR count in the summary?~~ Shown (native improvement; computed by `prsInSession`, `data-model.md` §3).

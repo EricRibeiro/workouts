@@ -79,7 +79,7 @@ template editor and the active workout. Library content is read-only; only custo
 - **Edit**: only on a custom exercise, from the `Edit` item beside `Close` (absent, not disabled, on library
   exercises). Same form titled `Edit Exercise`; edits name, body part, equipment, weight type, notes, unit, bar,
   rest. Native: a custom exercise with no history can be deleted; otherwise **Archive** (= retire, hidden unless Show
-  Retired; `PLAN.md` §2).
+  Retired; `DECISIONS.md`).
 - **Rename / override of library exercises**: none natively. Library entries are read-only; there is no override, no
   rename and so no alias-append rule (`schema.md:44`, POLISH E1). Only custom exercises have name, unit, bar and rest.
 - **Sticky note**: native: also editable in the exercise detail (`PLAN.md` §3). On the web only from a template's exercise menu (`Add Sticky Note` /
@@ -139,7 +139,7 @@ template editor and the active workout. Library content is read-only; only custo
 - Server `q` substring search (`schema.md:89`): not used by the UI; only the all-words client rule carries over.
 - Single-option `Sort By` sheet and the A-Z rail's scrub gesture: only if more sorts return (question 3).
 
-## 7. Open questions (all closed 2026-11-03; answers in `PLAN.md` §2 and `media.md`)
+## 7. Open questions (all closed 2026-11-03; answers in `DECISIONS.md` and `media.md`)
 
 1. ~~Bundle or download media?~~ Thumbnails bundled, videos streamed and cached (`media.md`).
 2. ~~Any UI to rename a library exercise or set its defaults?~~ No: custom exercises only.

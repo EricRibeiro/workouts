@@ -9,7 +9,7 @@ so only template-mode behaviour is specified here. Tab title is "Workout" (`POLI
 
 Where every workout starts. Templates live in collapsible folders; tap a template to preview it, **Start Workout**
 begins a workout from it, **Edit** opens the template editor. The web has no Quick Start or empty workout
-(`PLAN.md:142`); native adds **Empty Workout** (Add menu, name "Workout", `PLAN.md` §2) and does not carry that
+(`PLAN.md:142`); native adds **Empty Workout** (Add menu, name "Workout", `DECISIONS.md`) and does not carry that
 omission over. The tab also owns folder and template management.
 
 ## 2. Data shown
@@ -105,7 +105,7 @@ omission over. The tab also owns folder and template management.
 
 ## 5. Native mapping
 
-- Root: regular width: the Workout tab is one column (`PLAN.md` §2); templates are sidebar tabs (task 3.7). No split
+- Root: regular width: the Workout tab is one column (`DECISIONS.md`); templates are sidebar tabs (task 3.7). No split
   view, no placeholder; a card tap pushes the preview (zoom transition) so the sidebar stays. Compact (closed Duo): a
   `NavigationStack` with the preview as a **medium-detent sheet**: Close (`xmark`)
   then Edit (`pencil`) in the strip; content is the title, "Last performed", a `.borderedProminent` **Start
@@ -114,7 +114,7 @@ omission over. The tab also owns folder and template management.
   session and the draft must survive a fold (`ui.md:151`).
 - Folders: `List` with a `Section` per folder, header `"<name> (<count>)"`, collapsible (expansion persisted),
   a `contextMenu` on the header (Rename Folder, Reorder Templates, Reorder Folders, Delete Folder); no ⋯. Templates
-  as rows or a card grid whose even column count comes from its own width (`PLAN.md` §2). Cards take Fitness's shape:
+  as rows or a card grid whose even column count comes from its own width (`DECISIONS.md`). Cards take Fitness's shape:
   title row with `chevron.right`, headline = exercise count ("7 exercises"), caption = first exercises, footnote
   "Last performed · 5 days ago". Beside a visible sidebar the grid drops folder headers. The collapse flag is per-device
   `@AppStorage` and drives only the compact header; the sidebar's `TabSection` expansion is the system's, independent.
@@ -149,7 +149,7 @@ omission over. The tab also owns folder and template management.
 - Web plumbing not carried over: server write-then-reread, `beforeunload` guard, glass header scroll timeline,
   `useGridColumns`, IndexedDB.
 
-## 7. Open questions (all closed 2026-11-03; answers in `PLAN.md` §2)
+## 7. Open questions (all closed 2026-11-03; answers in `DECISIONS.md`)
 
 1. ~~Templates-level ⋯ (reorder, collapse all)?~~ No ⋯ and no collapse-all: the Add menu (Empty Workout / New Template /
    New Folder) plus folder `contextMenu`s (Rename, Reorder Templates, Reorder Folders, Delete).

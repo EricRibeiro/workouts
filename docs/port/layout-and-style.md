@@ -122,7 +122,7 @@ Exercises; calendar on History), start slot reserved for Back only.
 
 ## 4. Native mapping (recommended)
 
-> **Historical; `PLAN.md` §2 wins.** Rows below that still say four `Tab`s, `.tabViewBottomAccessory` /
+> **Historical; `DECISIONS.md` wins.** Rows below that still say four `Tab`s, `.tabViewBottomAccessory` /
 > `.safeAreaInset(edge: .bottom)`, or two-pane tabs (incl. Workout) are superseded: three tabs and no fourth for
 > Settings, no bottom surface (the minimised workout is a ring toolbar item), `NavigationSplitView` only for
 > Exercises (History and Workout are single columns).

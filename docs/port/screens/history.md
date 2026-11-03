@@ -107,7 +107,7 @@ detail, which can be edited after the fact. Settings is not a tab (section 8).
   exercise pane)` so the table never straddles the fold.
 - Save as Template: sheet with folder picker. Toast -> `sensoryFeedback(.success)` and the sheet dismissing; no banner.
 - Units, volume, best sets and PR counts are derived on read in WorkoutsKit, not stored.
-- Settings: not a tab and not in the split; `PLAN.md` §2 (gear toolbar item on the Workout tab, plus
+- Settings: not a tab and not in the split; `DECISIONS.md` (gear toolbar item on the Workout tab, plus
   `tabViewSidebarBottomBar` on regular width, presenting a `Form` sheet).
 - iCloud/CloudKit: no status exists in the web app. Natural place is a footer row in the Settings
   `Form` (sync status / last synced, account unavailable warning); History only needs the empty state.
@@ -120,19 +120,19 @@ detail, which can be edited after the fact. Settings is not a tab (section 8).
 - Web-only chrome (glass pills, `section-h` CSS, safe-area/haptic "Device check"): system styling.
 - Card PR count and every aggregate stay computed, never stored.
 
-## 7. Open questions (all closed 2026-11-03; answers in `PLAN.md` §2)
+## 7. Open questions (all closed 2026-11-03; answers in `DECISIONS.md`)
 
 - ~~Is there a "duplicate as template" distinct from Save as Template?~~ No: Edit, Save as Template, Delete only.
 - ~~Add "Repeat workout"?~~ No; Save as Template then Start is the reuse path.
 - ~~Show the card set count?~~ No (duration, volume, PRs only).
 - ~~Where should the weekly goal live on iPhone?~~ Settings only (2026-11-03); the chart header is plain.
-- ~~Keep Settings a fourth tab?~~ No: `PLAN.md` §2 (gear item + `tabViewSidebarBottomBar`).
+- ~~Keep Settings a fourth tab?~~ No: `DECISIONS.md` (gear item + `tabViewSidebarBottomBar`).
 - ~~Later charts (weekly volume, sets per muscle group, PR feed)?~~ Out of scope; the dashboard cards (This Week, Recent
   PRs, Last Workout) replace them.
 
 ## 8. Settings
 
-Not a fourth tab (the web had one): per `PLAN.md` §2 it is a gear toolbar button on the Workout tab and a
+Not a fourth tab (the web had one): per `DECISIONS.md` it is a gear toolbar button on the Workout tab and a
 `tabViewSidebarBottomBar` on regular width, presenting a `Form` sheet (`gearshape`). Inset grouped list;
 every change is shown at once and saved behind; a refused save restores the old value with a message;
 a saved unit or formula change refreshes History numbers. Native: `Form` with `Section`s; footers as

@@ -58,7 +58,7 @@ status bar, toolbar items, tab bar. Rules that follow:
   the fold automatically.
 - Grids: prefer an **even number of columns** so nothing straddles the fold; keep outer margins
   and widen the gap around the hinge (Apple's Fitness example). Our template grid
-  derives an even column count from its own width (`PLAN.md` §2), not from the size class.
+  derives an even column count from its own width (`DECISIONS.md`), not from the size class.
 - New windows can only be created on the inner display; not something this app needs.
 
 ## The fold: reserved regions and arrangement views (iOS 27.1)

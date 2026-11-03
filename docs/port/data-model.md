@@ -4,7 +4,7 @@ Entities, invariants and derived numbers of the web app, for the SwiftData model
 
 ## Native deltas (read first: this is the field list task 0.1 implements; the sections below describe the web)
 
-- **Nine `@Model` types**: custom `Exercise`, `StickyNote`, `TemplateFolder`, `Template`, `TemplateExercise`, `TemplateSet`, `Workout`, `WorkoutExercise`, `WorkoutSet`. Settings are not a model (`SettingsStore`, `PLAN.md` section 2).
+- **Nine `@Model` types**: custom `Exercise`, `StickyNote`, `TemplateFolder`, `Template`, `TemplateExercise`, `TemplateSet`, `Workout`, `WorkoutExercise`, `WorkoutSet`. Settings are not a model (`SettingsStore`, `DECISIONS.md`).
 - **The library is not data in the store.** It is a bundled, read-only `LibraryCatalog` decoded from `library.json` (full Exercise field list below, `retired` a flag in the file, display labels in it). Only **custom** exercises are `@Model Exercise` rows. No seeding, no `libraryVersion`, no de-dupe pass, no `ExerciseOverride`, no `LibraryMeta`.
 - **References by id**: `TemplateExercise`, `WorkoutExercise` and `StickyNote` hold `exerciseID: UUID` (library ids are UUIDv5 of `(source, sourceId)`; custom ids are random), resolved by `ExerciseStore.exercise(id:)` = catalog union custom. `TemplateExercise` and `WorkoutExercise` also keep an `exerciseName` snapshot. There is no `exercise` relationship, so RESTRICT applies to **custom** exercises only (an app check: delete when unreferenced, otherwise archive = `retired`).
 - **Dropped**: `Workout.source` (no Strong import), `ExerciseOverride` (`name`, `barUnit` and the rename rule with it; library rows are read-only), `LibraryMeta`, `TemplateFolder.collapsed` (per-device `@AppStorage`, not synced).
@@ -176,5 +176,5 @@ Assisted has no e1RM or volume record. In-session ties: e1RM by heavier weight t
 4. Settings shape: `SettingsStore` (UserDefaults, KVS only if a second device appears), not rows; `keepScreenOn` is the idle timer; no widget layout.
 5. Number types: `Double`.
 6. `TemplateFolder.collapsed`: per-device `@AppStorage`.
-7. One in-progress workout, persisted; a forgotten one is discardable from the logging screen (`PLAN.md` section 2).
+7. One in-progress workout, persisted; a forgotten one is discardable from the logging screen (`DECISIONS.md`).
 8. Weekly buckets: device time zone, Monday start.
