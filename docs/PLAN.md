@@ -55,13 +55,15 @@ Eric deferred the technical choices to Claude. These close every item in `docs/p
 - Exercises and History use `NavigationSplitView` with `navigationSplitViewColumnWidth(min:ideal:max:)`
   so the detail keeps at least 420 pt beside an open sidebar (compact → push). The Workout tab is a
   single column in both widths, since the sidebar already lists templates: the web's **card grid**
-  (2 columns compact, 3 regular, collapsible folders). The template preview stays a
+  (2 columns compact, 4 regular: even counts so no card straddles the fold; collapsible folders). The template preview stays a
   medium-detent sheet (the web's best interaction).
 - **Active workout**: one presentation in both widths, a `fullScreenCover` on the root `TabView`,
   not tied to any tab, as the web's full-screen layer. Inside it the layout follows
-  `horizontalSizeClass`: compact → the set table; regular → `HStack` set table | exercise pane
-  (video, instructions, Previous, records, sticky note) following the focused exercise (the web's
-  `PLAN.md:204` idea). Folding only changes the size class inside the cover, so draft, focus and
+  `horizontalSizeClass`: compact → the set table; regular → an `ArrangementView` (iOS 27.1) with
+  the set table as primary and the exercise pane (video, instructions, Previous, records, sticky
+  note) as secondary, following the focused exercise. Apple's arrangement view splits side by side
+  when wide, stacks when tall, and places the two halves on either side of the fold when the phone
+  is partially open, which gives the half-open bench layout for free (`docs/port/duo-layout.md`). Folding only changes the size class inside the cover, so draft, focus and
   scroll are untouched. Minimise dismisses the cover; the bottom accessory (and Live Activity)
   restore it, and a running workout survives any tab change.
 - Minimised workout: `.tabViewBottomAccessory` (the system mini-player slot above the tab bar; it
@@ -278,8 +280,9 @@ risk: shell → engine → Live Activity → notifications → logging, then tem
   tap restores; resume on launch. Proof: flow on both widths.
 - [ ] **2.5 Finish and Discard**: finish dialogs, summary with PR count, Discard confirmation,
   `.warning` / `.levelChange` haptics. Proof: preview + flow.
-- [ ] **2.6 Regular-width logging**: `HStack` SetTable | exercise pane following the focus. Proof:
-  open-tall/open-wide screenshots; fold mid-workout keeps draft, focus, scroll.
+- [ ] **2.6 Regular-width logging**: `ArrangementView(primary: SetTable, secondary: exercise pane)`
+  following the focus, `.split` style; verify the pane never straddles a `.division` reserved
+  region. Proof: open-tall/open-wide screenshots; fold mid-workout keeps draft, focus, scroll.
 
 ### Phase 3 — Workout tab (templates)
 
@@ -325,10 +328,11 @@ risk: shell → engine → Live Activity → notifications → logging, then tem
 
 ### Phase 6 — Duo and accessibility pass
 
-- [ ] **6.1 Half-open bench mode**: when `onHingeChange` reports `.partiallyOpen` at regular
-  width, the logging screen stacks media over the SetTable, split on the hinge line
-  (`safeAreaInsets` + `GeometryReader`); any other status restores side-by-side. Proof: open-tall
-  screenshots (Device Hub), fully vs partially open.
+- [ ] **6.1 Half-open bench mode**: with the phone partially open on a bench, confirm the
+  arrangement view puts the SetTable on the lower half and the exercise pane + rest countdown on
+  the upper half (Apple's tabletop guidance: glanceable on top, controls below); fix with
+  `reservedRegions(kind: .division)` only if the system split is wrong. `onHingeChange` is for
+  effects, not layout. Proof: Device Hub partially-open screenshots at two angles.
 - [ ] **6.2 Four-pose pass** of every screen with `verify-ui`. Proof: four poses per screen, no breaks.
 - [ ] **6.3 Accessibility audits**: VoiceOver, Dynamic Type, contrast skills. Proof: audits report clean.
 - [ ] **6.4 Performance**: full-library scrolling, 600-workout chart. Proof: `xctrace` run shows no hitches.
