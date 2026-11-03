@@ -1,9 +1,10 @@
 # Workouts (iOS)
 
 Native SwiftUI rewrite of the web app in `../mac-os-compose-collection/workouts/` (Go + React +
-Postgres, see its `README.md`, `PLAN.md`, `IOS.md`). Targets iPhone, with the **iPhone Duo**
-(foldable) as the primary device. This file is the working contract for agents; `CLAUDE.md` is a
-symlink to it.
+Postgres). Targets iPhone, with the **iPhone Duo** (foldable) as the primary device. This file is
+the working contract for agents; `CLAUDE.md` is a symlink to it. **`docs/PLAN.md` is the roadmap**:
+decisions, architecture, and the ticked/unticked task list the orchestrator works from.
+`docs/port/` is the feature spec extracted from the web app.
 
 ## Toolchain (pinned by what is installed on this machine)
 
@@ -78,6 +79,14 @@ Rules for the loop:
   Activity for the active workout, notifications, widgets. When a web decision and a native idiom
   disagree, choose the native idiom and say so in the task.
 
+- **Answered 2026-11-03 (do not re-ask):** no Strong CSV import and no `Workout.source` (a one-time
+  history migration from the web app happens later through an in-app JSON import). Weights are
+  `Double`. Exactly one in-progress workout, persisted across relaunch. Library exercises are
+  read-only; only custom exercises get rename/unit/bar/rest. Three tabs (History, Workout,
+  Exercises); Settings is a gear toolbar button on History opening a `Form` sheet, not a tab.
+  Folder `collapsed` is per-device state, not synced. Weeks start Monday in the device time zone.
+  Exercise media (thumbnails + videos) is wanted; delivery mechanism decided in `docs/port/media.md`.
+
 ## Code conventions
 
 - SwiftUI only, `@Observable` models, `NavigationStack`/`NavigationSplitView`, `TabView`. No
@@ -122,4 +131,4 @@ commit. Remote: `git@github.com:EricRibeiro/workouts.git`.
 - CI (no macOS runner decision made).
 - Code signing / device builds — simulator only for now. Distribution will be TestFlight (no
   direct-to-device installs); blocked on Apple Developer Program approval, then `./dev testflight`.
-- App data model and screens — see `docs/port/` once written; port in later tasks.
+- App data model and screens — see `docs/port/` and the phases in `docs/PLAN.md`.

@@ -7,7 +7,8 @@ idioms win when they disagree (see `AGENTS.md` → Product decisions).
 
 | File | Covers |
 |---|---|
-| `OPEN-QUESTIONS.md` | Every open question from the files below, for Eric to answer |
+| `OPEN-QUESTIONS.md` | Questions for Eric (empty as of 2026-11-03; answers in `AGENTS.md` and `docs/PLAN.md`) |
+| `media.md` | How thumbnails and videos are delivered |
 | `data-model.md` | Entities, fields, invariants, derived numbers → SwiftData + WorkoutsKit |
 | `layout-and-style.md` | Compact vs expanded layout, bars, tokens, motion → native mapping |
 | `screens/workout.md` | Workout tab: folders, templates, template editor |
