@@ -86,6 +86,8 @@ Rules for the loop:
   Exercises); Settings is a gear toolbar button on History opening a `Form` sheet, not a tab.
   Folder `collapsed` is per-device state, not synced. Weeks start Monday in the device time zone.
   Exercise media (thumbnails + videos) is wanted; delivery mechanism decided in `docs/port/media.md`.
+  No widgets, Shortcuts or Control Center. HealthKit records each workout in Apple Fitness
+  (start/finish only; a live Watch-style session is out of scope).
 
 ## Code conventions
 

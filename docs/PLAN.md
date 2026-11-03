@@ -13,8 +13,10 @@ its proving command. Fable/Opus plans and reviews; Sonnet implements.
 A private, single-user, native SwiftUI iPhone app that keeps the web app's curated workout-tracking
 experience (feature complete, Eric-designed, "awesome") and adds what a PWA cannot do on the
 **iPhone Duo**: a real sidebar on the inner display, split layouts, Live Activity + Dynamic Island
-for the rest timer, notifications, haptics, widgets, Shortcuts, HealthKit. Parity is the floor.
-Not goals: App Store release, other users, iPad/Mac, Apple Watch (noted for later), the web app.
+for the rest timer, notifications, haptics, and workouts recorded in Apple Fitness via HealthKit.
+Parity is the floor. Not goals: App Store release, other users, iPad/Mac, widgets, Shortcuts,
+Control Center (Eric: not needed), Apple Watch (a live Fitness session needs a watchOS app; later
+only if Eric wants it), the web app.
 
 ## 2. Decisions (settled; see `AGENTS.md` → Product decisions for the ones made earlier)
 
@@ -56,8 +58,9 @@ Eric deferred the technical choices to Claude. These close every item in `docs/p
   Previous, records) — the web's `PLAN.md:204` idea that the PWA could not deliver.
 - Minimised workout: `.tabViewBottomAccessory` (the system mini-player slot above the tab bar;
   it adapts to the sidebar) showing name, elapsed time and the rest countdown; tap restores.
-- Deep links: an `AppIntent`-driven navigation model (`AppNavigation` @Observable) so widgets,
-  Live Activity buttons, notifications and Shortcuts can open a template, a workout, an exercise.
+- Navigation model `AppNavigation` (@Observable) with typed routes, so Live Activity buttons and
+  notification actions can open the logging screen or a template. App Intents exist only as the
+  mechanism behind those buttons; nothing is exposed to Shortcuts or Spotlight.
 
 **Active workout behaviour**
 - Start from a template or **Empty Workout** (name "Workout"). Exactly one in progress.
@@ -81,15 +84,14 @@ Eric deferred the technical choices to Claude. These close every item in `docs/p
   Shared `WorkoutActivityAttributes` lives in `WorkoutsKit` (linked by app and extension).
 - **Haptics** via `.sensoryFeedback`: set checked `.impact(weight: .light)`, rest end `.success`,
   PR at finish `.levelChange`, destructive confirm `.warning`, minimise/restore `.selection`.
-- **Widgets** (`WorkoutsWidgets`, same extension bundle): small "This week" goal ring (3/4),
-  medium "Next up" (last-performed-longest-ago template with a **Start** interactive button),
-  lock-screen circular goal ring.
-- **App Intents / Shortcuts / Spotlight**: `StartWorkoutIntent(template)`, `SkipRestIntent`,
-  `TemplateEntity` (query by name), `ExerciseEntity`; Siri "Start my Push workout".
-- **Control Center control** (`ControlWidget`): Start last template / Skip rest. Action button
-  users can bind the same intent.
-- **HealthKit** (phase 7, optional): on Finish write an `HKWorkout(.traditionalStrengthTraining)`
-  with start/end, so the Fitness rings count the session. Read nothing.
+- **HealthKit / Apple Fitness** (phase 7): an `HKWorkoutBuilder` for
+  `.traditionalStrengthTraining` begins at Start and ends at Finish (discard cancels it), so the
+  session appears in the Fitness app's Workouts with the app's name and credits the Exercise ring
+  for its minutes; an estimated active-energy sample (MET-based from duration) credits Move.
+  Nothing is read from Health. A *live* session (green indicator, heart rate, rings moving during
+  the workout) is Watch-only; it would need a watchOS companion, which is out of scope.
+- **Not built, by decision (2026-11-03)**: home/lock-screen widgets, Shortcuts/Siri intents,
+  Spotlight, Control Center controls.
 - **Liquid Glass**: system bars and controls; `.glassEffect()` only for the floating rest pill;
   `.navigationTransition(.zoom)` card → preview, row → detail. Eric's palette becomes semantic
   colours in the asset catalog (accent, ok, danger, warm-up, set-kind colours) with light/dark
@@ -135,10 +137,10 @@ Workouts.xcodeproj
 │  ├─ Design/                Colours (asset catalog), typography helpers, glass rest pill, haptics map
 │  ├─ Features/{Workout,ActiveWorkout,History,Exercises,Settings}/   views + view models (@Observable)
 │  └─ Resources/Library/     library.json + thumbs/ (generated, committed; ~25 MB)
-├─ WorkoutsLiveActivity/     widget extension: Live Activity, widgets, control widget
+├─ WorkoutsLiveActivity/     widget extension holding only the Live Activity
 ├─ Packages/WorkoutsKit/     platform-free: Model (SwiftData @Model types), Math (done),
 │                            Library (seed/upsert), Media (MediaStore), Session (ActiveWorkoutEngine,
-│                            RestTimer), Activity (WorkoutActivityAttributes), Intents (entities)
+│                            RestTimer), Activity (WorkoutActivityAttributes), Health (workout writer)
 └─ scripts/build-library     Swift script: snapshot → library.json + thumbs (run on this Mac)
 ```
 
@@ -156,7 +158,8 @@ Workouts.xcodeproj
   an app-group-shared store (the extension gets a read-only snapshot in `UserDefaults(suiteName:)`
   and sends intents to the app).
 - **Entitlements**: iCloud (CloudKit), Push (CloudKit silent), Background Modes
-  (remote-notification), App Groups (`group.com.ericribeiro.Workouts`), HealthKit (phase 7).
+  (remote-notification), App Groups (`group.com.ericribeiro.Workouts`), HealthKit (phase 7, write
+  workouts only).
   Added with `xcrun xcodeproj`/`AddEntitlement` once a team exists.
 - **Testing**: `./dev kit` for all WorkoutsKit logic (SwiftData in memory works on macOS);
   `./dev test` for the few app-level tests (navigation model, settings store); UI proof by
@@ -274,13 +277,14 @@ commits per task. "Done" means the proof passed and the orchestrator reviewed th
 - [ ] **6.3 Performance**: list scrolling with the full library, chart with 600 workouts
   (`xctrace` skill if needed).
 
-### Phase 7 — Widgets, intents, HealthKit
+### Phase 7 — Apple Fitness
 
-- [ ] **7.1 App Intents + entities + Shortcuts** (`StartWorkoutIntent`, `SkipRestIntent`,
-  `TemplateEntity`, `ExerciseEntity`), Spotlight indexing of templates.
-- [ ] **7.2 Widgets**: goal ring (small, lock screen), Next up (medium, interactive Start).
-- [ ] **7.3 Control Center control** for Start last template / Skip rest.
-- [ ] **7.4 HealthKit** write on Finish (entitlement, permission, `HKWorkoutBuilder`).
+- [ ] **7.1 HealthKit workout recording**: entitlement + `NSHealthShareUsageDescription`/
+  `NSHealthUpdateUsageDescription`, permission request on first Start, `HealthWorkoutRecorder` in
+  WorkoutsKit wrapping `HKWorkoutBuilder` (begin at Start, end at Finish, discard on Discard,
+  resume after relaunch), optional MET-based active energy. Proof: `./dev kit Health` with a
+  protocol-mocked store; on the simulator the workout shows in the Health app under Workouts.
+  Needs a team (phase 8.1) for the entitlement on device; simulator works without.
 
 ### Phase 8 — Sync, migration, distribution (needs the Developer Program)
 
