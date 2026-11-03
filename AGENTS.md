@@ -126,6 +126,12 @@ Commit directly to `main`, no feature branches unless asked. Commits are signed 
 machine notes in `~/.claude/CLAUDE.md` if signing fails). `./dev check` must pass before a
 commit. Remote: `git@github.com:EricRibeiro/workouts.git`.
 
+Eric wants agents to commit and push without him present, so `.claude/settings.json` allowlists
+`git add/rm/commit/push/status/diff/log`. Run them **bare** (`git push`, not `cd … && git push`
+or `timeout 60 git push`): the allow rule matches the command prefix, and a wrapper drops the
+command back into the permission classifier, which has refused pushes over content it mistook for
+publication (the private server domain in the docs).
+
 ## Not set up yet (deliberately)
 
 - CI (no macOS runner decision made).

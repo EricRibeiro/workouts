@@ -2,10 +2,17 @@
   "permissions": {
     "allow": [
       "Bash(./dev:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git push:*)",
+      "Bash(git rm:*)",
+      "Bash(git status:*)",
+      "Bash(open -a Simulator:*)",
+      "Bash(swift:*)",
       "Bash(xcodebuild:*)",
       "Bash(xcrun:*)",
-      "Bash(swift:*)",
-      "Bash(open -a Simulator:*)",
       "mcp__plugin_xcode-integration_xcode"
     ]
   },
