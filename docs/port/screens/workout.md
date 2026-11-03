@@ -100,22 +100,23 @@ owns folder and template management.
 - Workout in progress: Start Workout shows the Resume/Discard sheet; the rest is unaffected. Loading: skeleton. Load error: "Could not load the templates." + "Try again". Write error: dismissible banner
   (message + "Dismiss") and the list re-reads so the screen matches the store.
 - No folders: "No templates yet. Create a folder, then add a template."
-- Folder with no templates: header only. Template with no exercises: "No exercises", Start disabled. Regular
-  width, nothing selected: "Select a template". Link to a deleted template -> back to the list.
+- Folder with no templates: header only. Template with no exercises: "No exercises", Start disabled. Link to a deleted template -> back to the list.
 
 ## 5. Native mapping
 
-- Root: regular width (open Duo) `NavigationSplitView` with the folder/template list and the template preview in
-  the detail column ("Select a template" placeholder), mirroring web's expanded list + preview panes (`ui.md:150`);
-  compact (closed Duo) a `NavigationStack` list with the preview as a **medium-detent sheet**: Close (`xmark`)
+- Root: regular width: the Workout tab is one column (`PLAN.md` §2); templates are sidebar tabs (task 3.6). No split
+  view, no placeholder; a card tap pushes the preview (zoom transition) so the sidebar stays. Compact (closed Duo): a
+  `NavigationStack` with the preview as a **medium-detent sheet**: Close (`xmark`)
   then Edit (`pencil`) in the strip; content is the title, "Last performed", a `.borderedProminent` **Start
   Workout** (`play.fill`) capsule directly under it (Flighty's `+ Add Friend`), then the exercise rows with an
   `info.circle` accessory for the peek. Nothing is bottom-anchored (supersedes `IOS.md` C5). Selection and an open editor draft live in model state: width can change mid
   session and the draft must survive a fold (`ui.md:151`).
 - Folders: `List` with a `Section` per folder, header `"<name> (<count>)"`, collapsible (expansion persisted),
   a `contextMenu` on the header (Rename Folder, Reorder Templates, Reorder Folders, Delete Folder); no ⋯. Templates
-  as rows or a card grid whose even column count comes from its own width (`PLAN.md` §2); keep name, 3-line
-  exercise list, Last performed.
+  as rows or a card grid whose even column count comes from its own width (`PLAN.md` §2). Cards take Fitness's shape:
+  title row with `chevron.right`, headline = exercise count ("7 exercises"), caption = first exercises, footnote
+  "Last performed · 5 days ago". Beside a visible sidebar the grid drops folder headers; one collapse flag per folder
+  serves both header and `TabSection`.
 - Reorder: edit mode with `.onMove` (or iOS 27 `.reorderable`) for templates within a folder and for folders; the
   "Reorder Templates"/"Reorder Folders" menu entries enter edit mode, replacing the web's up/down sheets.
 - Template row/card: swipe actions (trailing Delete destructive, Duplicate, Move to Folder) plus a `contextMenu`
@@ -127,11 +128,12 @@ owns folder and template management.
   folder pickers: sheet or `Menu`.
 - Editor: pushed in both widths (Mail's model: one more level beside the sidebar), not a `fullScreenCover`. On
   regular width the body is the same `ArrangementView(primary: SetTable, secondary: exercise pane)` as the logging
-  screen (`PLAN.md` task 2.6), so the Set | Previous | lbs | Reps table never straddles the fold in the book pose.
+  screen (`PLAN.md` task 2.8), so the Set | Previous | lbs | Reps table never straddles the fold in the book pose.
   No width cap: fixed widths are forbidden. The name row is `navigationTitle` plus `toolbarTitleMenu` (Edit
   Template Name, Add Note); Save and Close sit in the strip. Per-exercise ⋯ stays a content-level `Menu` with a
   nested Preferences `Menu` (it is content, not a bar). **+ Add Set** is a plain trailing `Label("Add Set",
-  systemImage: "plus")` row, Reminders-style. Exercise reorder: drag handle / `.onMove`. Per-set Delete: swipe action
+  systemImage: "plus")` row, Reminders-style. Each exercise is a `Section`: header = name (primary text, tappable),
+  caption "Rest 2:00", trailing `ellipsis.circle` `Menu`; no permanent grip, reorder with `.reorderable()`. Per-set Delete: swipe action
   (replaces long-press).
 - Numeric entry: native keypad with Next/Done toolbar replaces web's NumPad (`POLISH.md` C3/C5). `sensoryFeedback`
   on card press and Start Workout (HP1). SwiftData persistence; `@AppStorage` for last-used folder.

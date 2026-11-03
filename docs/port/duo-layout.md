@@ -124,3 +124,5 @@ Apps Eric likes the feel of: Claude, Flighty, Apple Fitness.
 - The ellipsis is the system's: overflow is `ToolbarOverflowMenu`, no hand-made ⋯ menus.
 - Prominent action at the top of a panel: Start Workout sits under the title, like Flighty's `+ Add Friend`.
 - Nothing straddles the fold: even grid columns from width, `ArrangementView` for editors on regular width.
+- No fixed column widths; `NavigationSplitView` sizes to the fold.
+- Dynamic Island exists only on the closed display.

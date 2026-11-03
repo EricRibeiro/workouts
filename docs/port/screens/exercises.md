@@ -65,7 +65,7 @@ template editor and the active workout. Library content is read-only; only custo
   case, accents and extra spaces ignored (`ui.md:127`, `logic.ts:49`). Matches substrings of words.
 - Tap `Any Body Part` / `Any Category` → single-choice sheet, check on current, picking closes; first row resets.
 - Sort button (`Sort`) → `Sort By` sheet. ⋯ (`More`) → `Show retired`. `+` (`New exercise`) → New Exercise form.
-- Tap a row → opens its detail; the expanded layout shows it in the right pane ("Select an exercise" placeholder).
+- Tap a row → opens its detail; regular width shows it in the split's detail column (§5).
 - **New Exercise** form (title `New Exercise`, `Cancel` / `Save`): `Name` (required, max 120, placeholder
   "Exercise name"; error "Give the exercise a name."), `Body part` (required, `Choose...`; "Pick a body part."),
   `Equipment` (multi-toggle chips), `Weight type` (labels: `Weight and reps` = weighted, `Barbell`, `Dumbbell`,
@@ -113,8 +113,9 @@ template editor and the active workout. Library content is read-only; only custo
 ## 5. Native mapping
 
 - Compact (closed Duo): `NavigationStack` with an inset `List` of letter sections; detail pushed. Regular
-  (open Duo inner display): `NavigationSplitView` (list | detail) with `List(selection:)`, a
-  `ContentUnavailableView` "Select an exercise" as the empty detail.
+  (open Duo inner display): `NavigationSplitView` (list | detail) with `List(selection:)` and no column-width
+  modifiers (the system sizes columns and keeps them off the fold); `ContentUnavailableView` "Select an exercise" as
+  the empty detail (Mail's "No Message Selected").
 - Search: `.searchable` only (no inline field), over name + aliases, own normalisation (all-words,
   accent-insensitive, not `localizedStandardContains` alone); the system places the search circle at the foot of
   the trailing strip (Flighty). Body part and category as two `Menu` pills at the top of the list (Flighty's chip

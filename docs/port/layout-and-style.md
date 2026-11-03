@@ -122,6 +122,11 @@ Exercises; calendar on History), start slot reserved for Back only.
 
 ## 4. Native mapping (recommended)
 
+> **Historical; `PLAN.md` §2 wins.** Rows below that still say four `Tab`s, `.tabViewBottomAccessory` /
+> `.safeAreaInset(edge: .bottom)`, or two-pane tabs (incl. Workout) are superseded: three tabs and no fourth for
+> Settings, no bottom surface (the minimised workout is a ring toolbar item), `NavigationSplitView` only for
+> Exercises and History.
+
 Principle: the system supplies Dynamic Type, Liquid Glass, tab/sidebar adaptation, haptics, detents,
 collapsing titles and transitions. Port structure and content, not pixels (`AGENTS.md` Product decisions:
 native idiom wins; Code conventions: size classes only, never `UIScreen`/idiom/orientation).

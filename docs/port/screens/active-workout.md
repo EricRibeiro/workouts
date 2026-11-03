@@ -17,9 +17,11 @@ single-instance draft. At most one workout runs at a time.
   prominent), the ring timer item, **+ Add Exercise** (`plus`). Title `navigationTitle(name)` with
   `navigationSubtitle("Nov 3 · 0:00")` (start date + live elapsed, `formatElapsed`: `m:ss`, `h:mm:ss` past an hour)
   and `toolbarTitleMenu` carrying Rename and Discard Workout.
-- **Per exercise** (editor blocks): name (tap opens detail), chart button, ⋯ menu (Add Note, Sticky Note, Add Warm-up
-  Sets, Update Rest Timers, Replace Exercise, Create/Edit Superset, Preferences, Remove Exercise; a content-level menu
-  inside the block, so it may keep `ellipsis.circle`), set table, **+ Add Set** (native: a plain trailing
+- **Per exercise** (editor blocks): each exercise is a `Section`: header = name (primary text, tappable to the
+  detail), caption "Rest 2:00", trailing `ellipsis.circle` `Menu` (Add Note, Sticky Note, Add Warm-up Sets, Update Rest
+  Timers, Replace Exercise, Create/Edit Superset, Preferences, Remove Exercise; a content-level menu, so it may keep
+  `ellipsis.circle`); no permanent grip (reorder with `.reorderable()`) and no chart button (name -> detail -> Charts);
+  then the set table, **+ Add Set** (native: a plain trailing
   `Label("Add Set", systemImage: "plus")` row).
 - **Set row**: Set # / kind (`W` warm-up, `D` drop, `F` failure; normal shows the number), **Previous**, weight
   (`lbs`/`kg` by exercise unit), Reps (or duration for time exercises; columns vary by `weight_type`), check button.
@@ -28,8 +30,10 @@ single-instance draft. At most one workout runs at a time.
 - **Plan** = the template's weights/reps, shown as input placeholders; an empty set takes them when checked.
 - **Rest state**: `{startedAt, durationMs, rowId?, setId?}` (`rest.ts:5-12`); display is `formatClock` (whole seconds
   rounded **up**, `m:ss`) so 0:00 coincides with the end.
-- **Finished summary**: green check, "Congratulations!", "That's your 615th workout!" (ordinal from the save
-  answer, omitted if absent), then duration, volume, sets, exercises. **Volume** = weight x reps over checked,
+- **Finished summary** (a centred `.sheet`, see §3 Finish): `checkmark.circle.fill` in ok-green, title "Workout
+  complete", subtitle "Your 615th workout" (ordinal from the local count, omitted if absent), then a
+  `Grid`/`LabeledContent` list in Fitness's coloured-value style: Duration, Volume, Sets, Exercises, **PRs** (count +
+  trophy rows). **Volume** = weight x reps over checked,
   non-warm-up sets, kg x 2.2046226218 -> lb, for the total only (`ui.md` "Volume"; `schema.md`).
 - Exercise rest length: the exercise's own, else Settings `defaultRestSeconds` (read at start, **90 s** if unset); 0 = Off.
 
@@ -57,12 +61,15 @@ single-instance draft. At most one workout runs at a time.
   haptic switch on the check. **Uncheck** -> row reverts and cancels the rest *that set* started.
 - **Check a set with nothing to record** (no weight/reps/time even after `filled()`, e.g. a fresh + Add Set) ->
   refused: check greys, row shakes (400 ms, `cell-shake`) with a red ring; nothing is checked (`workout/model.ts` `canCheck`, `ui.md`).
-- **Rest timer button** (native: the ring toolbar item; idle = stopwatch glyph; running = countdown ring) -> opens
-  **Rest Timer** sheet. Idle sheet: presets **0:30, 1:00, 2:00, 3:00** plus saved custom ones, and **Create Custom Timer**
-  (minutes + seconds, then **Start Timer**, which also saves it). Customs: setting `restPresets`, newest first, max
-  **6**, no repeats, never a default one, 1 s to 3600 s (`rest.ts`). A preset/custom starts a rest belonging to no set.
-- **Running rest sheet**: ring (arc from 12 o'clock shrinking), time left, total, **-10s**, **+10s**, **Skip** (these
-  three stay in content under the ring; Close sits in the strip). While a rest runs the logging toolbar also gains
+- **Rest timer button** (native: the ring toolbar item; idle = stopwatch glyph; running = countdown ring). Idle it is
+  a `Menu` (a toolbar item that offers a short list is a menu, not a sheet): **0:30, 1:00, 2:00, 3:00**, a divider,
+  saved customs (newest first), then **Custom...** opening a small sheet with a countdown wheel (`DatePicker`
+  `.countDownTimer`) and a **Start** toolbar item, which also saves it. Customs: setting `restPresets`, newest first,
+  max **6**, no repeats, never a default one, 1 s to 3600 s (`rest.ts`). A preset/custom starts a rest belonging to no
+  set. The web's printed-inside-a-ring preset layout and bottom "Create Custom Timer" bar are not carried over.
+- **Running rest sheet** (tapping the ring): the expanded ring (Clock's: arc shrinking from 12 o'clock, time left over
+  total), trailing placement on regular width. **-10s**, **+10s**, **Skip** are a horizontal `ToolbarItemGroup` placed
+  by the system (vertical in the strip when closed), not a button row in content. While a rest runs the logging toolbar also gains
   **Skip** (`forward.end`) and **+30 s** (`goforward.30`) items below the ring, the pair used on every surface
   (Live Activity, notification). `-10s` clamps at 0 (ends it). `+10s` on an already-over rest restarts from now with just +10 s. Skip ends the rest and closes the sheet.
 - **Rest ends** (zero) -> pill flashes green `0:00`, phone vibrates (not on iOS Safari) and beeps once per end time,
@@ -82,7 +89,9 @@ single-instance draft. At most one workout runs at a time.
   - unchecked sets with values -> action sheet "Finish Workout?": **Complete Unfinished Sets** (recommended; checks them, `doneAt = now`, no rest started), **Discard Unfinished Sets** (destructive), **Cancel**.
   - unchecked sets without values only -> "N sets are not checked and will not be saved" with **Finish Workout** / **Keep Logging**.
   - Unchecked sets not completed are not saved; an exercise with no checked set is dropped. `finishedAt` is clamped to >= `startedAt`.
-  - Saved as one document. Summary appears, **Done** dismisses it. **PR count**: the web summary shows none (see Open questions).
+  - Saved as one document, then the summary appears as a `.sheet` (`presentationPlacement` centred on the inner
+    display): **Done** is the Close-slot toolbar item, nothing bottom-anchored. Content per §2; `sensoryFeedback(.levelChange)`
+    on a PR; tapping a PR row opens that exercise's Records.
   - From a template, if exercises/sets differ -> "Update Template?" sheet: **Update Values Only**, **Update Template and Values** (destructive), **Keep Original Template**; or just **Update Template** / **Keep Original Template** when only values differ. The workout is saved either way. Skipped if the template was deleted meanwhile.
 - **Discard Workout** (`toolbarTitleMenu`) -> confirm "Discard workout?" / "This workout and everything logged in it will be deleted. It cannot be undone." with **Discard Workout** (destructive) and **Keep Going**.
 
@@ -108,7 +117,8 @@ single-instance draft. At most one workout runs at a time.
   time with `TimelineView`/`Text(timerInterval:)` so it is right after lock, background or relaunch.
 - **Live Activity + Dynamic Island** (ActivityKit) replace the dock's rest display and the web "no alarm on a locked
   phone" gap (`POLISH.md:23`): shows exercise, current set, and the countdown via a timer-interval text so it runs with
-  the app suspended; end the activity on Finish/Discard. Skip / +30 s as `Button(intent:)` App Intents.
+  the app suspended; end the activity on Finish/Discard. Skip / +30 s as `Button(intent:)` App Intents. The Island
+  exists only on the closed display; open, the Lock Screen presentation and the notification are the signals.
 - **Rest end**: schedule a local `UNNotificationRequest` at `endsAt` ("Rest over"; cancel on Skip, uncheck, adjust, Finish).
   Foreground end: `sensoryFeedback` + flash instead of vibrate/beep; no AudioContext priming needed.
 - **Haptics**: `sensoryFeedback` on check, rest end, Finish, and minimise/restore.
@@ -117,11 +127,10 @@ single-instance draft. At most one workout runs at a time.
   while the sidebar is visible; tap reopens the full-screen cover. Do not read device idiom; use the size class.
 - **Logging screen**: `fullScreenCover` with the set table; Minimise and Finish are toolbar items (no drag-down, no
   `interactiveDismissDisabled` gesture). Rest controls are toolbar items (ring, then Skip / +30 s; the keyboard
-  `ToolbarItemGroup` prepends the countdown and Skip), never a `safeAreaBar`. Rest Timer ring = sheet
-  (`presentationDetents`), Close in the strip.
-- **Open Duo**: web `PLAN.md:204` puts the set table on the left and the current exercise's video/instructions/Previous/records
-  on the right; `ui.md` says the rest timer is now a floating sheet, not a pane. Native: a `NavigationSplitView`/two-column
-  layout, set table + exercise detail pane (`POLISH.md:438` suggests History as the default pane in workout mode).
+  `ToolbarItemGroup` prepends the countdown and Skip), never a `safeAreaBar`. Idle ring = `Menu`; running ring = the
+  expanded sheet (trailing placement), Close in the strip.
+- **Regular width (open Duo)**: `ArrangementView(primary: SetTable, secondary: exercise pane)` per `PLAN.md` §2 / task
+  2.8; the pane has no Close of its own (the web's X was the pane's, `duo-open-wide-active-workout-exercise-pane.png`).
 - **Keypad**: a custom numeric keypad was a web workaround for the iOS keyboard; native uses `.keyboardType(.decimalPad)`
   with a toolbar of -step, +step, Previous, Done, but keep the same steps.
 - **Keep screen on**: `isIdleTimerDisabled` while the logging screen is open and the setting is on.
@@ -143,6 +152,7 @@ single-instance draft. At most one workout runs at a time.
   deltas. Show a PR count anyway (computed how, per `data-model.md`)?
 - RPE: stored on sets (`rpe`) but no entry UI exists in the web app; build one (off by default, per exercise, `POLISH.md:451`) or skip?
 - Set-row editing of a "time" weight type: the web varies columns by `weight_type`; confirm native supports time/distance now or later.
-- Open-Duo layout: set table + exercise detail (PLAN.md:204) or table + History (POLISH idea 3)? Does Rest Timer stay a sheet?
+- ~~Open-Duo layout: set table + exercise detail or table + History? Does Rest Timer stay a sheet?~~ Closed by `PLAN.md` §2:
+  `ArrangementView`, exercise pane; the idle ring is a `Menu`, the running ring an expanded sheet.
 - Superset rest: web starts a rest on every check; POLISH idea 4 proposes only after the last exercise of the round. Keep web behaviour?
 - Notification copy: just "Rest over" (POLISH.md:152) or include the next set ("Set 3 · 27.5 lb × 8", POLISH idea 6)?

@@ -1,10 +1,10 @@
-# History tab (and Settings tab)
+# History tab (and Settings)
 
 ## 1. Purpose
 
 The log of finished workouts. Top to bottom: a "Workouts per week" chart with a goal line, then
 cards grouped by month, newest first. A Calendar sheet jumps to any day. A card opens a workout
-detail, which can be edited after the fact. Settings is a separate tab (section 8).
+detail, which can be edited after the fact. Settings is not a tab (section 8).
 
 ## 2. Data shown
 
@@ -76,23 +76,28 @@ detail, which can be edited after the fact. Settings is a separate tab (section 
 - **Empty**: `No workouts yet. Finish one from the Workout tab and it shows up here.` (chart still shows).
 - **Error**: `Could not load the history.` + `Try again`; a failed page shows the message + `Try again`.
   Detail: `Could not load the workout.` or `That workout does not exist.` (404).
-- **No selection** (expanded, no detail): pane text `Select a workout`.
+- **No selection** (expanded, no detail): pane text `Select a workout` (native: `ContentUnavailableView`, "No Workout Selected" style).
 - Calendar: `Could not load the calendar.`; empty month `No workouts this month.`; otherwise `Tap a
   marked day to see its workouts.` Chart with no workouts: bars absent, goal line still drawn.
 - A workout in progress: sources specify no History behaviour.
 
 ## 5. Native mapping
 
-- Root: `TabView` tab "History". Expanded (open Duo): `NavigationSplitView` list | detail, placeholder
-  `Select a workout` as the detail's empty state; compact: `NavigationStack` pushing the detail (the
-  web uses a sheet; folding must keep the selection and the list's scroll, so drive both from one
-  selection value).
-- List: `List` with a `Section` per month (header = month title), card rows, `.contextMenu` /
+- Root: `TabView` tab "History", a Fitness-style dashboard (`PLAN.md` §3): large title; hero card = the weekly goal
+  chart (full width); then even-column cards from the grid's own width (`onGeometryChange`, same rule as the template
+  grid): This Week (count vs goal), Recent PRs (trophy list), Last Workout (name · duration · volume, `chevron.right`
+  to its detail); then the month list. Which cards is taste: ask Eric. `NavigationSplitView` list | detail with no
+  column-width modifiers (the system sizes columns and keeps them off the fold); the empty detail is a
+  `ContentUnavailableView` (Mail's "No Message Selected"); compact: `NavigationStack` pushing the detail (folding must
+  keep the selection and the list's scroll, so drive both from one selection value). Rows push the detail with the
+  zoom transition; regular width shows it as the split's detail column.
+- List: `List` with a `Section` per month (header = month title), **workout rows** (name, date, duration · volume ·
+  PRs, trophy; the per-row `Exercise | Best Set` table moves into the detail), `.contextMenu` /
   trailing `swipeActions` carrying Edit / Save as Template / Delete; no ⋯ `Menu` (the ellipsis is the system's
   overflow). Toolbar: Calendar (`calendar`). Workout detail toolbar: Edit (`pencil`), Save as Template
   (`doc.on.doc`), Delete (`trash`, destructive), each with symbol and title. SwiftData `@Query` sorted by start descending replaces cursor paging; use lazy rows, no
-  manual sentinel. `.confirmationDialog` for Delete. Search is not in the web; add `.searchable` only
-  if Eric asks.
+  manual sentinel. `.confirmationDialog` for Delete. `.searchable` over workout name and exercise names with
+  `searchScopes` (All · PRs), as every Flighty list has.
 - Weekly chart: Swift Charts `BarMark` per ISO week + `RuleMark` goal line (dashed), bar style by
   `count >= goal`; the chart header is plain (no goal button, the goal is a Settings `Stepper`). Compute weeks and days in the device
   calendar (no server); the web's "server time zone" quirk goes away.
@@ -103,7 +108,8 @@ detail, which can be edited after the fact. Settings is a separate tab (section 
   exercise pane)` so the table never straddles the fold.
 - Save as Template: sheet with folder picker. Toast -> `sensoryFeedback(.success)` and the sheet dismissing; no banner.
 - Units, volume, best sets and PR counts are derived on read in WorkoutsKit, not stored.
-- Duo: card list in the left pane, detail right; `Settings` can sit in the sidebar of the split view.
+- Settings: not a tab and not in the split; `PLAN.md` §2 (gear toolbar item on the Workout tab, plus
+  `tabViewSidebarBottomBar` on regular width, presenting a `Form` sheet).
 - iCloud/CloudKit: no status exists in the web app. Natural place is a footer row in the Settings
   `Form` (sync status / last synced, account unavailable warning); History only needs the empty state.
 
@@ -124,13 +130,14 @@ detail, which can be edited after the fact. Settings is a separate tab (section 
 - PLAN.md 173 lists a card **set count**; the card UI (HistoryPage.tsx:62-69) shows duration, volume and
   PRs only, though `setCount` is in the payload. Show it?
 - ~~Where should the weekly goal live on iPhone?~~ Settings only (2026-11-03); the chart header is plain.
-- Keep Settings a fourth tab (PLAN.md 189: side column on the open screen) on compact too?
+- ~~Keep Settings a fourth tab?~~ No: `PLAN.md` §2 (gear item + `tabViewSidebarBottomBar`).
 - Weekly chart is 8 weeks fixed; PLAN.md 188 lists later charts (weekly volume, sets per muscle group,
   PR feed). In scope for the port?
 
-## 8. Settings tab
+## 8. Settings
 
-Fourth tab, title and label `Settings`, gear icon (`gearshape.fill` per IOS.md:79). Inset grouped list;
+Not a fourth tab (the web had one): per `PLAN.md` §2 it is a gear toolbar button on the Workout tab and a
+`tabViewSidebarBottomBar` on regular width, presenting a `Form` sheet (`gearshape`). Inset grouped list;
 every change is shown at once and saved behind; a refused save restores the old value with a message;
 a saved unit or formula change refreshes History numbers. Native: `Form` with `Section`s; footers as
 `Section` footers; `Picker(.segmented)`, `Stepper`, `Menu` / `Picker(.menu)`, `Toggle`.
