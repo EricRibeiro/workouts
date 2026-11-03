@@ -8,9 +8,9 @@ so only template-mode behaviour is specified here. Tab title is "Workout" (`POLI
 ## 1. Purpose
 
 Where every workout starts. Templates live in collapsible folders; tap a template to preview it, **Start Workout**
-begins a workout from it, **Edit** opens the template editor. There is **no Quick Start and no empty workout**
-(`PLAN.md:142`): a workout always starts from a template (exercises can still be added during it). The tab also
-owns folder and template management.
+begins a workout from it, **Edit** opens the template editor. The web has no Quick Start or empty workout
+(`PLAN.md:142`); native adds **Empty Workout** (Add menu, name "Workout", `PLAN.md` §2) and does not carry that
+omission over. The tab also owns folder and template management.
 
 ## 2. Data shown
 
@@ -86,8 +86,9 @@ owns folder and template management.
   show their group's bar; tap toggles; footer "Select two or more exercises to create a superset". Save gathers
   members next to each other where the first was; a group of <2 dissolves; removing one of a pair dissolves it.
   Groups renumber 1, 2, 3 on save (`schema.md`).
-- **Unit per row**: Weight Unit relabels, never converts (D7). **New rows** start from the exercise's override
-  (unit, bar, rest) if any; else lb, an Olympic bar for barbells (none otherwise), three empty sets (`ui.md:158`).
+- **Unit per row**: Weight Unit relabels, never converts (D7). **New rows** start from a custom
+  exercise's own unit, bar and rest if set; else Settings `defaultUnit`, an Olympic bar for barbells (none otherwise),
+  Settings `defaultRestSeconds`, three empty sets (`ui.md:158`). Library exercises have no per-exercise defaults.
 - **Rest**: sheet "Rest Timer", one value per exercise: Default, Off, 0:30, 1:00, 1:30, 2:00, 3:00, 5:00
   (TE:59-63); shown as caption "Rest timer: 2:00" under the name.
 - **Save** -> unchanged and not new: just closes; else saves the whole template; failure keeps the editor open
@@ -104,7 +105,7 @@ owns folder and template management.
 
 ## 5. Native mapping
 
-- Root: regular width: the Workout tab is one column (`PLAN.md` §2); templates are sidebar tabs (task 3.6). No split
+- Root: regular width: the Workout tab is one column (`PLAN.md` §2); templates are sidebar tabs (task 3.7). No split
   view, no placeholder; a card tap pushes the preview (zoom transition) so the sidebar stays. Compact (closed Duo): a
   `NavigationStack` with the preview as a **medium-detent sheet**: Close (`xmark`)
   then Edit (`pencil`) in the strip; content is the title, "Last performed", a `.borderedProminent` **Start
@@ -115,20 +116,20 @@ owns folder and template management.
   a `contextMenu` on the header (Rename Folder, Reorder Templates, Reorder Folders, Delete Folder); no ⋯. Templates
   as rows or a card grid whose even column count comes from its own width (`PLAN.md` §2). Cards take Fitness's shape:
   title row with `chevron.right`, headline = exercise count ("7 exercises"), caption = first exercises, footnote
-  "Last performed · 5 days ago". Beside a visible sidebar the grid drops folder headers; one collapse flag per folder
-  serves both header and `TabSection`.
+  "Last performed · 5 days ago". Beside a visible sidebar the grid drops folder headers. The collapse flag is per-device
+  `@AppStorage` and drives only the compact header; the sidebar's `TabSection` expansion is the system's, independent.
 - Reorder: edit mode with `.onMove` (or iOS 27 `.reorderable`) for templates within a folder and for folders; the
   "Reorder Templates"/"Reorder Folders" menu entries enter edit mode, replacing the web's up/down sheets.
 - Template row/card: swipe actions (trailing Delete destructive, Duplicate, Move to Folder) plus a `contextMenu`
   with Edit, Duplicate, Move to Folder, Delete; no ⋯ (the ellipsis is the system's overflow). The page toolbar
-  carries Settings (`gearshape`) and Add (`plus`, a `Menu`: New Template / New Folder).
+  carries Settings (`gearshape`) and Add (`plus`, a `Menu`: Empty Workout / New Template / New Folder).
 - Destructive confirmations as `confirmationDialog` with message and Cancel: Delete Template, Delete Folder (empty),
   Delete Folder with templates (per-folder "Move to ..." actions + destructive delete-all), Discard Changes,
   Workout in progress (Resume / Discard and Start New). Rename, New Folder: alert or small sheet with a text field;
   folder pickers: sheet or `Menu`.
 - Editor: pushed in both widths (Mail's model: one more level beside the sidebar), not a `fullScreenCover`. On
   regular width the body is the same `ArrangementView(primary: SetTable, secondary: exercise pane)` as the logging
-  screen (`PLAN.md` task 2.8), so the Set | Previous | lbs | Reps table never straddles the fold in the book pose.
+  screen (`PLAN.md` task 2.10), so the Set | Previous | lbs | Reps table never straddles the fold in the book pose.
   No width cap: fixed widths are forbidden. The name row is `navigationTitle` plus `toolbarTitleMenu` (Edit
   Template Name, Add Note); Save and Close sit in the strip. Per-exercise ⋯ stays a content-level `Menu` with a
   nested Preferences `Menu` (it is content, not a bar). **+ Add Set** is a plain trailing `Label("Add Set",
@@ -140,21 +141,22 @@ owns folder and template management.
 
 ## 6. Dropped or changed on purpose
 
-- Quick Start / empty workout and unfiled templates ("My Templates"): gone by decision (2026-11-02, migration 0007).
+- Unfiled templates ("My Templates"): gone by decision (2026-11-02, migration 0007). Quick Start: the web's lack of an
+  empty workout is not carried over; native has Empty Workout (Add menu).
 - Distance and time-and-distance weight types are "(later)" on web (`PLAN.md:161`): out of scope here.
 - Up/down reorder sheets: web notes "drag can replace it later" (SWP); native uses drag/edit mode.
 - Exercise-header chart pill: removed on web (`IOS.md` C2a); the name opens the detail whose tabs include Charts.
 - Web plumbing not carried over: server write-then-reread, `beforeunload` guard, glass header scroll timeline,
   `useGridColumns`, IndexedDB.
 
-## 7. Open questions
+## 7. Open questions (all closed 2026-11-03; answers in `PLAN.md` §2)
 
-1. `PLAN.md:143` lists a Templates-level **⋯ (reorder, collapse all)**; `ui.md:149` says compact has **no
-   Templates-level menu** and no "collapse all" exists in SWP. Add Collapse All / Reorder Folders at that level?
-2. ~~Open Duo: editor over the whole split view or in the detail column?~~ Closed 2026-11-03: pushed in both widths,
-   `ArrangementView` on regular (see §5).
-3. Card grid or plain list rows on compact width?
-4. What name does Duplicate give the copy? Sources only show `duplicateTemplate(id, newId())` (`store.ts:126`).
-5. Should the `collapsed` flag sync across devices via CloudKit, or be per-device?
-6. Rest options: `ui.md:156` says "Default, Off, 0:30 ... 5:00"; code lists 0:30, 1:00, 1:30, 2:00, 3:00, 5:00
-   (TE:59-63). Is the code list authoritative? 7. Should an unsaved editor draft survive relaunch (web: no, `ui.md:152`)?
+1. ~~Templates-level ⋯ (reorder, collapse all)?~~ No ⋯ and no collapse-all: the Add menu (Empty Workout / New Template /
+   New Folder) plus folder `contextMenu`s (Rename, Reorder Templates, Reorder Folders, Delete).
+2. ~~Open Duo: editor over the whole split view or in the detail column?~~ Pushed in both widths, `ArrangementView` on
+   regular (see §5).
+3. ~~Card grid or plain list rows on compact width?~~ Card grid in both widths.
+4. ~~What name does Duplicate give the copy?~~ "<name> copy".
+5. ~~Should `collapsed` sync via CloudKit?~~ No: per-device `@AppStorage`.
+6. ~~Rest options list?~~ The code list is authoritative: Default, Off, 0:30, 1:00, 1:30, 2:00, 3:00, 5:00.
+7. ~~Should an unsaved editor draft survive relaunch?~~ No (web behaviour kept).

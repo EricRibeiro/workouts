@@ -125,7 +125,7 @@ Exercises; calendar on History), start slot reserved for Back only.
 > **Historical; `PLAN.md` §2 wins.** Rows below that still say four `Tab`s, `.tabViewBottomAccessory` /
 > `.safeAreaInset(edge: .bottom)`, or two-pane tabs (incl. Workout) are superseded: three tabs and no fourth for
 > Settings, no bottom surface (the minimised workout is a ring toolbar item), `NavigationSplitView` only for
-> Exercises and History.
+> Exercises (History and Workout are single columns).
 
 Principle: the system supplies Dynamic Type, Liquid Glass, tab/sidebar adaptation, haptics, detents,
 collapsing titles and transitions. Port structure and content, not pixels (`AGENTS.md` Product decisions:
@@ -135,7 +135,7 @@ native idiom wins; Code conventions: size classes only, never `UIScreen`/idiom/o
 |---|---|
 | Bottom capsule vs right column at 600 px | One `TabView` with `.tabViewStyle(.sidebarAdaptable)` and four `Tab`s. Compact width -> tab bar, regular -> sidebar; on the Duo inner display the system may place bars vertically, so never hardcode an edge. Both are system Liquid Glass. |
 | `useExpanded()` | `horizontalSizeClass`; `GeometryReader` only if a pane width is truly needed. Open/close/rotate is a size-class change mid-session, as width is on the web. |
-| Two-pane tabs (list + detail) | `NavigationSplitView` inside each tab (Exercises, History, Workout): regular -> list \| detail, compact -> stack with a push. The inner-display behaviour is the web's expanded table in section 1. |
+| Two-pane tabs (list + detail) | `NavigationSplitView` in the Exercises tab only (regular -> list \| detail, compact -> stack with a push); History and Workout are single columns that push. The inner-display behaviour is the web's expanded table in section 1. |
 | Pages stay mounted; URL routes; tap-active-tab | `TabView` retains tab state; give each tab its own selection/path in `@State` or an `@Observable` model (not derived from layout), so fold/unfold keeps the selected exercise, search text and scroll. Routes become typed selection values (deep links: Q6). Re-tapping the active tab pops to root/top by default; verify. |
 | Glass capsule, dock, glass buttons, menus, toasts | System default bars/controls: `.toolbar`, `Menu`, `confirmationDialog`. Do not re-create `--glass-*`. |
 | Dock above the tab bar | A Live Activity / Dynamic Island for the running workout and rest timer, plus in-app `.tabViewBottomAccessory` (or `.safeAreaInset(edge: .bottom)` where an accessory does not fit) for resume/minimise. The dock was the web's only surface. |

@@ -8,6 +8,18 @@ description: Prove a SwiftUI change visually — render a #Preview, or run the a
 Pick the cheapest proof that answers the question. Each step below is more expensive than the one
 before it.
 
+## 0. The proof of record needs no MCP
+
+Xcode's MCP (steps 1 and 3 below) is optional and has failed to connect in every session so far; a proof must not depend on
+it. The fallback is the proof of record:
+
+- **Screens**: `./dev run -- -preview <Name>` launches the `#if DEBUG` `PreviewGallery` root, which hosts the same views as the
+  `#Preview`s on the sample container (PLAN task 0.10). Dynamic Type and dark: `xcrun simctl ui booted content_size
+  accessibility-extra-large`, `xcrun simctl ui booted appearance dark`. Then `./dev screenshot` and look at the PNG.
+- **Flows**: an XCUITest in `WorkoutsUITests`, run with `./dev ui-test Suite/test()`. It navigates by accessibility
+  identifier, so unlabeled controls fail it just as they stall agents.
+- Register every new screen in the gallery in the same change.
+
 ## 1. Preview (no app launch, ~10–60s)
 
 Every view file should carry a `#Preview`. Render it through Xcode's MCP:

@@ -31,8 +31,7 @@ template editor and the active workout. Library content is read-only; only custo
   ⋯ > `Show retired` (a checkmark item in a menu labelled "Exercise options"); still openable by id.
 - **Detail header**: full wrapping name; segments `About`, `History`, `Charts`, `Records`.
 - **About** (top to bottom, each block omitted when empty): media card; retired notice "This exercise is no longer
-  in the library; its history is kept."; body-part line, plus ` · Library name: X` when the shown name differs from
-  the library name on a non-custom exercise; `Instructions` (numbered), `Tips`, `Common mistakes`, `Overview`
+  in the library; its history is kept."; body-part line (native: no rename, so no ` · Library name: X` suffix); `Instructions` (numbered), `Tips`, `Common mistakes`, `Overview`
   (description), `Muscles` with `Primary` / `Secondary` chips, `Equipment` chips, `Also known as` (aliases), credit
   "Exercise content: SmartWorkout" linking `sourceUrl`. Muscle intensity map is 0-100: **>= 70 primary, 1-69
   secondary, 0 dropped**, strongest first; 70 is our choice, not the source's (`ui.md:144`). Missing labels are
@@ -74,17 +73,16 @@ template editor and the active workout. Library content is read-only; only custo
   `Weight unit` (`Default (lb)`, `lb`, `kg`), `Bar` (`Default`, `No bar`, `Olympic bar (45 lb / 20 kg)`,
   `EZ bar`, `Custom weight`; `Bar weight (unit)` field 0-1000 when Custom), `Rest timer (seconds)` (blank =
   "Default"; whole number 0-3600, comma decimals accepted; error "Rest timer is a whole number of seconds, 0 to
-  3600."). Unit/bar/rest are stored as the exercise's override and are what a *new* row starts from
+  3600."). Unit/bar/rest are stored on the custom exercise row and are what a *new* row starts from
   (`schema.md:54`, `ui.md:132`). Client makes the UUID. Aliases start empty. Saved exercise is upserted into the
   list without a refetch.
 - **Edit**: only on a custom exercise, from the `Edit` item beside `Close` (absent, not disabled, on library
   exercises). Same form titled `Edit Exercise`; edits name, body part, equipment, weight type, notes, unit, bar,
-  rest. No delete or archive of a custom exercise appears in the sources read.
-- **Rename / override of library exercises**: the UI is gone (`ui.md:132`, POLISH E1 `POLISH.md:345`; PLAN.md:186
-  still lists it). The server still accepts `override` (`name`, `unit`, `barType`, `barWeight`+`barUnit`,
-  `restSeconds`; `api.md:14`) and one already stored still applies. **A rename appends the stored name to
-  `aliases` so search still finds it**; the re-import never touches overrides (`schema.md:44`).
-- **Sticky note**: not editable on this tab. Edited from a template's exercise menu (`Add Sticky Note` /
+  rest. Native: a custom exercise with no history can be deleted; otherwise **Archive** (= retire, hidden unless Show
+  Retired; `PLAN.md` §2).
+- **Rename / override of library exercises**: none natively. Library entries are read-only; there is no override, no
+  rename and so no alias-append rule (`schema.md:44`, POLISH E1). Only custom exercises have name, unit, bar and rest.
+- **Sticky note**: native: also editable in the exercise detail (`PLAN.md` §3). On the web only from a template's exercise menu (`Add Sticky Note` /
   `Edit Sticky Note`, or tap the yellow band): sheet `Sticky Note`, hint "Shown on this exercise in every
   template", multiline, max 2,000 chars, `Remove Sticky Note` clears; saved immediately on Save, one per exercise,
   not part of the template save (`TemplateEditor.tsx:325,627`, `ui.md:157`, `api.md:25`).
@@ -141,18 +139,14 @@ template editor and the active workout. Library content is read-only; only custo
 - Server `q` substring search (`schema.md:89`): not used by the UI; only the all-words client rule carries over.
 - Single-option `Sort By` sheet and the A-Z rail's scrub gesture: only if more sorts return (question 3).
 
-## 7. Open questions
+## 7. Open questions (all closed 2026-11-03; answers in `PLAN.md` §2 and `media.md`)
 
-1. Bundle or download media? `scrape.md:17`: the first 20 exercises came to 4.7 MB each (95 MB, mostly the 3 MB
-   GIF), "the full snapshot is about 5 GB". Which of `animation.gif`, `start.png`/`end.png`, `video-light.mp4`
-   (and `video-dark.mp4`) ship in the app, and from where (on-demand download, CloudKit asset, bundled subset)?
-2. Library content is read-only (POLISH E1) but PLAN.md:186 still lists overrides. Native: any UI to rename a
-   library exercise or set its unit/bar/rest default, or custom exercises only?
-3. Should the three promised sorts (name, most used, last performed) return, or is `Name (A-Z)` final?
-4. Show alternatives/recommended in About (data exists; the web never renders it)?
-5. Charts: Epley/Brzycki switch was in PLAN.md:184 but the web follows the `e1rmFormula` setting only. Keep that?
-6. Sticky notes are editable only from templates. Add editing (and display) in the exercise detail?
-7. Can a custom exercise be deleted or archived (nothing in the sources)? What of "merge duplicates" (later)?
-8. Does the `rename appends the stored name to aliases` rule (`schema.md:44`) append the *library* name (as
-   `libraryName` suggests) or the previous override? Confirm.
-9. Keep the SmartWorkout credit and the muscle threshold of 70?
+1. ~~Bundle or download media?~~ Thumbnails bundled, videos streamed and cached (`media.md`).
+2. ~~Any UI to rename a library exercise or set its defaults?~~ No: custom exercises only.
+3. ~~Should the three promised sorts return?~~ `Name (A-Z)` is final.
+4. ~~Show alternatives/recommended in About?~~ No (hidden, as on the web).
+5. ~~Charts: Epley/Brzycki switch?~~ Follows the `e1rmFormula` setting only.
+6. ~~Sticky note editing in the exercise detail?~~ Yes, editable there too (4.5).
+7. ~~Can a custom exercise be deleted or archived?~~ Delete when unused, otherwise Archive; no merge-duplicates.
+8. ~~Rename appends which name to aliases?~~ Moot: no rename.
+9. ~~Keep the SmartWorkout credit and the threshold of 70?~~ Both kept.

@@ -37,6 +37,10 @@ so its tests run via `./dev kit` in seconds. The app target stays a thin SwiftUI
 package (e.g. `WorkoutsUI` for shared view components) is fine when the need appears; add it the
 same way (`xcrun xcodeproj pkg add-local`, see the `xcode-project` skill).
 
+**The kit must compile for macOS** (`swift test` runs there). Anything that imports ActivityKit, UIKit, WidgetKit, or
+AppIntents' Live Activity types (`ActivityAttributes`, `LiveActivityIntent`) stays in the app target; the kit holds the
+Codable/Sendable state those types wrap and the logic behind them.
+
 ## The loop
 
 ```
@@ -44,7 +48,8 @@ same way (`xcrun xcodeproj pkg add-local`, see the `xcode-project` skill).
 ./dev build             xcodebuild, iPhone Duo sim         — ~10s warm
 ./dev test [filter]     unit tests on the simulator        — ~25s; filter = Suite or Suite/test()
 ./dev lint | format     swift-format lint --strict / format --in-place
-./dev run               boot sim, install, launch the app
+./dev ui-test [filter]  XCUITest flows on the simulator    — Suite/test(); the flow proof of record
+./dev run [-- args]     boot sim, install, launch the app; args go to the app (`-- -preview <Name>` = the gallery)
 ./dev screenshot [p]    PNG of the booted simulator (Duo has two displays; DEV_DISPLAY=primary|…)
 ./dev check             lint → kit → build → test; the pre-commit gate (~30s warm)
 ```
@@ -59,11 +64,15 @@ Rules for the loop:
   `xcode-project`).
 - **Run the narrowest proof.** One failing test → `./dev kit 'Suite/test'` or `./dev test Suite/test()`,
   not `./dev check`. `check` is for the end of a task.
-- **Previews and the simulator are the UI proof.** Xcode's MCP tools are available in Claude Code
-  (plugin `xcode-integration`) and Codex (`xcrun agent plugin path --plugin-format codex`):
-  `RenderPreview` on a file with a `#Preview` returns an image without launching the app;
-  `DeviceInteraction*` taps and reads the accessibility tree. Skill: `verify-ui`. Tools need
-  `workspaceIdentifier`: call `XcodeOpenWorkspace` on the absolute `.xcodeproj` path first.
+- **The UI proof of record is the fallback, not the MCP.** A screen is proven by `./dev run -- -preview <Name>` (PLAN
+  task 0.10; until it lands, plain `./dev run`; a `#if DEBUG` `PreviewGallery` hosting the same views as the `#Preview`s, fed by the sample container; set Dynamic Type and
+  dark with `xcrun simctl ui booted ...`) followed by `./dev screenshot`; a flow is proven by an XCUITest in `WorkoutsUITests`
+  (`./dev ui-test Suite/test()`), which also forces the accessibility identifiers below. Xcode's MCP tools (plugin
+  `xcode-integration` in Claude Code, `xcrun agent plugin path --plugin-format codex` in Codex) are an **optional**
+  shortcut when they connect: `RenderPreview` returns a preview image without launching the app, `DeviceInteraction*` taps
+  and reads the accessibility tree (they need `workspaceIdentifier` from `XcodeOpenWorkspace` on the absolute `.xcodeproj`
+  path first). It failed to connect in every review session so far; a task's proof must never depend on it. Skill:
+  `verify-ui`.
 - **Do not change** the deployment target, supported platforms, signing, or add a remote package
   without being asked.
 
@@ -79,8 +88,8 @@ Rules for the loop:
   Activity for the active workout, notifications. When a web decision and a native idiom
   disagree, choose the native idiom and say so in the task.
 
-- **Answered 2026-11-03 (do not re-ask):** no Strong CSV import and no `Workout.source` (a one-time
-  history migration from the web app happens later through an in-app JSON import). Weights are
+- **Answered 2026-11-03 (do not re-ask):** no Strong CSV import and no `Workout.source` (Eric's
+  history comes over once through the in-app JSON import, task 1.7, as soon as it exists). Weights are
   `Double`. Exactly one in-progress workout, persisted across relaunch. Library exercises are
   read-only; only custom exercises get rename/unit/bar/rest. Three tabs in the web's order
   (History · Workout · Exercises) with **Workout the default tab**; Settings is a gear toolbar
@@ -107,7 +116,7 @@ Rules for the loop:
 - Every new public function in `WorkoutsKit` gets a test in the same change.
 - Accessibility labels on every interactive element — the device-interaction tools navigate by
   the accessibility tree, so unlabeled controls stall agents as well as users.
-- Localize user-facing strings via the String Catalog (`STRING_CATALOG_GENERATE_SYMBOLS` is on).
+- English only: `Text("…")` literals, no String Catalog maintenance, no `String(localized:)` in the kit.
 
 ## Working in bite-sized tasks
 

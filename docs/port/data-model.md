@@ -2,10 +2,19 @@
 
 Entities, invariants and derived numbers of the web app, for the SwiftData models and `WorkoutsKit`. Sources, all under `~/Projects/mac-os-compose-collection/workouts/`: `app/docs/schema.md` (S), `app/docs/records.md` (R), `PLAN.md` (P, D-numbers), `app/internal/store/migrations/NNNN_*.sql` (M), `app/docs/api.md` (settings keys). Types: UUID, String, Int, Bool, Date, Dec (a SQL `numeric(n,2)`), `[String]` (text[]). "Req" = NOT NULL in the web schema; a native model still needs a default for it (section 4). Every entity has a client-generated `id` UUID.
 
+## Native deltas (read first: this is the field list task 0.1 implements; the sections below describe the web)
+
+- **Nine `@Model` types**: custom `Exercise`, `StickyNote`, `TemplateFolder`, `Template`, `TemplateExercise`, `TemplateSet`, `Workout`, `WorkoutExercise`, `WorkoutSet`. Settings are not a model (`SettingsStore`, `PLAN.md` section 2).
+- **The library is not data in the store.** It is a bundled, read-only `LibraryCatalog` decoded from `library.json` (full Exercise field list below, `retired` a flag in the file, display labels in it). Only **custom** exercises are `@Model Exercise` rows. No seeding, no `libraryVersion`, no de-dupe pass, no `ExerciseOverride`, no `LibraryMeta`.
+- **References by id**: `TemplateExercise`, `WorkoutExercise` and `StickyNote` hold `exerciseID: UUID` (library ids are UUIDv5 of `(source, sourceId)`; custom ids are random), resolved by `ExerciseStore.exercise(id:)` = catalog union custom. `TemplateExercise` and `WorkoutExercise` also keep an `exerciseName` snapshot. There is no `exercise` relationship, so RESTRICT applies to **custom** exercises only (an app check: delete when unreferenced, otherwise archive = `retired`).
+- **Dropped**: `Workout.source` (no Strong import), `ExerciseOverride` (`name`, `barUnit` and the rename rule with it; library rows are read-only), `LibraryMeta`, `TemplateFolder.collapsed` (per-device `@AppStorage`, not synced).
+- **Changed**: weights, `barWeight`, `distanceM`, `rpe` are `Double` (the entered value `17.25` survives); `muscles` is `[String: Int]`; `Workout` gains optional `restEndsAt` (Date), `restSeconds` (Int), `restSetID` (UUID) for the persisted rest timer; all relationships optional, every property defaulted, enums raw strings, no `@Attribute(.unique)`.
+- **Custom `Exercise` fields**: `id`, `name`, `aliases`, `equipment` ([String]), `bodyPart`, `weightType`, `instructions` ([String]), `unit` (`lb`/`kg`?), `barType`, `barWeight`, `restSeconds` (the defaults a new row starts from), `retired` (archive), `createdAt`, `updatedAt`.
+
 ## 1. Entities
 
-### Exercise (M0002, 0004)
-Library or custom. Has `createdAt`, `updatedAt`.
+### Exercise (M0002, 0004): the library entry (read-only catalog) and the custom row
+Web fields; the native split is in "Native deltas". Library entries carry every field below; a custom `@Model Exercise` carries only the subset listed there. Has `createdAt`, `updatedAt` (custom only).
 
 | Field | Type | Req | Default | Notes |
 |---|---|---|---|---|
@@ -18,29 +27,23 @@ Library or custom. Has `createdAt`, `updatedAt`.
 | muscles | [muscle key: Int 0..100] | yes | `{}` | intensity per muscle |
 | description | String | yes | `''` | |
 | instructions, tips, mistakes | [String] | yes | `[]` | |
-| alternatives, recommended | [String] | yes | `[]` | the **source's** ids (`sourceId`), not exercise ids; resolved through (source, sourceId) on read |
+| alternatives, recommended | [String] | yes | `[]` | the **source's** ids (`sourceId`) on the web; `library.json` stores them already resolved to exercise ids |
 | usedCount | Int | yes | 0 | `>= 0` |
 | sourceCreatedAt | Date | no | nil | |
 | mediaAnimation, mediaThumbStart, mediaThumbEnd, mediaVideoDark, mediaVideoLight | String | yes | `''` | snapshot-relative paths, `''` when absent; `mediaExtra` [String] default `[]` |
 | sourceUrl | String | yes | `''` | |
 | alternates | [lang: String] | yes | `{}` | language code to the same page in that language |
-| source, sourceId | String | no | nil | both nil iff custom |
-| custom | Bool | yes | false | true iff `source` and `sourceId` are both nil, else both set (CHECK, M0002:51) |
+| source, sourceId | String | no | nil | both nil iff custom (native: library entries only; a custom row has neither) |
+| custom | Bool | yes | false | true iff `source` and `sourceId` are both nil, else both set (CHECK, M0002:51); native: implied by being a `@Model` row |
 | retired | Bool | yes | false | hidden from the picker and list, still in history and fetchable by id |
 
-Referenced RESTRICT by TemplateExercise and WorkoutExercise (never deleted, S:11). Owns 0..1 ExerciseOverride and 0..1 StickyNote (CASCADE: they only decorate it). Library rows are read-only (D9). List order: `lower(override name ?? name)` (S:89).
-
-### ExerciseOverride (M0002)
-One per exercise (PK = `exercise_id`). NULL = no override; replaced as a whole and deleted when empty (S:44). Fields: `name` String? (non-blank; library exercises only; a rename appends the stored name to `aliases`), `unit` `lb`|`kg`?, `barType` `olympic`|`ez`|`none`|`custom`?, `barWeight` Dec(7,2)? (`>= 0`), `barUnit` `lb`|`kg`?, `restSeconds` Int? (`>= 0`), `updatedAt` (req). It is what a **new** template/workout row starts from; changing a row never rewrites it (S:54).
+Web: referenced RESTRICT by TemplateExercise and WorkoutExercise (never deleted, S:11); owns 0..1 ExerciseOverride and 0..1 StickyNote. Native: references are by `exerciseID` (see "Native deltas"); library entries are read-only (D9); list order is the name sorted case/accent-insensitively (S:89).
 
 ### StickyNote (`exercise_sticky_notes`, M0002)
-`text` String (req), `updatedAt`. One per exercise; follows it into every template and workout; saved immediately, not as part of a template save (S:57).
-
-### LibraryMeta (M0002)
-`kind` (`body_part`, `equipment`, `muscle`, `muscle_group`), `key`, `label`, all req, PK (kind, key); no `updatedAt`. Display labels, replaced on every import. A key with no row is labelled from the key itself ("iliopsoas" becomes "Iliopsoas") (S:31).
+`exerciseID` UUID (native key, one note per exercise, app-enforced), `text` String (req), `updatedAt`. One per exercise; follows it into every template and workout; saved immediately, not as part of a template save (S:57).
 
 ### TemplateFolder (M0003)
-`name` String (req, non-blank), `position` Int (req, 0), `collapsed` Bool (req, false), `createdAt`, `updatedAt`. Has many Template.
+`name` String (req, non-blank), `position` Int (req, 0), `collapsed` Bool (req, false; **native: not stored**), `createdAt`, `updatedAt`. Has many Template.
 
 ### Template (M0003, 0007)
 `folder` TemplateFolder (req since 0007), `name` (non-blank), `note` String (`''`), `position` Int (0; **per folder**), `createdAt`, `updatedAt`. Has many TemplateExercise (CASCADE). Order: position, then name, then id (ties and gaps tolerated, S:51). Deleting a template keeps its Workouts (their `template` becomes nil).
@@ -49,7 +52,7 @@ One per exercise (PK = `exercise_id`). NULL = no override; replaced as a whole a
 | Field | Type | Req | Default | Notes |
 |---|---|---|---|---|
 | template | Template | yes | none | CASCADE |
-| exercise | Exercise | yes | none | RESTRICT |
+| exercise | Exercise | yes | none | RESTRICT; native: `exerciseID` UUID plus an `exerciseName` snapshot |
 | position | Int | yes | none | within the template |
 | supersetGroup | Int | no | nil | small int `>= 0` |
 | note | String | yes | `''` | |
@@ -63,10 +66,10 @@ One per exercise (PK = `exercise_id`). NULL = no override; replaced as a whole a
 `templateExercise` (CASCADE), `position` Int (req), `kind` (req, default `normal`; `warmup`, `normal`, `drop`, `failure`), `weight` Dec(8,2)? (`>= 0`), `reps` Int? (`>= 0`), `durationS` Int? (`>= 0`), `distanceM` Dec(10,2)? (`>= 0`). No `updatedAt`: sets are replaced with their parent (S:8).
 
 ### Workout (M0003)
-`template` Template? (nil when the template is deleted), `name` (req, non-blank), `note` (`''`), `startedAt` Date (req), `finishedAt` Date? (if set, `>= startedAt`), `source` (req, default `app`; `app`, `strong`), `createdAt`, `updatedAt`. Has many WorkoutExercise (CASCADE). History is ordered `startedAt` desc.
+`template` Template? (nil when the template is deleted), `name` (req, non-blank), `note` (`''`), `startedAt` Date (req), `finishedAt` Date? (if set, `>= startedAt`; nil = the one in-progress workout), `createdAt`, `updatedAt`. Has many WorkoutExercise (CASCADE). History is ordered `startedAt` desc.
 
 ### WorkoutExercise (M0003, 0005)
-Same fields and defaults as TemplateExercise (`position`, `supersetGroup`, `note`, `restSeconds`, `unit` default `lb`, `barType` default `olympic`, `barWeight`, `updatedAt`) with `workout` (CASCADE) instead of `template`, `exercise` (RESTRICT), plus `exerciseName` String (req): the name **at the time**, so history survives a rename or retirement; blank on save means "look up the library name with the override" (S:71). The exercise's `weightType` is read through `exercise`, not stored (S:84).
+Same fields and defaults as TemplateExercise (`position`, `supersetGroup`, `note`, `restSeconds`, `unit` default `lb`, `barType` default `olympic`, `barWeight`, `updatedAt`) with `workout` (CASCADE) instead of `template`, `exerciseID`, plus `exerciseName` String (req): the name **at the time**, so history survives a rename or archive; blank means "look the name up through `ExerciseStore`" (S:71). The exercise's `weightType` is read through `exercise`, not stored (S:84).
 
 ### WorkoutSet (M0003)
 TemplateSet's fields (parent `workoutExercise`, CASCADE) plus `completed` Bool (req, false), `completedAt` Date?, `rpe` Dec(3,1)? (`1 <= rpe <= 10`). No `updatedAt`.
@@ -81,24 +84,25 @@ Web: `(key, value jsonb)` rows. Keys and defaults when unset (the server and UI 
 | weeklyGoal | Int 1-14 | 3 (the goal line on workouts-per-week) |
 | e1rmFormula | `epley`, `brzycki` | `epley` |
 | restPresets | at most 6 distinct whole seconds, each 1-3600 (`[]` clears) | none; the UI stores them newest first and never stores the four presets it always offers |
-| keepScreenOn | Bool | true (web Wake Lock while the workout screen is open) |
+| keepScreenOn | Bool | true (web Wake Lock while the workout screen is open; native: idle timer disabled) |
+| downloadAllVideos | Bool | false (native only; Wi-Fi only, `media.md`) |
 
-PLAN.md:133 also lists "dashboard widget layout"; api.md defines no such key.
+PLAN.md:133 also lists "dashboard widget layout"; api.md defines no such key (dropped). Native: `SettingsStore`, not rows.
 
 ## 2. Invariants
 
-1. **Client UUIDs** for every row the app writes (D5, S:7), so a repeated save is idempotent. Library exercises use a UUIDv5 of `(source, sourceId)` (section 4).
-2. **`updatedAt` on every user-editable row** (exercise, override, sticky note, folder, template, template/workout exercise, workout) for last-write-wins. Sets and LibraryMeta have none (S:8).
+1. **Client UUIDs** for every row the app writes (D5, S:7), so a repeated save is idempotent. Library exercises use a UUIDv5 of `(source, sourceId)` computed by the library builder (section 4); custom ones a random UUID.
+2. **`updatedAt` on every user-editable row** (custom exercise, sticky note, folder, template, template/workout exercise, workout) for last-write-wins. Sets have none (S:8).
 3. **Weights as entered** (D7, S:9, S:55): `weight` is the number typed; the unit lives on the parent exercise row. Switching a row from lb to kg relabels the numbers, never converts them. Conversion happens only inside aggregates.
-4. **Nothing with history is deleted** (S:11): exercises are retired, not deleted; a Workout takes its exercises and sets with it; deleting a Template keeps its Workouts; WorkoutExercise keeps `exerciseName`.
+4. **Nothing with history is deleted** (S:11): a custom exercise with history is archived (`retired`), not deleted; a Workout takes its exercises and sets with it; deleting a Template keeps its Workouts; WorkoutExercise keeps `exerciseName`.
 5. **Every template is in a folder** (decision 2026-11-02, M0007: no unfiled group; the migration made one folder named "Templates" for any unfiled ones). A new template goes to the end of its folder. Deleting a folder (S:52): either its templates move to the end of a chosen folder in their order (positions stay distinct), or they are deleted (exercises and sets cascade, workouts stay), or the delete is refused when it still has templates and neither was chosen.
 6. **Positions** (templates per folder, exercises per template/workout, sets per exercise) are order keys; gaps and ties are tolerated; reorder rewrites positions from the order given.
 7. **`supersetGroup`**: nil or a small Int `>= 0`; exercises of one template (or workout) sharing a value are one superset and drive the coloured bars. The UI renumbers groups 1, 2, 3 in order of appearance on save; a group of one is meaningless and must never be produced (the server does not check, S:53).
 8. **Bar**: `barType` in `olympic`, `ez`, `none`, `custom`, default `olympic`; `barWeight` is the `custom` bar, in the row's own `unit`, never converted. It is the first step of the warm-up ramp (S:54; the ramp is defined in web `ui.md`, outside this spec).
 9. **Closed enums**: set kind `warmup|normal|drop|failure`; unit `lb|kg`; plus the enums in section 1.
 10. **Ranges**: weight, reps, durationS, distanceM, barWeight, restSeconds, supersetGroup, usedCount `>= 0`; rpe 1...10; `finishedAt >= startedAt`; names non-blank.
-11. **Custom iff no source** (see Exercise). Override `name` applies to library exercises only.
-12. Override and sticky note belong to the **exercise**, not the template.
+11. **Custom iff a `@Model` row**: library entries are read-only, so nothing about them (name, unit, bar, rest) is editable.
+12. The sticky note belongs to the **exercise**, not the template.
 
 ## 3. Derived numbers (never stored)
 
@@ -150,27 +154,27 @@ Assisted has no e1RM or volume record. In-session ties: e1RM by heavier weight t
 - "One set is not two PRs": the weight that set the heaviest (assisted: least-assistance) PR in this session is skipped for the reps PR. `100 x 10` then `105 x 1` is `[heaviest]`; `110 x 3` and `90 x 12` after `100 x 10` is `[heaviest, repsAtWeight]`, reported for `90 x 12`; `100 x 12` after `100 x 10` is a reps PR. The first session of a barbell exercise with one working weight sets three kinds (e1RM, heaviest, volume). Bodyweight and band have no heaviest PR without added weight.
 - A card's PR count uses all earlier performances of the exercise, so it never depends on where a page starts (S:81).
 
-**Other derived values** (S): **Previous** (S:73): per exercise, the most recent entry (by `startedAt` desc, then position) with at least one completed set, and its completed sets in order, in that entry's unit; a workout where the exercise was only planned never hides an older real one. **Latest session per exercise** (S:82): newest entry with a completed non-warm-up set, for the Exercises list best sets. **Template `lastPerformed`** (S:56): max `startedAt` over the template's workouts, else over workouts with the same name (case-insensitive; imported history has no template link), finished workouts only. **Workouts per week** (api.md:35): ISO weeks (Monday start), oldest first, current week last, zero-filled, `weeks` 1-52, `goal` = `weeklyGoal`; the web cuts weeks in the server's time zone.
+**Other derived values** (S): **Previous** (S:73): per exercise, the most recent entry (by `startedAt` desc, then position) with at least one completed set, and its completed sets in order, in that entry's unit (native autofill into a row of the other unit converts and rounds to 0.5, `Round05`); a workout where the exercise was only planned never hides an older real one. **Latest session per exercise** (S:82): newest entry with a completed non-warm-up set, for the Exercises list best sets. **Template `lastPerformed`** (S:56): max `startedAt` over the template's workouts, else over workouts with the same name (case-insensitive; imported history has no template link), finished workouts only. **Workouts per week** (api.md:35): ISO weeks (Monday start), oldest first, current week last, zero-filled, `weeks` 1-52, `goal` = `weeklyGoal`; the web cuts weeks in the server's time zone.
 
 ## 4. Local-first notes
 
-- **Library import becomes a bundled/seeded library.** The web importer upserts a scraped snapshot (1,038 exercises, P:67) by `(source, sourceId)`, writes only changed content, retires exercises that left the source (only after a complete import), and never touches overrides (S:29-44). Natively, ship the library in the app and seed/refresh it. **Ids must stay stable**: library exercises take a UUIDv5 of `(source, sourceId)` under a fixed namespace (`store.ExerciseID`; a test pins one value "because history rows will point at these ids", S:7). Use one fixed namespace UUID, pin one value in a `WorkoutsKit` test, and never change it, or CloudKit-synced history points at the wrong exercises. (The web namespace value is not in the cited files; there is no web-to-native migration anyway, AGENTS.md.) Re-seeding must not overwrite overrides, sticky notes or custom exercises and must retire, not delete. Media: P:33 keeps ~3 GB of assets on the server; the app cannot bundle that (question 3).
+- **The library is a bundled catalog.** The web importer upserts a scraped snapshot (1,038 exercises, P:67) by `(source, sourceId)`. Natively `scripts/build-library` turns the snapshot into `library.json` once, the app decodes it into an in-memory `LibraryCatalog`, and a new snapshot ships with an app release. **Ids must stay stable**: library exercises take a UUIDv5 of `(source, sourceId)` under one fixed namespace (`LibraryID`; a test pins one value "because history rows will point at these ids", S:7); never change it, or history (and any JSON export) points at the wrong exercises. Nothing is seeded, upserted or de-duped, so two devices cannot disagree. Media: P:33 keeps ~3 GB of assets on the server; the app cannot bundle that (`media.md`).
 - **Active workout becomes a persisted in-progress Workout.** The web keeps it on the phone, saved on every change, and writes the DB only on Finish with one idempotent PUT; the DB holds finished workouts only (D6, S:67). Natively it is a normal `Workout` with `finishedAt == nil`, saved on every change and surviving relaunch. It must be excluded from History lists, `lastPerformed` ("a workout in progress never counts", S:56), Previous, charts, records and PRs. The sources imply a single active workout but do not state a rule.
 - **Sync becomes CloudKit.** The web's last-write-wins on `updated_at` plus client UUIDs maps over. Constraints:
   - all relationships optional (parent links like `Template.folder`, `TemplateExercise.template/exercise`, `Workout*.parent` are optional in the model though required by app logic);
   - a default for every non-optional stored property (the Default columns above); enums stored as raw strings with a default;
   - no `@Attribute(.unique)`, no unique constraints;
-  - web uniques that become **app-enforced**: `UNIQUE (source, sourceId)` on exercises (identity is the UUIDv5 id; de-dupe by id on seed, since two devices seeding before a sync can both insert); one override and one sticky note per exercise (PK = `exercise_id`); one LibraryMeta per (kind, key); and the 409 rule that an exercise/set id belongs to one parent (S:50);
-  - other web constraints are also app-enforced: RESTRICT deletes (an Exercise referenced by history), NOT NULL folder, all CHECKs (enums, ranges, non-blank, custom-iff-no-source, `finishedAt >= startedAt`);
+  - web uniques that become **app-enforced**: one sticky note per exercise (PK = `exercise_id`), and the 409 rule that an exercise/set id belongs to one parent (S:50); library identity needs no check (it is the UUIDv5 id in a read-only file);
+  - other web constraints are also app-enforced: RESTRICT deletes (a custom Exercise referenced by history is archived instead), NOT NULL folder, all CHECKs (enums, ranges, non-blank, `finishedAt >= startedAt`);
   - the web's "replace parent and children whole in one transaction" PUT (S:48, 67) has no CloudKit equivalent; edit rows individually and stamp `updatedAt`.
 
-## 5. Open questions for Eric
+## 5. Open questions: all closed (2026-11-03)
 
-1. Keep the **Strong CSV import** (`source = strong`)? It is documented in web `strong.md`, outside these sources. If not, drop `Workout.source` (it only distinguishes `app` from `strong`) and the `assisted` rationale for it.
-2. **Exercise media**: bundle none, thumbnails only, or download on demand? Which media fields stay (animation, both thumbs, dark/light video, `mediaExtra`), and do `alternates` and `sourceUrl` matter for an English-only local app (D11)?
-3. **Library refresh**: frozen per app release, or re-seedable from a remote file later? Does `retired` still matter if there is no scraper?
-4. **Settings shape**: one typed row (risk: two devices create two rows under CloudKit) or key/value? Keep `keepScreenOn` (a web Wake Lock; native equivalent undecided) and the unspecified dashboard widget layout?
-5. **Number types**: Decimal vs Double for `weight`, `barWeight`, `distanceM`, `rpe`, given CloudKit-backed SwiftData; D7 needs as-entered values like `17.25` to survive exactly.
-6. Is `TemplateFolder.collapsed` shared state across devices, or per-device UI state?
-7. Hard rule of one in-progress workout, and should a forgotten one be auto-finished or discardable?
-8. Weekly buckets: confirm the device time zone and Monday week start (web uses the server's zone).
+1. Strong CSV import / `Workout.source`: no, dropped (`AGENTS.md`).
+2. Exercise media: thumbnails bundled, videos streamed and cached (`media.md`); `alternates` and `sourceUrl` stay in the catalog only for the SmartWorkout credit.
+3. Library refresh: frozen per app release; `retired` is a flag in `library.json`.
+4. Settings shape: `SettingsStore` (UserDefaults, KVS only if a second device appears), not rows; `keepScreenOn` is the idle timer; no widget layout.
+5. Number types: `Double`.
+6. `TemplateFolder.collapsed`: per-device `@AppStorage`.
+7. One in-progress workout, persisted; a forgotten one is discardable from the logging screen (`PLAN.md` section 2).
+8. Weekly buckets: device time zone, Monday start.

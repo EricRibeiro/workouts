@@ -64,7 +64,7 @@ detail, which can be edited after the fact. Settings is not a tab (section 8).
 - **Target button** (chart header, shows the goal, aria `Weekly goal: N. Change it.`) -> sheet
   `Weekly goal` with a stepper 1-14 and Save; error `Could not save the goal.` Moving the goal moves
   the line. Native: dropped; the goal lives in Settings only.
-- **Repeat as a new workout**: the web has none. The only reuse path is Save as Template, then start
+- **Repeat as a new workout**: the web has none and native does not add one. The only reuse path is Save as Template, then start
   that template from the Workout tab. **Strong import**: no UI, it is a server CLI (`import-strong
   <csv>`, PLAN.md 56, 292-321); nothing in History or Settings exposes it.
 - Failed actions show a dismissable banner: `Could not open the workout.`, `Could not read the
@@ -76,7 +76,7 @@ detail, which can be edited after the fact. Settings is not a tab (section 8).
 - **Empty**: `No workouts yet. Finish one from the Workout tab and it shows up here.` (chart still shows).
 - **Error**: `Could not load the history.` + `Try again`; a failed page shows the message + `Try again`.
   Detail: `Could not load the workout.` or `That workout does not exist.` (404).
-- **No selection** (expanded, no detail): pane text `Select a workout` (native: `ContentUnavailableView`, "No Workout Selected" style).
+- **No selection** (expanded, no detail): pane text `Select a workout`. Native: none; History is a `NavigationStack` in both widths, so there is no empty detail.
 - Calendar: `Could not load the calendar.`; empty month `No workouts this month.`; otherwise `Tap a
   marked day to see its workouts.` Chart with no workouts: bars absent, goal line still drawn.
 - A workout in progress: sources specify no History behaviour.
@@ -86,11 +86,10 @@ detail, which can be edited after the fact. Settings is not a tab (section 8).
 - Root: `TabView` tab "History", a Fitness-style dashboard (`PLAN.md` §3): large title; hero card = the weekly goal
   chart (full width); then even-column cards from the grid's own width (`onGeometryChange`, same rule as the template
   grid): This Week (count vs goal), Recent PRs (trophy list), Last Workout (name · duration · volume, `chevron.right`
-  to its detail); then the month list. Which cards is taste: ask Eric. `NavigationSplitView` list | detail with no
-  column-width modifiers (the system sizes columns and keeps them off the fold); the empty detail is a
-  `ContentUnavailableView` (Mail's "No Message Selected"); compact: `NavigationStack` pushing the detail (folding must
-  keep the selection and the list's scroll, so drive both from one selection value). Rows push the detail with the
-  zoom transition; regular width shows it as the split's detail column.
+  to its detail); then the month list. Which cards is taste: ask Eric. A `NavigationStack` in **both** widths: the dashboard
+  is full width beside the tab sidebar (a list | detail split would squeeze it into the narrowest of three columns, and
+  `ref-fitness-open-wide-dark.png` has no detail pane either). Rows push the detail with the zoom transition; folding must
+  keep the path and the list's scroll, so drive both from state, not from layout.
 - List: `List` with a `Section` per month (header = month title), **workout rows** (name, date, duration · volume ·
   PRs, trophy; the per-row `Exercise | Best Set` table moves into the detail), `.contextMenu` /
   trailing `swipeActions` carrying Edit / Save as Template / Delete; no ⋯ `Menu` (the ellipsis is the system's
@@ -100,9 +99,9 @@ detail, which can be edited after the fact. Settings is not a tab (section 8).
   `searchScopes` (All · PRs), as every Flighty list has.
 - Weekly chart: Swift Charts `BarMark` per ISO week + `RuleMark` goal line (dashed), bar style by
   `count >= goal`; the chart header is plain (no goal button, the goal is a Settings `Stepper`). Compute weeks and days in the device
-  calendar (no server); the web's "server time zone" quirk goes away.
-- Calendar: a sheet with a month grid (`Grid`, Monday first per source; consider the locale's first
-  weekday), day tap -> workouts of the day -> push detail.
+  calendar (no server); the web's "server time zone" quirk goes away. The counts are a kit function,
+  `weeklyCounts(workouts:calendar:weeks:)` (ISO weeks, Monday, injected `Calendar`/`TimeZone`, DST-tested).
+- Calendar: a sheet with a month grid (`Grid`, Monday first, always), day tap -> workouts of the day -> push detail.
 - Edit past workout: reuse the shared exercise editor in a past mode, pushed from the workout detail (not a cover
   or sheet); on regular width its body is the logging screen's `ArrangementView(primary: SetTable, secondary:
   exercise pane)` so the table never straddles the fold.
@@ -121,18 +120,15 @@ detail, which can be edited after the fact. Settings is not a tab (section 8).
 - Web-only chrome (glass pills, `section-h` CSS, safe-area/haptic "Device check"): system styling.
 - Card PR count and every aggregate stay computed, never stored.
 
-## 7. Open questions
+## 7. Open questions (all closed 2026-11-03; answers in `PLAN.md` §2)
 
-- PLAN.md 173 says the card menu offers "edit,
-  duplicate as template, save as template, and delete" but ui.md/HistoryPage.tsx:191-193 shows only
-  Edit, Save as Template, Delete. Is there a "duplicate as template" distinct from Save as Template?
-- Should we add "Repeat workout" (start a new workout prefilled from a past one)? The web has none.
-- PLAN.md 173 lists a card **set count**; the card UI (HistoryPage.tsx:62-69) shows duration, volume and
-  PRs only, though `setCount` is in the payload. Show it?
+- ~~Is there a "duplicate as template" distinct from Save as Template?~~ No: Edit, Save as Template, Delete only.
+- ~~Add "Repeat workout"?~~ No; Save as Template then Start is the reuse path.
+- ~~Show the card set count?~~ No (duration, volume, PRs only).
 - ~~Where should the weekly goal live on iPhone?~~ Settings only (2026-11-03); the chart header is plain.
 - ~~Keep Settings a fourth tab?~~ No: `PLAN.md` §2 (gear item + `tabViewSidebarBottomBar`).
-- Weekly chart is 8 weeks fixed; PLAN.md 188 lists later charts (weekly volume, sets per muscle group,
-  PR feed). In scope for the port?
+- ~~Later charts (weekly volume, sets per muscle group, PR feed)?~~ Out of scope; the dashboard cards (This Week, Recent
+  PRs, Last Workout) replace them.
 
 ## 8. Settings
 
@@ -144,13 +140,16 @@ a saved unit or formula change refreshes History numbers. Native: `Form` with `S
 
 | Setting (exact label) | Options | Default | Takes effect |
 |---|---|---|---|
-| `Appearance` | `System` / `Light` / `Dark` | System ("System follows the phone's setting.") | Device-only pref (localStorage), not in the settings API |
+| `Appearance` | `System` / `Light` / `Dark` | System | Dropped natively: the app follows the system |
 | `Weight unit` | `lb` / `kg` (`defaultUnit`) | `lb` | Weights/volume in History, charts, records; "Logged weights stay as entered." |
 | `Default rest timer` | menu of `0, 30, 45, 60, 90, 120, 150, 180, 240, 300` seconds, shown `1:30`; the current value is ticked and added if off-list; no Custom item (`defaultRestSeconds`, 0-3600) | 90 s | Exercises with no timer of their own |
 | `Weekly goal` | stepper 1-14 (`weeklyGoal`) | 3 | Dashed line on "Workouts per week" |
 | `Estimated 1RM formula` | `Epley` / `Brzycki` (`e1rmFormula`) | `epley` | Charts and records ("Brzycki reads higher at low reps.") |
 | `Keep screen on during a workout` | toggle (`keepScreenOn`) | on | Holds the screen awake while the workout screen is open (native: idle timer disabled). |
 | `Device check` | link to a web diagnostics page | n/a | PWA only; drop |
+
+Native additions: `Download all videos` (`downloadAllVideos`, Wi-Fi only), iCloud status, Import / Export… (the JSON codec), a `#if DEBUG`
+Load sample data row. Settings live in `SettingsStore`, not rows.
 
 `restPresets` (up to 6 distinct custom rest durations, 1-3600 s, newest first, the four built-ins never
 stored) is a settings key used by the Rest Timer sheet, not shown on this tab. Strong import: PLAN.md 189

@@ -130,7 +130,8 @@ find_app() {
   echo "$app"
 }
 
-cmd_run() {
+cmd_run() { # cmd_run [-- app launch args...]; args reach the app, e.g. ./dev run -- -preview Swatches
+  [[ "${1:-}" == "--" ]] && shift
   local out
   if ! out=$(xcrun simctl boot "$DEV_SIM" 2>&1); then
     [[ "$out" == *"current state: Booted"* || "$out" == *"already"* ]] || die "boot failed: $out"
@@ -139,7 +140,7 @@ cmd_run() {
   xcrun simctl bootstatus "$DEV_SIM" -b >/dev/null 2>&1 || true
   cmd_build
   xcrun simctl install booted "$(find_app)"
-  xcrun simctl launch --terminate-running-process booted "$BUNDLE_ID"
+  xcrun simctl launch --terminate-running-process booted "$BUNDLE_ID" "$@"
   echo "logs: xcrun simctl spawn booted log stream --predicate 'subsystem == \"$BUNDLE_ID\"'"
 }
 
@@ -177,7 +178,7 @@ kit [filter]       swift test in Packages/WorkoutsKit
 kit-build          swift build in Packages/WorkoutsKit
 lint               swift-format lint --strict
 format             swift-format in place
-run                boot sim, build, install, launch; prints log command
+run [-- args]      boot sim, build, install, launch; args go to the app (-- -preview <Name>); prints log command
 screenshot [path]  simulator screenshot (default .build/screenshots/<timestamp>.png)
 clean              rm -rf .build
 check              lint, kit, build, test; stops at first failure
@@ -195,7 +196,7 @@ case "$sub" in
   kit-build) cmd_kit_build ;;
   lint) cmd_lint ;;
   format) cmd_format ;;
-  run) cmd_run ;;
+  run) cmd_run "$@" ;;
   screenshot) cmd_screenshot "$@" ;;
   clean) cmd_clean ;;
   check) cmd_check ;;
