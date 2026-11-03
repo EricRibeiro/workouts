@@ -1,0 +1,21 @@
+# SwiftPM / Xcode build output
+.build/
+.swiftpm/
+DerivedData/
+*.xcresult
+
+# Per-user Xcode state
+xcuserdata/
+*.xcuserstate
+
+# Distribution artifacts
+*.ipa
+*.dSYM.zip
+
+# macOS
+.DS_Store
+
+# Claude Code local overrides (settings.json stays tracked)
+.claude/settings.local.json
+
+# Package.resolved is intentionally tracked

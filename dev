@@ -1,0 +1,204 @@
+#!/usr/bin/env bash
+# Single entry point for building, testing, and running Workouts. Quiet on success, focused on failure.
+set -euo pipefail
+
+cd "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+DEV_SIM="${DEV_SIM:-iPhone Duo}"
+SCHEME="Workouts"
+BUNDLE_ID="com.ericribeiro.Workouts"
+DERIVED=".build/DerivedData"
+RESULTS=".build/results"
+LOGS=".build/logs"
+KIT="Packages/WorkoutsKit"
+LINT_PATHS=(Workouts WorkoutsTests WorkoutsUITests Packages)
+NOISE='IDERunDestination|IDESchemeActionDeviceRecord|IDETestOperationsObserverDebug'
+MAX_LINES=80
+
+die() { echo "dev: $*" >&2; exit 1; }
+
+# Print at most MAX_LINES of stdin, noting truncation.
+cap() {
+  awk -v max="$MAX_LINES" 'NR <= max { print } NR == max + 1 { print "... (truncated)" }'
+}
+
+# Run a command, logging combined output to $LOGS/$1.log (noise filtered, or xcbeautify if present).
+# Prints nothing on success; on failure prints an error excerpt and returns the command's exit code.
+run_logged() {
+  local name="$1"; shift
+  local log="$LOGS/$name.log" rc
+  mkdir -p "$LOGS"
+  set +e
+  if command -v xcbeautify >/dev/null 2>&1; then
+    "$@" 2>&1 | xcbeautify --quiet >"$log"
+  else
+    "$@" 2>&1 | { grep -Ev "$NOISE" || true; } >"$log"
+  fi
+  rc=${PIPESTATUS[0]}
+  set -e
+  if ((rc != 0)); then
+    echo "FAILED: $name (exit $rc), full log: $log" >&2
+    excerpt "$log" | cap >&2
+  fi
+  return "$rc"
+}
+
+# Pull the interesting lines from a log: errors first, otherwise the tail.
+excerpt() {
+  local log="$1"
+  if grep -qE '(error:|error\b.*:|\*\* .* FAILED|✖|❌|Test .* failed|Issue recorded)' "$log"; then
+    grep -E '(error:|\*\* .* FAILED|✖|❌|Test .* failed|Issue recorded)' "$log" | awk '!seen[$0]++'
+  else
+    tail -n 40 "$log"
+  fi
+}
+
+xcb() { # xcb <action> [extra xcodebuild args...]
+  local action="$1"; shift
+  xcodebuild "$action" -scheme "$SCHEME" -destination "platform=iOS Simulator,name=$DEV_SIM" \
+    -derivedDataPath "$DERIVED" -quiet "$@"
+}
+
+# Reduce an xcresult bundle to its failing tests.
+report_failures() {
+  local bundle="$1"
+  [[ -d "$bundle" ]] || return 0
+  local json
+  json=$(xcrun xcresulttool get test-results summary --path "$bundle" --compact 2>/dev/null) || return 0
+  if command -v jq >/dev/null 2>&1; then
+    # No failures listed means the build died before any test ran; the log excerpt already said why.
+    [[ "$(jq '(.testFailures // []) | length' <<<"$json")" != 0 ]] || return 0
+    {
+      echo "Failing tests ($bundle):"
+      jq -r '(.testFailures // [])[] |
+        "  - \(.testIdentifierString // .testName // "?")\n      \(.failureText // "(no message)")"' <<<"$json"
+      jq -r '"Totals: \(.passedTests // 0) passed, \(.failedTests // 0) failed, \(.skippedTests // 0) skipped"' <<<"$json"
+    } | cap >&2
+  else
+    echo "$json" | cap >&2
+  fi
+}
+
+run_tests() { # run_tests <name> <target> [filter]
+  local name="$1" target="$2" filter="${3:-}"
+  local only="$target" bundle="$RESULTS/$name.xcresult" rc=0
+  [[ -n "$filter" ]] && only="$target/$filter"
+  mkdir -p "$RESULTS"
+  rm -rf "$bundle"
+  run_logged "$name" xcb test -only-testing:"$only" -resultBundlePath "$bundle" || rc=$?
+  if ((rc != 0)); then
+    report_failures "$bundle"
+    return "$rc"
+  fi
+}
+
+cmd_build() { run_logged build xcb build; }
+cmd_test() { run_tests test WorkoutsTests "${1:-}"; }
+cmd_ui_test() { run_tests ui-test WorkoutsUITests "${1:-}"; }
+
+cmd_kit() {
+  [[ -d "$KIT" ]] || die "$KIT does not exist"
+  if [[ -n "${1:-}" ]]; then
+    run_logged kit bash -c 'cd "$1" && swift test --filter "$2"' _ "$KIT" "$1"
+  else
+    run_logged kit bash -c 'cd "$1" && swift test' _ "$KIT"
+  fi
+}
+cmd_kit_build() {
+  [[ -d "$KIT" ]] || die "$KIT does not exist"
+  run_logged kit-build bash -c 'cd "$1" && swift build' _ "$KIT"
+}
+
+swift_format() { # swift_format <lint --strict|format --in-place>
+  xcrun swift-format "$@" --recursive --parallel "${LINT_PATHS[@]}"
+}
+cmd_lint() {
+  local out rc=0
+  out=$(swift_format lint --strict 2>&1) || rc=$?
+  if ((rc != 0)); then
+    echo "$out" | cap >&2
+    echo "FAILED: lint (exit $rc). Fix with: ./dev format" >&2
+  fi
+  return "$rc"
+}
+cmd_format() { swift_format format --in-place; }
+
+find_app() {
+  local app
+  app=$(find "$DERIVED/Build/Products/Debug-iphonesimulator" -maxdepth 1 -name '*.app' -print -quit 2>/dev/null)
+  [[ -n "$app" ]] || die "no .app found under $DERIVED/Build/Products/Debug-iphonesimulator"
+  echo "$app"
+}
+
+cmd_run() {
+  local out
+  if ! out=$(xcrun simctl boot "$DEV_SIM" 2>&1); then
+    [[ "$out" == *"current state: Booted"* || "$out" == *"already"* ]] || die "boot failed: $out"
+  fi
+  open -a Simulator 2>/dev/null || true # absent on headless hosts; the sim still boots
+  xcrun simctl bootstatus "$DEV_SIM" -b >/dev/null 2>&1 || true
+  cmd_build
+  xcrun simctl install booted "$(find_app)"
+  xcrun simctl launch --terminate-running-process booted "$BUNDLE_ID"
+  echo "logs: xcrun simctl spawn booted log stream --predicate 'subsystem == \"$BUNDLE_ID\"'"
+}
+
+cmd_screenshot() {
+  local path="${1:-.build/screenshots/$(date +%Y%m%d-%H%M%S).png}"
+  mkdir -p "$(dirname "$path")"
+  # Multi-display devices (iPhone Duo) need --display; DEV_DISPLAY overrides the "primary" fallback.
+  local out
+  if ! out=$(xcrun simctl io booted screenshot "$path" 2>&1); then
+    if [[ "$out" == *"--display"* ]]; then
+      out=$(xcrun simctl io booted screenshot --display="${DEV_DISPLAY:-primary}" "$path" 2>&1) || die "screenshot failed: $out"
+    else
+      die "screenshot failed: $out"
+    fi
+  fi
+  echo "$path"
+}
+
+cmd_clean() { rm -rf .build; }
+
+cmd_check() {
+  cmd_lint
+  cmd_kit
+  cmd_build
+  cmd_test
+  echo "check: ok"
+}
+
+cmd_help() {
+  cat <<'USAGE'
+build              build the app for $DEV_SIM (default "iPhone Duo")
+test [filter]      run WorkoutsTests (filter = suite or suite/test)
+ui-test [filter]   run WorkoutsUITests
+kit [filter]       swift test in Packages/WorkoutsKit
+kit-build          swift build in Packages/WorkoutsKit
+lint               swift-format lint --strict
+format             swift-format in place
+run                boot sim, build, install, launch; prints log command
+screenshot [path]  simulator screenshot (default .build/screenshots/<timestamp>.png)
+clean              rm -rf .build
+check              lint, kit, build, test; stops at first failure
+help               this list
+USAGE
+}
+
+sub="${1:-help}"
+[[ $# -gt 0 ]] && shift
+case "$sub" in
+  build) cmd_build ;;
+  test) cmd_test "$@" ;;
+  ui-test) cmd_ui_test "$@" ;;
+  kit) cmd_kit "$@" ;;
+  kit-build) cmd_kit_build ;;
+  lint) cmd_lint ;;
+  format) cmd_format ;;
+  run) cmd_run ;;
+  screenshot) cmd_screenshot "$@" ;;
+  clean) cmd_clean ;;
+  check) cmd_check ;;
+  help | -h | --help) cmd_help ;;
+  *) cmd_help >&2; die "unknown command: $sub" ;;
+esac
