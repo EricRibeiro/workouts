@@ -1,4 +1,7 @@
 # Layout and style
+> The breakpoints and pose sizes below describe the PWA, which had no sidebar or vertical bars.
+> For native layout use `duo-layout.md` (Apple's guidance); this file is kept for the web's
+> navigation structure, visual system and the native-mapping table.
 
 Sources, under `~/Projects/mac-os-compose-collection/workouts/`: `ui.md` = `app/docs/ui.md`, `PLAN.md`,
 `IOS.md`, `router.ts` = `app/ui/src/router.ts`. Sections 1-3 and 5 are web facts (1 CSS px = 1 pt,

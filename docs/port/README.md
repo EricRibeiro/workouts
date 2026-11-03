@@ -10,7 +10,8 @@ idioms win when they disagree (see `AGENTS.md` → Product decisions).
 | `OPEN-QUESTIONS.md` | Questions for Eric (empty as of 2026-11-03; answers in `AGENTS.md` and `docs/PLAN.md`) |
 | `media.md` | How thumbnails and videos are delivered |
 | `data-model.md` | Entities, fields, invariants, derived numbers → SwiftData + WorkoutsKit |
-| `layout-and-style.md` | Compact vs expanded layout, bars, tokens, motion → native mapping |
+| `duo-layout.md` | **Apple's** iPhone Duo layout rules: size classes, vertical bars, fold regions, testing. Wins over the web breakpoints |
+| `layout-and-style.md` | The web app's layout, bars, tokens, motion → native mapping (viewport facts superseded by `duo-layout.md`) |
 | `screens/workout.md` | Workout tab: folders, templates, template editor |
 | `screens/active-workout.md` | The in-progress workout: sets, rest timer, dock, finish |
 | `screens/history.md` | History tab: cards, calendar, charts, dashboard, settings |

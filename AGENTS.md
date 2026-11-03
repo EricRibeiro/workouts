@@ -96,8 +96,10 @@ Rules for the loop:
   `ObservableObject`, no `NavigationView`, no UIKit unless wrapping something SwiftUI lacks.
 - **Duo-ready layout.** Never read `UIScreen.main`, device idiom, orientation, or hardcode sizes.
   Use size classes and `GeometryReader`; compact width may become regular width mid-session when
-  the phone opens. Tab bars/toolbars may be placed vertically on the inner display. Consult the
-  `app-resizability` skill before any top-level layout work.
+  the phone opens. On the closed display the system puts the Dynamic Island, status bar, toolbar
+  and tab bar in a vertical strip on the trailing edge; never override bar placement, give every
+  toolbar item a symbol. Read `docs/port/duo-layout.md` (Apple's rules) before any layout work and
+  use the `app-resizability` skill for migrations.
 - Swift 6 strict concurrency is on; everything is `MainActor` by default. Mark off-main work
   `nonisolated` explicitly and keep types that cross actors `Sendable`.
 - No force unwraps, no `try!` outside tests. `OrderedImports` and the rest of `.swift-format`

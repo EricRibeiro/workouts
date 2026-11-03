@@ -123,7 +123,9 @@ Eric deferred the technical choices to Claude. These close every item in `docs/p
   Dynamic Type everywhere; the set table is verified at AX sizes (no clipping): at
   `dynamicTypeSize.isAccessibilitySize` each row becomes a two-line stack via `ViewThatFits`.
 
-**Duo rules (from Apple's app-resizability skill; also in `AGENTS.md`)**
+**Duo rules (Apple's HIG and Technology Overview, distilled in `docs/port/duo-layout.md`; also in
+`AGENTS.md`). The web app's breakpoints are not a viewport model: it had no sidebar and no
+vertical bars, so native gets more of the panel.**
 - Size classes only; never `UIScreen.main`, idiom, orientation, or hardcoded sizes. Width can
   change mid-session (fold/unfold) and the app must keep selection, scroll and the active workout.
 - Asymmetric safe areas are normal; use `.safeAreaInset`/`.safeAreaPadding`, no magic numbers.
