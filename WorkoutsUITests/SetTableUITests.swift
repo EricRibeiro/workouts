@@ -43,7 +43,14 @@ final class SetTableUITests: XCTestCase {
         XCTAssertEqual(addSet.label, "Add set")
         let knownChecks = checks.allElementsBoundByIndex.map(\.identifier)
         addSet.tap()
-        XCTAssertTrue(waitForCount(checks, initialCount + 1), "Add Set did not add a row")
+        // The table is lazy: the new row can push the next block's first row out of the tree (a sticky note under the
+        // first name does that), so look for the new row rather than for one more row.
+        let deadline = Date().addingTimeInterval(5)
+        while Date() < deadline,
+            !checks.allElementsBoundByIndex.contains(where: { !knownChecks.contains($0.identifier) })
+        {
+            Thread.sleep(forTimeInterval: 0.2)
+        }
 
         // Checking the new, empty row is refused: nothing to record, so it stays "Not done".
         let newCheck = checks.allElementsBoundByIndex.first { !knownChecks.contains($0.identifier) }

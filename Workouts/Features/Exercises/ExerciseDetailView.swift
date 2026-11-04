@@ -9,7 +9,7 @@ import WorkoutsKit
 
 /// The exercise detail (task 4.2): a media header, the full wrapping name, and a segmented control over About,
 /// History, Charts and Records (4.3). `embedded` drops the navigation chrome (title, Edit) and the
-/// edge-to-edge hero, for the logging pane. Edit exists for custom exercises only.
+/// edge-to-edge hero (a rounded media card instead), for the logging pane; the sticky note is editable in both. Edit exists for custom exercises only.
 struct ExerciseDetailView: View {
     enum Segment: String, CaseIterable, Identifiable {
         case about = "About"
@@ -64,6 +64,7 @@ struct ExerciseDetailView: View {
                 ExerciseMediaHeader(info: info, library: library, embedded: embedded)
                 VStack(alignment: .leading, spacing: 16) {
                     header(info)
+                    StickyNoteView(exerciseID: info.id)
                     Picker("Section", selection: $segment) {
                         ForEach(Segment.allCases) { Text($0.rawValue).tag($0) }
                     }
@@ -90,17 +91,7 @@ struct ExerciseDetailView: View {
             }
             .padding(.bottom, 24)
         }
-        .navigationTitle("")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            if info.isCustom && !embedded {
-                ToolbarItem(placement: .primaryAction) {
-                    Button("Edit", systemImage: "pencil") { isEditing = true }
-                        .accessibilityLabel("Edit")
-                        .accessibilityIdentifier("exerciseDetail.edit")
-                }
-            }
-        }
+        .modifier(DetailChrome(showsEdit: info.isCustom && !embedded, embedded: embedded) { isEditing = true })
         .sheet(isPresented: $isEditing) {
             CustomExerciseFormView(editing: exerciseID)
                 .presentationPlacement(.center)
@@ -133,6 +124,33 @@ struct ExerciseDetailView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+/// The pushed detail's navigation chrome: an empty inline title and, for custom exercises, Edit. The embedded pane has
+/// none, so it never touches its host's title or toolbar.
+private struct DetailChrome: ViewModifier {
+    let showsEdit: Bool
+    let embedded: Bool
+    let edit: () -> Void
+
+    func body(content: Content) -> some View {
+        if embedded {
+            content
+        } else {
+            content
+                .navigationTitle("")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    if showsEdit {
+                        ToolbarItem(placement: .primaryAction) {
+                            Button("Edit", systemImage: "pencil", action: edit)
+                                .accessibilityLabel("Edit")
+                                .accessibilityIdentifier("exerciseDetail.edit")
+                        }
+                    }
+                }
+        }
     }
 }
 

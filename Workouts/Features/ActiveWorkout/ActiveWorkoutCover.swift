@@ -172,7 +172,8 @@ struct ActiveWorkoutCover: View {
             SetTable(source: source, focusedSection: $focusedSectionID)
         } secondary: {
             if horizontalSizeClass == .regular {
-                ExercisePane(exerciseName: focusedSection(in: sections)?.name)
+                let focused = focusedSection(in: sections)
+                ExercisePane(exerciseName: focused?.name, exerciseID: focused?.exerciseID)
             }
         }
         .arrangementViewStyle(

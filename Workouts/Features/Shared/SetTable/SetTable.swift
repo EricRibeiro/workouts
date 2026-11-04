@@ -26,6 +26,8 @@ struct SetTable: View {
     var focusedSection: Binding<UUID?> = .constant(nil)
 
     @FocusState private var focus: SetRowField?
+    /// Every sticky note (a handful), so a header shows its exercise's note and follows edits made in the exercise pane.
+    @Query private var stickyNotes: [StickyNote]
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @ScaledMetric(relativeTo: .body) private var readableWidth = 640.0
     @ScaledMetric(relativeTo: .body) private var touch = 44.0
@@ -140,6 +142,17 @@ struct SetTable: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+            if let sticky = stickyNote(for: section) {
+                Text(sticky)
+                    .font(.footnote)
+                    .foregroundStyle(.primary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.yellow.opacity(0.22), in: .rect(cornerRadius: 8))
+                    .accessibilityLabel("Sticky note: \(sticky)")
+                    .accessibilityIdentifier("settable.sticky.\(section.id.uuidString)")
+            }
             if !section.note.isEmpty {
                 Text(section.note)
                     .font(.footnote)
@@ -149,6 +162,10 @@ struct SetTable: View {
         }
         .padding(.horizontal, 8)
         .padding(.bottom, 8)
+    }
+
+    private func stickyNote(for section: SetTableSection) -> String? {
+        stickyNotes.first { $0.exerciseID == section.exerciseID && !$0.text.isEmpty }?.text
     }
 
     /// Set · Previous · unit · Reps · ✓, mirroring the row's one-line columns. Hidden from VoiceOver (the cells carry their own
