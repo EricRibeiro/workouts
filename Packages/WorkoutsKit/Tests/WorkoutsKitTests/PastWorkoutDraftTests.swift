@@ -103,6 +103,26 @@ import Testing
         #expect(draft.name == "Legs")
     }
 
+    @Test func durationMinutesFloorLikeTheHistoryRows() throws {
+        let holder = try container()
+        defer { withExtendedLifetime(holder) {} }
+        let model = workout(holder.mainContext)
+        model.finishedAt = start.addingTimeInterval(50 * 60 + 45)
+        let draft = PastWorkoutDraft(model)
+        #expect(draft.durationMinutes == 50)
+        #expect(HistoryList.durationText(seconds: draft.durationSeconds) == "50min")
+    }
+
+    @Test func durationClampsToADay() throws {
+        let holder = try container()
+        defer { withExtendedLifetime(holder) {} }
+        var draft = PastWorkoutDraft(workout(holder.mainContext))
+        draft.setDurationMinutes(5000)
+        #expect(draft.durationMinutes == 1440)
+        draft.setDurationMinutes(1440)
+        #expect(draft.durationSeconds == 86_400)
+    }
+
     @Test func addSetCopiesTheLastAndWarmupBecomesNormal() throws {
         let holder = try container()
         defer { withExtendedLifetime(holder) {} }

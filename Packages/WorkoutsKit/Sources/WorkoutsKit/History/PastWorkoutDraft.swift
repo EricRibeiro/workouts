@@ -77,12 +77,16 @@ public struct PastWorkoutDraft: Equatable, Sendable {
 
     // MARK: Header fields
 
-    /// The duration in whole minutes (rounded), the unit the editor's stepper works in.
-    public var durationMinutes: Int { Int((Double(durationSeconds) / 60).rounded()) }
+    /// The duration in whole minutes, floored like the History rows (`HistoryList.durationText`), the unit the editor's
+    /// field and stepper work in.
+    public var durationMinutes: Int { durationSeconds / 60 }
 
-    /// Sets the duration in minutes, clamped to at least zero.
+    /// The longest duration the editor accepts, in minutes (a day).
+    public static let maxDurationMinutes = 1440
+
+    /// Sets the duration in minutes, clamped to 0...`maxDurationMinutes`.
     public mutating func setDurationMinutes(_ minutes: Int) {
-        durationSeconds = max(0, minutes) * 60
+        durationSeconds = min(max(0, minutes), Self.maxDurationMinutes) * 60
     }
 
     public var endedAt: Date { startedAt.addingTimeInterval(TimeInterval(durationSeconds)) }

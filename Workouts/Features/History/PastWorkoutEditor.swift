@@ -48,6 +48,7 @@ private struct Editor: View {
     @State private var isRenaming = false
     @State private var renameText = ""
     @State private var focusedSectionID: UUID?
+    @FocusState private var isDurationFocused: Bool
 
     init(workout: Workout) {
         self.workout = workout
@@ -122,11 +123,11 @@ private struct Editor: View {
             HStack(spacing: 24) {
                 startPicker
                 Spacer(minLength: 0)
-                durationStepper
+                durationControl
             }
             VStack(alignment: .leading, spacing: 8) {
                 startPicker
-                durationStepper
+                durationControl
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -145,20 +146,44 @@ private struct Editor: View {
         .accessibilityIdentifier("pastEditor.start")
     }
 
-    private var durationStepper: some View {
-        Stepper(
-            value: Binding(
-                get: { draft.durationMinutes },
-                set: { draft.setDurationMinutes($0) }
-            ),
-            in: 0...1440
-        ) {
-            Text("Duration \(draft.durationMinutes) min")
+    /// Minutes as a number field with a stepper beside it: typing handles the long jumps, the stepper the small ones.
+    private var durationControl: some View {
+        let minutes = Binding(
+            get: { draft.durationMinutes },
+            set: { draft.setDurationMinutes($0) }
+        )
+        return HStack(spacing: 8) {
+            Text("Duration")
+            TextField("Minutes", value: minutes, format: .number)
+                .keyboardType(.numberPad)
+                .multilineTextAlignment(.trailing)
                 .monospacedDigit()
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 72)
+                .focused($isDurationFocused)
+                .toolbar {
+                    // The number pad has no Return; shown only while this field has focus so the set keyboard's
+                    // group is left alone.
+                    if isDurationFocused {
+                        ToolbarItemGroup(placement: .keyboard) {
+                            Spacer()
+                            Button("Done", systemImage: "keyboard.chevron.compact.down") { isDurationFocused = false }
+                                .accessibilityLabel("Done")
+                                .accessibilityIdentifier("pastEditor.duration.done")
+                        }
+                    }
+                }
+                .accessibilityLabel("Duration in minutes")
+                .accessibilityIdentifier("pastEditor.duration")
+            Text("min")
+                .foregroundStyle(.secondary)
+            Stepper("Duration", value: minutes, in: 0...PastWorkoutDraft.maxDurationMinutes)
+                .labelsHidden()
+                .accessibilityLabel("Duration")
+                .accessibilityValue("\(draft.durationMinutes) minutes")
+                .accessibilityIdentifier("pastEditor.duration.stepper")
         }
         .fixedSize()
-        .accessibilityValue("\(draft.durationMinutes) minutes")
-        .accessibilityIdentifier("pastEditor.duration")
     }
 
     // MARK: Table

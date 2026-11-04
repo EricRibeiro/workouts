@@ -43,7 +43,8 @@ final class PastEditorUITests: XCTestCase {
         app.buttons["workoutDetail.edit"].tap()
         XCTAssertTrue(any["screen.pastEditor"].waitForExistence(timeout: 5), "no past editor")
         XCTAssertTrue(any["pastEditor.start"].exists, "no start picker")
-        XCTAssertTrue(any["pastEditor.duration"].exists, "no duration stepper")
+        XCTAssertTrue(any["pastEditor.duration"].exists, "no duration field")
+        XCTAssertTrue(any["pastEditor.duration.stepper"].exists, "no duration stepper")
         XCTAssertFalse(app.buttons["pastEditor.save"].isEnabled, "Save is enabled with nothing changed")
 
         let weight = app.textFields.matching(
@@ -110,5 +111,32 @@ final class PastEditorUITests: XCTestCase {
         let closed = XCTNSPredicateExpectation(predicate: gone, object: any["screen.pastEditor"])
         XCTAssertEqual(XCTWaiter().wait(for: [closed], timeout: 5), .completed, "the editor is still up")
         XCTAssertEqual(firstBlockLabel(app), before, "a discarded edit changed the workout")
+    }
+
+    @MainActor
+    func testDurationTakesTypedMinutesAndTheStepperAdjustsThem() throws {
+        let app = openFirstWorkout()
+        let any = app.descendants(matching: .any)
+        app.buttons["workoutDetail.edit"].tap()
+        XCTAssertTrue(any["screen.pastEditor"].waitForExistence(timeout: 5), "no past editor")
+        XCTAssertFalse(app.buttons["pastEditor.save"].isEnabled, "Save is enabled with nothing changed")
+
+        let field = app.textFields["pastEditor.duration"]
+        XCTAssertTrue(field.waitForExistence(timeout: 5), "no duration field")
+        field.tap()
+        field.press(forDuration: 1.0)
+        let selectAll = app.menuItems["Select All"]
+        if selectAll.waitForExistence(timeout: 2) { selectAll.tap() }
+        field.typeText("9999")
+        let done = app.buttons["pastEditor.duration.done"]
+        XCTAssertTrue(done.waitForExistence(timeout: 5), "no Done on the number pad")
+        done.tap()
+        XCTAssertEqual(field.value as? String, "1,440", "typed minutes were not clamped to a day")
+        XCTAssertTrue(app.buttons["pastEditor.save"].isEnabled, "Save is disabled after a duration edit")
+
+        let stepper = app.steppers["pastEditor.duration.stepper"]
+        XCTAssertTrue(stepper.exists, "no duration stepper")
+        stepper.buttons.element(boundBy: 0).tap()
+        XCTAssertEqual(field.value as? String, "1,439", "the stepper did not step the field down")
     }
 }

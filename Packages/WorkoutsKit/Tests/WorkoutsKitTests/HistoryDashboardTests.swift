@@ -174,4 +174,17 @@ import Testing
                 == "45 s"
         )
     }
+
+    @Test func recordTextGroupsThousands() {
+        #expect(
+            HistoryDashboard.text(for: PersonalRecord(kind: .e1rm, value: 1929, weight: 1500, reps: 3), unit: .lb)
+                == "e1RM 1,929 lb"
+        )
+        #expect(
+            HistoryDashboard.text(for: PersonalRecord(kind: .heaviest, value: 1250, weight: 1250, reps: 2), unit: .lb)
+                == "1,250 lb × 2"
+        )
+        #expect(HistoryDashboard.groupedWeight(117.5) == "117.5")
+        #expect(HistoryDashboard.groupedWeight(0) == "0")
+    }
 }

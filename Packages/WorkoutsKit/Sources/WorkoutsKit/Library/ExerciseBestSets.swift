@@ -4,15 +4,18 @@ import Foundation
 /// (`docs/port/screens/exercises.md` section 2, "Row": warm-ups and unchecked sets never count).
 public nonisolated enum ExerciseBestSets {
     /// One `Session` per finished workout and exercise row, completed sets only, grouped by exercise id.
-    /// `weightType` resolves an exercise id to its weight type (unknown ids are `.weighted`).
+    /// `weightType` resolves an exercise id to its weight type (unknown ids are `.weighted`). With `exerciseIDs`, only
+    /// rows of those exercises are folded; the rest of the history is skipped rather than filtered afterwards.
     @MainActor
     public static func sessions(
         from workouts: [Workout],
-        weightType: (UUID) -> WeightType?
+        weightType: (UUID) -> WeightType?,
+        exerciseIDs: Set<UUID>? = nil
     ) -> [UUID: [Session]] {
         var result: [UUID: [Session]] = [:]
         for workout in workouts where workout.finishedAt != nil {
             for row in workout.exercises ?? [] {
+                if let exerciseIDs, !exerciseIDs.contains(row.exerciseID) { continue }
                 let sets = (row.sets ?? []).filter(\.completed).sorted { $0.position < $1.position }.map {
                     LoggedSet(
                         kind: $0.kind,

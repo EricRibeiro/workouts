@@ -25,12 +25,15 @@ struct WorkoutDetailView: View {
     @State private var deleteFailed = false
     @State private var isDeleted = false
     @State private var savedTemplates = 0
+    /// Derived in `.task(id:)` when the history or a setting changes, never in `body`.
+    @State private var detail: WorkoutDetail?
+    @State private var isLoaded = false
 
     var body: some View {
-        Group {
+        ZStack {
             if let detail {
                 content(detail)
-            } else if !isDeleted {
+            } else if isLoaded && !isDeleted {
                 ContentUnavailableView(
                     "Workout Not Found",
                     systemImage: "questionmark.folder",
@@ -39,15 +42,18 @@ struct WorkoutDetailView: View {
                 .accessibilityIdentifier("history.detail.missing")
             }
         }
+        .task(id: Inputs(finished, unit: settings?.defaultUnit, formula: settings?.e1rmFormula)) {
+            detail = isDeleted ? nil : makeDetail()
+            isLoaded = true
+        }
         .sensoryFeedback(.success, trigger: savedTemplates)
         .alert("Could not delete the workout.", isPresented: $deleteFailed) {
             Button("OK", role: .cancel) {}
         }
     }
 
-    private var detail: WorkoutDetail? {
-        guard !isDeleted else { return nil }
-        return WorkoutDetail.make(
+    private func makeDetail() -> WorkoutDetail? {
+        WorkoutDetail.make(
             id: workoutID,
             from: finished,
             weightType: { store.exercise(id: $0)?.weightType },
@@ -91,7 +97,7 @@ struct WorkoutDetailView: View {
                 .accessibilityIdentifier("workoutDetail.edit")
             }
             ToolbarItem(placement: .primaryAction) {
-                Button("Save as Template", systemImage: "square.and.arrow.down.on.square") {
+                Button("Save as Template", systemImage: "doc.on.doc") {
                     isTemplatePresented = true
                 }
                 .accessibilityLabel("Save as Template")
@@ -129,11 +135,28 @@ struct WorkoutDetailView: View {
         do {
             try context.save()
             isDeleted = true
+            detail = nil
             dismiss()
         } catch {
             context.rollback()
             deleteFailed = true
         }
+    }
+}
+
+/// What the detail is derived from: changes when a finished workout is added, removed or edited, or a setting that
+/// changes the numbers does, so the detail is recomputed then and not on every body evaluation.
+private struct Inputs: Hashable {
+    let ids: [UUID]
+    let newestEdit: Date?
+    let unit: WeightUnit?
+    let formula: E1RMFormula?
+
+    init(_ workouts: [Workout], unit: WeightUnit?, formula: E1RMFormula?) {
+        ids = workouts.map(\.id)
+        newestEdit = workouts.map(\.updatedAt).max()
+        self.unit = unit
+        self.formula = formula
     }
 }
 
@@ -158,9 +181,7 @@ private struct DetailHeader: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
-        .padding()
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.quaternary, in: RoundedRectangle(cornerRadius: 12))
+        .dashboardCardStyle()
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(detail.headerAccessibilityLabel)
         .accessibilityIdentifier("workoutDetail.header")
@@ -238,10 +259,8 @@ private struct ExerciseBlockView: View {
                 }
             }
         }
-        .padding()
         .padding(.leading, block.supersetNumber == nil ? 0 : 8)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.quaternary, in: RoundedRectangle(cornerRadius: 12))
+        .dashboardCardStyle()
         .overlay(alignment: .leading) {
             if let number = block.supersetNumber {
                 Capsule()
@@ -301,8 +320,8 @@ private struct ExerciseBlockView: View {
 // MARK: - Save as Template
 
 /// Picks a folder (or none) and saves the workout's completed sets as a template. With no folders yet it offers to make
-/// one called `Templates`. Success closes the sheet; the presenter plays the success haptic.
-private struct SaveTemplateSheet: View {
+/// one called `Templates`. Success closes the sheet; a presenter may pass `saved` to play the success haptic.
+struct SaveTemplateSheet: View {
     let workout: Workout
     let saved: () -> Void
 
@@ -320,7 +339,7 @@ private struct SaveTemplateSheet: View {
     @State private var name: String
     @State private var failed = false
 
-    init(workout: Workout, saved: @escaping () -> Void) {
+    init(workout: Workout, saved: @escaping () -> Void = {}) {
         self.workout = workout
         self.saved = saved
         _name = State(initialValue: workout.name)

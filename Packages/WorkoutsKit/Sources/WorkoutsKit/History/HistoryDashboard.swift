@@ -126,20 +126,35 @@ public nonisolated enum HistoryDashboard {
         return Array(found.filter { seen.insert($0.id).inserted }.prefix(limit))
     }
 
-    /// The record's value as text.
+    /// The record's value as text, weights with thousands separators like the volume (`e1RM 1,929 lb`).
     public static func text(for record: PersonalRecord, unit: WeightUnit) -> String {
         switch record.kind {
         case .e1rm:
-            return "e1RM \(formatWeight(record.value)) \(unit.rawValue)"
+            return "e1RM \(groupedWeight(record.value)) \(unit.rawValue)"
         case .longestDuration:
-            return formatSetDetail(
-                weight: record.weight,
-                unit: unit,
-                reps: nil,
-                durationSeconds: Int(record.value.rounded())
-            )
+            let load = record.weight > 0 ? "\(groupedWeight(record.weight)) \(unit.rawValue)" : nil
+            let time = formatDuration(seconds: Int(record.value.rounded()))
+            return load.map { "\($0) × \(time)" } ?? time
         case .heaviest, .bestVolumeSet, .repsAtWeight:
-            return formatSetDetail(weight: record.weight, unit: unit, reps: record.reps, durationSeconds: nil)
+            let load = record.weight > 0 ? "\(groupedWeight(record.weight)) \(unit.rawValue)" : nil
+            switch (load, record.reps > 0 ? record.reps : nil) {
+            case (let load?, let reps?): return "\(load) × \(reps)"
+            case (let load?, nil): return load
+            case (nil, let reps?): return "\(reps) reps"
+            case (nil, nil): return ""
+            }
         }
+    }
+
+    /// A weight with thousands separators and up to two decimals, like `formatWeight` otherwise: `1,929`, `117.5`.
+    public static func groupedWeight(_ weight: Double) -> String {
+        let format = NumberFormatter()
+        format.locale = Locale(identifier: "en_US")
+        format.numberStyle = .decimal
+        format.usesGroupingSeparator = true
+        format.minimumFractionDigits = 0
+        format.maximumFractionDigits = 2
+        let text = format.string(from: NSNumber(value: weight)) ?? formatWeight(weight)
+        return text == "-0" ? "0" : text
     }
 }

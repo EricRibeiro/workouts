@@ -234,6 +234,50 @@ import Testing
         #expect(first.prCount == 3)
     }
 
+    @Test func otherExercisesInTheHistoryDoNotChangeTheDetail() throws {
+        let holder = try container()
+        defer { withExtendedLifetime(holder) {} }
+        let context = holder.mainContext
+        let early = workout(
+            context,
+            name: "A",
+            at: date(10, 1),
+            rows: [(bench, "Bench Press", nil, [(.normal, 100, 5, true)])]
+        )
+        let target = workout(
+            context,
+            name: "B",
+            at: date(10, 8),
+            rows: [(bench, "Bench Press", nil, [(.normal, 110, 5, true)])]
+        )
+        let unrelated = workout(
+            context,
+            name: "C",
+            at: date(10, 3),
+            rows: [(curl, "Curl", nil, [(.normal, 500, 5, true)])]
+        )
+        let alone = try #require(detail(target.id, [early, target]))
+        let crowded = try #require(detail(target.id, [early, unrelated, target]))
+        #expect(alone == crowded)
+        #expect(alone.prCount > 0)
+    }
+
+    @Test func prLinesGroupThousands() {
+        func line(_ kind: RecordKind, value: Double, weight: Double = 0, reps: Int = 0) -> String {
+            WorkoutDetail.prLine(
+                PersonalRecord(kind: kind, value: value, weight: weight, reps: reps),
+                unit: .lb,
+                weightType: .barbell
+            )
+        }
+        #expect(line(.e1rm, value: 1929) == "Est. 1RM: 1,929 lb")
+        #expect(line(.e1rm, value: 1929.5) == "Est. 1RM: 1,929.5 lb")
+        #expect(line(.heaviest, value: 1250, weight: 1250, reps: 1) == "Heaviest: 1,250 lb")
+        #expect(line(.bestVolumeSet, value: 12_345) == "Set volume: 12,345 lb")
+        #expect(line(.repsAtWeight, value: 3, weight: 1500, reps: 3) == "Reps: 3 at 1,500 lb")
+        #expect(line(.e1rm, value: 117.5) == "Est. 1RM: 117.5 lb")
+    }
+
     @Test func prLineTexts() {
         func line(_ kind: RecordKind, value: Double, weight: Double = 0, reps: Int = 0, type: WeightType = .barbell)
             -> String
