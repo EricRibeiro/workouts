@@ -52,6 +52,7 @@ Codable/Sendable state those types wrap and the logic behind them.
 ./dev ui-test [filter]  XCUITest flows on the simulator    — Suite/test(); the flow proof of record
 ./dev run [-- args]     boot sim, install, launch the app; args go to the app (`-- -preview <Name>` = the gallery)
 ./dev screenshot [p]    PNG of the booted simulator (Duo has two displays; DEV_DISPLAY=primary|…)
+./dev fold <pose> [p]   Duo hinge closed|half-open|open, p = PNG of the lit panel; ./dev orient <o> [p] rotates
 ./dev check             lint → kit → build → test; the pre-commit gate (~30s warm)
 ```
 
@@ -84,7 +85,8 @@ Rules for the loop:
   never depend on the MCP. Skill: `verify-ui`.
 - **Never toggle the simulator's displays** (`simctl io … screenConfig`, display power, device defaults): it crash-loops
   SpringBoard and floods Eric's Mac with crash dialogs. `./dev` fails any simulator command during which SpringBoard
-  crashed; treat that as a stop, `xcrun simctl shutdown all`, and report. Folding the Duo is a person's job (Device Hub).
+  crashed; treat that as a stop, `xcrun simctl shutdown all`, and report. Change Duo poses only with `./dev fold` /
+  `./dev orient` (skill `verify-ui`), and leave the sim closed and portrait.
 - **Do not change** the deployment target, supported platforms, signing, or add a remote package
   without being asked.
 

@@ -109,8 +109,12 @@ Live Activity → notifications → logging, then templates, exercises, history.
 - [x] **0.5a Shell and tabs**: `TabView(.sidebarAdaptable)` + `.defaultAdaptableTabBarPlacement(.sidebar)`, empty History · Workout
   · Exercises skeletons (Workout selected), Settings gear + `tabViewSidebarBottomBar` + empty Form sheet. Proof: `./dev run` +
   closed-pose screenshot (record where the bar lands).
-- [ ] **0.5b ArrangementView cover spike**: empty root `fullScreenCover` holding an empty `ArrangementView` (spike for 2.10).
+- [x] **0.5b ArrangementView cover spike**: empty root `fullScreenCover` holding an empty `ArrangementView` (spike for 2.10).
   Needs: 0.5a. Proof: `./dev run` + both open-pose screenshots (record how the cover's arrangement behaves).
+  Recorded 2026-11-03 (`./dev fold`): the cover stays presented across fold and unfold; its size class switches live, so
+  the same cover goes compact ↔ `ArrangementView` without dismissal. Open wide (951x669): primary left, secondary right,
+  bars in the trailing strip. Open rotated (669x951): primary on top, secondary below, bars across the top. Closing returns
+  to the compact layout. `ArrangementView(primary:secondary:)` takes exactly two panes.
 - [x] **0.6 AppNavigation** (kit): selected tab, typed routes, cover and minimise state. Proof: `./dev kit Navigation`.
 - [x] **0.7 Design colours**: asset-catalog semantic colours, light/dark. Proof: `./dev build` + a swatch `#Preview` (shown in the
   gallery once 0.10 lands).

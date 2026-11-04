@@ -58,18 +58,19 @@ session as soon as you are done; it is expensive to keep open.
 
 Layout work must be checked in all four poses: closed portrait and landscape (compact width,
 outer display), open tall and open wide (regular/regular, inner display, hinge in the middle).
-Orientation changes go through `DeviceInteractionSynthesize`. Switching folded/unfolded from the
-CLI is **not supported**; use the Simulator's Device Hub window for that (a person does it) and
-screenshot with `./dev screenshot`.
-Open Device Hub from `/Applications/Xcode.app/Contents/Applications/DeviceHub.app`: an older copy found via
-Spotlight can lack the fold controls (Apple Developer Forums thread 847556).
+Change poses with `./dev fold closed|half-open|open [png]` and `./dev orient portrait|landscape-left|… [png]`
+(agent-device, pinned in `dev`; it sends the simulator's own HID hinge event and confirms the hinge angle). The optional
+png captures whichever panel is lit: 466x678 pt closed (outer), 951x669 open, 669x951 open rotated. Plain
+`./dev screenshot` may capture a dark panel once the Duo is open, so use the fold/orient capture there. Every
+coordinate and accessibility ref is stale after a pose change. Finish a run with `./dev orient portrait` and
+`./dev fold closed` so the next agent starts from the default pose. Device Hub
+(`/Applications/Xcode.app/Contents/Applications/DeviceHub.app`) remains the manual fallback.
 
 **Never experiment with the simulator's displays.** `xcrun simctl io <dev> screenConfig --display=N
 power off|on` (tried 2026-11-03 to fake folding) put SpringBoard into a crash loop: a "SpringBoard quit
 unexpectedly" dialog on Eric's Mac every few seconds. Do not use `screenConfig`, display power, or any
 undocumented simctl/defaults change to the device. `simctl io enumerate` and `screenshot --display=N`
-(read-only) are fine. When a task needs an open pose and the fold cannot be done, capture the closed pose,
-say the open poses are pending, and the orchestrator asks Eric to unfold in Device Hub.
+(read-only) are fine. Use `./dev fold` for poses, never anything else.
 
 `./dev run|test|ui-test|screenshot|check` fail when a new `SpringBoard-*.ips` crash report appears while
 they run. If that happens: stop, `xcrun simctl shutdown all`, and report it. Never retry past it.
