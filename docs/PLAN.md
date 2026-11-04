@@ -142,7 +142,7 @@ Live Activity → notifications → logging, then templates, exercises, history.
   Info.plist with `NSExtensionPointIdentifier = com.apple.widgetkit-extension` (`GENERATE_INFOPLIST_FILE` is not defaulted), copy
   phase to PlugIns, `pkg link` of the kit; write the recipe into the skill), `NSSupportsLiveActivities`, stub view. Needs: 1.1,
   1.3a. Proof: `./dev build`.
-- [ ] **1.4 Live Activity views**: lock screen and Island presentations per `DECISIONS.md` (no Island on the inner display). Needs:
+- [x] **1.4 Live Activity views**: lock screen and Island presentations per `DECISIONS.md` (no Island on the inner display). Needs:
   1.3. Proof: `#Preview(as:using:)` renders (MCP) or, without it, Lock Screen/Island simulator screenshots.
 - [ ] **1.5 Live Activity lifecycle + intents**: request/update/end from the engine; Skip / +30 s / Done set as `nonisolated
   struct` intents in `Workouts/App/Intents/` (`perform()` is nonisolated; under `SWIFT_DEFAULT_ACTOR_ISOLATION=MainActor` the type
