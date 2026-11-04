@@ -174,7 +174,7 @@ Live Activity → notifications → logging, then templates, exercises, history.
   `isIdleTimerDisabled` gate; the Workout tab's Add menu gets **Empty Workout** (New Template / New Folder join in 3.1). Needs:
   1.1, 2.1, 2.3, 0.9, 0.10. Proof: flow (load sample data → Add → Empty Workout → add an exercise via the picker → log a set; Previous
   fills).
-- [ ] **2.5 Rest ring item** per `DECISIONS.md`: idle `Menu` + "Custom…" two-wheel sheet, running expanded sheet (trailing placement)
+- [x] **2.5 Rest ring item** per `DECISIONS.md`: idle `Menu` + "Custom…" two-wheel sheet, running expanded sheet (trailing placement)
   with the −10 s / +10 s / Skip group, custom `ProgressViewStyle` ring. Needs: 1.2, 2.4, 0.10. Proof: flow (pick 1:00, adjust, Skip;
   create a custom).
 - [ ] **2.6 Rest toolbar group and minimise**: Skip / +30 s group while a rest runs, countdown + Skip + +30 s in the keyboard

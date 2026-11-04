@@ -8,7 +8,7 @@ import UIKit
 import WorkoutsKit
 
 /// The logging screen (task 2.4): the in-progress workout's set table under a title with the start date and live elapsed
-/// time, Minimise and Add Exercise in the toolbar. Finish, Discard and the rest ring arrive with 2.8 and 2.5; the
+/// time, Minimise and Add Exercise in the toolbar. the rest ring is `RestRingItem` (2.5); Finish and Discard arrive with 2.8; the
 /// regular-width secondary panes are placeholders until 2.10.
 ///
 /// Reads the engine and the exercise store from the environment. Keeps the screen awake while open when Settings asks.
@@ -40,6 +40,9 @@ struct ActiveWorkoutCover: View {
                 }
                 if engine?.workout != nil {
                     ToolbarItem(placement: .primaryAction) {
+                        RestRingItem()
+                    }
+                    ToolbarItem(placement: .primaryAction) {
                         Button("Add Exercise", systemImage: "plus") { isPickerPresented = true }
                             .accessibilityLabel("Add Exercise")
                             .accessibilityIdentifier("cover.addExercise")
@@ -56,6 +59,7 @@ struct ActiveWorkoutCover: View {
                     superset: { addExercises($0) }
                 )
             )
+            .presentationPlacement(.center)
         }
         // UIKit: SwiftUI has no idle-timer API.
         .onAppear { UIApplication.shared.isIdleTimerDisabled = SettingsStore().keepScreenOn }

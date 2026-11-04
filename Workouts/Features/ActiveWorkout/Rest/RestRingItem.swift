@@ -1,0 +1,102 @@
+//
+//  RestRingItem.swift
+//  Workouts
+//
+
+import SwiftUI
+import WorkoutsKit
+
+/// The rest timer's toolbar item (task 2.5). Idle: a stopwatch `Menu` of presets, saved customs and "Custom…". Running:
+/// a button whose label is the countdown ring; tapping it opens ``RestRunningSheet``.
+///
+/// Reads the engine from the environment. The countdown is `Text(timerInterval:)` from the persisted end date; the
+/// `TimelineView` only feeds the ring's arc.
+struct RestRingItem: View {
+    @Environment(ActiveWorkoutEngine.self) private var engine: ActiveWorkoutEngine?
+    @State private var isCustomPresented = false
+    @State private var isRunningPresented = false
+
+    var body: some View {
+        Group {
+            if let engine {
+                let timer = engine.restTimer
+                if let endsAt = timer.endsAt, let total = timer.total {
+                    runningButton(engine: engine, endsAt: endsAt, total: total)
+                } else {
+                    idleMenu(engine: engine)
+                }
+            }
+        }
+    }
+
+    private func idleMenu(engine: ActiveWorkoutEngine) -> some View {
+        Menu {
+            ForEach(RestTimer.defaultPresets, id: \.self) { seconds in
+                presetButton(seconds, engine: engine)
+            }
+            let customs = SettingsStore().restPresets
+            if !customs.isEmpty {
+                Divider()
+                ForEach(customs, id: \.self) { seconds in
+                    presetButton(seconds, engine: engine)
+                }
+            }
+            Divider()
+            Button("Custom…", systemImage: "slider.horizontal.3") { isCustomPresented = true }
+                .accessibilityLabel("Custom rest timer")
+                .accessibilityIdentifier("rest.custom")
+        } label: {
+            Label("Rest timer", systemImage: "stopwatch")
+        }
+        .accessibilityLabel("Rest timer")
+        .accessibilityIdentifier("rest.ring")
+        .sheet(isPresented: $isCustomPresented) {
+            RestCustomSheet()
+                .presentationPlacement(.center)
+        }
+    }
+
+    private func presetButton(_ seconds: Int, engine: ActiveWorkoutEngine) -> some View {
+        let text = ElapsedFormat.string(seconds: seconds)
+        return Button(text, systemImage: "timer") { try? engine.startRest(seconds: seconds) }
+            .accessibilityLabel("Rest \(text)")
+            .accessibilityIdentifier("rest.preset.\(seconds)")
+    }
+
+    private func runningButton(engine: ActiveWorkoutEngine, endsAt: Date, total: Int) -> some View {
+        Button {
+            isRunningPresented = true
+        } label: {
+            TimelineView(.periodic(from: .now, by: 0.5)) { context in
+                let now = context.date
+                let remaining = max(0, endsAt.timeIntervalSince(now))
+                ProgressView(value: remaining, total: Double(max(1, total))) {
+                    EmptyView()
+                } currentValueLabel: {
+                    Text(timerInterval: min(now, endsAt)...endsAt, countsDown: true)
+                        .font(.system(size: 9, weight: .semibold).monospacedDigit())
+                        .minimumScaleFactor(0.6)
+                        .lineLimit(1)
+                        .padding(.horizontal, 3)
+                }
+                .progressViewStyle(RingProgressStyle(lineWidth: 2.5))
+                .accessibilityValue(ElapsedFormat.string(seconds: Int(remaining.rounded(.up))))
+            }
+            .frame(width: 34, height: 34)
+        }
+        .accessibilityLabel("Rest timer")
+        .accessibilityIdentifier("rest.ring")
+        .sheet(isPresented: $isRunningPresented) {
+            RestRunningSheet()
+                .presentationPlacement(.trailing)
+                .presentationDetents([.medium])
+        }
+        // The engine keeps an over rest for a few seconds (the flash); nothing else forgets it afterwards.
+        .task(id: endsAt) {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(1))
+                if (try? engine.tickRest()) == true { break }
+            }
+        }
+    }
+}
