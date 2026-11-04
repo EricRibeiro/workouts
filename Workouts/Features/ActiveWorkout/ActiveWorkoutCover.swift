@@ -9,7 +9,7 @@ import WorkoutsKit
 
 /// The logging screen (task 2.4): the in-progress workout's set table under a title with the start date and live elapsed
 /// time, Minimise, Finish and Add Exercise in the toolbar. The rest ring is `RestRingItem` (2.5); the Finish dialogs are `FinishFlow`; the
-/// regular-width secondary panes are placeholders until 2.10.
+/// regular-width secondary pane is `ExercisePane` (2.10).
 ///
 /// Reads the engine and the exercise store from the environment. Keeps the screen awake while open when Settings asks.
 struct ActiveWorkoutCover: View {
@@ -27,6 +27,7 @@ struct ActiveWorkoutCover: View {
     @State private var isRenaming = false
     @State private var renameText = ""
     @State private var renameError: String?
+    @State private var focusedSectionID: UUID?
 
     var body: some View {
         NavigationStack {
@@ -101,22 +102,23 @@ struct ActiveWorkoutCover: View {
 
     @ViewBuilder
     private func content(engine: ActiveWorkoutEngine, store: ExerciseStore, workout: Workout) -> some View {
-        let table = SetTable(source: EngineSetTableSource(engine: engine, store: store))
-        Group {
+        let sections = EngineSetTableSource(engine: engine, store: store).sections
+        let focused = focusedSection(in: sections)
+        // One ArrangementView in both widths, so folding never swaps the table's identity (draft, focus and scroll stay);
+        // the pane is simply absent on compact width.
+        ArrangementView {
+            SetTable(
+                source: EngineSetTableSource(engine: engine, store: store),
+                focusedSection: $focusedSectionID
+            )
+        } secondary: {
             if horizontalSizeClass == .regular {
-                ArrangementView {
-                    table
-                } secondary: {
-                    VStack(spacing: 12) {
-                        pane("Exercise", color: .green)
-                        pane("Rest", color: .orange)
-                    }
-                    .padding()
-                }
-            } else {
-                table
+                ExercisePane(exerciseName: focused?.name)
             }
         }
+        .arrangementViewStyle(
+            .split.axes(horizontalSizeClass == .regular ? Axis.Set([.horizontal, .vertical]) : Axis.Set())
+        )
         .navigationTitle(workout.name)
         .toolbarTitleMenu {
             Button("Rename…", systemImage: "pencil") {
@@ -154,6 +156,17 @@ struct ActiveWorkoutCover: View {
         }
     }
 
+    /// The block the exercise pane shows: the last focused or tapped one while it still exists, else the first with an
+    /// unchecked set (`SetTableLayout.defaultFocusedSection`).
+    private func focusedSection(in sections: [SetTableSection]) -> SetTableSection? {
+        let id =
+            sections.first(where: { $0.id == focusedSectionID })?.id
+            ?? SetTableLayout.defaultFocusedSection(
+                sections: sections.map { (id: $0.id, setChecks: $0.rows.map(\.isChecked)) }
+            )
+        return sections.first { $0.id == id }
+    }
+
     private func subtitle(for workout: Workout, at date: Date) -> String {
         let started = workout.startedAt.formatted(.dateTime.month(.abbreviated).day())
         let elapsed = ElapsedFormat.string(seconds: Int(date.timeIntervalSince(workout.startedAt)))
@@ -179,16 +192,6 @@ struct ActiveWorkoutCover: View {
     private func addSuperset(_ infos: [ExerciseInfo]) {
         guard let engine, let rows = try? engine.addExercises(infos) else { return }
         try? engine.makeSuperset(rows)
-    }
-
-    private func pane(_ title: String, color: Color) -> some View {
-        Text(title)
-            .font(.title2)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(color.opacity(0.2), in: .rect(cornerRadius: 16))
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel("\(title) pane")
-            .accessibilityIdentifier("cover.pane.\(title.lowercased())")
     }
 }
 

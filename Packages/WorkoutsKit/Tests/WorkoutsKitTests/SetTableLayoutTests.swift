@@ -38,4 +38,20 @@ import Testing
     @Test func reorderedIgnoresUnknownIDs() {
         #expect(SetTableLayout.reordered([1, 2, 3], moving: [9], before: 2) == [1, 2, 3])
     }
+
+    @Test func defaultFocusedSectionIsTheFirstWithAnUncheckedSet() {
+        let sections = [
+            (id: "a", setChecks: [true, true]), (id: "b", setChecks: [true, false]), (id: "c", setChecks: [false]),
+        ]
+        #expect(SetTableLayout.defaultFocusedSection(sections: sections) == "b")
+    }
+
+    @Test func defaultFocusedSectionFallsBackToTheFirstBlock() {
+        #expect(
+            SetTableLayout.defaultFocusedSection(sections: [(id: 1, setChecks: [true]), (id: 2, setChecks: [])]) == 1
+        )
+        #expect(SetTableLayout.defaultFocusedSection(sections: [(id: 1, setChecks: [])]) == 1)
+        let none: [(id: Int, setChecks: [Bool])] = []
+        #expect(SetTableLayout.defaultFocusedSection(sections: none) == nil)
+    }
 }

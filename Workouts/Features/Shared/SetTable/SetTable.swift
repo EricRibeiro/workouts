@@ -21,6 +21,9 @@ struct SetTable: View {
     let source: any SetTableDataSource
     /// Tapping an exercise name (the logging screen opens its detail and follows it with the exercise pane).
     var onSelectExercise: (SetTableSection) -> Void = { _ in }
+    /// Reports the block (`SetTableSection.id`) of the last focused cell or tapped header, so the logging screen's exercise
+    /// pane can follow it. Never reset by the table: a dismissed keyboard keeps the last exercise.
+    var focusedSection: Binding<UUID?> = .constant(nil)
 
     @FocusState private var focus: SetRowField?
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -47,6 +50,12 @@ struct SetTable: View {
             .frame(maxWidth: .infinity)
         }
         .scrollDismissesKeyboard(.interactively)
+        .onChange(of: focus) { _, field in
+            guard let field,
+                let section = sections.first(where: { $0.rows.contains { $0.id == field.setID } })
+            else { return }
+            focusedSection.wrappedValue = section.id
+        }
         .swipeActionsContainer()
         .animation(.snappy, value: sections.flatMap { $0.rows.map(\.id) })
         .setKeyboardToolbar(
@@ -112,6 +121,7 @@ struct SetTable: View {
                     .accessibilityIdentifier("settable.superset.\(section.id.uuidString)")
             }
             Button {
+                focusedSection.wrappedValue = section.id
                 onSelectExercise(section)
             } label: {
                 Text(section.name)

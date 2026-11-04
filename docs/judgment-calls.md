@@ -46,3 +46,7 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
     exact path. Any other extension crash still stops work.
 21. **4.1b landed inside a483d3a** with its UI tests unverified (a `git apply --3way` had staged it); fixed forward rather than
     rewriting pushed history. Filters use body parts in use (Other only if used); New Exercise opens a stub until 4.4.
+22. **Regular-width logging** (2.10): one `ArrangementView` in both widths (compact = `.split` with no axes, so folding never
+    swaps view branches); the pane follows the last focused/tapped block, else the first with an unchecked set, else the
+    first block. Open-tall (portrait open) is unverified: `./dev orient` hung there. Draft/focus/scroll across a live fold
+    is unverified (XCUITest cannot fold) — for the Phase 2 review.

@@ -36,4 +36,11 @@ public nonisolated enum SetTableLayout {
         rest.insert(contentsOf: carried, at: index)
         return rest
     }
+
+    /// The exercise the logging screen's pane shows when nothing was focused or tapped yet (`DECISIONS.md` "Active
+    /// workout"): the first block with an unchecked set. When every set is checked (or no block has sets) it is the first
+    /// block, so the pane never goes blank while a workout has exercises; nil only when there are none.
+    public static func defaultFocusedSection<ID>(sections: [(id: ID, setChecks: [Bool])]) -> ID? {
+        sections.first(where: { $0.setChecks.contains(false) })?.id ?? sections.first?.id
+    }
 }
