@@ -26,6 +26,7 @@
         case finishSummary = "FinishSummary"
         case exerciseDetail = "ExerciseDetail"
         case workoutDetail = "WorkoutDetail"
+        case pastEditor = "PastEditor"
 
         var id: String { rawValue }
 
@@ -50,6 +51,7 @@
             case .finishSummary: FinishSummaryView(summary: .sample)
             case .exerciseDetail: ExerciseDetailDemo()
             case .workoutDetail: WorkoutDetailDemo()
+            case .pastEditor: PastEditorDemo()
             case .exercisePickerMulti:
                 ExercisePickerView(title: "Add Exercises", mode: .multiple(add: { _ in }, superset: { _ in }))
             }

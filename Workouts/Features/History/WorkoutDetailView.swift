@@ -9,7 +9,7 @@ import WorkoutsKit
 
 /// The workout detail (task 5.5), pushed from a History row with the zoom transition: the date, duration, volume and
 /// PR count, the workout note, then one block per exercise with its completed sets (a trophy on the sets that set a
-/// record) and a line per record. The bar has Edit, Save as Template and Delete. Everything shown is derived on read by
+/// record) and a line per record. The bar has Edit (pushes the past-workout editor, 5.6), Save as Template and Delete. Everything shown is derived on read by
 /// `WorkoutDetail` in the kit.
 struct WorkoutDetailView: View {
     let workoutID: UUID
@@ -20,7 +20,6 @@ struct WorkoutDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @Query(filter: #Predicate<Workout> { $0.finishedAt != nil }) private var finished: [Workout]
 
-    @State private var isEditPresented = false
     @State private var isTemplatePresented = false
     @State private var isDeleteConfirming = false
     @State private var deleteFailed = false
@@ -85,9 +84,11 @@ struct WorkoutDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
-                Button("Edit", systemImage: "pencil") { isEditPresented = true }
-                    .accessibilityLabel("Edit")
-                    .accessibilityIdentifier("workoutDetail.edit")
+                NavigationLink(value: HistoryRoute.editWorkout(workoutID)) {
+                    Label("Edit", systemImage: "pencil")
+                }
+                .accessibilityLabel("Edit")
+                .accessibilityIdentifier("workoutDetail.edit")
             }
             ToolbarItem(placement: .primaryAction) {
                 Button("Save as Template", systemImage: "square.and.arrow.down.on.square") {
@@ -111,10 +112,6 @@ struct WorkoutDetailView: View {
                 .accessibilityIdentifier("workoutDetail.delete.confirm")
         } message: {
             Text("\"\(detail.name)\" and every set in it will be deleted. This cannot be undone.")
-        }
-        .sheet(isPresented: $isEditPresented) {
-            EditStubSheet()
-                .presentationPlacement(.center)
         }
         .sheet(isPresented: $isTemplatePresented) {
             if let workout {
@@ -298,33 +295,6 @@ private struct ExerciseBlockView: View {
                     .font(.subheadline.monospacedDigit())
             }
         }
-    }
-}
-
-// MARK: - Edit stub
-
-/// Stands in for the past-workout editor until task 5.6.
-private struct EditStubSheet: View {
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        NavigationStack {
-            ContentUnavailableView(
-                "Editing arrives with 5.6",
-                systemImage: "pencil",
-                description: Text("Past workouts will be editable here.")
-            )
-            .navigationTitle("Edit Workout")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Close", systemImage: "xmark") { dismiss() }
-                        .accessibilityLabel("Close")
-                        .accessibilityIdentifier("workoutDetail.edit.close")
-                }
-            }
-        }
-        .accessibilityIdentifier("workoutDetail.edit.sheet")
     }
 }
 

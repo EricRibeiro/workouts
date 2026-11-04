@@ -5,6 +5,7 @@
 
 import Foundation
 import SwiftData
+import SwiftUI
 import WorkoutsKit
 
 // MARK: - Active
@@ -293,36 +294,34 @@ struct TemplateSetTableSource: SetTableDataSource {
 
 // MARK: - Past
 
-/// A finished workout in the History editor. Stub for task 3.x: it lists the sets (values only, no Previous, no check) and
-/// ignores every edit until the past-workout editor fills the actions in.
+/// A finished workout in the History editor (task 5.6): the editor's `PastWorkoutDraft` as a set table. Values only, no
+/// Previous and no check; every edit goes to the draft, which the editor's Save writes to the model in one go.
 struct PastSetTableSource: SetTableDataSource {
-    let workout: Workout
+    @Binding var draft: PastWorkoutDraft
     let store: ExerciseStore
 
     var mode: SetTableMode { .past }
 
     var sections: [SetTableSection] {
-        (workout.exercises ?? []).sorted { $0.position < $1.position }.map { row in
-            let sets = sorted(row.sets)
+        draft.exercises.map { row in
             let weightType = store.exercise(id: row.exerciseID)?.weightType ?? .weighted
-            let timed = sets.contains { $0.durationSeconds != nil }
             return SetTableSection(
                 id: row.id,
                 exerciseID: row.exerciseID,
-                name: row.exerciseName,
+                name: row.name,
                 supersetGroup: row.supersetGroup,
                 note: row.note,
                 restSeconds: nil,
-                rows: sets.enumerated().map { index, set in
+                rows: row.sets.enumerated().map { index, set in
                     SetRowModel(
                         id: set.id,
                         number: index + 1,
                         kind: set.kind,
                         weightText: SetInputFormat.weightText(set.weight),
-                        repsText: SetInputFormat.countText(timed ? set.durationSeconds : set.reps),
+                        repsText: SetInputFormat.countText(row.isTimed ? set.durationSeconds : set.reps),
                         unit: row.unit,
                         weightType: weightType,
-                        measure: timed ? .duration : .reps,
+                        measure: row.isTimed ? .duration : .reps,
                         showsPrevious: false,
                         showsCheck: false
                     )
@@ -331,15 +330,15 @@ struct PastSetTableSource: SetTableDataSource {
         }
     }
 
-    func cycleKind(of setID: UUID) {}
+    func cycleKind(of setID: UUID) { draft.cycleKind(of: setID) }
     func applyPrevious(to setID: UUID) {}
-    func commitWeight(_ weight: Double?, for setID: UUID) {}
-    func commitReps(_ value: Int?, for setID: UUID) {}
+    func commitWeight(_ weight: Double?, for setID: UUID) { draft.setWeight(weight, for: setID) }
+    func commitReps(_ value: Int?, for setID: UUID) { draft.setCount(value, for: setID) }
     @discardableResult
     func toggleCheck(of setID: UUID) -> Bool { true }
-    func addSet(to sectionID: UUID) {}
-    func deleteSet(_ setID: UUID) {}
-    func reorder(_ order: [UUID]) {}
+    func addSet(to sectionID: UUID) { draft.addSet(to: sectionID) }
+    func deleteSet(_ setID: UUID) { draft.deleteSet(setID) }
+    func reorder(_ order: [UUID]) { draft.reorder(order) }
 }
 
 // MARK: - Shared helpers

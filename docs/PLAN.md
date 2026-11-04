@@ -269,7 +269,7 @@ Live Activity → notifications → logging, then templates, exercises, history.
   workout. Needs: 5.1, 0.9, 0.10. Proof: preview.
 - [x] **5.5 Workout detail**: PR lines, trophies, the per-exercise Exercise | Best Set table, toolbar items Edit, Save as Template
   (success = `sensoryFeedback(.success)` + dismiss, no banner), Delete. Needs: 5.1, 0.9, 0.10. Proof: preview + flow.
-- [ ] **5.6 Past-workout editor** (SetTable past mode, start time, duration), pushed from the detail, `ArrangementView` on regular
+- [x] **5.6 Past-workout editor** (SetTable past mode, start time, duration), pushed from the detail, `ArrangementView` on regular
   as in 3.4. Needs: 5.5, 3.4, 0.10. Proof: flow; later workouts' PR counts update.
 - [x] **5.7a Settings form rows** (everything except Import/Export): iCloud status, Download all videos (Wi-Fi only), the
   defaults. Needs: 1.7, 0.8, 0.9, 0.10. Proof: preview.

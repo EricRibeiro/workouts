@@ -198,28 +198,7 @@ struct HistoryView: View {
             WorkoutDetailView(workoutID: id)
                 .navigationTransition(.zoom(sourceID: id, in: zoom))
         case .editWorkout(let id):
-            placeholder(id: id, description: "Editing is coming soon.")
-        }
-    }
-
-    @ViewBuilder
-    private func placeholder(id: UUID, description: String) -> some View {
-        if let workout = finished.first(where: { $0.id == id }) {
-            ContentUnavailableView(
-                workout.name,
-                systemImage: "figure.strengthtraining.traditional",
-                description: Text(description)
-            )
-            .navigationTitle(workout.name)
-            .navigationBarTitleDisplayMode(.inline)
-            .accessibilityIdentifier("history.detail")
-        } else {
-            ContentUnavailableView(
-                "Workout Not Found",
-                systemImage: "questionmark.folder",
-                description: Text("That workout does not exist.")
-            )
-            .accessibilityIdentifier("history.detail.missing")
+            PastWorkoutEditor(workoutID: id)
         }
     }
 }

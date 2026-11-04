@@ -1,7 +1,7 @@
 import XCTest
 
-/// The workout detail pushed from the History list on the gallery entry `History` (task 5.5): exercise blocks, the Edit
-/// stub, Save as Template with no folder, and Delete behind a confirmation that pops back to the list.
+/// The workout detail pushed from the History list on the gallery entry `History` (task 5.5): exercise blocks, Edit (the
+/// past editor has its own tests), Save as Template with no folder, and Delete behind a confirmation that pops back to the list.
 final class WorkoutDetailUITests: XCTestCase {
     override func setUpWithError() throws {
         continueAfterFailure = false
@@ -50,16 +50,14 @@ final class WorkoutDetailUITests: XCTestCase {
     }
 
     @MainActor
-    func testEditOpensTheStubSheet() throws {
+    func testEditPushesThePastEditorAndCancelReturns() throws {
         let (app, _) = openFirstWorkout()
         let any = app.descendants(matching: .any)
         app.buttons["workoutDetail.edit"].tap()
-        XCTAssertTrue(any["workoutDetail.edit.sheet"].waitForExistence(timeout: 5), "no edit sheet")
-        XCTAssertTrue(app.staticTexts["Editing arrives with 5.6"].exists)
-        app.buttons["workoutDetail.edit.close"].tap()
-        let gone = NSPredicate(format: "exists == false")
-        let closed = XCTNSPredicateExpectation(predicate: gone, object: any["workoutDetail.edit.sheet"])
-        XCTAssertEqual(XCTWaiter().wait(for: [closed], timeout: 5), .completed, "the stub sheet did not close")
+        XCTAssertTrue(any["screen.pastEditor"].waitForExistence(timeout: 5), "no past editor")
+        // Nothing changed, so Cancel leaves without asking.
+        app.buttons["pastEditor.cancel"].tap()
+        XCTAssertTrue(any["history.detail"].waitForExistence(timeout: 5), "Cancel did not return to the detail")
     }
 
     @MainActor
