@@ -82,6 +82,9 @@ Rules for the loop:
   restarts it: only Eric typing `/mcp reconnect all` (or picking Reconnect in `/mcp`) does. If the `mcp__…xcode__*`
   tools are missing, say so once and ask him to run it, then continue with the fallback proofs above; a task's proof must
   never depend on the MCP. Skill: `verify-ui`.
+- **Never toggle the simulator's displays** (`simctl io … screenConfig`, display power, device defaults): it crash-loops
+  SpringBoard and floods Eric's Mac with crash dialogs. `./dev` fails any simulator command during which SpringBoard
+  crashed; treat that as a stop, `xcrun simctl shutdown all`, and report. Folding the Duo is a person's job (Device Hub).
 - **Do not change** the deployment target, supported platforms, signing, or add a remote package
   without being asked.
 

@@ -191,6 +191,24 @@ cmd_screenshot() {
   echo "$path"
 }
 
+# Fail when the simulator's SpringBoard crashed while a simulator command ran. A SpringBoard crash loop
+# (seen 2026-11-03 after `simctl io screenConfig --display=N power off`) floods the Mac with "quit
+# unexpectedly" dialogs while tests can still pass; this makes it a hard failure instead.
+CRASH_DIR="$HOME/Library/Logs/DiagnosticReports"
+sim_guarded() { # sim_guarded <cmd> [args...]
+  local marker rc=0 crashes
+  mkdir -p .build && marker=$(mktemp .build/sim-guard.XXXXXX)
+  "$@" || rc=$?
+  crashes=$(find "$CRASH_DIR" -maxdepth 1 -name 'SpringBoard-*.ips' -newer "$marker" 2>/dev/null | wc -l | tr -d ' ')
+  rm -f "$marker"
+  if [[ "$crashes" != 0 ]]; then
+    echo "dev: SpringBoard crashed $crashes time(s) on the simulator during this command." >&2
+    echo "dev: stop, run 'xcrun simctl shutdown all', and report it; do not keep testing. Reports: $CRASH_DIR/SpringBoard-*.ips" >&2
+    exit 1
+  fi
+  return "$rc"
+}
+
 cmd_clean() { rm -rf .build; }
 
 cmd_check() {
@@ -224,16 +242,16 @@ sub="${1:-help}"
 [[ $# -gt 0 ]] && shift
 case "$sub" in
   build) cmd_build ;;
-  test) cmd_test "$@" ;;
-  ui-test) cmd_ui_test "$@" ;;
+  test) sim_guarded cmd_test "$@" ;;
+  ui-test) sim_guarded cmd_ui_test "$@" ;;
   kit) cmd_kit "$@" ;;
   kit-build) cmd_kit_build ;;
   lint) cmd_lint ;;
   format) cmd_format ;;
-  run) cmd_run "$@" ;;
-  screenshot) cmd_screenshot "$@" ;;
+  run) sim_guarded cmd_run "$@" ;;
+  screenshot) sim_guarded cmd_screenshot "$@" ;;
   clean) cmd_clean ;;
-  check) cmd_check ;;
+  check) sim_guarded cmd_check ;;
   help | -h | --help) cmd_help ;;
   *) cmd_help >&2; die "unknown command: $sub" ;;
 esac

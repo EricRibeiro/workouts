@@ -59,5 +59,15 @@ session as soon as you are done; it is expensive to keep open.
 Layout work must be checked in all four poses: closed portrait and landscape (compact width,
 outer display), open tall and open wide (regular/regular, inner display, hinge in the middle).
 Orientation changes go through `DeviceInteractionSynthesize`. Switching folded/unfolded from the
-CLI is **not verified** on this machine; use the Simulator's Device Hub window for that and
-screenshot with `./dev screenshot`. If you find a scriptable way, record it here.
+CLI is **not supported**; use the Simulator's Device Hub window for that (a person does it) and
+screenshot with `./dev screenshot`.
+
+**Never experiment with the simulator's displays.** `xcrun simctl io <dev> screenConfig --display=N
+power off|on` (tried 2026-11-03 to fake folding) put SpringBoard into a crash loop: a "SpringBoard quit
+unexpectedly" dialog on Eric's Mac every few seconds. Do not use `screenConfig`, display power, or any
+undocumented simctl/defaults change to the device. `simctl io enumerate` and `screenshot --display=N`
+(read-only) are fine. When a task needs an open pose and the fold cannot be done, capture the closed pose,
+say the open poses are pending, and the orchestrator asks Eric to unfold in Device Hub.
+
+`./dev run|test|ui-test|screenshot|check` fail when a new `SpringBoard-*.ips` crash report appears while
+they run. If that happens: stop, `xcrun simctl shutdown all`, and report it. Never retry past it.
