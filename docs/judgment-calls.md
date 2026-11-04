@@ -34,3 +34,5 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
 16. **Weekly chart** (5.2): device time zone (not the web's server TZ), labels unpadded `11/2`, hidden under search and the PRs
     scope, card on `secondarySystemBackground` (the grouped colour was white on white). Goal stays in Settings only.
 17. **UI tests clear the app's UserDefaults at launch** (`-uiTesting`), so settings tapped in one test never leak into another.
+18. **Settings** (5.7a): one combined footer under unit + formula (a Section has one footer); "Download all videos" only persists
+    until MediaStore gets a bulk-download hook; iCloud row reads "Not set up yet" (no entitlement, no CloudKit call).
