@@ -40,3 +40,9 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
     accessibility label. It is appended after each screen's own items (Add, Settings, ring), so it is last in the strip;
     filed for the Phase 2 review (may need `visibilityPriority` so it never overflows). Relaunch restores the cover from a
     per-device `@AppStorage` flag (ignored under `-uiTesting`).
+20. **Live Activity crash on reinstall** (dev): `WorkoutsLiveActivity` crashed twice in ExtensionFoundation from a bundle under
+    containermanagerd `Dead/` — iOS relaunching the extension from the build a reinstall just replaced, while a test's
+    activity was still up. UI tests now skip Live Activities unless `-liveActivity`, and `./dev` warns (not fails) on that
+    exact path. Any other extension crash still stops work.
+21. **4.1b landed inside a483d3a** with its UI tests unverified (a `git apply --3way` had staged it); fixed forward rather than
+    rewriting pushed history. Filters use body parts in use (Other only if used); New Exercise opens a stub until 4.4.
