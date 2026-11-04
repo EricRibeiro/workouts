@@ -60,7 +60,12 @@ struct ExercisePickerView: View {
         )
         NavigationStack {
             List {
-                filterRow
+                FilterPillRow(
+                    identifierPrefix: "picker.filter",
+                    includeRetired: false,
+                    bodyPart: $bodyPart,
+                    category: $category
+                )
                 if results.isEmpty, !trimmedQuery.isEmpty {
                     createRow
                 }
@@ -161,31 +166,6 @@ struct ExercisePickerView: View {
     private func finish(_ handler: ([ExerciseInfo]) -> Void) {
         handler(selection.resolve { store.exercise(id: $0) })
         dismiss()
-    }
-
-    /// The two "Any ..." pills as the first list row, like a chip row.
-    private var filterRow: some View {
-        HStack(spacing: 8) {
-            FilterMenu(
-                title: "Body Part",
-                anyLabel: "Any Body Part",
-                identifier: "picker.filter.bodyPart",
-                selection: $bodyPart,
-                keys: { ExerciseFilter.bodyParts(in: store.all(), labels: store.catalog.labels) },
-                label: { ExerciseFilter.bodyPartLabel($0, labels: store.catalog.labels) }
-            )
-            FilterMenu(
-                title: "Category",
-                anyLabel: "Any Category",
-                identifier: "picker.filter.category",
-                selection: $category,
-                keys: { ExerciseFilter.categories(in: store.all(), labels: store.catalog.labels) },
-                label: { ExerciseFilter.equipmentLabel($0, labels: store.catalog.labels) }
-            )
-            Spacer(minLength: 0)
-        }
-        .listRowSeparator(.hidden)
-        .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
     }
 }
 

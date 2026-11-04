@@ -191,12 +191,20 @@ private struct Fingerprint: Hashable {
             return name.flatMap(ExerciseDetailView.Segment.init(rawValue:)) ?? .about
         }
 
+        @State private var path: [UUID] = []
+
         var body: some View {
-            NavigationStack {
-                if let id = store.all().first(where: { $0.name == "Barbell Bench Press" })?.id {
-                    ExerciseDetailView(exerciseID: id, initialSegment: initialSegment)
-                } else {
-                    ContentUnavailableView("Barbell Bench Press is not in the library", systemImage: "questionmark")
+            // Pushed onto an empty root, as the Exercises tab does. A root detail has no back button or toolbar item,
+            // and a navigation bar with no items gets no strip on the closed Duo, so the system clock would vanish.
+            NavigationStack(path: $path) {
+                Color.clear
+                    .navigationDestination(for: UUID.self) { id in
+                        ExerciseDetailView(exerciseID: id, initialSegment: initialSegment)
+                    }
+            }
+            .task {
+                if let id = store.all().first(where: { $0.name == "Barbell Bench Press" })?.id, path.isEmpty {
+                    path = [id]
                 }
             }
         }

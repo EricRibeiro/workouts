@@ -14,7 +14,6 @@ import WorkoutsKit
 struct ExercisesView: View {
     @Environment(ExerciseStore.self) private var store
     @Environment(SettingsStore.self) private var settings
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Query(filter: #Predicate<Workout> { $0.finishedAt != nil }) private var finished: [Workout]
     /// The newest edit among finished workouts: with the count it keys the best-set task without reading every workout.
     @Query(ExercisesView.newestEdit) private var newest: [Workout]
@@ -38,6 +37,10 @@ struct ExercisesView: View {
             list
                 // The list never collapses, so the system's show/hide button has nothing to do.
                 .toolbar(removing: .sidebarToggle)
+                // `.balanced` splits the width evenly, which leaves the list ~230pt on the tall open Duo: names hyphen-wrap and
+                // the filter pills truncate. A 320pt minimum keeps the list readable (`ideal` is required by the API, so it
+                // matches the minimum); there is no max, so the system can still size the columns to the fold when half-open.
+                .navigationSplitViewColumnWidth(min: 320, ideal: 320)
         } detail: {
             detail
         }
@@ -78,7 +81,12 @@ struct ExercisesView: View {
         )
         let labels = store.catalog.labels
         return List(selection: $selection) {
-            filterRow
+            FilterPillRow(
+                identifierPrefix: "exercises.filter",
+                includeRetired: true,
+                bodyPart: $bodyPart,
+                category: $category
+            )
             ForEach(results) { info in
                 let subtitle = ExerciseFilter.subtitle(for: info, labels: labels)
                 let best = bestSets[info.id] ?? ""
@@ -129,35 +137,6 @@ struct ExercisesView: View {
                 options: recordsOptions
             )
         }
-    }
-
-    /// The two "Any ..." pills as the first list row, like the picker's chip row.
-    private var filterRow: some View {
-        let layout =
-            dynamicTypeSize.isAccessibilitySize
-            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
-            : AnyLayout(HStackLayout(spacing: 8))
-        return layout {
-            FilterMenu(
-                title: "Body Part",
-                anyLabel: "Any Body Part",
-                identifier: "exercises.filter.bodyPart",
-                selection: $bodyPart,
-                keys: { ExerciseFilter.bodyParts(in: store.all(includeRetired: true), labels: store.catalog.labels) },
-                label: { ExerciseFilter.bodyPartLabel($0, labels: store.catalog.labels) }
-            )
-            FilterMenu(
-                title: "Category",
-                anyLabel: "Any Category",
-                identifier: "exercises.filter.category",
-                selection: $category,
-                keys: { ExerciseFilter.categories(in: store.all(includeRetired: true), labels: store.catalog.labels) },
-                label: { ExerciseFilter.equipmentLabel($0, labels: store.catalog.labels) }
-            )
-            if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: 0) }
-        }
-        .listRowSeparator(.hidden)
-        .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
     }
 
     @ViewBuilder

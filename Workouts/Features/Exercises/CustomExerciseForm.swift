@@ -60,6 +60,7 @@ struct CustomExerciseFormView: View {
                     ) {
                         ForEach(Self.weightTypes, id: \.self) { Text(Self.weightTypeTitle($0)).tag($0) }
                     }
+                    .pickerStyle(.navigationLink)
                     .accessibilityIdentifier("customExercise.weightType")
                 }
                 equipmentSection(labels)

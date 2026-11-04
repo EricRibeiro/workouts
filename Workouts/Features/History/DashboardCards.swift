@@ -105,7 +105,7 @@ struct DashboardCards: View {
         }
     }
 
-    private var thisWeek: some View {
+    var thisWeek: some View {
         let week = HistoryDashboard.thisWeek(entries: entries, calendar: calendar, now: now)
         let duration = HistoryList.durationText(seconds: week.durationSeconds)
         let volume = HistoryList.volumeText(week.volume, unit: week.unit)
@@ -126,7 +126,7 @@ struct DashboardCards: View {
         }
     }
 
-    private var recents: some View {
+    var recents: some View {
         let sentence =
             recentPRs.isEmpty
             ? "Recent PRs, none yet"
@@ -162,7 +162,7 @@ struct DashboardCards: View {
         }
     }
 
-    private func lastWorkout(_ entry: HistoryEntry) -> some View {
+    func lastWorkout(_ entry: HistoryEntry) -> some View {
         let date = HistoryList.dateText(entry.startedAt, now: now, calendar: calendar)
         let detail =
             "\(HistoryList.durationText(seconds: entry.durationSeconds)) · \(HistoryList.volumeText(entry.volume, unit: entry.unit))"
@@ -189,5 +189,101 @@ struct DashboardCards: View {
             }
         }
         .buttonStyle(.plain)
+    }
+}
+
+/// The regular-width dashboard: the weekly chart and the three cards in exactly two columns, so nothing is wider than half
+/// the display and nothing crosses the fold. Left: the chart, then Last Workout. Right: This Week, then Recent PRs. That
+/// pairing makes the columns near-equal in height (the chart is the tallest card, Last Workout the shortest), and each
+/// column's last card stretches so the bottoms line up.
+///
+/// Half-open in book pose (an active, vertical division region inside this view) the left column ends at the division and
+/// the right one starts after it, so the gutter is the fold itself; otherwise the gutter is the normal 12 pt. The same
+/// views are laid out either way (a custom `Layout` changes only the widths), so folding does not rebuild the cards or the
+/// chart. The horizontal fold (laptop pose) is not treated specially: the content scrolls through it.
+struct DashboardColumns: View {
+    /// Start dates of the finished workouts (the chart).
+    let starts: [Date]
+    let entries: [HistoryEntry]
+    let recentPRs: [RecentPR]
+    let openWorkout: (UUID) -> Void
+
+    @AppStorage(SettingsKey.weeklyGoal.rawValue) private var storedGoal = SettingsStore.weeklyGoalDefault
+    /// The division's horizontal extent in this view's own coordinate space, nil unless it is active, vertical and inside.
+    @State private var division: ClosedRange<CGFloat>?
+
+    var body: some View {
+        let cards = DashboardCards(
+            entries: entries,
+            recentPRs: recentPRs,
+            goal: min(max(storedGoal, 1), 14),
+            openWorkout: openWorkout
+        )
+        TwoColumnLayout(division: division) {
+            VStack(spacing: 12) {
+                WeeklyGoalSection(starts: starts)
+                if let last = HistoryDashboard.lastWorkout(entries: entries) {
+                    cards.lastWorkout(last)
+                }
+            }
+            VStack(spacing: 12) {
+                cards.thisWeek
+                cards.recents
+            }
+        }
+        .onGeometryChange(for: ClosedRange<CGFloat>?.self) { proxy in
+            let width = proxy.size.width
+            return proxy.reservedRegions(kind: .division)
+                .first { $0.isActive && $0.frame.width < $0.frame.height }
+                .flatMap { region -> ClosedRange<CGFloat>? in
+                    let frame = region.frame
+                    return frame.minX > 0 && frame.maxX < width ? frame.minX...frame.maxX : nil
+                }
+        } action: {
+            division = $0
+        }
+    }
+}
+
+/// Two columns of equal height. Without a division they split the width around a 12 pt gutter; with one, the left column
+/// is everything before it and the right everything after it. Both children are proposed the full row height so a
+/// column's flexible last card can stretch to the other column's bottom.
+private struct TwoColumnLayout: Layout {
+    var division: ClosedRange<CGFloat>?
+    var spacing: CGFloat = 12
+
+    /// Left width, gutter width, right width for a total width.
+    private func split(_ total: CGFloat) -> (left: CGFloat, gap: CGFloat, right: CGFloat) {
+        if let division, division.upperBound < total {
+            return (division.lowerBound, division.upperBound - division.lowerBound, total - division.upperBound)
+        }
+        let column = max(0, (total - spacing) / 2)
+        return (column, spacing, column)
+    }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        guard subviews.count == 2 else { return .zero }
+        let total =
+            proposal.width
+            ?? subviews.map { $0.sizeThatFits(.unspecified).width }.reduce(spacing, +)
+        let widths = split(total)
+        let left = subviews[0].sizeThatFits(ProposedViewSize(width: widths.left, height: nil))
+        let right = subviews[1].sizeThatFits(ProposedViewSize(width: widths.right, height: nil))
+        return CGSize(width: total, height: max(left.height, right.height))
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        guard subviews.count == 2 else { return }
+        let widths = split(bounds.width)
+        subviews[0].place(
+            at: bounds.origin,
+            anchor: .topLeading,
+            proposal: ProposedViewSize(width: widths.left, height: bounds.height)
+        )
+        subviews[1].place(
+            at: CGPoint(x: bounds.minX + widths.left + widths.gap, y: bounds.minY),
+            anchor: .topLeading,
+            proposal: ProposedViewSize(width: widths.right, height: bounds.height)
+        )
     }
 }

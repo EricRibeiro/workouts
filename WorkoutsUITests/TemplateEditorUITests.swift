@@ -138,7 +138,10 @@ final class TemplateEditorUITests: XCTestCase {
         let any = app.descendants(matching: .any)
         _ = openPreview(app)
         openEditor(app)
-        XCTAssertTrue(any["settable"].waitForExistence(timeout: 5))
+        // The table's own "settable" identifier is replaced by the screen's when the table is the only element on compact width,
+        // so the table is recognised by its first block.
+        let firstBlock = any.matching(NSPredicate(format: "identifier BEGINSWITH 'settable.section.'")).firstMatch
+        XCTAssertTrue(firstBlock.waitForExistence(timeout: 5))
 
         app.buttons["templateEditor.addExercise"].tap()
         let row = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'picker.row.'")).firstMatch

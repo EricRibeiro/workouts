@@ -204,8 +204,10 @@ private struct Editor: View {
                 ExercisePane(exerciseName: focused?.name, exerciseID: focused?.exerciseID)
             }
         }
+        // The system split's placement in every pose but the half-open laptop one, where the table drops to the lower half
+        // (6.1); one view tree throughout, so no pose change recreates the table.
         .arrangementViewStyle(
-            .split.axes(showsPane ? Axis.Set([.horizontal, .vertical]) : Axis.Set())
+            BenchArrangementStyle(axes: showsPane ? Axis.Set([.horizontal, .vertical]) : Axis.Set())
         )
     }
 

@@ -17,6 +17,7 @@ struct HistoryView: View {
     @Environment(ExerciseStore.self) private var store
     @Environment(SettingsStore.self) private var settings
     @Environment(\.modelContext) private var context
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Query(
         filter: #Predicate<Workout> { $0.finishedAt != nil },
         sort: \Workout.startedAt,
@@ -101,12 +102,23 @@ struct HistoryView: View {
             List {
                 if query.isEmpty && scope == .all {
                     Section {
-                        WeeklyGoalSection(starts: finished.map(\.startedAt))
+                        if horizontalSizeClass == .regular {
+                            // One row, two columns, the gutter on the fold when half open (`DashboardColumns`).
+                            DashboardColumns(
+                                starts: finished.map(\.startedAt),
+                                entries: entries,
+                                recentPRs: recentPRs
+                            ) { path.append(.workout($0)) }
                             .listRowSeparator(.hidden)
                             .listRowBackground(Color.clear)
-                        DashboardSection(entries: entries, recentPRs: recentPRs) { path.append(.workout($0)) }
-                            .listRowSeparator(.hidden)
-                            .listRowBackground(Color.clear)
+                        } else {
+                            WeeklyGoalSection(starts: finished.map(\.startedAt))
+                                .listRowSeparator(.hidden)
+                                .listRowBackground(Color.clear)
+                            DashboardSection(entries: entries, recentPRs: recentPRs) { path.append(.workout($0)) }
+                                .listRowSeparator(.hidden)
+                                .listRowBackground(Color.clear)
+                        }
                     }
                 }
                 ForEach(sections) { section in

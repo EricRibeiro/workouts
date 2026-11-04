@@ -6,58 +6,129 @@
 import SwiftUI
 import WorkoutsKit
 
-/// The logging screen's arrangement style (task 6.1). Everywhere except the half-open laptop pose it is exactly the system
-/// split (`.split.axes(axes)`), so closed and fully open look and behave as before. When the Duo is half-open with the hinge
-/// across the display (an active division region wider than tall, "bench mode") the system split would put the primary on
-/// the upper half; this puts the secondary (the exercise pane, with the rest countdown above it while a rest runs) on the
-/// upper half and the primary (the set table) on the lower, each entirely on its own side of the division.
+/// The arrangement style of the logging screen and the two editors (task 6.1): the primary (the set table) and secondary
+/// (the exercise pane) in one fixed view tree, placed by `BenchLayout`, so folding never rebuilds the table and its focus and
+/// scroll position survive every pose change.
 ///
-/// The primary and secondary are the style configuration's placeholders in both branches, so the content stays hosted by the
-/// `ArrangementView` and a fold does not recreate the set table.
+/// It reproduces what the system's `.split.axes(axes)` does, measured on the Duo (6.2): with no active division the two halves
+/// are equal (side by side when the area is wider than tall, primary above secondary otherwise); with the Duo half-open the
+/// split follows the division region, so each view sits entirely on its own side of the fold (book: primary left, pane right).
+/// One pose differs on purpose: half-open with the hinge across the display ("bench mode", laptop) puts the secondary on the
+/// upper half, with the rest countdown above it while a rest runs, and the primary on the lower half, where the keyboard lands.
+/// No axes (compact width, or no pane to show) gives the primary the whole area. While the keyboard is up in the laptop pose
+/// the system takes the division out of the area above the keyboard; the arrangement then splits that area by its shape,
+/// which keeps the focused table in view, and returns to bench mode when the keyboard goes.
+///
+/// The system style cannot be nested for the other poses: a different branch is a different structural identity, which
+/// recreated the table (value kept, focus and scroll lost) when folding from book to laptop.
 struct BenchArrangementStyle: ArrangementViewStyle {
     var axes: Axis.Set
+    /// Whether bench mode puts the rest countdown above the exercise pane: the logging screen only (the editors have no rest).
+    var showsRestCountdown = false
 
     func makeBody(configuration: Configuration) -> some View {
-        BenchArrangementBody(configuration: configuration, axes: axes)
+        BenchArrangementBody(configuration: configuration, axes: axes, showsRestCountdown: showsRestCountdown)
     }
 }
 
 private struct BenchArrangementBody: View {
     let configuration: ArrangementViewStyleConfiguration
     let axes: Axis.Set
+    let showsRestCountdown: Bool
 
     var body: some View {
         GeometryReader { proxy in
-            if let division = benchDivision(in: proxy) {
-                bench(division: division, size: proxy.size)
-            } else {
-                ArrangementView(configuration)
-                    .arrangementViewStyle(.split.axes(axes))
+            let placement = placement(in: proxy)
+            BenchLayout(placement: placement) {
+                configuration.primary
+                configuration.secondary
+                if placement.isBench, showsRestCountdown {
+                    RestCountdownHeader()
+                }
             }
         }
     }
 
-    /// The active division region when it lies across the display (wider than tall: laptop, not book) and the arrangement
-    /// may stack; otherwise nil.
-    private func benchDivision(in proxy: GeometryProxy) -> ReservedRegion? {
-        guard axes.contains(.vertical) else { return nil }
-        return proxy.reservedRegions(kind: .division)
-            .first { $0.isActive && $0.frame.width > $0.frame.height }
+    private func placement(in proxy: GeometryProxy) -> BenchLayout.Placement {
+        guard !axes.isEmpty else { return .init(kind: .single, lead: 0, gap: 0) }
+        let size = proxy.size
+        let divisions = proxy.reservedRegions(kind: .division).filter(\.isActive)
+        if axes.contains(.vertical), let fold = divisions.first(where: { $0.frame.width > $0.frame.height }) {
+            return .init(kind: .bench, lead: max(0, fold.frame.minY), gap: fold.frame.height)
+        }
+        if axes.contains(.horizontal), let fold = divisions.first(where: { $0.frame.width < $0.frame.height }) {
+            return .init(kind: .sideBySide, lead: max(0, fold.frame.minX), gap: fold.frame.width)
+        }
+        if size.width > size.height, axes.contains(.horizontal) {
+            return .init(kind: .sideBySide, lead: size.width / 2, gap: 0)
+        }
+        if axes.contains(.vertical) {
+            return .init(kind: .stacked, lead: size.height / 2, gap: 0)
+        }
+        return .init(kind: .single, lead: 0, gap: 0)
+    }
+}
+
+/// Places the primary, the secondary and, in bench mode, the rest header (subviews in that order, the header last).
+private struct BenchLayout: Layout {
+    struct Placement: Equatable {
+        enum Kind { case single, sideBySide, stacked, bench }
+        var kind: Kind
+        /// The length of the first region along the split axis (its far edge); the gap follows it.
+        var lead: CGFloat
+        /// The division's thickness, left empty between the two regions.
+        var gap: CGFloat
+
+        var isBench: Bool { kind == .bench }
     }
 
-    private func bench(division: ReservedRegion, size: CGSize) -> some View {
-        let upper = max(0, division.frame.minY)
-        let gap = division.frame.height
-        let lower = max(0, size.height - upper - gap)
-        return VStack(spacing: 0) {
-            VStack(spacing: 0) {
-                RestCountdownHeader()
-                configuration.secondary
+    var placement: Placement
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        proposal.replacingUnspecifiedDimensions()
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        guard subviews.count >= 2 else { return }
+        let primary = subviews[0]
+        let secondary = subviews[1]
+        let origin = bounds.origin
+        let lead = min(placement.lead, placement.kind == .sideBySide ? bounds.width : bounds.height)
+        switch placement.kind {
+        case .single:
+            primary.place(at: origin, proposal: ProposedViewSize(bounds.size))
+            secondary.place(at: origin, proposal: .zero)
+        case .sideBySide:
+            let trailingX = min(lead + placement.gap, bounds.width)
+            primary.place(at: origin, proposal: ProposedViewSize(width: lead, height: bounds.height))
+            secondary.place(
+                at: CGPoint(x: origin.x + trailingX, y: origin.y),
+                proposal: ProposedViewSize(width: bounds.width - trailingX, height: bounds.height)
+            )
+        case .stacked:
+            let lowerY = min(lead + placement.gap, bounds.height)
+            primary.place(at: origin, proposal: ProposedViewSize(width: bounds.width, height: lead))
+            secondary.place(
+                at: CGPoint(x: origin.x, y: origin.y + lowerY),
+                proposal: ProposedViewSize(width: bounds.width, height: bounds.height - lowerY)
+            )
+        case .bench:
+            let lowerY = min(lead + placement.gap, bounds.height)
+            var secondaryY = origin.y
+            if subviews.count > 2 {
+                let header = subviews[2]
+                let height = min(header.sizeThatFits(ProposedViewSize(width: bounds.width, height: nil)).height, lead)
+                header.place(at: origin, proposal: ProposedViewSize(width: bounds.width, height: height))
+                secondaryY += height
             }
-            .frame(height: upper)
-            Color.clear.frame(height: gap)
-            configuration.primary
-                .frame(height: lower)
+            secondary.place(
+                at: CGPoint(x: origin.x, y: secondaryY),
+                proposal: ProposedViewSize(width: bounds.width, height: max(0, origin.y + lead - secondaryY))
+            )
+            primary.place(
+                at: CGPoint(x: origin.x, y: origin.y + lowerY),
+                proposal: ProposedViewSize(width: bounds.width, height: bounds.height - lowerY)
+            )
         }
     }
 }

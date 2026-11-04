@@ -35,6 +35,25 @@ final class LoopingPlayer {
     }
 }
 
+/// AVKit's player with a clear backdrop that fills its bounds. SwiftUI's `VideoPlayer` paints a black backdrop and
+/// letterboxes (`.resizeAspect`), so when the hero's fractional size lands off the pixel grid the sliver of backdrop
+/// shows as a thin dark line down each side of the 16:9 clip. `VideoPlayer` exposes neither knob, hence the wrapper.
+private struct ClearVideoPlayer: UIViewControllerRepresentable {
+    let player: AVPlayer
+
+    func makeUIViewController(context: Context) -> AVPlayerViewController {
+        let controller = AVPlayerViewController()
+        controller.player = player
+        controller.videoGravity = .resizeAspectFill
+        controller.view.backgroundColor = .clear
+        return controller
+    }
+
+    func updateUIViewController(_ controller: AVPlayerViewController, context: Context) {
+        if controller.player !== player { controller.player = player }
+    }
+}
+
 /// The hero of the exercise detail: the exercise video when the cache has (or can fetch) one, else the bundled start
 /// frame, cross-fading to the end frame unless Reduce Motion is on. A muted caption when there is no media at all.
 struct ExerciseMediaHeader: View {
@@ -73,7 +92,7 @@ struct ExerciseMediaHeader: View {
     private var hero: some View {
         let frame = ZStack {
             if let video {
-                VideoPlayer(player: video.player)
+                ClearVideoPlayer(player: video.player)
                     .accessibilityLabel("Exercise video")
                     .accessibilityIdentifier("exerciseDetail.video")
             } else {

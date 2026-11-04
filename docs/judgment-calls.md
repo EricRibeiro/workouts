@@ -174,3 +174,21 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
 57. **Thumbnail cross-fade fades both frames** (Eric saw two poses overlapped): the bundled thumbnails are transparent PNGs,
     so the web's "end frame over an opaque start frame" left the start pose showing through. The start frame now fades out
     as the end frame fades in (opacities sum to 1), same timing as before.
+58. **Book-pose fold rule for single-column screens (6.2)**: Apple ships no API that makes a ScrollView/List/Form avoid the
+    division (SwiftUICore 27.2 has only `reservedRegions`, `ArrangementView`, `DeviceHinge`); sheets and split views move on
+    their own. So: History's regular-width dashboard becomes two columns with the gutter on the division; Settings relies on
+    the sheet's own fold handling (`presentationSizing`/`presentationPlacement` only if the real sheet still crosses);
+    the pushed exercise detail gets an `ArrangementView` on regular width. Laptop pose (horizontal fold) is accepted for
+    scrolling content (rows scroll through the fold); editors and the cover keep the table below it (bench style).
+59. **One layout tree for the logging screen and both editors** (`BenchLayout`, replaces nesting the system `.split`):
+    folding book → laptop rebuilt the set table (value kept, focus and scroll lost). The custom `Layout` reproduces the
+    system split in every pose (measured pixel-identical) and adds bench mode; the editors now use it too, so the table is
+    below the fold in laptop. While the keyboard is up in laptop the system removes the division from the area above the
+    keyboard, so the screen splits side by side there and returns to bench when the keyboard goes; accepted as system
+    behaviour rather than forcing bench under the keyboard. The rest header shows only in the logging screen.
+60. **Small 6.2 fixes**: the exercise list column has a 320 pt minimum (no max, so the split still sizes to the fold);
+    the exercise video uses an `AVPlayerViewController` wrapper with a clear backdrop and aspect-fill (all 2,058 videos are
+    exactly 1920x1080, and `VideoPlayer`'s black backdrop showed as a 1 px line at fractional sizes); "Weight type" in the
+    custom exercise form is a navigation-link picker at every size (a menu value is one line and truncated at AX sizes);
+    the filter pills are one shared `FilterPillRow` that stacks at AX sizes; the gallery's exercise detail is pushed like the
+    real app (a root detail with no bar items gets no strip, so the clock vanished there only).
