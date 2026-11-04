@@ -19,10 +19,17 @@ public nonisolated enum SetTableLayout {
         }
     }
 
-    /// The rest caption under an exercise name: `Rest 2:00`, `Rest 0:30`; nil when rest is off (0 or none).
-    public static func restCaption(seconds: Int?) -> String? {
-        guard let seconds, seconds > 0 else { return nil }
-        return "Rest \(seconds / 60):" + String(format: "%02d", seconds % 60)
+    /// The rest caption under an exercise name: `Rest 2:00` for its own length, `Rest 1:30 (default)` for nil (Default, the
+    /// Settings value `defaultSeconds`), `Rest off` for 0 (or a default of 0).
+    public static func restCaption(seconds: Int?, defaultSeconds: Int) -> String {
+        guard let seconds else {
+            return defaultSeconds > 0 ? "Rest \(clock(defaultSeconds)) (default)" : "Rest off"
+        }
+        return seconds > 0 ? "Rest \(clock(seconds))" : "Rest off"
+    }
+
+    private static func clock(_ seconds: Int) -> String {
+        "\(seconds / 60):" + String(format: "%02d", seconds % 60)
     }
 
     /// `order` after moving `moving` (kept in their current relative order) to just before `destination`, or to the end

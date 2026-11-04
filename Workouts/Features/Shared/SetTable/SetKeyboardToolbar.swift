@@ -23,6 +23,8 @@ struct SetKeyboardToolbar: ViewModifier {
     func body(content: Content) -> some View {
         content
             .toolbar {
+                // Three groups so the overflow order is ours: the rest trio folds first (the toolbar strip already has the
+                // countdown, Skip and +30), Next and Done never fold.
                 ToolbarItemGroup(placement: .keyboard) {
                     if let rest {
                         Text(timerInterval: min(.now, rest.endsAt)...rest.endsAt, countsDown: true)
@@ -41,10 +43,11 @@ struct SetKeyboardToolbar: ViewModifier {
                         }
                         .accessibilityLabel("Add 30 seconds")
                         .accessibilityIdentifier("rest.keyboard.plus30")
-
-                        Spacer()
                     }
+                }
+                .visibilityPriority(.low)
 
+                ToolbarItemGroup(placement: .keyboard) {
                     Button {
                         step(.decrement)
                     } label: {
@@ -66,9 +69,9 @@ struct SetKeyboardToolbar: ViewModifier {
                     }
                     .accessibilityLabel("Copy previous set")
                     .accessibilityIdentifier("setkeyboard.previous")
+                }
 
-                    Spacer()
-
+                ToolbarItemGroup(placement: .keyboard) {
                     Button(action: next) {
                         Label("Next", systemImage: "chevron.right")
                     }
@@ -82,6 +85,7 @@ struct SetKeyboardToolbar: ViewModifier {
                     .accessibilityHint("Closes the keyboard")
                     .accessibilityIdentifier("setkeyboard.done")
                 }
+                .visibilityPriority(.high)
             }
     }
 }

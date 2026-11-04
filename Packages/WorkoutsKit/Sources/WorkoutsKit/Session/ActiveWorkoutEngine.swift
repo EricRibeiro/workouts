@@ -85,7 +85,7 @@ public final class ActiveWorkoutEngine {
                     unit: source.unit,
                     barType: source.barType,
                     barWeight: source.barWeight,
-                    restSeconds: source.restSeconds ?? self.settings.defaultRestSeconds
+                    restSeconds: source.restSeconds
                 )
                 row.supersetGroup = source.supersetGroup
                 row.note = source.note
@@ -230,7 +230,8 @@ public final class ActiveWorkoutEngine {
     // MARK: - Exercises
 
     /// Appends `info` with its defaults: a custom exercise's own unit, bar and rest if set, else Settings `defaultUnit`,
-    /// an Olympic bar for barbells (none otherwise) and `defaultRestSeconds`; three empty sets.
+    /// an Olympic bar for barbells (none otherwise); three empty sets. Rest stays nil ("Default", read from Settings at each
+    /// check) unless the exercise has its own.
     @discardableResult
     public func addExercise(_ info: ExerciseInfo) throws -> WorkoutExercise {
         try addExercises([info])[0]
@@ -252,7 +253,7 @@ public final class ActiveWorkoutEngine {
                 unit: info.unit ?? settings.defaultUnit,
                 barType: info.barType ?? (info.weightType == .barbell ? .olympic : .none),
                 barWeight: info.barWeight,
-                restSeconds: info.restSeconds ?? settings.defaultRestSeconds
+                restSeconds: info.restSeconds
             )
             for index in 0..<Self.defaultSetCount { insertSet(into: row, position: index, kind: .normal) }
             added.append(row)

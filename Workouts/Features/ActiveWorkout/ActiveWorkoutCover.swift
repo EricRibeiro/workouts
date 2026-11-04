@@ -71,6 +71,8 @@ struct ActiveWorkoutCover: View {
                         // On the button so a popover (regular width) points at it.
                         .finishFlow(finishFlow)
                     }
+                    // With the number pad up the closed strip is short: Finish stays, Add Exercise folds first.
+                    .visibilityPriority(.high)
                     ToolbarItem(placement: .primaryAction) {
                         RestRingItem()
                     }
@@ -89,6 +91,7 @@ struct ActiveWorkoutCover: View {
                             .accessibilityLabel("Add Exercise")
                             .accessibilityIdentifier("cover.addExercise")
                     }
+                    .visibilityPriority(.low)
                 }
             }
         }
@@ -286,7 +289,6 @@ struct ActiveWorkoutCover: View {
                 perform {
                     try engine.setUnit(values.unit, for: row)
                     try engine.setBar(values.barType, weight: values.barWeight, for: row)
-                    try engine.setRest(values.restSeconds, for: row)
                 }
             }
         )

@@ -19,6 +19,8 @@ struct RootView: View {
     @State private var templateUpdate: TemplateUpdatePrompt?
     /// The sidebar's "New Template" asked for the editor; the Workout tab consumes it.
     @State private var newTemplate: NewTemplateRequest?
+    /// A sidebar template tab's Edit asked for the editor; the Workout tab consumes it (R3-03).
+    @State private var editTemplate: EditTemplateRequest?
     @Query(sort: [SortDescriptor(\TemplateFolder.position), SortDescriptor(\TemplateFolder.name)])
     private var folders: [TemplateFolder]
     @Query private var templates: [Template]
@@ -41,7 +43,8 @@ struct RootView: View {
                 WorkoutView(
                     showSettings: { navigation.openSettings() },
                     presentWorkout: { navigation.presentWorkout() },
-                    newTemplate: $newTemplate
+                    newTemplate: $newTemplate,
+                    editTemplate: $editTemplate
                 )
             }
             .accessibilityIdentifier("tab.workout")
@@ -146,7 +149,14 @@ struct RootView: View {
     @TabContentBuilder<AppTab>
     private func templateTab(_ template: Template) -> some TabContent<AppTab> {
         Tab(template.name, systemImage: "list.bullet.rectangle", value: AppTab.template(template.id)) {
-            TemplateTab(template: template, presentWorkout: { navigation.presentWorkout() })
+            TemplateTab(
+                template: template,
+                presentWorkout: { navigation.presentWorkout() },
+                edit: { edited in
+                    navigation.select(.workout)
+                    editTemplate = EditTemplateRequest(templateID: edited.id)
+                }
+            )
         }
         .accessibilityIdentifier("sidebar.template.\(template.id.uuidString)")
         .tabPlacement(.sidebarOnly)

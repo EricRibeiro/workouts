@@ -58,18 +58,11 @@ final class FinishUITests: XCTestCase {
         XCTAssertTrue(weight.waitForExistence(timeout: 5))
         weight.tap()
         weight.typeText("50")
-        // With the keyboard up the closed-display toolbar strip is too short and the system folds Finish into its
-        // overflow ("More") menu, so close the keyboard first. While a rest runs its accessory group is too wide and
-        // folds Done into its own "More" menu too (menu items lose their identifier, so match the label).
+        // With the pad up and a rest running the closed strip has room for Minimise and More only, so Finish is in More;
+        // the keyboard's Done (visibilityPriority .high) stays in the accessory. Close the pad, then Finish is in the strip.
         let keyboardDone = app.anyControl("setkeyboard.done")
-        if keyboardDone.exists {
-            keyboardDone.tap()
-        } else {
-            let accessoryMore = app.buttons.matching(identifier: "BottomOverflowBarButtonItem")
-                .allElementsBoundByIndex.max { $0.frame.minY < $1.frame.minY }
-            accessoryMore?.tap()
-            app.collectionViews.buttons["Done"].firstMatch.tap()
-        }
+        XCTAssertTrue(keyboardDone.waitForExistence(timeout: 5), "Done folded away")
+        keyboardDone.tap()
         XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 5), "keyboard still up")
 
         finish.tap()

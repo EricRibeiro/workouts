@@ -227,6 +227,7 @@ extension ActiveWorkoutEngine {
     /// `check`: starts the rest of the row's length for `set`, replacing any running one (superset sets too: every
     /// check). 0 = Off starts nothing and leaves a running rest alone. The caller saves.
     func startRest(afterChecking set: WorkoutSet, in row: WorkoutExercise, workout: Workout) throws {
+        // nil = Default (follows Settings now, not when the row was made); 0 = Off.
         let seconds = min(row.restSeconds ?? settings.defaultRestSeconds, RestTimer.durationRange.upperBound)
         guard seconds > 0 else { return }
         var timer = restTimer

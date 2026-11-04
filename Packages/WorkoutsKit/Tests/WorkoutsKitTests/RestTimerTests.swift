@@ -239,6 +239,46 @@ import Testing
         #expect(engine.restTimer.total == 3600)
     }
 
+    @Test func checkWithRestZeroStartsNoRestAndNilStartsTheDefault() throws {
+        let rig = try Rig()
+        let (engine, squat, curl) = try running(rig)
+        #expect(squat.restSeconds == nil)
+        squat.restSeconds = 0
+        try engine.check(sets(squat)[0])
+        #expect(engine.restTimer.state == .idle)  // Off: no timer
+        squat.restSeconds = nil
+        try engine.check(sets(squat)[1])
+        #expect(engine.restTimer.total == 90)  // Default: the Settings rest
+        _ = curl
+    }
+
+    @Test func defaultRestFollowsASettingsChangeAfterTheRowWasMade() throws {
+        let rig = try Rig()
+        let (engine, squat, _) = try running(rig)
+        rig.settings.defaultRestSeconds = 150
+        try engine.check(sets(squat)[0])
+        #expect(engine.restTimer.total == 150)
+        rig.settings.defaultRestSeconds = 0  // a default of Off: nothing starts
+        try engine.skipRest()
+        try engine.check(sets(squat)[1])
+        #expect(engine.restTimer.state == .idle)
+    }
+
+    @Test func aTemplateRowSetToOffStartsNoRestInTheWorkout() throws {
+        let rig = try Rig()
+        let template = try rig.pushTemplate()
+        let squatRow = try #require((template.exercises ?? []).first { $0.exerciseID == LibraryFixture.squat })
+        squatRow.restSeconds = 0
+        let engine = try rig.makeEngine()
+        let workout = try engine.start(from: template)
+        let row = try #require((workout.exercises ?? []).first { $0.exerciseID == LibraryFixture.squat })
+        #expect(row.restSeconds == 0)
+        let set = try #require(sets(row).first { $0.kind == .normal })
+        try engine.setValues(set, weight: 50, reps: 5, durationSeconds: nil)
+        try engine.check(set)
+        #expect(engine.restTimer.state == .idle)
+    }
+
     @Test func uncheckCancelsOnlyTheRestThatSetStarted() throws {
         let rig = try Rig()
         let (engine, squat, _) = try running(rig)

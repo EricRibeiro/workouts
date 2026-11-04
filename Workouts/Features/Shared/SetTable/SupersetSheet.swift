@@ -7,9 +7,10 @@ import SwiftUI
 
 /// "Superset…" from a block's header menu (task 3.6): the workout's blocks as checkmark rows. The block the menu was opened
 /// from is ticked and locked; tick at least one more to enable **Create Superset** (**Update Superset** when the block is
-/// already in one, where the rest of its group starts ticked). **Remove from Superset** shows only for a block in a group.
-/// `onSave` receives the ticked blocks other than the current one, in list order; the owner builds the group from
-/// `[current] + picked`.
+/// already in one, where the rest of its group starts ticked), a confirmation item in the navigation bar (nothing is
+/// pinned to the bottom edge). **Remove from Superset** is a destructive row below the list and shows only for a block in
+/// a group. `onSave` receives the ticked blocks other than the current one, in list order; the owner builds the group
+/// from `[current] + picked`.
 struct SupersetSheet: View {
     struct Block: Identifiable, Equatable {
         let id: UUID
@@ -42,35 +43,29 @@ struct SupersetSheet: View {
         _picked = State(initialValue: initialMembers)
     }
 
+    private var saveTitle: String { isInSuperset ? "Update Superset" : "Create Superset" }
+
     var body: some View {
         NavigationStack {
-            List(blocks) { block in
-                let isCurrent = block.id == currentID
-                let isOn = isCurrent || picked.contains(block.id)
-                Button {
-                    if picked.contains(block.id) {
-                        picked.remove(block.id)
-                    } else {
-                        picked.insert(block.id)
+            List {
+                Section {
+                    ForEach(blocks) { block in
+                        row(for: block)
                     }
-                } label: {
-                    HStack {
-                        Text(block.name)
-                            .foregroundStyle(isCurrent ? .secondary : .primary)
-                        Spacer()
-                        if isOn {
-                            Image(systemName: "checkmark")
-                                .foregroundStyle(isCurrent ? .secondary : Color.accentColor)
-                                .accessibilityHidden(true)
-                        }
-                    }
-                    .contentShape(.rect)
+                } footer: {
+                    Text("Select two or more exercises to create a superset")
                 }
-                .disabled(isCurrent)
-                .accessibilityAddTraits(isOn ? .isSelected : [])
-                .accessibilityIdentifier("superset.row.\(block.id.uuidString)")
+                if isInSuperset {
+                    Section {
+                        Button("Remove from Superset", systemImage: "minus.circle", role: .destructive) {
+                            onRemove()
+                            dismiss()
+                        }
+                        .accessibilityIdentifier("superset.remove")
+                    }
+                }
             }
-            .navigationTitle("Superset")
+            .navigationTitle(isInSuperset ? "Edit Superset" : "Create Superset")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -78,37 +73,45 @@ struct SupersetSheet: View {
                         .accessibilityLabel("Cancel")
                         .accessibilityIdentifier("superset.cancel")
                 }
-            }
-            .safeAreaInset(edge: .bottom) {
-                VStack(spacing: 8) {
-                    Button {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(saveTitle, systemImage: "checkmark") {
                         onSave(blocks.map(\.id).filter { picked.contains($0) && $0 != currentID })
                         dismiss()
-                    } label: {
-                        Text(isInSuperset ? "Update Superset" : "Create Superset")
-                            .frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(.borderedProminent)
                     .disabled(picked.subtracting([currentID]).isEmpty)
+                    .accessibilityLabel(saveTitle)
                     .accessibilityIdentifier("superset.save")
-                    if isInSuperset {
-                        Button(role: .destructive) {
-                            onRemove()
-                            dismiss()
-                        } label: {
-                            Text("Remove from Superset")
-                                .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.bordered)
-                        .accessibilityIdentifier("superset.remove")
-                    }
                 }
-                .controlSize(.large)
-                .padding()
-                .background(.bar)
             }
         }
         .presentationDetents([.medium, .large])
         .accessibilityIdentifier("superset.sheet")
+    }
+
+    private func row(for block: Block) -> some View {
+        let isCurrent = block.id == currentID
+        let isOn = isCurrent || picked.contains(block.id)
+        return Button {
+            if picked.contains(block.id) {
+                picked.remove(block.id)
+            } else {
+                picked.insert(block.id)
+            }
+        } label: {
+            HStack {
+                Text(block.name)
+                    .foregroundStyle(isCurrent ? .secondary : .primary)
+                Spacer()
+                if isOn {
+                    Image(systemName: "checkmark")
+                        .foregroundStyle(isCurrent ? .secondary : Color.accentColor)
+                        .accessibilityHidden(true)
+                }
+            }
+            .contentShape(.rect)
+        }
+        .disabled(isCurrent)
+        .accessibilityAddTraits(isOn ? .isSelected : [])
+        .accessibilityIdentifier("superset.row.\(block.id.uuidString)")
     }
 }

@@ -13,19 +13,27 @@ struct NewTemplateRequest: Hashable {
     let folderID: UUID?
 }
 
+/// Asks the Workout tab to push the editor for an existing template (R3-03): from a sidebar template tab's Edit. The
+/// template tabs exist only at regular width and vanish when the Duo closes, so the editor (and its draft) must live on the
+/// Workout tab's stack, which persists in both widths. The id makes every request distinct.
+struct EditTemplateRequest: Hashable {
+    let id = UUID()
+    let templateID: UUID
+}
+
 /// The content of a template's sidebar tab (PLAN 3.7): its preview on its own stack. Start Workout opens the root's cover
-/// (the same `StartWorkoutFlow` the preview runs, with the root's `presentWorkout`); Edit pushes the editor on this stack,
-/// under which the preview stays, so Save and Cancel return to it.
+/// (the same `StartWorkoutFlow` the preview runs, with the root's `presentWorkout`); Edit hands the template to the root,
+/// which selects the Workout tab and pushes the editor there (`EditTemplateRequest`), so a fold cannot destroy the draft.
 struct TemplateTab: View {
     let template: Template
     /// Presents the active workout's cover, which the root view owns.
     let presentWorkout: () -> Void
-    @State private var editing: Template?
+    /// Asks the root to edit a template on the Workout tab.
+    let edit: (Template) -> Void
 
     var body: some View {
         NavigationStack {
-            TemplatePreview(template: template, started: presentWorkout, edit: { editing = $0 })
-                .navigationDestination(item: $editing) { TemplateEditor(template: $0) }
+            TemplatePreview(template: template, started: presentWorkout, edit: edit)
                 .resumeControl()
         }
     }

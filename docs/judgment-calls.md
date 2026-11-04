@@ -142,3 +142,12 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
     lives only in "Update Rest Timer" (dropped from Preferences); R3-15 the block note becomes a multi-line sheet; R3-16 a
     card hides a lone superset bar whose partner is in "+ N more". R3-01 changes behaviour: rest "Off" is now really off
     (0) and a new "Default (1:30)" row follows Settings (nil).
+51. **R3-02 partly fixed, rest accepted**: `visibilityPriority` keeps the keyboard's Next and Done in the accessory (the
+    in-gym blocker). With the pad up and a rest running the closed strip only fits Minimise + More, so Finish still folds
+    into More until the pad is dismissed — acceptable (you finish after typing). Moving Minimise into the title menu would
+    free the slot; not done.
+52. **Eric's call (2026-11-04): no app sidebar.** After trying build 202611041648 he found Exercises clunky (the app sidebar
+    plus the Exercises split view's own list column = the list hidden behind a toggle). Decided: tabs stay in the trailing
+    strip in every pose (`.defaultTabBarPlacement(.tabBar)` or no placement override), the 3.7 sidebar template sections go
+    away (templates live on the Workout grid), and Exercises on regular width is a permanent two-pane list + detail. Settings
+    moves from the sidebar bottom bar to the toolbar everywhere.

@@ -15,7 +15,7 @@ struct FolderSection: View {
     /// `folder.name`, read by the list's body so a rename re-renders the header (see `FolderHeader`).
     let name: String
     let templates: [Template]
-    let finishedWorkouts: [Workout]
+    let lastPerformed: TemplateCardSummary.LastPerformedIndex
     let namespace: Namespace.ID
     let open: (Template) -> Void
     let actions: TemplateCardActions
@@ -31,7 +31,7 @@ struct FolderSection: View {
         folder: TemplateFolder,
         name: String,
         templates: [Template],
-        finishedWorkouts: [Workout],
+        lastPerformed: TemplateCardSummary.LastPerformedIndex,
         namespace: Namespace.ID,
         open: @escaping (Template) -> Void,
         actions: TemplateCardActions,
@@ -44,7 +44,7 @@ struct FolderSection: View {
         self.folder = folder
         self.name = name
         self.templates = templates
-        self.finishedWorkouts = finishedWorkouts
+        self.lastPerformed = lastPerformed
         self.namespace = namespace
         self.open = open
         self.actions = actions
@@ -75,7 +75,7 @@ struct FolderSection: View {
             if !collapsed, !templates.isEmpty {
                 TemplateGrid(
                     templates: templates,
-                    finishedWorkouts: finishedWorkouts,
+                    lastPerformed: lastPerformed,
                     namespace: namespace,
                     open: open,
                     actions: actions

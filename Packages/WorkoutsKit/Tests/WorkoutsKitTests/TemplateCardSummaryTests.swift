@@ -97,6 +97,84 @@ import Testing
         #expect(summary.accessibilityLabel(name: "Push") == "Push, 1 exercise, last done yesterday")
     }
 
+    @Test func lonelySupersetBarIsHidden() throws {
+        let context = try makeContext()
+        // B and C are a pair and both shown; D's partner E falls into "+ 1 more".
+        let template = makeTemplate(
+            context,
+            exercises: [("A", 1, nil), ("B", 1, 1), ("C", 1, 1), ("D", 1, 2), ("E", 1, 2)]
+        )
+        let summary = TemplateCardSummary.make(for: template, finishedWorkouts: [], maxLines: 4, now: now)
+        #expect(summary.lines.map(\.supersetGroup) == [nil, 1, 1, nil])
+        #expect(summary.overflow == 1)
+        let all = TemplateCardSummary.make(for: template, finishedWorkouts: [], maxLines: 5, now: now)
+        #expect(all.lines.map(\.supersetGroup) == [nil, 1, 1, 2, 2])
+    }
+
+    @Test func indexLinkedBeatsSameNameEvenWhenOlder() throws {
+        let context = try makeContext()
+        let template = makeTemplate(context, exercises: [("A", 1, nil)])
+        let linked = Workout(name: "Renamed", startedAt: daysAgo(9), finishedAt: daysAgo(9), template: template)
+        let sameName = Workout(name: "push", startedAt: daysAgo(1), finishedAt: daysAgo(1))
+        let index = TemplateCardSummary.LastPerformedIndex(finishedWorkouts: [sameName, linked])
+        #expect(index.lastPerformed(of: template) == daysAgo(9))
+    }
+
+    @Test func indexNewestWinsAndIgnoresInProgress() throws {
+        let context = try makeContext()
+        let template = makeTemplate(context, exercises: [("A", 1, nil)])
+        let old = Workout(name: "Push", startedAt: daysAgo(9), finishedAt: daysAgo(9), template: template)
+        let new = Workout(name: "Push", startedAt: daysAgo(5), finishedAt: daysAgo(5), template: template)
+        let running = Workout(name: "Push", startedAt: daysAgo(0), template: template)
+        let index = TemplateCardSummary.LastPerformedIndex(finishedWorkouts: [old, running, new])
+        #expect(index.lastPerformed(of: template) == daysAgo(5))
+        // Same-name fallback for an unlinked template: case-insensitive, the newest finished one.
+        let other = Template(name: "PUSH")
+        context.insert(other)
+        #expect(index.lastPerformed(of: other) == daysAgo(5))
+    }
+
+    @Test func indexOfNothingAnswersNil() throws {
+        let context = try makeContext()
+        let template = makeTemplate(context, exercises: [("A", 1, nil)])
+        #expect(TemplateCardSummary.LastPerformedIndex(finishedWorkouts: []).lastPerformed(of: template) == nil)
+        #expect(TemplateCardSummary.LastPerformedIndex().lastPerformed(of: template) == nil)
+    }
+
+    @Test func indexMatchesPerTemplateAnswer() throws {
+        let context = try makeContext()
+        let push = makeTemplate(context, exercises: [("A", 1, nil)])
+        let pull = Template(name: "Pull")
+        context.insert(pull)
+        let workouts = [
+            Workout(name: "Push", startedAt: daysAgo(3), finishedAt: daysAgo(3), template: push),
+            Workout(name: "pull", startedAt: daysAgo(2), finishedAt: daysAgo(2)),
+            Workout(name: "Pull", startedAt: daysAgo(6), finishedAt: daysAgo(6)),
+        ]
+        let index = TemplateCardSummary.LastPerformedIndex(finishedWorkouts: workouts)
+        for template in [push, pull] {
+            let viaIndex = TemplateCardSummary.make(for: template, index: index, now: now, calendar: calendar)
+            let direct = TemplateCardSummary.make(
+                for: template,
+                finishedWorkouts: workouts,
+                now: now,
+                calendar: calendar
+            )
+            #expect(viaIndex == direct)
+        }
+        #expect(index.lastPerformed(of: pull) == daysAgo(2))
+    }
+
+    @Test func fingerprintChangesWithWorkouts() {
+        let a = Workout(name: "Push", startedAt: daysAgo(3), finishedAt: daysAgo(3))
+        let b = Workout(name: "Push", startedAt: daysAgo(1), finishedAt: daysAgo(1))
+        let before = TemplateCardSummary.LastPerformedIndex.fingerprint(of: [a])
+        #expect(before == TemplateCardSummary.LastPerformedIndex.fingerprint(of: [a]))
+        #expect(before != TemplateCardSummary.LastPerformedIndex.fingerprint(of: [a, b]))
+        a.name = "Pull"
+        #expect(before != TemplateCardSummary.LastPerformedIndex.fingerprint(of: [a]))
+    }
+
     @Test func relativeTextBuckets() {
         func text(_ days: Int) -> String {
             TemplateCardSummary.relativeText(daysAgo(days), now: now, calendar: calendar)

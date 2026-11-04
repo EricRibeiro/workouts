@@ -51,6 +51,24 @@ import Testing
         #expect(draft.exercises[0].unit == .kg)
     }
 
+    @Test func templateNoteTrimsClearsAndSaves() throws {
+        let holder = try container()
+        defer { withExtendedLifetime(holder) {} }
+        let context = holder.mainContext
+        let model = template(context)
+        let original = TemplateDraft(model)
+        var draft = original
+        draft.setNote("  Chest day.\n ")
+        #expect(draft.note == "Chest day.")
+        #expect(draft.hasChanges(from: original))
+        try draft.save(to: model, in: context)
+        #expect(model.note == "Chest day.")
+        draft.setNote("   ")
+        #expect(draft.note.isEmpty)
+        try draft.save(to: model, in: context)
+        #expect(model.note.isEmpty)
+    }
+
     @Test func everyKindOfEditMarksTheDraftDirty() throws {
         let holder = try container()
         defer { withExtendedLifetime(holder) {} }
@@ -72,7 +90,7 @@ import Testing
         var reordered = original
         reordered.reorder(original.exercises.map(\.id).reversed())
         var more = original
-        more.addExercises([info("Squat")], defaultUnit: .lb, defaultRestSeconds: 90)
+        more.addExercises([info("Squat")], defaultUnit: .lb)
 
         for edited in [weight, count, kind, added, deleted, renamed, reordered, more] {
             #expect(edited.hasChanges(from: original))
@@ -119,15 +137,24 @@ import Testing
         )
         draft.addExercises(
             [info("Squat"), info("Curl", type: .dumbbell), custom],
-            defaultUnit: .lb,
-            defaultRestSeconds: 90
+            defaultUnit: .lb
         )
         #expect(draft.exercises.map(\.name) == ["Squat", "Curl", "Sled"])
         #expect(draft.exercises.map(\.unit) == [.lb, .lb, .kg])
         #expect(draft.exercises.map(\.barType) == [.olympic, .none, .none])
-        #expect(draft.exercises.map(\.restSeconds) == [90, 90, 45])
+        #expect(draft.exercises.map(\.restSeconds) == [nil, nil, 45])
         #expect(draft.exercises.allSatisfy { $0.sets.count == TemplateDraft.defaultSetCount })
         #expect(draft.exercises.allSatisfy { $0.supersetGroup == nil })
+    }
+
+    @Test func newRowsKeepRestNilAndOffStaysZero() {
+        var draft = TemplateDraft()
+        let ids = draft.addExercises([info("Squat"), info("Curl", type: .dumbbell)], defaultUnit: .lb)
+        #expect(draft.exercises.map(\.restSeconds) == [nil, nil])
+        draft.updateRestTimers(0, for: ids[0])
+        #expect(draft.exercises.map(\.restSeconds) == [0, nil])
+        draft.replaceExercise(ids[0], with: info("Deadlift"), defaultUnit: .lb)
+        #expect(draft.exercises[0].restSeconds == nil)
     }
 
     @Test func supersetGroupsTheNewExercisesOnly() throws {
@@ -137,7 +164,6 @@ import Testing
         let ids = draft.addExercises(
             [info("Squat"), info("Lunge")],
             defaultUnit: .lb,
-            defaultRestSeconds: 90,
             asSuperset: true
         )
         #expect(draft.exercises.map(\.supersetGroup) == [nil, nil, 1, 1])
@@ -145,7 +171,7 @@ import Testing
 
         // A single exercise cannot form a superset.
         var single = TemplateDraft()
-        single.addExercises([info("Squat")], defaultUnit: .lb, defaultRestSeconds: 90, asSuperset: true)
+        single.addExercises([info("Squat")], defaultUnit: .lb, asSuperset: true)
         #expect(single.exercises[0].supersetGroup == nil)
     }
 
@@ -211,7 +237,7 @@ import Testing
         var draft = TemplateDraft(model)
         draft.deleteSet(draft.exercises[0].sets[1].id)
         draft.exercises.removeAll { $0.name == "Row" }
-        draft.addExercises([info("Squat")], defaultUnit: .lb, defaultRestSeconds: 90)
+        draft.addExercises([info("Squat")], defaultUnit: .lb)
         try draft.save(to: model, in: context)
 
         let rows = (model.exercises ?? []).sorted { $0.position < $1.position }
@@ -247,7 +273,7 @@ import Testing
 
         var draft = TemplateDraft()
         draft.rename(to: "Legs")
-        draft.addExercises([info("Squat")], defaultUnit: .kg, defaultRestSeconds: 60)
+        draft.addExercises([info("Squat")], defaultUnit: .kg)
         let created = try draft.insertNew(in: folder, context: context, siblings: [existing], now: stamp)
 
         #expect(created.name == "Legs")
@@ -255,7 +281,7 @@ import Testing
         #expect(created.folder?.id == folder.id)
         #expect(created.createdAt == stamp)
         #expect(created.exercises?.count == 1)
-        #expect(created.exercises?.first?.restSeconds == 60)
+        #expect(created.exercises?.first?.restSeconds == nil)
         #expect(try context.fetch(FetchDescriptor<Template>()).count == 2)
     }
 
@@ -273,7 +299,7 @@ import Testing
     /// A draft of blocks named `names`, each with three empty sets, ids returned in order.
     private func blocks(_ names: [String]) -> (draft: TemplateDraft, ids: [UUID]) {
         var draft = TemplateDraft()
-        let ids = draft.addExercises(names.map { info($0) }, defaultUnit: .lb, defaultRestSeconds: 90)
+        let ids = draft.addExercises(names.map { info($0) }, defaultUnit: .lb)
         return (draft, ids)
     }
 
@@ -335,7 +361,9 @@ import Testing
         var (draft, ids) = blocks(["A", "B"])
         draft.makeSuperset(ids)
         draft.updateRestTimers(45, for: ids[0])
-        #expect(draft.exercises.map(\.restSeconds) == [45, 90])
+        #expect(draft.exercises.map(\.restSeconds) == [45, nil])
+        draft.updateRestTimers(0, for: ids[0])
+        #expect(draft.exercises[0].restSeconds == 0)
         draft.updateRestTimers(nil, for: ids[0])
         #expect(draft.exercises[0].restSeconds == nil)
     }
@@ -367,7 +395,7 @@ import Testing
             restSeconds: 45
         )
 
-        draft.replaceExercise(ids[0], with: custom, defaultUnit: .lb, defaultRestSeconds: 90)
+        draft.replaceExercise(ids[0], with: custom, defaultUnit: .lb)
         let block = draft.exercises[0]
         #expect(block.id == ids[0])
         #expect(block.exerciseID == custom.id)
@@ -381,16 +409,16 @@ import Testing
         #expect(draft.exercises[1].name == "Row")
 
         // A library barbell takes the defaults.
-        draft.replaceExercise(ids[0], with: info("Deadlift"), defaultUnit: .lb, defaultRestSeconds: 120)
+        draft.replaceExercise(ids[0], with: info("Deadlift"), defaultUnit: .lb)
         #expect(draft.exercises[0].unit == .lb)
         #expect(draft.exercises[0].barType == .olympic)
-        #expect(draft.exercises[0].restSeconds == 120)
+        #expect(draft.exercises[0].restSeconds == nil)
     }
 
     @Test func replaceExerciseInsideASupersetKeepsTheGroup() {
         var (draft, ids) = blocks(["A", "B", "C"])
         draft.makeSuperset([ids[0], ids[1]])
-        draft.replaceExercise(ids[1], with: info("Curl", type: .dumbbell), defaultUnit: .kg, defaultRestSeconds: 60)
+        draft.replaceExercise(ids[1], with: info("Curl", type: .dumbbell), defaultUnit: .kg)
         #expect(groups(draft) == [1, 1, nil])
         #expect(draft.exercises.map(\.name) == ["A", "Curl", "C"])
     }
@@ -461,7 +489,7 @@ import Testing
         draft.updateRestTimers(30, for: ghost)
         draft.setUnit(.kg, for: ghost)
         draft.setBar(.ez, weight: 10, for: ghost)
-        draft.replaceExercise(ghost, with: info("X"), defaultUnit: .kg, defaultRestSeconds: 10)
+        draft.replaceExercise(ghost, with: info("X"), defaultUnit: .kg)
         draft.removeFromSuperset(ghost)
         draft.removeExercise(ghost)
         #expect(draft == before)

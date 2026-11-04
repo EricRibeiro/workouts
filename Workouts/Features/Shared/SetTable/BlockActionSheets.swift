@@ -50,9 +50,7 @@ struct BlockActionHost {
 /// ``actions(host:)`` and attaches the prompts with `.blockActionSheets(_:host:)`.
 @Observable
 final class BlockActionState {
-    var isNoteEditing = false
-    var noteText = ""
-    var noteBlockID: UUID?
+    var note: BlockID?
     var isWarmupAlertShown = false
     var sticky: BlockID?
     var rest: BlockID?
@@ -64,11 +62,7 @@ final class BlockActionState {
     /// The menu entries, each opening its prompt (or acting straight away, for warm-ups).
     func actions(host: BlockActionHost) -> SetTableBlockActions {
         SetTableBlockActions(
-            note: { [self] id in
-                noteBlockID = id
-                noteText = host.blocks.first { $0.id == id }?.note ?? ""
-                isNoteEditing = true
-            },
+            note: { [self] id in note = BlockID(id: id) },
             stickyNote: { [self] id in sticky = BlockID(id: id) },
             addWarmups: { [self] id in
                 if !host.addWarmups(id) { isWarmupAlertShown = true }
@@ -83,7 +77,7 @@ final class BlockActionState {
 }
 
 extension View {
-    /// Presents the block menu's prompts: the Note alert, the warm-up alert, the Sticky Note, Rest Timer, Replace Exercise
+    /// Presents the block menu's prompts: the Note sheet, the warm-up alert, the Sticky Note, Rest Timer, Replace Exercise
     /// (single-select picker), Superset and Preferences sheets, and the remove confirmation.
     func blockActionSheets(_ state: BlockActionState, host: BlockActionHost) -> some View {
         modifier(BlockActionSheets(state: state, host: host))
@@ -98,15 +92,11 @@ private struct BlockActionSheets: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .alert("Note", isPresented: $state.isNoteEditing) {
-                TextField("Note", text: $state.noteText)
-                    .accessibilityIdentifier("\(host.idPrefix).note.field")
-                Button("Save") {
-                    if let id = state.noteBlockID { host.setNote(id, state.noteText) }
+            .sheet(item: $state.note) { target in
+                NoteSheet(initialText: block(target.id)?.note ?? "", idPrefix: "\(host.idPrefix).note") {
+                    host.setNote(target.id, $0)
                 }
-                .accessibilityIdentifier("\(host.idPrefix).note.save")
-                Button("Cancel", role: .cancel) {}
-                    .accessibilityIdentifier("\(host.idPrefix).note.cancel")
+                .presentationPlacement(.center)
             }
             .alert("Add a working weight first", isPresented: $state.isWarmupAlertShown) {
                 Button("OK", role: .cancel) {}
@@ -192,8 +182,7 @@ private struct BlockActionSheets: ViewModifier {
                 initial: BlockPreferencesSheet.Values(
                     unit: block.unit,
                     barType: block.barType,
-                    barWeight: block.barWeight,
-                    restSeconds: block.restSeconds
+                    barWeight: block.barWeight
                 )
             ) { host.savePreferences(id, $0) }
         }

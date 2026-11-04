@@ -21,6 +21,7 @@ struct SwatchesView: View {
             Swatch(name: "Ok fill", color: .okFill),
             Swatch(name: "Danger", color: .danger),
         ] + SetKind.allCases.map { Swatch(name: "Set kind: \($0.rawValue)", color: $0.color) }
+            + (1...6).map { Swatch(name: "Superset \($0)", color: .superset($0)) }
     }
 
     var body: some View {

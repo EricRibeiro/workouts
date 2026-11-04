@@ -31,6 +31,8 @@ struct SetTable: View {
     /// Every sticky note (a handful), so a header shows its exercise's note and follows edits made in the exercise pane.
     @Query private var stickyNotes: [StickyNote]
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(SettingsStore.self) private var settings: SettingsStore?
+    private var defaultRestSeconds: Int { settings?.defaultRestSeconds ?? SettingsStore.defaultRestSecondsDefault }
     @ScaledMetric(relativeTo: .body) private var readableWidth = 640.0
     @ScaledMetric(relativeTo: .body) private var touch = 44.0
     @ScaledMetric(relativeTo: .body) private var labelWidth = 28.0
@@ -144,8 +146,8 @@ struct SetTable: View {
                     blockMenu(section, actions: blockActions)
                 }
             }
-            if let rest = SetTableLayout.restCaption(seconds: section.restSeconds) {
-                Text(rest)
+            if source.mode != .past {
+                Text(SetTableLayout.restCaption(seconds: section.restSeconds, defaultSeconds: defaultRestSeconds))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

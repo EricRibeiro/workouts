@@ -4,30 +4,40 @@
 //
 
 import SwiftUI
+import WorkoutsKit
 
-/// "Update Rest Timer…" from a block's header menu (task 3.6): one rest length per exercise, from Off to 5:00, the current one
-/// checked. Choosing a row reports it and closes; Cancel closes without a change. `current` is seconds, nil or 0 for Off.
+/// "Update Rest Timer…" from a block's header menu (task 3.6): one rest length per exercise, the current one checked.
+/// First "Default (m:ss)" (nil: follows the Settings rest), then Off (0: no timer), then the fixed lengths. Choosing a row
+/// reports it and closes; Cancel closes without a change. `current` is seconds, 0 for Off, nil for Default.
 struct RestTimerPickerSheet: View {
     let current: Int?
     let onSelect: (Int?) -> Void
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(SettingsStore.self) private var settings: SettingsStore?
 
-    /// Off (nil) then the web app's lengths (`workout.md`, "Rest").
-    private static let options: [Int?] = [nil, 30, 60, 90, 120, 180, 300]
+    /// Default (nil), Off (0), then the web app's lengths (`workout.md`, "Rest"); a current value outside them (a custom
+    /// exercise's own) is kept as a row of its own.
+    private var options: [Int?] {
+        let fixed = [30, 60, 90, 120, 180, 300]
+        let extra = current.map { $0 > 0 && !fixed.contains($0) ? [$0] : [] } ?? []
+        return [nil, 0] + (fixed + extra).sorted().map { Optional($0) }
+    }
+
+    private var defaultSeconds: Int { settings?.defaultRestSeconds ?? SettingsStore.defaultRestSecondsDefault }
 
     var body: some View {
         NavigationStack {
-            List(Self.options, id: \.self) { seconds in
+            List(options, id: \.self) { seconds in
                 Button {
                     onSelect(seconds)
                     dismiss()
                 } label: {
                     HStack {
-                        Text(Self.title(seconds))
+                        Text(title(seconds))
                             .foregroundStyle(.primary)
                         Spacer()
-                        if Self.isSelected(seconds, current: current) {
+                        if seconds == current {
                             Image(systemName: "checkmark")
                                 .foregroundStyle(.tint)
                                 .accessibilityHidden(true)
@@ -35,8 +45,8 @@ struct RestTimerPickerSheet: View {
                     }
                     .contentShape(.rect)
                 }
-                .accessibilityAddTraits(Self.isSelected(seconds, current: current) ? .isSelected : [])
-                .accessibilityIdentifier("restTimer.option.\(seconds ?? 0)")
+                .accessibilityAddTraits(seconds == current ? .isSelected : [])
+                .accessibilityIdentifier("restTimer.option.\(seconds.map(String.init) ?? "default")")
             }
             .navigationTitle("Rest Timer")
             .navigationBarTitleDisplayMode(.inline)
@@ -52,12 +62,12 @@ struct RestTimerPickerSheet: View {
         .accessibilityIdentifier("restTimer.sheet")
     }
 
-    private static func title(_ seconds: Int?) -> String {
-        guard let seconds, seconds > 0 else { return "Off" }
-        return "\(seconds / 60):" + String(format: "%02d", seconds % 60)
+    private func title(_ seconds: Int?) -> String {
+        guard let seconds else { return "Default (\(Self.clock(defaultSeconds)))" }
+        return Self.clock(seconds)
     }
 
-    private static func isSelected(_ seconds: Int?, current: Int?) -> Bool {
-        (seconds ?? 0) == (current ?? 0)
+    private static func clock(_ seconds: Int) -> String {
+        seconds == 0 ? "Off" : "\(seconds / 60):" + String(format: "%02d", seconds % 60)
     }
 }

@@ -8,7 +8,7 @@ import SwiftUI
 import WorkoutsKit
 
 /// The template editor (task 3.4), pushed on the Workout tab's stack from the preview's Edit item in both widths: the name
-/// (title menu, Rename…), Add Exercise through the multi picker, and the SetTable in template mode. Every edit goes to a
+/// (title menu: Rename…, Edit Note…), Add Exercise through the multi picker, and the SetTable in template mode. Every edit goes to a
 /// `TemplateDraft`; Save writes it to the template in one go, Cancel drops it (asking first when something changed).
 /// Regular width puts the table beside, above or across the fold from the exercise pane with an `ArrangementView`, as the
 /// logging screen and the past editor do.
@@ -32,6 +32,7 @@ struct TemplateEditor: View {
     @State private var isDiscardConfirming = false
     @State private var isRenaming = false
     @State private var renameText = ""
+    @State private var isNoteEditing = false
     @State private var isPickerPresented = false
     @State private var focusedSectionID: UUID?
     /// The block menu's pending prompts (task 3.6).
@@ -80,6 +81,8 @@ struct TemplateEditor: View {
                     isRenaming = true
                 }
                 .accessibilityIdentifier("templateEditor.titleMenu.rename")
+                Button("Edit Note…", systemImage: "note.text") { isNoteEditing = true }
+                    .accessibilityIdentifier("templateEditor.titleMenu.note")
             }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -118,6 +121,10 @@ struct TemplateEditor: View {
                     .accessibilityIdentifier("templateEditor.rename.save")
                 Button("Cancel", role: .cancel) {}
                     .accessibilityIdentifier("templateEditor.rename.cancel")
+            }
+            .sheet(isPresented: $isNoteEditing) {
+                NoteSheet(initialText: draft.note, idPrefix: "templateEditor.templateNote") { draft.setNote($0) }
+                    .presentationPlacement(.center)
             }
             .sheet(isPresented: $isPickerPresented) {
                 ExercisePickerView(
@@ -164,8 +171,7 @@ struct TemplateEditor: View {
                 draft.replaceExercise(
                     id,
                     with: info,
-                    defaultUnit: settings?.defaultUnit ?? SettingsStore.defaultUnitDefault,
-                    defaultRestSeconds: settings?.defaultRestSeconds ?? SettingsStore.defaultRestSecondsDefault
+                    defaultUnit: settings?.defaultUnit ?? SettingsStore.defaultUnitDefault
                 )
             },
             makeSuperset: { id, picked in draft.makeSuperset([id] + picked) },
@@ -173,47 +179,8 @@ struct TemplateEditor: View {
             savePreferences: { id, values in
                 draft.setUnit(values.unit, for: id)
                 draft.setBar(values.barType, weight: values.barWeight, for: id)
-                draft.updateRestTimers(values.restSeconds, for: id)
             }
         )
-    }
-
-    @ViewBuilder
-    private func supersetSheet(for id: UUID) -> some View {
-        if let block = draft.exercises.first(where: { $0.id == id }) {
-            let members = Set(
-                draft.exercises
-                    .filter { block.supersetGroup != nil && $0.supersetGroup == block.supersetGroup && $0.id != id }
-                    .map(\.id)
-            )
-            SupersetSheet(
-                blocks: draft.exercises.map { SupersetSheet.Block(id: $0.id, name: $0.name) },
-                currentID: id,
-                initialMembers: members,
-                isInSuperset: block.supersetGroup != nil,
-                onSave: { picked in draft.makeSuperset([id] + picked) },
-                onRemove: { draft.removeFromSuperset(id) }
-            )
-        }
-    }
-
-    @ViewBuilder
-    private func preferencesSheet(for id: UUID) -> some View {
-        if let block = draft.exercises.first(where: { $0.id == id }) {
-            BlockPreferencesSheet(
-                exerciseName: block.name,
-                initial: BlockPreferencesSheet.Values(
-                    unit: block.unit,
-                    barType: block.barType,
-                    barWeight: block.barWeight,
-                    restSeconds: block.restSeconds
-                )
-            ) { values in
-                draft.setUnit(values.unit, for: id)
-                draft.setBar(values.barType, weight: values.barWeight, for: id)
-                draft.updateRestTimers(values.restSeconds, for: id)
-            }
-        }
     }
 
     // MARK: Table
@@ -245,7 +212,6 @@ struct TemplateEditor: View {
         draft.addExercises(
             infos,
             defaultUnit: settings?.defaultUnit ?? SettingsStore.defaultUnitDefault,
-            defaultRestSeconds: settings?.defaultRestSeconds ?? SettingsStore.defaultRestSecondsDefault,
             asSuperset: asSuperset
         )
     }

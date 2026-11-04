@@ -37,12 +37,54 @@ public struct TemplateCardSummary: Sendable, Equatable {
         return parts.joined(separator: ", ")
     }
 
-    /// Summarises `template`. `finishedWorkouts` is every finished workout; the last performance is the newest start
-    /// among those done from the template, else among those with the same name (case-insensitive; imported history is
-    /// not linked), in-progress ones never counting.
+    /// When each template was last performed, built in one pass over the finished workouts so a screen full of cards
+    /// costs one scan (and one relationship read per workout) instead of one per card. The rule: the newest start among
+    /// finished workouts done from the template, else among those with the same name (case-insensitive; imported
+    /// history is not linked). In-progress workouts never count.
+    public struct LastPerformedIndex: Sendable, Equatable {
+        private var byTemplate: [UUID: Date] = [:]
+        private var byName: [String: Date] = [:]
+
+        public init() {}
+
+        public init(finishedWorkouts: [Workout]) {
+            for workout in finishedWorkouts where workout.finishedAt != nil {
+                let started = workout.startedAt
+                if let id = workout.template?.id, byTemplate[id].map({ started > $0 }) ?? true {
+                    byTemplate[id] = started
+                }
+                let name = Self.key(workout.name)
+                if byName[name].map({ started > $0 }) ?? true { byName[name] = started }
+            }
+        }
+
+        /// The newest linked start, else the newest same-name start; nil when never performed.
+        public func lastPerformed(of template: Template) -> Date? {
+            byTemplate[template.id] ?? byName[Self.key(template.name)]
+        }
+
+        /// A cheap value that changes when the index's answer could: it reads only each workout's own attributes (no
+        /// relationship), so a view can use it as a `.task(id:)` key without faulting every workout's template.
+        public static func fingerprint(of finishedWorkouts: [Workout]) -> Int {
+            var hasher = Hasher()
+            for workout in finishedWorkouts {
+                hasher.combine(workout.id)
+                hasher.combine(workout.startedAt)
+                hasher.combine(workout.finishedAt)
+                hasher.combine(workout.name)
+            }
+            return hasher.finalize()
+        }
+
+        private static func key(_ name: String) -> String { name.lowercased() }
+    }
+
+    /// Summarises `template` with a prebuilt `index` (see `LastPerformedIndex`). A superset bar is kept on a line only
+    /// when at least two members of its group are among the lines: a partner folded into "+ N more" leaves a lone bar
+    /// that marks nothing.
     public static func make(
         for template: Template,
-        finishedWorkouts: [Workout],
+        index: LastPerformedIndex,
         maxLines: Int = 4,
         now: Date = .now,
         calendar: Calendar = .current
@@ -50,25 +92,41 @@ public struct TemplateCardSummary: Sendable, Equatable {
         let exercises = (template.exercises ?? []).sorted {
             $0.position != $1.position ? $0.position < $1.position : $0.id.uuidString < $1.id.uuidString
         }
-        let lines = exercises.prefix(max(0, maxLines)).map { exercise in
+        let shown = exercises.prefix(max(0, maxLines))
+        var groupSizes: [Int: Int] = [:]
+        for exercise in shown {
+            if let group = exercise.supersetGroup { groupSizes[group, default: 0] += 1 }
+        }
+        let lines = shown.map { exercise in
             Line(
                 id: exercise.id,
                 text: "\(exercise.sets?.count ?? 0) × \(exercise.exerciseName)",
-                supersetGroup: exercise.supersetGroup
+                supersetGroup: exercise.supersetGroup.flatMap { (groupSizes[$0] ?? 0) >= 2 ? $0 : nil }
             )
         }
-        let finished = finishedWorkouts.filter { $0.finishedAt != nil }
-        let linked = finished.filter { $0.template?.id == template.id }
-        let candidates =
-            linked.isEmpty
-            ? finished.filter { $0.name.compare(template.name, options: .caseInsensitive) == .orderedSame }
-            : linked
-        let last = candidates.map(\.startedAt).max()
         return TemplateCardSummary(
             exerciseCount: exercises.count,
-            lines: Array(lines),
+            lines: lines,
             overflow: max(0, exercises.count - lines.count),
-            lastPerformed: last.map { relativeText($0, now: now, calendar: calendar) }
+            lastPerformed: index.lastPerformed(of: template).map { relativeText($0, now: now, calendar: calendar) }
+        )
+    }
+
+    /// Convenience for one template: builds the index from `finishedWorkouts` first. Screens with many cards build the
+    /// index once and use `make(for:index:)`.
+    public static func make(
+        for template: Template,
+        finishedWorkouts: [Workout],
+        maxLines: Int = 4,
+        now: Date = .now,
+        calendar: Calendar = .current
+    ) -> TemplateCardSummary {
+        make(
+            for: template,
+            index: LastPerformedIndex(finishedWorkouts: finishedWorkouts),
+            maxLines: maxLines,
+            now: now,
+            calendar: calendar
         )
     }
 

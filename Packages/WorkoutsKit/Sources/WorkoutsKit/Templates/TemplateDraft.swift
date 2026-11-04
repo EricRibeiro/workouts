@@ -93,6 +93,11 @@ public struct TemplateDraft: Equatable, Sendable {
         name = trimmed
     }
 
+    /// Sets the template's own note, trimmed (whitespace-only clears it).
+    public mutating func setNote(_ text: String) {
+        note = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     // MARK: Set edits
 
     public mutating func setWeight(_ weight: Double?, for setID: UUID) {
@@ -138,13 +143,12 @@ public struct TemplateDraft: Equatable, Sendable {
     // MARK: Exercise edits
 
     /// Appends `infos` in order with their defaults: a custom exercise's own unit, bar and rest if set, else
-    /// `defaultUnit`, an Olympic bar for barbells (none otherwise) and `defaultRestSeconds`; three empty sets each. With
+    /// `defaultUnit`, an Olympic bar for barbells (none otherwise); rest stays nil (Default) unless the exercise has its own; three empty sets each. With
     /// `asSuperset` (and at least two exercises) they form one new superset group. Returns the new rows' ids.
     @discardableResult
     public mutating func addExercises(
         _ infos: [ExerciseInfo],
         defaultUnit: WeightUnit,
-        defaultRestSeconds: Int,
         asSuperset: Bool = false
     ) -> [UUID] {
         let added = infos.map { info in
@@ -154,7 +158,7 @@ public struct TemplateDraft: Equatable, Sendable {
                 name: info.name,
                 supersetGroup: nil,
                 note: "",
-                restSeconds: info.restSeconds ?? defaultRestSeconds,
+                restSeconds: info.restSeconds,
                 unit: info.unit ?? defaultUnit,
                 barType: info.barType ?? (info.weightType == .barbell ? .olympic : .none),
                 barWeight: info.barWeight,
@@ -231,8 +235,8 @@ public struct TemplateDraft: Equatable, Sendable {
         return warmups.count
     }
 
-    /// Update Rest Timers: the block's rest in seconds (nil for none). The engine has no "whole superset" rule for rest
-    /// (each row rests by its own length), so only this block changes. This is also the Preferences rest row.
+    /// Update Rest Timers: the block's rest in seconds: 0 = Off, nil = Default (the Settings rest). The engine has no "whole
+    /// superset" rule for rest (each row rests by its own length), so only this block changes.
     public mutating func updateRestTimers(_ seconds: Int?, for blockID: UUID) {
         guard let e = index(of: blockID) else { return }
         exercises[e].restSeconds = seconds
@@ -252,13 +256,12 @@ public struct TemplateDraft: Equatable, Sendable {
     }
 
     /// Replaces the block's exercise with `info`: id, name, unit, bar and rest take the same defaults as
-    /// ``addExercises(_:defaultUnit:defaultRestSeconds:asSuperset:)``. The block keeps its id, position, superset group,
+    /// ``addExercises(_:defaultUnit:asSuperset:)``. The block keeps its id, position, superset group,
     /// note and sets (their values are not cleared or converted, as in the engine).
     public mutating func replaceExercise(
         _ blockID: UUID,
         with info: ExerciseInfo,
-        defaultUnit: WeightUnit,
-        defaultRestSeconds: Int
+        defaultUnit: WeightUnit
     ) {
         guard let e = index(of: blockID) else { return }
         let old = exercises[e]
@@ -268,7 +271,7 @@ public struct TemplateDraft: Equatable, Sendable {
             name: info.name,
             supersetGroup: old.supersetGroup,
             note: old.note,
-            restSeconds: info.restSeconds ?? defaultRestSeconds,
+            restSeconds: info.restSeconds,
             unit: info.unit ?? defaultUnit,
             barType: info.barType ?? (info.weightType == .barbell ? .olympic : .none),
             barWeight: info.barWeight,

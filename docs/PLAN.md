@@ -227,7 +227,7 @@ Live Activity → notifications → logging, then templates, exercises, history.
   Needs: 3.6. Proof: flow.
 - [x] **3.7 Sidebar Templates sections**: `TabSection` per folder, `.sidebarOnly` template tabs rendering the preview,
   `.sectionActions` "New Template". Needs: 3.3. Proof: open-Duo screenshot; compact bar unchanged.
-- [ ] **3.8 Design review: Workout tab** (skill `design-review`): grid, cards, preview, editor, sidebar; seeded with: cards must
+- [x] **3.8 Design review: Workout tab** (skill `design-review`): grid, cards, preview, editor, sidebar; seeded with: cards must
   read as Fitness's (fill, no rim, title row with chevron, four text levels), superset colours distinguishable from each other and
   from ok/danger in both appearances. Needs: 3.7. Proof: the findings table; P0–P2 rows become tasks before Phase 4 starts.
 
@@ -255,7 +255,7 @@ Live Activity → notifications → logging, then templates, exercises, history.
   Intelligence off, model not ready, guardrail or decode error) leaves the field exactly as today, no banner. Same field in the Exercises
   list and the picker (2.1a). Needs: 0.3, 4.1b, 2.1a. Proof: `./dev kit Query` (matching with hand-built structs) + preview with the parser
   stubbed; one on-device parse checked by hand, since the simulator borrows the host Mac's model.
-- [ ] **4.7 Design review: Exercises tab** (skill `design-review`): list, filters, detail segments, custom form, sticky note, the
+- [x] **4.7 Design review: Exercises tab** (skill `design-review`): list, filters, detail segments, custom form, sticky note, the
   embedded pane inside 2.10's arrangement. Needs: 4.5, 4.6. Proof: the findings table; P0–P2 rows become tasks before Phase 5 starts.
 
 ### Phase 5 — History
@@ -278,7 +278,7 @@ Live Activity → notifications → logging, then templates, exercises, history.
   defaults. Needs: 1.7, 0.8, 0.9, 0.10. Proof: preview.
 - [x] **5.7b Settings Import and Export**: Import and **Export…** via the share sheet, same codec as 1.7. Needs: 1.7, 0.8, 0.10,
   5.7a. Proof: flow (`./dev ui-test`: import the sample JSON, export, re-import is idempotent).
-- [ ] **5.8 Design review: History and Settings** (skill `design-review`): dashboard cards (Fitness's shape, same card component as
+- [x] **5.8 Design review: History and Settings** (skill `design-review`): dashboard cards (Fitness's shape, same card component as
   3.8's), month sections, detail, past editor, calendar, Settings form; the cross-screen pass too: one spacing scale, one card,
   one row style across all tabs. Needs: 5.7b. Proof: the findings table; P0–P2 rows become tasks before Phase 6 starts.
 

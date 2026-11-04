@@ -112,7 +112,7 @@ extension ActiveWorkoutEngine {
         unit: WeightUnit,
         barType: BarType,
         barWeight: Double?,
-        restSeconds: Int
+        restSeconds: Int?
     ) -> WorkoutExercise {
         let row = WorkoutExercise(
             exerciseID: exerciseID,

@@ -160,4 +160,41 @@ final class TemplateEditorUITests: XCTestCase {
         }
         XCTAssertTrue(block.exists, "no block for \(name) was added")
     }
+
+    /// Edit Note… in the title menu (the system drops the items' identifiers, so the item is matched by label) opens the
+    /// note sheet; the typed text is kept, saved with the template and shown by the reopened preview.
+    @MainActor
+    func testEditNoteFromTitleMenuSavesAndShowsInThePreview() throws {
+        let app = launch()
+        let any = app.descendants(matching: .any)
+        _ = openPreview(app)
+        openEditor(app)
+        let title = app.navigationBars.buttons.matching(
+            NSPredicate(format: "NOT identifier BEGINSWITH 'templateEditor.'")
+        )
+        .firstMatch
+        XCTAssertTrue(title.waitForExistence(timeout: 5), "no title menu button")
+        title.tap()
+        let item = app.buttons.matching(NSPredicate(format: "label == 'Edit Note…'")).firstMatch
+        XCTAssertTrue(item.waitForExistence(timeout: 5), "no Edit Note item")
+        item.tap()
+
+        XCTAssertTrue(any["templateEditor.templateNote.sheet"].waitForExistence(timeout: 5), "no note sheet")
+        let field = any["templateEditor.templateNote.field"].firstMatch
+        XCTAssertTrue(field.waitForExistence(timeout: 5), "no note field")
+        field.typeText(" Heavy singles.")
+        app.buttons["templateEditor.templateNote.save"].tap()
+        waitUntilGone(any["templateEditor.templateNote.sheet"], "Save did not close the note sheet")
+
+        app.buttons["templateEditor.save"].tap()
+        waitUntilGone(any["screen.templateEditor"], "Save did not close the editor")
+        if !any["template.preview"].waitForExistence(timeout: 3) {
+            let card = firstCard(app)
+            XCTAssertTrue(card.waitForExistence(timeout: 5))
+            card.tap()
+            XCTAssertTrue(any["template.preview"].waitForExistence(timeout: 5))
+        }
+        let note = app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'Heavy singles.'")).firstMatch
+        XCTAssertTrue(note.waitForExistence(timeout: 5), "the preview does not show the edited note")
+    }
 }

@@ -23,7 +23,8 @@ struct TemplateCardActions {
 /// (`EvenColumnGrid`), so on the open Duo the gutter falls on the fold; at the closed Duo's width it is two.
 struct TemplateGrid: View {
     let templates: [Template]
-    let finishedWorkouts: [Workout]
+    /// Built once by the screen (one pass over the finished workouts), not per card.
+    let lastPerformed: TemplateCardSummary.LastPerformedIndex
     let namespace: Namespace.ID
     let open: (Template) -> Void
     var actions = TemplateCardActions()
@@ -33,7 +34,7 @@ struct TemplateGrid: View {
             ForEach(templates) { template in
                 TemplateCard(
                     template: template,
-                    summary: TemplateCardSummary.make(for: template, finishedWorkouts: finishedWorkouts),
+                    summary: TemplateCardSummary.make(for: template, index: lastPerformed),
                     namespace: namespace,
                     actions: actions,
                     open: { open(template) }
@@ -53,6 +54,9 @@ struct TemplateCard: View {
     let namespace: Namespace.ID
     let actions: TemplateCardActions
     let open: () -> Void
+
+    /// At accessibility sizes the exercise lines wrap rather than truncate (the real names fit at accessibility3).
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var hasSuperset: Bool { summary.lines.contains { $0.supersetGroup != nil } }
 
@@ -78,7 +82,7 @@ struct TemplateCard: View {
                             Text(line.text)
                                 .font(.footnote)
                                 .foregroundStyle(.secondary)
-                                .lineLimit(1)
+                                .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
                                 .padding(.leading, hasSuperset ? 9 : 0)
                                 .background(alignment: .leading) {
                                     if let group = line.supersetGroup {

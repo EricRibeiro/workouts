@@ -15,6 +15,8 @@ struct WorkoutView: View {
     /// A sidebar section's "New Template" asked for the editor (the root view owns the request, since the tab may not
     /// have existed yet when it was made).
     var newTemplate: Binding<NewTemplateRequest?> = .constant(nil)
+    /// A sidebar template tab's Edit asked for that template's editor, so it lives on this tab's stack and survives a fold.
+    var editTemplate: Binding<EditTemplateRequest?> = .constant(nil)
     @Environment(ActiveWorkoutEngine.self) private var engine: ActiveWorkoutEngine?
     @Environment(SaveErrors.self) private var errors: SaveErrors?
     @Environment(\.modelContext) private var context
@@ -25,6 +27,8 @@ struct WorkoutView: View {
     private var folders: [TemplateFolder]
     @Query private var templates: [Template]
     @Query(filter: #Predicate<Workout> { $0.finishedAt != nil }) private var finishedWorkouts: [Workout]
+    /// "Last performed" for every card, built once per change of the finished workouts (not once per card per body).
+    @State private var lastPerformed = TemplateCardSummary.LastPerformedIndex()
 
     /// The folder being renamed, with the alert's text.
     @State private var renaming: TemplateFolder?
@@ -81,6 +85,11 @@ struct WorkoutView: View {
                 .navigationDestination(item: newTemplate) { request in
                     TemplateEditor(newIn: folders.first { $0.id == request.folderID })
                 }
+                .navigationDestination(item: editTemplate) { request in
+                    if let template = templates.first(where: { $0.id == request.templateID }) {
+                        TemplateEditor(template: template)
+                    }
+                }
                 .sheet(
                     item: $previewSheet,
                     onDismiss: {
@@ -94,7 +103,6 @@ struct WorkoutView: View {
                         }
                     }
                 ) { TemplatePreviewSheet(template: $0, started: workoutStarted, edit: edit) }
-                .startWorkoutFlow(startFlow)
                 .resumeControl()
                 .toolbar {
                     ToolbarItem(placement: .primaryAction) {
@@ -117,6 +125,7 @@ struct WorkoutView: View {
                         }
                         .accessibilityLabel("Add")
                         .accessibilityIdentifier("toolbar.add")
+                        .startWorkoutFlow(startFlow)
                     }
                     ToolbarItem(placement: .primaryAction) {
                         Button("Settings", systemImage: "gearshape", action: showSettings)
@@ -176,11 +185,16 @@ struct WorkoutView: View {
     @ViewBuilder
     private var content: some View {
         if folders.isEmpty && templates.isEmpty {
-            ContentUnavailableView(
-                "No Templates",
-                systemImage: "dumbbell",
-                description: Text("Your workout templates will appear here.")
-            )
+            ContentUnavailableView {
+                Label("No Templates Yet", systemImage: "dumbbell")
+            } description: {
+                Text("Tap New Template to plan your first workout.")
+            } actions: {
+                Button("New Template", systemImage: "square.and.pencil") { isCreatingTemplate = true }
+                    .buttonStyle(.borderedProminent)
+                    .accessibilityLabel("New Template")
+                    .accessibilityIdentifier("workout.empty.newTemplate")
+            }
         } else {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 20) {
@@ -189,7 +203,7 @@ struct WorkoutView: View {
                             folder: folder,
                             name: folder.name,
                             templates: templates(in: folder),
-                            finishedWorkouts: finishedWorkouts,
+                            lastPerformed: lastPerformed,
                             namespace: cardZoom,
                             open: open,
                             actions: cardActions,
@@ -213,7 +227,7 @@ struct WorkoutView: View {
                                 .accessibilityIdentifier("workout.unfiled")
                             TemplateGrid(
                                 templates: unfiled,
-                                finishedWorkouts: finishedWorkouts,
+                                lastPerformed: lastPerformed,
                                 namespace: cardZoom,
                                 open: open,
                                 actions: cardActions
@@ -224,6 +238,9 @@ struct WorkoutView: View {
                 .padding(.horizontal)
             }
             .accessibilityIdentifier("workout.list")
+            .task(id: TemplateCardSummary.LastPerformedIndex.fingerprint(of: finishedWorkouts)) {
+                lastPerformed = TemplateCardSummary.LastPerformedIndex(finishedWorkouts: finishedWorkouts)
+            }
         }
     }
 

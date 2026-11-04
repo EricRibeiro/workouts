@@ -16,12 +16,17 @@ import Testing
 
     @Test(arguments: [(120, "Rest 2:00"), (30, "Rest 0:30"), (90, "Rest 1:30"), (3600, "Rest 60:00")])
     func restCaption(seconds: Int, expected: String) {
-        #expect(SetTableLayout.restCaption(seconds: seconds) == expected)
+        #expect(SetTableLayout.restCaption(seconds: seconds, defaultSeconds: 45) == expected)
     }
 
-    @Test func restCaptionIsNilWhenOff() {
-        #expect(SetTableLayout.restCaption(seconds: 0) == nil)
-        #expect(SetTableLayout.restCaption(seconds: nil) == nil)
+    @Test func restCaptionSaysOffForZero() {
+        #expect(SetTableLayout.restCaption(seconds: 0, defaultSeconds: 90) == "Rest off")
+    }
+
+    @Test func restCaptionForNilFollowsTheDefault() {
+        #expect(SetTableLayout.restCaption(seconds: nil, defaultSeconds: 90) == "Rest 1:30 (default)")
+        #expect(SetTableLayout.restCaption(seconds: nil, defaultSeconds: 120) == "Rest 2:00 (default)")
+        #expect(SetTableLayout.restCaption(seconds: nil, defaultSeconds: 0) == "Rest off")
     }
 
     @Test func reorderedMovesBeforeDestination() {

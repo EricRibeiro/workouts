@@ -19,6 +19,9 @@ import WorkoutsKit
 //   Color.warmup          warm-up set kind
 //   Color.setKindDrop     drop set kind
 //   Color.setKindFailure  failure set kind
+//   Color.superset1…6     superset group colours (purple, teal, magenta, orange, indigo, olive); each is at least
+//                         3:1 against the system and secondary backgrounds in both appearances and is distinct
+//                         from the accent blue, ok green, danger red and warm-up amber. Use `Color.superset(_:)`.
 //
 // The accent is `AccentColor` (`Color.accentColor`, `.tint`). Everything else is system material.
 
@@ -35,10 +38,11 @@ extension SetKind {
 }
 
 extension Color {
-    /// Six colours by superset number, wrapping (`workout.md` "Supersets"). None of them is a set-kind or check colour.
+    /// Six colours by superset number, wrapping (`workout.md` "Supersets"): the `Superset1…6` asset colours. None of
+    /// them is the accent, a set-kind or a check colour.
     /// Shared by the set table's bar and the History detail's.
     static func superset(_ number: Int) -> Color {
-        let palette: [Color] = [.blue, .purple, .pink, .teal, .indigo, .brown]
+        let palette: [Color] = [.superset1, .superset2, .superset3, .superset4, .superset5, .superset6]
         return palette[((number - 1) % palette.count + palette.count) % palette.count]
     }
 }

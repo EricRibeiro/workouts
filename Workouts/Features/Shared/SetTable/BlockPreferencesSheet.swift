@@ -10,23 +10,22 @@ extension BarType {
     /// The bar's name in pickers.
     var displayName: String {
         switch self {
-        case .none: "No bar"
-        case .olympic: "Olympic bar (45 lb / 20 kg)"
-        case .ez: "EZ bar"
-        case .custom: "Custom weight"
+        case .none: "No Bar"
+        case .olympic: "Olympic Bar"
+        case .ez: "EZ Bar"
+        case .custom: "Custom Bar"
         }
     }
 }
 
-/// "Preferences…" from a block's header menu (task 3.6): the exercise's weight unit, bar (with the weight of a custom one) and
-/// rest timer in a `Form`. Save reports the values and closes; Cancel drops them. Changing the unit does not convert the sets.
+/// "Preferences…" from a block's header menu (task 3.6): the exercise's weight unit and bar (with the weight of a custom one)
+/// in a `Form`. Rest is edited through "Update Rest Timer…" only. Save reports the values and closes; Cancel drops them.
+/// Changing the unit does not convert the sets.
 struct BlockPreferencesSheet: View {
     struct Values: Equatable {
         var unit: WeightUnit
         var barType: BarType
         var barWeight: Double?
-        /// Seconds; nil for Off.
-        var restSeconds: Int?
     }
 
     let exerciseName: String
@@ -36,11 +35,6 @@ struct BlockPreferencesSheet: View {
     @State private var unit: WeightUnit
     @State private var barType: BarType
     @State private var barWeightText: String
-    @State private var rest: Int
-    private let restOptions: [Int]
-
-    /// Off (0), then the lengths of `RestTimerPickerSheet`; a current value outside them is kept as a row of its own.
-    private static let standardRest = [0, 30, 60, 90, 120, 180, 300]
 
     init(exerciseName: String, initial: Values, onSave: @escaping (Values) -> Void) {
         self.exerciseName = exerciseName
@@ -48,9 +42,6 @@ struct BlockPreferencesSheet: View {
         _unit = State(initialValue: initial.unit)
         _barType = State(initialValue: initial.barType)
         _barWeightText = State(initialValue: initial.barWeight.map { Self.format($0) } ?? "")
-        let current = max(initial.restSeconds ?? 0, 0)
-        _rest = State(initialValue: current)
-        restOptions = Self.standardRest.contains(current) ? Self.standardRest : (Self.standardRest + [current]).sorted()
     }
 
     /// The custom bar weight as typed: empty, a non-negative number, or something else.
@@ -76,17 +67,17 @@ struct BlockPreferencesSheet: View {
         NavigationStack {
             Form {
                 Section {
-                    Picker("Weight unit", selection: $unit) {
+                    Picker("Weight Unit", selection: $unit) {
                         ForEach(WeightUnit.allCases, id: \.self) { Text($0.rawValue).tag($0) }
                     }
                     .pickerStyle(.segmented)
                     .accessibilityIdentifier("preferences.unit")
-                    Picker("Bar", selection: $barType) {
+                    Picker("Bar Type", selection: $barType) {
                         ForEach(BarType.allCases, id: \.self) { Text($0.displayName).tag($0) }
                     }
                     .accessibilityIdentifier("preferences.bar")
                     if barType == .custom {
-                        LabeledContent("Bar weight (\(unit.rawValue))") {
+                        LabeledContent("Bar Weight (\(unit.rawValue))") {
                             TextField("0", text: $barWeightText)
                                 .keyboardType(.decimalPad)
                                 .multilineTextAlignment(.trailing)
@@ -94,14 +85,12 @@ struct BlockPreferencesSheet: View {
                                 .accessibilityIdentifier("preferences.barWeight")
                         }
                     }
-                    Picker("Rest timer", selection: $rest) {
-                        ForEach(restOptions, id: \.self) { Text(Self.restTitle($0)).tag($0) }
-                    }
-                    .accessibilityIdentifier("preferences.rest")
                 } header: {
                     Text(exerciseName)
                 } footer: {
-                    Text("Changing the unit does not convert the weights already entered.")
+                    Text(
+                        "The Olympic Bar is 45 lb / 20 kg. Changing the unit does not convert the weights already entered."
+                    )
                 }
             }
             .navigationTitle("Preferences")
@@ -127,12 +116,8 @@ struct BlockPreferencesSheet: View {
     private func save() {
         var weight: Double?
         if barType == .custom, case .value(let value) = barWeight { weight = value }
-        onSave(Values(unit: unit, barType: barType, barWeight: weight, restSeconds: rest == 0 ? nil : rest))
+        onSave(Values(unit: unit, barType: barType, barWeight: weight))
         dismiss()
-    }
-
-    private static func restTitle(_ seconds: Int) -> String {
-        seconds == 0 ? "Off" : "\(seconds / 60):" + String(format: "%02d", seconds % 60)
     }
 
     private static func format(_ value: Double) -> String {

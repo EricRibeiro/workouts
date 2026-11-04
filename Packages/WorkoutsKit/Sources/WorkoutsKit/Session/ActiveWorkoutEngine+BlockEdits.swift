@@ -13,7 +13,7 @@ extension ActiveWorkoutEngine {
         try commit(workout, row)
     }
 
-    /// Update Rest Timer: the row's rest in seconds (nil for none). Only this row changes (each row rests by its own
+    /// Update Rest Timer: the row's rest in seconds: 0 = Off (no timer), nil = Default (the Settings rest). Only this row changes (each row rests by its own
     /// length). A single-value edit.
     /// - Throws: ``ActiveWorkoutError/notInActiveWorkout`` when the row is not in the workout.
     public func setRest(_ seconds: Int?, for row: WorkoutExercise) throws {

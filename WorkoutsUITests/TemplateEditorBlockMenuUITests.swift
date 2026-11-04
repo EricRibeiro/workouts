@@ -164,7 +164,7 @@ final class TemplateEditorBlockMenuUITests: XCTestCase {
         XCTAssertTrue(unitControl().waitForExistence(timeout: 5), "no unit picker")
         XCTAssertTrue(unitControl().buttons["kg"].isSelected, "the seeded block is not kg")
         XCTAssertTrue(app.buttons["preferences.bar"].exists, "no bar picker")
-        XCTAssertTrue(app.buttons["preferences.rest"].exists, "no rest picker")
+        XCTAssertFalse(app.buttons["preferences.rest"].exists, "rest is edited through Update Rest Timer only")
         unitControl().buttons["lb"].tap()
         app.buttons["preferences.cancel"].tap()
         waitUntilGone(any["preferences.sheet"], "Cancel did not close the sheet")

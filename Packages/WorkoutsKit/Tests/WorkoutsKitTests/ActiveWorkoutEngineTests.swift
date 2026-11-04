@@ -138,8 +138,8 @@ import Testing
         #expect(copied.map(\.exerciseName) == ["Back Squat", "Zottman Curl"])
         #expect(copied.map(\.position) == [0, 1])
         #expect(copied.allSatisfy { $0.unit == .kg && $0.note == "tempo" })
-        // The template's own rest is kept; a nil rest takes the Settings default (90 s).
-        #expect(copied.map(\.restSeconds) == [150, 90])
+        // The template's own rest is kept; a nil rest stays nil (Default: read from Settings at each check).
+        #expect(copied.map(\.restSeconds) == [150, nil])
         let squatSets = sets(copied[0])
         #expect(squatSets.map(\.kind) == [.warmup, .normal, .normal])
         #expect(squatSets.map(\.position) == [0, 1, 2])
@@ -424,7 +424,7 @@ import Testing
 
         let squat = try engine.addExercise(try rig.info(LibraryFixture.squat))
         #expect(squat.exerciseName == "Back Squat" && squat.position == 0)
-        #expect(squat.unit == .kg && squat.barType == .olympic && squat.restSeconds == 120)
+        #expect(squat.unit == .kg && squat.barType == .olympic && squat.restSeconds == nil)
         #expect(sets(squat).count == 3 && sets(squat).allSatisfy { $0.weight == nil && !$0.completed })
 
         let curl = try engine.addExercise(try rig.info(LibraryFixture.curl))
