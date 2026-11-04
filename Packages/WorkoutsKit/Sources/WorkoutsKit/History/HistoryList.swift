@@ -76,13 +76,9 @@ public nonisolated enum HistoryList {
         var prCounts: [UUID: Int] = [:]
         var volumes: [UUID: Double] = [:]
         for (_, sessions) in sessionsByExercise {
-            for session in sessions {
-                let prs = prsInSession(
-                    history: sessions,
-                    session: session,
-                    weightType: session.weightType,
-                    options: options
-                )
+            // One fold per exercise, oldest first, instead of refolding the earlier history for every session.
+            let weightType = sessions.first?.weightType ?? .weighted
+            for (session, prs) in prsForEachSession(sessions, weightType: weightType, options: options) {
                 prCounts[session.workoutID, default: 0] += prs.count
                 volumes[session.workoutID, default: 0] += volume(
                     of: session.sets,

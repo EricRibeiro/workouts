@@ -40,3 +40,39 @@ public nonisolated func prsInSession(
     }
     return tracker.add(session)
 }
+
+/// The records every session of one exercise newly set, in one pass: the same answer as calling ``prsInSession`` with
+/// the whole list for each session, without refolding the history each time (O(n) instead of O(n^2)).
+///
+/// Ordered oldest first (ties keep input order). Sessions that share a start time never count toward each other, like
+/// the "strictly before" rule of ``prsInSession``: each member of a tied run is evaluated on a copy of the tracker as
+/// it stood before the run, then the run is folded in. (The same-workout-and-exercise skip of ``prsInSession`` is
+/// subsumed: such sessions share a start time.)
+nonisolated func prsForEachSession(
+    _ sessions: [Session],
+    weightType: WeightType,
+    options: RecordsOptions
+) -> [(session: Session, prs: [PersonalRecord])] {
+    let ordered = sortedByTime(sessions)
+    var tracker = RecordTracker(weightType: weightType, options: options)
+    var out: [(session: Session, prs: [PersonalRecord])] = []
+    out.reserveCapacity(ordered.count)
+
+    var start = 0
+    while start < ordered.count {
+        var end = start + 1
+        while end < ordered.count && ordered[end].time == ordered[start].time { end += 1 }
+        if end - start == 1 {
+            out.append((ordered[start], tracker.add(ordered[start])))
+        } else {
+            let before = tracker
+            for session in ordered[start..<end] {
+                var copy = before
+                out.append((session, copy.add(session)))
+            }
+            for session in ordered[start..<end] { _ = tracker.add(session) }
+        }
+        start = end
+    }
+    return out
+}
