@@ -62,6 +62,9 @@ struct CalendarSheet: View {
                             }
                         }
                     }
+                    // Seven columns cannot hold accessibility-size digits; Calendar.app caps its grid the same way.
+                    // Every day's accessibility label still carries the full date.
+                    .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
                     footer(monthHasWorkouts: monthHasWorkouts)
                     if let selectedDay { dayWorkouts(selectedDay) }
                 }
@@ -138,6 +141,8 @@ struct CalendarSheet: View {
         return Text(day, format: .dateTime.day())
             .font(.body.weight(marked || isToday ? .semibold : .regular))
             .monospacedDigit()
+            .lineLimit(1)
+            .minimumScaleFactor(0.6)
             .foregroundStyle(marked ? AnyShapeStyle(.white) : AnyShapeStyle(.primary))
             .frame(maxWidth: .infinity, minHeight: 44)
             .background {

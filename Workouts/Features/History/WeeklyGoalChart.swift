@@ -94,7 +94,8 @@ struct WeeklyGoalChart: View {
         }
         .chartXAxis {
             AxisMarks { _ in
-                AxisValueLabel()
+                // Drops a label that would overprint its neighbour (accessibility sizes) instead of stacking them.
+                AxisValueLabel(collisionResolution: .greedy)
             }
         }
         .frame(height: plotHeight)

@@ -96,3 +96,5 @@ they run. If that happens: stop, `xcrun simctl shutdown all`, and report it. Nev
    Dismiss with `t 233 670 f 233 200 0.3`, then `DeviceInteractionEndSession` (key `interactionSessionKey`) and
    `npx --yes agent-device@0.21.36 close --udid <udid>`.
 The Dynamic Island is not drawn in simulator screenshots of the closed Duo's strip; use the Lock Screen banner.
+
+- **Text size without touching the shared simulator**: pass it per launch, e.g. `./dev shot x.png -- -uiTesting -preview History -UIPreferredContentSizeCategoryName UICTContentSizeCategoryAccessibilityXL` (other workers keep the default size). Prefer this over `xcrun simctl ui booted content_size …`.

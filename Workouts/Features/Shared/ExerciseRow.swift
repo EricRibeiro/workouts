@@ -39,7 +39,7 @@ struct ExerciseRow: View {
         VStack(alignment: .leading, spacing: 2) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text(info.name)
-                    .font(.body)
+                    .font(.headline)
                     .foregroundStyle(.primary)
                 if info.isCustom { ExerciseTag(text: "Custom", tint: .accentColor) }
                 if info.isRetired { ExerciseTag(text: "Retired", tint: .secondary) }

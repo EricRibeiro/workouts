@@ -41,6 +41,8 @@ struct DashboardCard<Content: View>: View {
             }
             content
         }
+        // Cards in one grid row share the tallest card's height; content stays pinned to the top.
+        .frame(maxHeight: .infinity, alignment: .top)
         .dashboardCardStyle()
         .contentShape(RoundedRectangle(cornerRadius: 20))
         .accessibilityElement(children: .ignore)
@@ -115,7 +117,7 @@ struct DashboardCards: View {
             identifier: "history.card.thisWeek"
         ) {
             CardValue(text: "\(week.workouts) / \(goal)")
-            Text(week.workouts == 1 ? "workout" : "workouts")
+            Text("workouts this week")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
             Text("\(duration) · \(volume)")

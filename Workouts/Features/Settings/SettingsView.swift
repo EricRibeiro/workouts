@@ -193,15 +193,15 @@ struct SettingsView: View {
     private var iCloud: some View {
         Section {
             // No iCloud entitlement and a local-only container yet, so there is no account status to read.
-            LabeledContent("Status", value: "Not set up yet")
+            LabeledContent("Status", value: "Not available yet")
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel("iCloud status")
-                .accessibilityValue("Not set up yet")
+                .accessibilityValue("Not available yet")
                 .accessibilityIdentifier("settings.iCloudStatus")
         } header: {
             Text("iCloud")
         } footer: {
-            Text("Sync turns on once the app is signed.")
+            Text("iCloud sync arrives in a later version.")
         }
     }
 }
