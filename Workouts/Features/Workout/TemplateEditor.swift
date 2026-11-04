@@ -34,6 +34,26 @@ struct TemplateEditor: View {
     @State private var renameText = ""
     @State private var isPickerPresented = false
     @State private var focusedSectionID: UUID?
+    /// The block menu's pending prompts (task 3.6); each holds the block's id.
+    @State private var isNoteEditing = false
+    @State private var noteText = ""
+    @State private var noteBlockID: UUID?
+    @State private var stickyTarget: StickyTarget?
+    @State private var isWarmupAlertShown = false
+    @State private var restBlockID: BlockID?
+    @State private var removeBlockID: UUID?
+    @Query private var stickyNotes: [StickyNote]
+
+    /// A block id as a sheet item.
+    private struct BlockID: Identifiable {
+        let id: UUID
+    }
+
+    private struct StickyTarget: Identifiable {
+        let id: UUID
+        let exerciseID: UUID
+        let text: String
+    }
 
     /// Edits `template`.
     init(template: Template) {
@@ -127,8 +147,75 @@ struct TemplateEditor: View {
                 )
                 .presentationPlacement(.center)
             }
+            .alert("Note", isPresented: $isNoteEditing) {
+                TextField("Note", text: $noteText)
+                    .accessibilityIdentifier("templateEditor.note.field")
+                Button("Save") {
+                    if let noteBlockID { draft.setNote(noteText, for: noteBlockID) }
+                }
+                .accessibilityIdentifier("templateEditor.note.save")
+                Button("Cancel", role: .cancel) {}
+                    .accessibilityIdentifier("templateEditor.note.cancel")
+            }
+            .alert("Add a working weight first", isPresented: $isWarmupAlertShown) {
+                Button("OK", role: .cancel) {}
+                    .accessibilityIdentifier("templateEditor.warmup.ok")
+            } message: {
+                Text("Warm-up sets are built from the first set with a weight.")
+            }
+            .sheet(item: $stickyTarget) { target in
+                StickyNoteEditor(exerciseID: target.exerciseID, initialText: target.text)
+                    .presentationPlacement(.center)
+            }
+            .sheet(item: $restBlockID) { target in
+                RestTimerPickerSheet(current: draft.exercises.first { $0.id == target.id }?.restSeconds) {
+                    draft.updateRestTimers($0, for: target.id)
+                }
+                .presentationPlacement(.center)
+            }
+            .confirmationDialog(
+                removeBlockName.map { "Remove \($0)?" } ?? "Remove Exercise?",
+                isPresented: Binding(get: { removeBlockID != nil }, set: { if !$0 { removeBlockID = nil } }),
+                titleVisibility: .visible
+            ) {
+                Button("Remove Exercise", role: .destructive) {
+                    if let removeBlockID { draft.removeExercise(removeBlockID) }
+                    removeBlockID = nil
+                }
+                .accessibilityIdentifier("templateEditor.remove.confirm")
+                Button("Cancel", role: .cancel) {}
+                    .accessibilityIdentifier("templateEditor.remove.cancel")
+            } message: {
+                Text("Its sets are removed from the template. Nothing is saved until you tap Save.")
+            }
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("screen.templateEditor")
+    }
+
+    private var removeBlockName: String? {
+        draft.exercises.first { $0.id == removeBlockID }?.name
+    }
+
+    // MARK: Block menu
+
+    private var blockActions: SetTableBlockActions {
+        SetTableBlockActions(
+            note: { id in
+                noteBlockID = id
+                noteText = draft.exercises.first { $0.id == id }?.note ?? ""
+                isNoteEditing = true
+            },
+            stickyNote: { id in
+                guard let block = draft.exercises.first(where: { $0.id == id }) else { return }
+                let text = stickyNotes.first { $0.exerciseID == block.exerciseID }?.text ?? ""
+                stickyTarget = StickyTarget(id: id, exerciseID: block.exerciseID, text: text)
+            },
+            addWarmups: { id in
+                if draft.addWarmupSets(to: id) == 0 { isWarmupAlertShown = true }
+            },
+            updateRest: { id in restBlockID = BlockID(id: id) },
+            remove: { id in removeBlockID = id }
+        )
     }
 
     // MARK: Table
@@ -137,7 +224,7 @@ struct TemplateEditor: View {
     /// pane is simply absent, and the split disabled, on compact width (as in the logging screen).
     private func arrangement(source: any SetTableDataSource, sections: [SetTableSection]) -> some View {
         ArrangementView {
-            SetTable(source: source, focusedSection: $focusedSectionID)
+            SetTable(source: source, focusedSection: $focusedSectionID, blockActions: blockActions)
         } secondary: {
             if horizontalSizeClass == .regular {
                 let focused = focusedSection(in: sections)

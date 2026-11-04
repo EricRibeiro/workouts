@@ -24,6 +24,8 @@ struct SetTable: View {
     /// Reports the block (`SetTableSection.id`) of the last focused cell or tapped header, so the logging screen's exercise
     /// pane can follow it. Never reset by the table: a dismissed keyboard keeps the last exercise.
     var focusedSection: Binding<UUID?> = .constant(nil)
+    /// The header's options menu (note, sticky note, warm-ups, rest, remove); nil shows no menu.
+    var blockActions: SetTableBlockActions? = nil
 
     @FocusState private var focus: SetRowField?
     /// Every sticky note (a handful), so a header shows its exercise's note and follows edits made in the exercise pane.
@@ -122,21 +124,26 @@ struct SetTable: View {
                     .foregroundStyle(Self.supersetColor(supersetNumber))
                     .accessibilityIdentifier("settable.superset.\(section.id.uuidString)")
             }
-            Button {
-                focusedSection.wrappedValue = section.id
-                onSelectExercise(section)
-            } label: {
-                Text(section.name)
-                    .font(.title3.bold())
-                    .foregroundStyle(.primary)
-                    .multilineTextAlignment(.leading)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .contentShape(.rect)
+            HStack(alignment: .top, spacing: 0) {
+                Button {
+                    focusedSection.wrappedValue = section.id
+                    onSelectExercise(section)
+                } label: {
+                    Text(section.name)
+                        .font(.title3.bold())
+                        .foregroundStyle(.primary)
+                        .multilineTextAlignment(.leading)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(.rect)
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(.isHeader)
+                .accessibilityHint("Opens the exercise")
+                .accessibilityIdentifier("settable.name.\(section.id.uuidString)")
+                if let blockActions {
+                    blockMenu(section, actions: blockActions)
+                }
             }
-            .buttonStyle(.plain)
-            .accessibilityAddTraits(.isHeader)
-            .accessibilityHint("Opens the exercise")
-            .accessibilityIdentifier("settable.name.\(section.id.uuidString)")
             if let rest = SetTableLayout.restCaption(seconds: section.restSeconds) {
                 Text(rest)
                     .font(.caption)
@@ -162,6 +169,41 @@ struct SetTable: View {
         }
         .padding(.horizontal, 8)
         .padding(.bottom, 8)
+    }
+
+    /// The header's trailing options menu. The entries are the owner's; the table only lays them out.
+    private func blockMenu(_ section: SetTableSection, actions: SetTableBlockActions) -> some View {
+        Menu {
+            Button("Note…", systemImage: "note.text") { actions.note(section.id) }
+                .accessibilityIdentifier("settable.menu.note")
+            Button("Sticky Note…", systemImage: "note.text.badge.plus") { actions.stickyNote(section.id) }
+                .accessibilityIdentifier("settable.menu.stickyNote")
+            Button("Add Warm-up Sets", systemImage: "flame") { actions.addWarmups(section.id) }
+                .accessibilityIdentifier("settable.menu.warmup")
+            Button("Update Rest Timer…", systemImage: "timer") { actions.updateRest(section.id) }
+                .accessibilityIdentifier("settable.menu.rest")
+            if let replace = actions.replace {
+                Button("Replace Exercise…", systemImage: "arrow.triangle.2.circlepath") { replace(section.id) }
+                    .accessibilityIdentifier("settable.menu.replace")
+            }
+            if let superset = actions.superset {
+                Button("Superset…", systemImage: "link") { superset(section.id) }
+                    .accessibilityIdentifier("settable.menu.superset")
+            }
+            if let preferences = actions.preferences {
+                Button("Preferences…", systemImage: "slider.horizontal.3") { preferences(section.id) }
+                    .accessibilityIdentifier("settable.menu.preferences")
+            }
+            Divider()
+            Button("Remove Exercise", systemImage: "trash", role: .destructive) { actions.remove(section.id) }
+                .accessibilityIdentifier("settable.menu.remove")
+        } label: {
+            Image(systemName: "ellipsis.circle")
+                .frame(minWidth: touch, minHeight: touch)
+                .contentShape(.rect)
+        }
+        .accessibilityLabel("\(section.name) options")
+        .accessibilityIdentifier("settable.menu.\(section.id.uuidString)")
     }
 
     private func stickyNote(for section: SetTableSection) -> String? {

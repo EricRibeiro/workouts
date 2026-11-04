@@ -267,4 +267,205 @@ import Testing
         #expect(created.folder == nil)
         #expect(created.name == TemplateDraft.newTemplateName)
     }
+
+    // MARK: Block actions (3.6)
+
+    /// A draft of blocks named `names`, each with three empty sets, ids returned in order.
+    private func blocks(_ names: [String]) -> (draft: TemplateDraft, ids: [UUID]) {
+        var draft = TemplateDraft()
+        let ids = draft.addExercises(names.map { info($0) }, defaultUnit: .lb, defaultRestSeconds: 90)
+        return (draft, ids)
+    }
+
+    private func groups(_ draft: TemplateDraft) -> [Int?] { draft.exercises.map(\.supersetGroup) }
+
+    @Test func setNoteTrimsAndClears() {
+        var (draft, ids) = blocks(["Squat", "Row"])
+        draft.setNote("  Pause at the bottom \n", for: ids[0])
+        #expect(draft.exercises[0].note == "Pause at the bottom")
+        #expect(draft.exercises[1].note == "")
+        draft.setNote("   ", for: ids[0])
+        #expect(draft.exercises[0].note == "")
+    }
+
+    @Test func addWarmupSetsInsertsTheRampBeforeTheWorkingSets() {
+        var (draft, ids) = blocks(["Squat"])
+        for set in draft.exercises[0].sets { draft.setWeight(200, for: set.id) }
+        let working = draft.exercises[0].sets.map(\.id)
+
+        // 200 lb on the Olympic bar: bar x 10, 80 x 8, 120 x 5, 160 x 3.
+        #expect(draft.addWarmupSets(to: ids[0]) == 4)
+        let sets = draft.exercises[0].sets
+        #expect(sets.map(\.kind) == [.warmup, .warmup, .warmup, .warmup, .normal, .normal, .normal])
+        #expect(sets.prefix(4).map(\.weight) == [45, 80, 120, 160])
+        #expect(sets.prefix(4).map(\.reps) == [10, 8, 5, 3])
+        #expect(sets.suffix(3).map(\.id) == working)
+    }
+
+    @Test func addWarmupSetsReplacesEarlierWarmupsAndUsesTheBlocksBar() {
+        var (draft, ids) = blocks(["Squat"])
+        draft.setUnit(.kg, for: ids[0])
+        draft.setBar(.none, weight: nil, for: ids[0])
+        for set in draft.exercises[0].sets { draft.setWeight(100, for: set.id) }
+        draft.addWarmupSets(to: ids[0])
+        let first = draft.exercises[0].sets.filter { $0.kind == .warmup }
+        #expect(first.map(\.weight) == [40, 60, 80])  // no bar step; 2.5 kg plates
+
+        draft.addWarmupSets(to: ids[0])
+        let again = draft.exercises[0].sets
+        #expect(again.filter { $0.kind == .warmup }.count == 3)
+        #expect(again.count == 6)
+        #expect(Set(again.map(\.id)).isDisjoint(with: first.map(\.id)))
+    }
+
+    @Test func addWarmupSetsWithoutAWeightDoesNothing() {
+        var (draft, ids) = blocks(["Squat"])
+        let before = draft
+        #expect(draft.addWarmupSets(to: ids[0]) == 0)
+        #expect(draft == before)
+        // A warm-up set's own weight is not a working weight.
+        draft.cycleKind(of: draft.exercises[0].sets[0].id)
+        draft.setWeight(100, for: draft.exercises[0].sets[0].id)
+        let withWarmupOnly = draft
+        draft.addWarmupSets(to: ids[0])
+        #expect(draft == withWarmupOnly)
+    }
+
+    @Test func updateRestTimersSetsOnlyThatBlock() {
+        var (draft, ids) = blocks(["A", "B"])
+        draft.makeSuperset(ids)
+        draft.updateRestTimers(45, for: ids[0])
+        #expect(draft.exercises.map(\.restSeconds) == [45, 90])
+        draft.updateRestTimers(nil, for: ids[0])
+        #expect(draft.exercises[0].restSeconds == nil)
+    }
+
+    @Test func unitAndBarPreferencesApplyToTheBlock() {
+        var (draft, ids) = blocks(["Squat", "Row"])
+        draft.setUnit(.kg, for: ids[1])
+        draft.setBar(.custom, weight: 15, for: ids[1])
+        #expect(draft.exercises.map(\.unit) == [.lb, .kg])
+        #expect(draft.exercises.map(\.barType) == [.olympic, .custom])
+        #expect(draft.exercises.map(\.barWeight) == [nil, 15])
+        draft.setBar(.ez, weight: nil, for: ids[1])
+        #expect(draft.exercises[1].barType == .ez)
+        #expect(draft.exercises[1].barWeight == nil)
+    }
+
+    @Test func replaceExerciseSwapsTheExerciseAndKeepsSetsNoteAndPosition() {
+        var (draft, ids) = blocks(["Squat", "Row"])
+        draft.setNote("Slow", for: ids[0])
+        draft.setWeight(100, for: draft.exercises[0].sets[0].id)
+        let setIDs = draft.exercises[0].sets.map(\.id)
+        let custom = ExerciseInfo(
+            id: UUID(),
+            name: "Sled",
+            weightType: .machine,
+            isCustom: true,
+            unit: .kg,
+            barType: BarType.none,
+            restSeconds: 45
+        )
+
+        draft.replaceExercise(ids[0], with: custom, defaultUnit: .lb, defaultRestSeconds: 90)
+        let block = draft.exercises[0]
+        #expect(block.id == ids[0])
+        #expect(block.exerciseID == custom.id)
+        #expect(block.name == "Sled")
+        #expect(block.unit == .kg)
+        #expect(block.barType == BarType.none)
+        #expect(block.restSeconds == 45)
+        #expect(block.note == "Slow")
+        #expect(block.sets.map(\.id) == setIDs)
+        #expect(block.sets[0].weight == 100)
+        #expect(draft.exercises[1].name == "Row")
+
+        // A library barbell takes the defaults.
+        draft.replaceExercise(ids[0], with: info("Deadlift"), defaultUnit: .lb, defaultRestSeconds: 120)
+        #expect(draft.exercises[0].unit == .lb)
+        #expect(draft.exercises[0].barType == .olympic)
+        #expect(draft.exercises[0].restSeconds == 120)
+    }
+
+    @Test func replaceExerciseInsideASupersetKeepsTheGroup() {
+        var (draft, ids) = blocks(["A", "B", "C"])
+        draft.makeSuperset([ids[0], ids[1]])
+        draft.replaceExercise(ids[1], with: info("Curl", type: .dumbbell), defaultUnit: .kg, defaultRestSeconds: 60)
+        #expect(groups(draft) == [1, 1, nil])
+        #expect(draft.exercises.map(\.name) == ["A", "Curl", "C"])
+    }
+
+    @Test func makeSupersetGathersMembersAtTheFirstOnesPosition() {
+        var (draft, ids) = blocks(["A", "B", "C", "D"])
+        draft.makeSuperset([ids[3], ids[0]])
+        #expect(draft.exercises.map(\.name) == ["A", "D", "B", "C"])
+        #expect(groups(draft) == [1, 1, nil, nil])
+
+        // A second group numbers after the first; a one-member request changes nothing.
+        draft.makeSuperset([ids[2], ids[1]])
+        #expect(groups(draft) == [1, 1, 2, 2])
+        let before = draft
+        draft.makeSuperset([ids[0]])
+        #expect(draft == before)
+    }
+
+    @Test func makeSupersetDissolvesAGroupItShrinks() {
+        var (draft, ids) = blocks(["A", "B", "C"])
+        draft.makeSuperset([ids[0], ids[1]])
+        draft.makeSuperset([ids[1], ids[2]])
+        #expect(draft.exercises.map(\.name) == ["A", "B", "C"])
+        #expect(groups(draft) == [nil, 1, 1])
+    }
+
+    @Test func removeFromSupersetDissolvesAPairAndRenumbersTheRest() {
+        var (draft, ids) = blocks(["A", "B", "C", "D", "E"])
+        draft.makeSuperset([ids[0], ids[1]])
+        draft.makeSuperset([ids[2], ids[3], ids[4]])
+        #expect(groups(draft) == [1, 1, 2, 2, 2])
+
+        draft.removeFromSuperset(ids[3])
+        #expect(groups(draft) == [1, 1, 2, nil, 2])
+        draft.removeFromSuperset(ids[0])
+        #expect(groups(draft) == [nil, nil, 1, nil, 1])
+        #expect(draft.exercises.map(\.name) == ["A", "B", "C", "D", "E"])
+        // Not in a superset: untouched.
+        let before = draft
+        draft.removeFromSuperset(ids[3])
+        #expect(draft == before)
+    }
+
+    @Test func removeExerciseLeavingOneMemberDissolvesTheGroup() {
+        var (draft, ids) = blocks(["A", "B", "C", "D"])
+        draft.makeSuperset([ids[0], ids[1]])
+        draft.makeSuperset([ids[2], ids[3]])
+        draft.removeExercise(ids[0])
+        #expect(draft.exercises.map(\.name) == ["B", "C", "D"])
+        #expect(groups(draft) == [nil, 1, 1])
+    }
+
+    @Test func removeExerciseDropsTheBlockWithItsSets() {
+        var (draft, ids) = blocks(["A", "B"])
+        draft.removeExercise(ids[1])
+        #expect(draft.exercises.map(\.id) == [ids[0]])
+    }
+
+    @Test func blockActionsOnAnUnknownIdAreNoOps() {
+        var (draft, ids) = blocks(["A", "B"])
+        draft.makeSuperset(ids)
+        for set in draft.exercises[0].sets { draft.setWeight(100, for: set.id) }
+        let before = draft
+        let ghost = UUID()
+
+        draft.setNote("x", for: ghost)
+        #expect(draft.addWarmupSets(to: ghost) == 0)
+        draft.updateRestTimers(30, for: ghost)
+        draft.setUnit(.kg, for: ghost)
+        draft.setBar(.ez, weight: 10, for: ghost)
+        draft.replaceExercise(ghost, with: info("X"), defaultUnit: .kg, defaultRestSeconds: 10)
+        draft.removeFromSuperset(ghost)
+        draft.removeExercise(ghost)
+        #expect(draft == before)
+        draft.makeSuperset([ghost, ids[0]])
+        #expect(draft == before)
+    }
 }

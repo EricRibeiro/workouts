@@ -192,6 +192,138 @@ public struct TemplateDraft: Equatable, Sendable {
         exercises = ordered
     }
 
+    // MARK: Block actions (task 3.6)
+
+    /// Sets the block's note, trimmed (whitespace-only clears it).
+    public mutating func setNote(_ text: String, for blockID: UUID) {
+        guard let e = index(of: blockID) else { return }
+        exercises[e].note = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Add Warm-up Sets, as the logging engine does: the block's warm-up sets are replaced by the ``WarmupRamp`` for its
+    /// first non-warm-up set with a weight above 0, in the block's unit and bar. The ramp sits ahead of the working sets
+    /// (kind warm-up, weight and reps filled). Without such a working weight nothing changes (existing warm-ups stay); a
+    /// working weight whose ramp is empty (45 lb on the 45 lb bar) still removes the old warm-ups. Returns the number of
+    /// warm-up sets the block now has from the ramp.
+    @discardableResult
+    public mutating func addWarmupSets(to blockID: UUID, makeID: () -> UUID = UUID.init) -> Int {
+        guard let e = index(of: blockID) else { return 0 }
+        let block = exercises[e]
+        guard let weight = block.sets.first(where: { $0.kind != .warmup && ($0.weight ?? 0) > 0 })?.weight
+        else { return 0 }
+        let ramp = WarmupRamp.steps(
+            workingWeight: weight,
+            unit: block.unit,
+            barType: block.barType,
+            customBarWeight: block.barWeight
+        )
+        let warmups = ramp.map {
+            SetValues(
+                id: makeID(),
+                kind: .warmup,
+                weight: $0.weight,
+                reps: $0.reps,
+                durationSeconds: nil,
+                distanceMeters: nil
+            )
+        }
+        exercises[e].sets = warmups + block.sets.filter { $0.kind != .warmup }
+        return warmups.count
+    }
+
+    /// Update Rest Timers: the block's rest in seconds (nil for none). The engine has no "whole superset" rule for rest
+    /// (each row rests by its own length), so only this block changes. This is also the Preferences rest row.
+    public mutating func updateRestTimers(_ seconds: Int?, for blockID: UUID) {
+        guard let e = index(of: blockID) else { return }
+        exercises[e].restSeconds = seconds
+    }
+
+    /// Preferences: the block's weight unit. Set values are not converted (the engine's rule too).
+    public mutating func setUnit(_ unit: WeightUnit, for blockID: UUID) {
+        guard let e = index(of: blockID) else { return }
+        exercises[e].unit = unit
+    }
+
+    /// Preferences: the block's bar. `weight` is the custom bar's weight (only a `.custom` bar reads it).
+    public mutating func setBar(_ type: BarType, weight: Double?, for blockID: UUID) {
+        guard let e = index(of: blockID) else { return }
+        exercises[e].barType = type
+        exercises[e].barWeight = weight
+    }
+
+    /// Replaces the block's exercise with `info`: id, name, unit, bar and rest take the same defaults as
+    /// ``addExercises(_:defaultUnit:defaultRestSeconds:asSuperset:)``. The block keeps its id, position, superset group,
+    /// note and sets (their values are not cleared or converted, as in the engine).
+    public mutating func replaceExercise(
+        _ blockID: UUID,
+        with info: ExerciseInfo,
+        defaultUnit: WeightUnit,
+        defaultRestSeconds: Int
+    ) {
+        guard let e = index(of: blockID) else { return }
+        let old = exercises[e]
+        exercises[e] = ExerciseValues(
+            id: old.id,
+            exerciseID: info.id,
+            name: info.name,
+            supersetGroup: old.supersetGroup,
+            note: old.note,
+            restSeconds: info.restSeconds ?? defaultRestSeconds,
+            unit: info.unit ?? defaultUnit,
+            barType: info.barType ?? (info.weightType == .barbell ? .olympic : .none),
+            barWeight: info.barWeight,
+            isTimed: old.isTimed,
+            sets: old.sets
+        )
+    }
+
+    /// Makes `blockIDs` one superset: the engine's rule (``SupersetGrouping/grouping(_:members:)``). The members are
+    /// gathered where the first of them was, take a fresh group, groups left with fewer than two members dissolve and
+    /// groups renumber 1, 2, 3 by first appearance. Unknown ids are ignored; fewer than two known ones only run the
+    /// dissolve and renumber pass.
+    public mutating func makeSuperset(_ blockIDs: [UUID]) {
+        let grouped = SupersetGrouping.grouping(
+            exercises.map { (id: $0.id, group: $0.supersetGroup) },
+            members: blockIDs
+        )
+        let byID = Dictionary(exercises.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        exercises = grouped.compactMap { item in
+            byID[item.id].map { block in
+                var block = block
+                block.supersetGroup = item.group
+                return block
+            }
+        }
+    }
+
+    /// Takes the block out of its superset; a group left with one member dissolves and the rest renumber. A block that is
+    /// in no superset is untouched.
+    public mutating func removeFromSuperset(_ blockID: UUID) {
+        guard let e = index(of: blockID), exercises[e].supersetGroup != nil else { return }
+        exercises[e].supersetGroup = nil
+        applyGroups(SupersetGrouping.normalized(exercises.map { (id: $0.id, group: $0.supersetGroup) }))
+    }
+
+    /// Removes the block with its sets. A superset left with one member dissolves and the groups renumber 1, 2, 3
+    /// (``SupersetGrouping/removing(_:from:)``).
+    public mutating func removeExercise(_ blockID: UUID) {
+        guard index(of: blockID) != nil else { return }
+        let remaining = SupersetGrouping.removing(blockID, from: exercises.map { (id: $0.id, group: $0.supersetGroup) })
+        exercises.removeAll { $0.id == blockID }
+        applyGroups(remaining)
+    }
+
+    private func index(of blockID: UUID) -> Int? {
+        exercises.firstIndex { $0.id == blockID }
+    }
+
+    /// Writes `groups` (same order as `exercises`) back onto the blocks.
+    private mutating func applyGroups(_ groups: [(id: UUID, group: Int?)]) {
+        for (position, item) in groups.enumerated() where exercises[position].id == item.id {
+            exercises[position].supersetGroup = item.group
+        }
+    }
+
     private func locate(_ setID: UUID) -> (exercise: Int, set: Int)? {
         for (e, row) in exercises.enumerated() {
             if let s = row.sets.firstIndex(where: { $0.id == setID }) { return (e, s) }
