@@ -52,6 +52,24 @@ public nonisolated struct RecentPR: Identifiable, Hashable, Sendable {
     public var sentence: String { "\(exerciseName), \(text)" }
 }
 
+/// What the History tab shows, derived in one fold: the list rows and the "Recent PRs" card.
+public nonisolated struct HistorySummary: Equatable, Sendable {
+    public var entries: [HistoryEntry]
+    public var recentPRs: [RecentPR]
+
+    public init(entries: [HistoryEntry], recentPRs: [RecentPR]) {
+        self.entries = entries
+        self.recentPRs = recentPRs
+    }
+}
+
+/// One exercise session with the records it newly set.
+nonisolated struct FoldedSession {
+    var exerciseID: UUID
+    var session: Session
+    var prs: [PersonalRecord]
+}
+
 /// The pure pieces of the History dashboard cards (`docs/port/screens/history.md` section 5).
 public nonisolated enum HistoryDashboard {
     /// The workouts started in the Monday-first week containing `now` (cut in `calendar`'s time zone), with their
@@ -90,8 +108,53 @@ public nonisolated enum HistoryDashboard {
         options: RecordsOptions,
         limit: Int = 3
     ) -> [RecentPR] {
-        guard limit > 0 else { return [] }
+        build(from: workouts, weightType: weightType, options: options, limit: limit).recentPRs
+    }
+
+    /// Everything the History tab derives from its finished workouts, with the sessions and records folded once:
+    /// the rows and the "Recent PRs" card. Equal to calling `HistoryList.entries` and ``recentPRs(from:weightType:options:limit:)``
+    /// separately, in one pass.
+    @MainActor
+    public static func build(
+        from workouts: [Workout],
+        weightType: (UUID) -> WeightType?,
+        options: RecordsOptions,
+        limit: Int = 3
+    ) -> HistorySummary {
         let finished = workouts.filter { $0.finishedAt != nil }
+        let folded = foldSessions(finished, weightType: weightType, options: options)
+        return HistorySummary(
+            entries: HistoryList.entries(finished: finished, folded: folded, options: options),
+            recentPRs: recentPRs(finished: finished, folded: folded, options: options, limit: limit)
+        )
+    }
+
+    /// Every exercise's sessions with the records each newly set, one fold per exercise.
+    @MainActor
+    static func foldSessions(
+        _ finished: [Workout],
+        weightType: (UUID) -> WeightType?,
+        options: RecordsOptions
+    ) -> [FoldedSession] {
+        var folded: [FoldedSession] = []
+        for (exerciseID, sessions) in ExerciseBestSets.sessions(from: finished, weightType: weightType) {
+            // One fold per exercise, oldest first, instead of refolding the earlier history for every session.
+            let type = sessions.first?.weightType ?? .weighted
+            for (session, prs) in prsForEachSession(sessions, weightType: type, options: options) {
+                folded.append(FoldedSession(exerciseID: exerciseID, session: session, prs: prs))
+            }
+        }
+        return folded
+    }
+
+    @MainActor
+    static func recentPRs(
+        finished: [Workout],
+        folded: [FoldedSession],
+        options: RecordsOptions,
+        limit: Int
+    ) -> [RecentPR] {
+        guard limit > 0 else { return [] }
         var names: [String: String] = [:]
         for workout in finished {
             for row in workout.exercises ?? [] {
@@ -100,23 +163,20 @@ public nonisolated enum HistoryDashboard {
         }
 
         var found: [RecentPR] = []
-        for (exerciseID, sessions) in ExerciseBestSets.sessions(from: finished, weightType: weightType) {
-            let type = sessions.first?.weightType ?? .weighted
-            for (session, prs) in prsForEachSession(sessions, weightType: type, options: options) {
-                guard let first = prs.first else { continue }
-                let id = "\(session.workoutID.uuidString).\(exerciseID.uuidString)"
-                found.append(
-                    RecentPR(
-                        workoutID: session.workoutID,
-                        exerciseID: exerciseID,
-                        exerciseName: names[id] ?? "Exercise",
-                        date: session.time,
-                        kind: first.kind,
-                        text: text(for: first, unit: options.displayUnit),
-                        recordCount: prs.count
-                    )
+        for item in folded {
+            guard let first = item.prs.first else { continue }
+            let id = "\(item.session.workoutID.uuidString).\(item.exerciseID.uuidString)"
+            found.append(
+                RecentPR(
+                    workoutID: item.session.workoutID,
+                    exerciseID: item.exerciseID,
+                    exerciseName: names[id] ?? "Exercise",
+                    date: item.session.time,
+                    kind: first.kind,
+                    text: text(for: first, unit: options.displayUnit),
+                    recordCount: item.prs.count
                 )
-            }
+            )
         }
         found.sort { lhs, rhs in
             lhs.date != rhs.date ? lhs.date > rhs.date : lhs.exerciseName < rhs.exerciseName

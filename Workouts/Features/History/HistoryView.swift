@@ -15,6 +15,7 @@ struct HistoryView: View {
     @Binding var path: [HistoryRoute]
 
     @Environment(ExerciseStore.self) private var store
+    @Environment(SettingsStore.self) private var settings
     @Environment(\.modelContext) private var context
     @Query(
         filter: #Predicate<Workout> { $0.finishedAt != nil },
@@ -33,6 +34,8 @@ struct HistoryView: View {
     @State private var deleteFailed = false
     @State private var isCalendarPresented = false
     @State private var pendingOpen: UUID?
+    @State private var templateSource: Workout?
+    @State private var savedTemplates = 0
     @Namespace private var zoom
 
     var body: some View {
@@ -54,6 +57,11 @@ struct HistoryView: View {
                     }
                     .presentationPlacement(.center)
                 }
+                .sheet(item: $templateSource) { workout in
+                    SaveTemplateSheet(workout: workout) { savedTemplates += 1 }
+                        .presentationPlacement(.center)
+                }
+                .sensoryFeedback(.success, trigger: savedTemplates)
                 .searchable(text: $query, prompt: "Search workouts")
                 .searchScopes($scope, activation: .onSearchPresentation) {
                     ForEach(HistoryScope.allCases, id: \.self) { scope in
@@ -65,18 +73,14 @@ struct HistoryView: View {
                 }
         }
         .task(id: Inputs(finished, unit: unitRaw, formula: formulaRaw)) {
-            let settings = SettingsStore()
             let options = RecordsOptions(formula: settings.e1rmFormula, displayUnit: settings.defaultUnit)
-            entries = HistoryList.entries(
+            let summary = HistoryDashboard.build(
                 from: finished,
                 weightType: { store.exercise(id: $0)?.weightType },
                 options: options
             )
-            recentPRs = HistoryDashboard.recentPRs(
-                from: finished,
-                weightType: { store.exercise(id: $0)?.weightType },
-                options: options
-            )
+            entries = summary.entries
+            recentPRs = summary.recentPRs
         }
         .accessibilityIdentifier("screen.history")
     }
@@ -155,9 +159,36 @@ struct HistoryView: View {
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
             deleteButton(entry)
         }
+        .swipeActions(edge: .leading, allowsFullSwipe: false) {
+            editButton(entry)
+            saveTemplateButton(entry)
+        }
         .contextMenu {
+            editButton(entry)
+            saveTemplateButton(entry)
+            Divider()
             deleteButton(entry)
         }
+    }
+
+    private func editButton(_ entry: HistoryEntry) -> some View {
+        Button {
+            path.append(.editWorkout(entry.id))
+        } label: {
+            Label("Edit", systemImage: "pencil")
+        }
+        .accessibilityLabel("Edit")
+        .accessibilityIdentifier("history.edit")
+    }
+
+    private func saveTemplateButton(_ entry: HistoryEntry) -> some View {
+        Button {
+            templateSource = finished.first { $0.id == entry.id }
+        } label: {
+            Label("Save as Template", systemImage: "doc.on.doc")
+        }
+        .accessibilityLabel("Save as Template")
+        .accessibilityIdentifier("history.saveTemplate")
     }
 
     private func deleteButton(_ entry: HistoryEntry) -> some View {
@@ -166,6 +197,7 @@ struct HistoryView: View {
         } label: {
             Label("Delete", systemImage: "trash")
         }
+        .accessibilityLabel("Delete")
         .accessibilityIdentifier("history.delete")
     }
 
@@ -220,9 +252,12 @@ private struct HistoryRow: View {
             .font(.subheadline)
             .foregroundStyle(.secondary)
             if entry.prCount > 0 {
-                Label(HistoryList.prText(count: entry.prCount), systemImage: "trophy.fill")
-                    .font(.subheadline)
-                    .foregroundStyle(.tint)
+                HStack(spacing: 4) {
+                    Image(systemName: "trophy.fill")
+                    Text(HistoryList.prText(count: entry.prCount))
+                }
+                .font(.subheadline)
+                .foregroundStyle(.tint)
             }
         }
         .padding(.vertical, 2)

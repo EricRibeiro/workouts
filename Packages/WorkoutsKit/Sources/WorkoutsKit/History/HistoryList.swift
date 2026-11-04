@@ -70,22 +70,24 @@ public nonisolated enum HistoryList {
         weightType: (UUID) -> WeightType?,
         options: RecordsOptions
     ) -> [HistoryEntry] {
-        let finished = workouts.filter { $0.finishedAt != nil }
-        let sessionsByExercise = ExerciseBestSets.sessions(from: finished, weightType: weightType)
+        HistoryDashboard.build(from: workouts, weightType: weightType, options: options).entries
+    }
 
+    /// The entries from an already folded history (`HistoryDashboard.foldSessions`).
+    static func entries(
+        finished: [Workout],
+        folded: [FoldedSession],
+        options: RecordsOptions
+    ) -> [HistoryEntry] {
         var prCounts: [UUID: Int] = [:]
         var volumes: [UUID: Double] = [:]
-        for (_, sessions) in sessionsByExercise {
-            // One fold per exercise, oldest first, instead of refolding the earlier history for every session.
-            let weightType = sessions.first?.weightType ?? .weighted
-            for (session, prs) in prsForEachSession(sessions, weightType: weightType, options: options) {
-                prCounts[session.workoutID, default: 0] += prs.count
-                volumes[session.workoutID, default: 0] += volume(
-                    of: session.sets,
-                    weightType: session.weightType,
-                    displayUnit: options.displayUnit
-                )
-            }
+        for item in folded {
+            prCounts[item.session.workoutID, default: 0] += item.prs.count
+            volumes[item.session.workoutID, default: 0] += volume(
+                of: item.session.sets,
+                weightType: item.session.weightType,
+                displayUnit: options.displayUnit
+            )
         }
 
         return finished.sorted { $0.startedAt > $1.startedAt }.map { workout in

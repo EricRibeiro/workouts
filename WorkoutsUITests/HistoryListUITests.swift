@@ -67,6 +67,38 @@ final class HistoryListUITests: XCTestCase {
     }
 
     @MainActor
+    func testRowEditAndSaveAsTemplate() throws {
+        let app = launch()
+        let any = app.descendants(matching: .any)
+        XCTAssertTrue(any["screen.history"].waitForExistence(timeout: 10))
+
+        // Edit from the context menu opens the past-workout editor; Cancel returns to the list.
+        let first = firstRow(app)
+        XCTAssertTrue(first.exists, "no history rows")
+        first.press(forDuration: 1.0)
+        let edit = app.buttons["history.edit"]
+        XCTAssertTrue(edit.waitForExistence(timeout: 5), "no Edit in the context menu")
+        edit.tap()
+        XCTAssertTrue(any["screen.pastEditor"].waitForExistence(timeout: 5), "Edit did not open the editor")
+        app.buttons["pastEditor.cancel"].tap()
+        XCTAssertTrue(firstRow(app).waitForExistence(timeout: 5), "Cancel did not return to the list")
+        XCTAssertFalse(any["screen.pastEditor"].exists)
+
+        // Save as Template presents the sheet; Cancel dismisses it.
+        firstRow(app).press(forDuration: 1.0)
+        let save = app.buttons["history.saveTemplate"]
+        XCTAssertTrue(save.waitForExistence(timeout: 5), "no Save as Template in the context menu")
+        save.tap()
+        XCTAssertTrue(
+            any["workoutDetail.saveTemplate.sheet"].waitForExistence(timeout: 5),
+            "Save as Template did not open the sheet"
+        )
+        app.buttons["workoutDetail.saveTemplate.cancel"].tap()
+        XCTAssertTrue(firstRow(app).waitForExistence(timeout: 5), "Cancel did not return to the list")
+        XCTAssertFalse(any["workoutDetail.saveTemplate.sheet"].exists)
+    }
+
+    @MainActor
     func testDashboardCardsAndLastWorkoutPush() throws {
         let app = launch()
         let any = app.descendants(matching: .any)

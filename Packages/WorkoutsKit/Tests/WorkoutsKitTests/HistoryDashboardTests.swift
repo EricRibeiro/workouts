@@ -160,6 +160,42 @@ import Testing
         #expect(HistoryDashboard.recentPRs(from: [], weightType: { _ in nil }, options: options).isEmpty)
     }
 
+    @MainActor
+    @Test func buildEqualsTheTwoSeparateCalls() throws {
+        let container = try ModelContainer.workouts(inMemory: true, cloudKit: false)
+        let bench = UUID()
+        let squat = UUID()
+        let workouts = build(
+            container.mainContext,
+            [
+                ("A", bench, "Bench Press", date(2026, 10, 1), 100, true),
+                ("B", bench, "Bench Press", date(2026, 10, 8), 100, true),
+                ("C", squat, "Squat", date(2026, 10, 10), 140, true),
+                ("D", bench, "Bench Press", date(2026, 10, 15), 110, true),
+                ("Running", bench, "Bench Press", date(2026, 10, 20), 200, false),
+            ]
+        )
+        try container.mainContext.save()
+        let options = RecordsOptions(displayUnit: .lb)
+
+        let summary = HistoryDashboard.build(from: workouts, weightType: { _ in .barbell }, options: options)
+        let entries = HistoryList.entries(from: workouts, weightType: { _ in .barbell }, options: options)
+        let prs = HistoryDashboard.recentPRs(from: workouts, weightType: { _ in .barbell }, options: options)
+        #expect(!summary.recentPRs.isEmpty)
+        #expect(summary.entries.contains { $0.prCount > 0 })
+        #expect(summary.entries.count == 4)
+        #expect(summary.entries == entries)
+        #expect(summary.recentPRs == prs)
+
+        let limited = HistoryDashboard.build(from: workouts, weightType: { _ in .barbell }, options: options, limit: 1)
+        #expect(limited.recentPRs == Array(prs.prefix(1)))
+        #expect(limited.entries == entries)
+        #expect(
+            HistoryDashboard.build(from: [], weightType: { _ in nil }, options: options)
+                == HistorySummary(entries: [], recentPRs: [])
+        )
+    }
+
     @Test func recordTextByKind() {
         #expect(
             HistoryDashboard.text(for: PersonalRecord(kind: .e1rm, value: 116.7, weight: 100, reps: 5), unit: .kg)

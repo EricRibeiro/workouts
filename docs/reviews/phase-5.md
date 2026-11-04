@@ -7,14 +7,14 @@ Kit timing: HistoryList.entries over the 553-workout fixture 0.88 s (macOS debug
 |---|---|---|---|---|
 | R5-01 | P1 | Workout detail re-folds full history on every body evaluation | `@State` filled in `.task(id:)`; `make` takes only this workout's exercise sessions | fixed |
 | R5-02 | P1 | Weekly chart x labels overprint at AX sizes | `collisionResolution: .greedy` / every other label at AX | fixed |
-| R5-03 | P2 | History list and dashboard each fold all sessions on main | Build sessions once, pass to both | open |
-| R5-04 | P2 | Row swipe/context menus lack Edit and Save as Template | Add both | open |
+| R5-03 | P2 | History list and dashboard each fold all sessions on main | Build sessions once, pass to both | fixed |
+| R5-04 | P2 | Row swipe/context menus lack Edit and Save as Template | Add both | fixed |
 | R5-05 | P2 | Detail cards use a different fill/radius | `dashboardCardStyle()` | fixed |
 | R5-06 | P2 | Spacing/radius literals everywhere (with R-15) | `Design/Spacing.swift` + sweep per folder | later (Phase 6 sweep) |
 | R5-07 | P2 | Calendar day numbers collide at AX sizes | lineLimit + minimumScaleFactor or cap Dynamic Type at xxxLarge | fixed |
 | R5-08 | P2 | Duration is a 0–1440 Stepper (HIG: small increments) | Number TextField + stepper (reverses JC32) | fixed |
-| R5-09 | P3 | Trophy/label gap in History rows | HStack instead of Label | open |
-| R5-10 | P3 | History builds `SettingsStore()` ad hoc | `@Environment(SettingsStore.self)` | open |
+| R5-09 | P3 | Trophy/label gap in History rows | HStack instead of Label | fixed |
+| R5-10 | P3 | History builds `SettingsStore()` ad hoc | `@Environment(SettingsStore.self)` | fixed |
 | R5-11 | P3 | Editor rounds duration, rows floor it | Floor in the draft; test | fixed |
 | R5-12 | P3 | "1 / 3 workout" | "workouts this week" | fixed |
 | R5-13 | P3 | PR lines lack digit grouping | Grouping formatter | fixed |
