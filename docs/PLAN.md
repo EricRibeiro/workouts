@@ -170,7 +170,7 @@ Live Activity → notifications → logging, then templates, exercises, history.
 - [x] **2.3 SetTable** (`Workouts/Features/Shared/SetTable`): modes template/active/past; exercise `Section` headers per section
   3; `LazyVStack` in `swipeActionsContainer()` for set Delete; block reorder via `.reorderable()` + `reorderContainer(for:)`;
   **Add Set** a plain trailing `Label` row. Needs: 2.2, 0.9, 0.10. Proof: previews at `.large` and `.accessibility3`, both widths.
-- [ ] **2.4 Logging screen (compact) + Empty Workout**: cover with the SetTable on the engine, toolbar and title per section 3,
+- [x] **2.4 Logging screen (compact) + Empty Workout**: cover with the SetTable on the engine, toolbar and title per section 3,
   `isIdleTimerDisabled` gate; the Workout tab's Add menu gets **Empty Workout** (New Template / New Folder join in 3.1). Needs:
   1.1, 2.1, 2.3, 0.9, 0.10. Proof: flow (load sample data → Add → Empty Workout → add an exercise via the picker → log a set; Previous
   fills).

@@ -63,6 +63,8 @@ struct SetFieldCell: View {
             }
         }
         .accessibilityLabel(label)
+        // An empty field would otherwise report its placeholder (the Previous value) as if it were typed.
+        .accessibilityValue(text.isEmpty ? "Empty" : text)
         .accessibilityHint(hint)
         .accessibilityIdentifier(identifier)
     }

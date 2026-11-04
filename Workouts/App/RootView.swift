@@ -19,7 +19,10 @@ struct RootView: View {
             .accessibilityIdentifier("tab.history")
 
             Tab("Workout", systemImage: "dumbbell", value: AppTab.workout) {
-                WorkoutView(showSettings: { navigation.openSettings() })
+                WorkoutView(
+                    showSettings: { navigation.openSettings() },
+                    presentWorkout: { navigation.presentWorkout() }
+                )
             }
             .accessibilityIdentifier("tab.workout")
 
