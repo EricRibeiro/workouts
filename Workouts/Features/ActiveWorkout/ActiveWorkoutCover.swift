@@ -24,6 +24,9 @@ struct ActiveWorkoutCover: View {
     @State private var isPickerPresented = false
     @State private var minimiseCount = 0
     @State private var finishFlow = FinishFlowState()
+    @State private var isRenaming = false
+    @State private var renameText = ""
+    @State private var renameError: String?
 
     var body: some View {
         NavigationStack {
@@ -115,6 +118,33 @@ struct ActiveWorkoutCover: View {
             }
         }
         .navigationTitle(workout.name)
+        .toolbarTitleMenu {
+            Button("Rename…", systemImage: "pencil") {
+                renameText = workout.name
+                isRenaming = true
+            }
+            .accessibilityIdentifier("cover.titleMenu.rename")
+            Button("Discard Workout", systemImage: "trash", role: .destructive) {
+                finishFlow.requestDiscard(engine: engine, onDiscarded: onDiscarded)
+            }
+            .accessibilityIdentifier("cover.titleMenu.discard")
+        }
+        .alert("Rename Workout", isPresented: $isRenaming) {
+            TextField("Name", text: $renameText)
+                .accessibilityIdentifier("rename.field")
+            Button("Save") { rename(engine, to: renameText) }
+                .accessibilityIdentifier("rename.save")
+            Button("Cancel", role: .cancel) {}
+                .accessibilityIdentifier("rename.cancel")
+        }
+        .alert(
+            "Could Not Rename",
+            isPresented: Binding(get: { renameError != nil }, set: { if !$0 { renameError = nil } })
+        ) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(renameError ?? "")
+        }
         // The subtitle ticks every second from a background view, so the set table is not re-evaluated with it.
         .background {
             TimelineView(.periodic(from: .now, by: 1)) { context in
@@ -128,6 +158,17 @@ struct ActiveWorkoutCover: View {
         let started = workout.startedAt.formatted(.dateTime.month(.abbreviated).day())
         let elapsed = ElapsedFormat.string(seconds: Int(date.timeIntervalSince(workout.startedAt)))
         return "\(started) · \(elapsed)"
+    }
+
+    /// Saves a new name; blank or whitespace-only input is ignored, anything else is trimmed.
+    private func rename(_ engine: ActiveWorkoutEngine, to text: String) {
+        let name = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { return }
+        do {
+            try engine.rename(to: name)
+        } catch {
+            renameError = "The name was not changed: \(error.localizedDescription)"
+        }
     }
 
     private func addExercises(_ infos: [ExerciseInfo]) {

@@ -17,6 +17,8 @@ final class FinishFlowState {
     fileprivate var dialog: FinishDialog?
     /// The text of the "Could not save" alert, if it is showing.
     fileprivate var errorMessage: String?
+    /// Whether the title menu's "Discard workout?" confirmation is showing.
+    fileprivate var isDiscardConfirmationShown = false
     /// Counts confirmed destructive choices; drives the `.warning` haptic.
     fileprivate var destructiveCount = 0
 
@@ -47,6 +49,13 @@ final class FinishFlowState {
                 self?.begin(engine: engine, onFinished: onFinished, onDiscarded: onDiscarded)
             }
         }
+    }
+
+    /// Title menu, Discard Workout: asks for confirmation; confirming runs the same discard as the Finish dialog.
+    func requestDiscard(engine: ActiveWorkoutEngine, onDiscarded: @escaping () -> Void) {
+        self.engine = engine
+        self.onDiscarded = onDiscarded
+        isDiscardConfirmationShown = true
     }
 
     fileprivate func finish(_ unfinished: UnfinishedSets) {
@@ -133,6 +142,21 @@ private struct FinishFlow: ViewModifier {
                     .accessibilityIdentifier("finish.finish")
                 Button("Keep Logging", role: .cancel) {}
                     .accessibilityIdentifier("finish.keepLogging")
+            }
+            .confirmationDialog(
+                "Discard workout?",
+                isPresented: $state.isDiscardConfirmationShown,
+                titleVisibility: .visible
+            ) {
+                Button("Discard Workout", role: .destructive) {
+                    state.destructiveCount += 1
+                    state.discardWorkout()
+                }
+                .accessibilityIdentifier("discard.confirm")
+                Button("Keep Going", role: .cancel) {}
+                    .accessibilityIdentifier("discard.keepGoing")
+            } message: {
+                Text("This workout and everything logged in it will be deleted. It cannot be undone.")
             }
             .alert(
                 "Could Not Finish",

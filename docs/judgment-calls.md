@@ -29,3 +29,5 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
 13. **Picker Superset** adds the picks then groups them with the new `makeSuperset` (3.5 kit rules: members gathered at the
     first member's position, groups < 2 dissolve, renumbered 1, 2, 3).
 14. **Warm-up ramp with no bar** has no empty-bar step; a custom bar without a weight counts as no bar (3.5).
+15. **"Discard workout?" anchors on the Finish item** (2.8): the confirmation lives with the Finish dialogs, so on regular width
+    its popover points at Finish rather than the title menu. Rename errors get their own small alert.
