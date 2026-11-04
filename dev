@@ -507,9 +507,13 @@ cmd_testflight() {
   rm -rf "$archive" "$export_dir"
   mkdir -p "$TF_DIR"
 
+  # Archive with development signing from the Xcode account on this Mac (Apple ID in Xcode > Settings > Accounts, the
+  # registered Duo, keychain access approved once): that keeps the entitlements (iCloud, time-sensitive), which an unsigned
+  # archive loses. The API key is not accepted for development provisioning ("Authentication failed"), so it is used only
+  # by the export/upload below, which re-signs for App Store distribution with cloud-managed certificates (JC48, JC55).
   run_logged testflight-archive xcodebuild archive -scheme "$SCHEME" -destination 'generic/platform=iOS' \
-    -archivePath "$archive" -derivedDataPath "$TF_DIR/DerivedData" -quiet "${auth[@]}" CURRENT_PROJECT_VERSION="$build" \
-    CODE_SIGNING_ALLOWED=NO || return
+    -archivePath "$archive" -derivedDataPath "$TF_DIR/DerivedData" -quiet -allowProvisioningUpdates CURRENT_PROJECT_VERSION="$build" \
+    || return
 
   local destination=export
   ((upload == 0)) || destination=upload

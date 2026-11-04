@@ -161,3 +161,8 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
 54. **Eric's call (2026-11-04): exercise videos in CloudKit's public database** (single-user app, so the licensing reason
     for keeping them off Apple no longer applies). Plan in docs/port/media.md; needs 7.1's container first. SwiftData stays
     local (`cloudKitDatabase: .none`) until 7.2 even once the iCloud entitlement exists.
+55. **TestFlight signing, final** (supersedes JC48's unsigned archive): the archive is development-signed through the Xcode
+    account on this Mac (your Apple ID + the registered Duo; you approved the keychain prompt once), which keeps the
+    iCloud and Time Sensitive entitlements; the export/upload still uses the Admin API key and cloud-managed distribution
+    signing. The API key alone is refused for development provisioning ("Authentication failed"). If a future run hangs at
+    the archive, a keychain prompt is waiting on the server's screen.

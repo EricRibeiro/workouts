@@ -299,7 +299,7 @@ Live Activity → notifications → logging, then templates, exercises, history.
 
 ### Phase 7 — Sync, distribution (needs the Developer Program)
 
-- [ ] **7.1 Team + entitlements**: `DEVELOPMENT_TEAM`, iCloud (container + key-value), push, time-sensitive; no App Group. Proof:
+- [x] **7.1 Team + entitlements**: `DEVELOPMENT_TEAM`, iCloud (container + key-value), push, time-sensitive; no App Group. Proof:
   `./dev build` signs with the team.
 - [ ] **7.2 CloudKit on**: flip the flag, promote the schema to production. Needs: 7.1. Proof: two simulators sync.
 - [ ] **7.3 Settings on iCloud KVS** (only if a second device appears): `NSUbiquitousKeyValueStore` backend behind the
