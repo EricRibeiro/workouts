@@ -240,7 +240,12 @@ sim_guarded() { # sim_guarded <cmd> [args...]
   local rc=0 crashes
   sim_lock
   local since; since=$(date +%s)
-  "$@" || rc=$?
+  # Not `"$@" || rc=$?`: bash disables `set -e` inside anything run in a `||` context, so check kept going past a
+  # failed step and printed "check: ok" (2026-11-03). A subshell with errexit re-enabled stops at the first failure.
+  set +e
+  (set -e; "$@")
+  rc=$?
+  set -e
   crashes=$(sim_crashes "$since")
   # Other simulator daemons (assetsd, intelligencetasksd, ...) crash on their own now and then: report, do not fail.
   grep '^warn ' <<<"$crashes" | sed 's/^warn /dev: warning: simulator daemon crashed (not ours): /' >&2 || true
@@ -287,10 +292,10 @@ cmd_orient() { [[ "${1:-}" =~ ^(portrait|portrait-upside-down|landscape-left|lan
 cmd_clean() { rm -rf .build; }
 
 cmd_check() {
-  cmd_lint
-  cmd_kit
-  cmd_build
-  cmd_test
+  cmd_lint || return
+  cmd_kit || return
+  cmd_build || return
+  cmd_test || return
   # The PreToolUse hook that gates `git commit` compares this stamp's mtime against changed files.
   mkdir -p .build && touch .build/check.stamp
   echo "check: ok"
