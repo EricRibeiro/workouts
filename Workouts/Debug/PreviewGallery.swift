@@ -17,6 +17,7 @@
         case exercises = "Exercises"
         case settings = "Settings"
         case activeWorkoutCover = "ActiveWorkoutCover"
+        case calendar = "Calendar"
         case swatches = "Swatches"
         case exercisePicker = "ExercisePicker"
         case setRow = "SetRow"
@@ -39,6 +40,7 @@
             case .exercises: ExercisesView()
             case .settings: SettingsView()
             case .activeWorkoutCover: ActiveWorkoutCover(minimise: {}, onFinished: { _ in }, onDiscarded: {})
+            case .calendar: CalendarDemo()
             case .swatches: SwatchesView()
             case .exercisePicker: ExercisePickerView(title: "Add Exercise") { _ in }
             case .setRow: SetRowDemo()

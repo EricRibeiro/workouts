@@ -64,3 +64,5 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
 27. **Set row colours** (R-02/R-09): checked-row tint is a new `okRow` asset (lighter than okFill so the solid okFill check
     still stands out), check glyph a dark `onOkFill` asset (white on okFill is ~2:1). Placeholder prompt is `Color.secondary`.
     A rest that already ended before the ring appeared (relaunch) does not buzz (R-01).
+28. **Calendar** (5.4): a day with several workouts lists them under the grid (tap one); unmarked days are plain text (no dead
+    buttons); Done sits in the confirmation slot like Settings; the push waits for the sheet to dismiss.

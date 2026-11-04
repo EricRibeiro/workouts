@@ -31,6 +31,8 @@ struct HistoryView: View {
     @State private var scope: HistoryScope = .all
     @State private var pendingDelete: HistoryEntry?
     @State private var deleteFailed = false
+    @State private var isCalendarPresented = false
+    @State private var pendingOpen: UUID?
     @Namespace private var zoom
 
     var body: some View {
@@ -38,6 +40,20 @@ struct HistoryView: View {
             content
                 .navigationTitle("History")
                 .resumeControl()
+                .toolbar {
+                    ToolbarItem(placement: .primaryAction) {
+                        Button("Calendar", systemImage: "calendar") { isCalendarPresented = true }
+                            .accessibilityLabel("Calendar")
+                            .accessibilityIdentifier("history.calendar")
+                    }
+                }
+                .sheet(isPresented: $isCalendarPresented, onDismiss: openPending) {
+                    CalendarSheet(entries: entries) { id in
+                        pendingOpen = id
+                        isCalendarPresented = false
+                    }
+                    .presentationPlacement(.center)
+                }
                 .searchable(text: $query, prompt: "Search workouts")
                 .searchScopes($scope, activation: .onSearchPresentation) {
                     ForEach(HistoryScope.allCases, id: \.self) { scope in
@@ -164,6 +180,13 @@ struct HistoryView: View {
             context.rollback()
             deleteFailed = true
         }
+    }
+
+    /// Pushes the workout picked in the Calendar once the sheet has gone.
+    private func openPending() {
+        guard let id = pendingOpen else { return }
+        pendingOpen = nil
+        path.append(.workout(id))
     }
 
     // MARK: Destination

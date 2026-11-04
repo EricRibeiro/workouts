@@ -265,7 +265,7 @@ Live Activity → notifications → logging, then templates, exercises, history.
   Weekly` (incl. a DST boundary, America/Toronto, 2026-11-01) + preview.
 - [x] **5.3 Dashboard cards**: This Week, Recent PRs, Last Workout, even columns from the grid's width, Fitness's card shape.
   Needs: 5.2, 0.9, 0.10. Proof: preview, both widths.
-- [ ] **5.4 Calendar sheet** from the Calendar toolbar item: month grid (Monday first), workout days marked, tap opens the
+- [x] **5.4 Calendar sheet** from the Calendar toolbar item: month grid (Monday first), workout days marked, tap opens the
   workout. Needs: 5.1, 0.9, 0.10. Proof: preview.
 - [ ] **5.5 Workout detail**: PR lines, trophies, the per-exercise Exercise | Best Set table, toolbar items Edit, Save as Template
   (success = `sensoryFeedback(.success)` + dismiss, no banner), Delete. Needs: 5.1, 0.9, 0.10. Proof: preview + flow.
