@@ -27,15 +27,29 @@ struct WorkoutsApp: App {
 
     var body: some Scene {
         WindowGroup {
-            if let container {
-                RootView().modelContainer(container)
-            } else {
-                ContentUnavailableView(
-                    "Could not open the database",
-                    systemImage: "exclamationmark.triangle",
-                    description: Text(containerError ?? "")
-                )
-            }
+            #if DEBUG
+                // `-preview <Name>` shows a PreviewGallery entry instead of the app (see Debug/PreviewGallery.swift).
+                if let name = PreviewGallery.requestedName() {
+                    PreviewGallery.host(name)
+                } else {
+                    appRoot
+                }
+            #else
+                appRoot
+            #endif
+        }
+    }
+
+    @ViewBuilder
+    private var appRoot: some View {
+        if let container {
+            RootView().modelContainer(container)
+        } else {
+            ContentUnavailableView(
+                "Could not open the database",
+                systemImage: "exclamationmark.triangle",
+                description: Text(containerError ?? "")
+            )
         }
     }
 }

@@ -118,7 +118,7 @@ Live Activity → notifications → logging, then templates, exercises, history.
 - [x] **0.9 Sample data + preview container** (kit `Sample/`): `ModelContainer.preview` seeded by `SampleData` (takes a
   `LibraryCatalog`; 3 templates, 50 workouts with PRs) and a `#if DEBUG` "Load sample data" row in the Settings sheet; every
   `#Preview` and gallery entry uses it. Needs: 0.1, 0.3, 0.5. Proof: `./dev kit Sample`.
-- [ ] **0.10 Preview gallery + UI-test harness**: `#if DEBUG` `PreviewGallery` root chosen by launch argument `-preview <Name>`
+- [x] **0.10 Preview gallery + UI-test harness**: `#if DEBUG` `PreviewGallery` root chosen by launch argument `-preview <Name>`
   (named view factories on `ModelContainer.preview`; register 0.5–0.9's views), one smoke XCUITest. `./dev run -- -preview <Name>`
   already passes arguments through. Needs: 0.9. Proof: `./dev run -- -preview Swatches` + `./dev screenshot`; `./dev ui-test
   Smoke`.
