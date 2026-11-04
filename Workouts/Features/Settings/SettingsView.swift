@@ -14,9 +14,11 @@ struct SettingsView: View {
     /// rest of the app sees it at once. `@Observable`, so the controls bind to it directly.
     @Environment(SettingsStore.self) private var settings
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.colorScheme) private var colorScheme
     /// Optional so the screen still builds where no store is injected; Import then skips the library check.
     @Environment(ExerciseStore.self) private var exerciseStore: ExerciseStore?
 
+    private let download = BulkVideoDownload.shared
     @State private var isPickingFile = false
     @State private var isImporting = false
     @State private var outcome: TransferOutcome?
@@ -178,16 +180,36 @@ struct SettingsView: View {
 
     private var media: some View {
         Section {
-            // TODO(media): MediaStore has no start/stop hook for a bulk download yet (only `prefetch(sourceIDs:scheme:)`,
-            // which needs a catalog-wide id list and a Wi-Fi-only session); for now the choice is only persisted.
             Toggle("Download all videos", isOn: bound.downloadAllVideos)
                 .accessibilityLabel("Download all videos")
                 .accessibilityIdentifier("settings.downloadAllVideos")
+            if let progress = download.progress {
+                VStack(alignment: .leading) {
+                    ProgressView(value: Double(progress.done), total: Double(max(progress.total, 1)))
+                    Text("\(progress.done) of \(progress.total) videos")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("Video download progress")
+                .accessibilityValue("\(progress.done) of \(progress.total) videos")
+                .accessibilityIdentifier("settings.downloadProgress")
+            }
         } header: {
             Text("Media")
         } footer: {
             Text("Downloads over Wi-Fi only.")
         }
+        .onChange(of: settings.downloadAllVideos, initial: true) { _, isOn in
+            if isOn { startDownload() } else { download.cancel() }
+        }
+    }
+
+    /// Prefetches the library's videos for the current colour scheme; videos already cached are skipped at once.
+    private func startDownload() {
+        guard let catalog = exerciseStore?.catalog else { return }
+        let ids = catalog.exercises.filter(\.hasVideos).map(\.sourceId)
+        download.start(sourceIDs: ids, scheme: colorScheme == .dark ? .dark : .light)
     }
 
     private var iCloud: some View {

@@ -546,6 +546,70 @@ PLIST
   fi
 }
 
+# Uploads exercise videos to CloudKit's public database (Web Services, server-to-server key; docs/port/media.md). The key
+# handling mirrors cmd_testflight: streamed from `op read` into a 0600 file in a private temp directory a trap deletes,
+# never into a variable, environment variable, argument or log. Only the key FILE path reaches the Python script, which
+# signs by running `openssl dgst -sha256 -sign <file>`. Does not use the simulator, so no sim_guarded.
+MU_TMP=""
+mu_cleanup() { [[ -z "$MU_TMP" ]] || rm -rf "$MU_TMP"; MU_TMP=""; }
+
+cmd_media_upload() {
+  { set +x; } 2>/dev/null # never trace this function: a traced command line could carry key material
+  local env=development limit=0 only="" lookup=0
+  local usage="usage: media-upload [--env development|production] [--limit N] [--only <sourceId>] [--lookup]"
+  while (($#)); do
+    case "$1" in
+      --lookup) lookup=1; shift ;; # read-only: print each stored asset's size and download host (with --only or --limit)
+      --env) [[ "${2:-}" =~ ^(development|production)$ ]] || die "media-upload: $usage"; env="$2"; shift 2 ;;
+      --limit) [[ "${2:-}" =~ ^[0-9]+$ ]] || die "media-upload: $usage"; limit="$2"; shift 2 ;;
+      --only) [[ -n "${2:-}" && "$2" != -* && "$2" != */* ]] || die "media-upload: $usage"; only="$2"; shift 2 ;;
+      *) die "media-upload: unknown argument '$1' ($usage)" ;;
+    esac
+  done
+  local media_dir="${MEDIA_DIR:-$HOME/Server/docker-volumes/workouts/snapshot/media}"
+  [[ -d "$media_dir" ]] || die "media-upload: $media_dir does not exist"
+  command -v op >/dev/null 2>&1 || die "media-upload: the 1Password CLI (op) is not installed"
+
+  local key_id
+  # Server-to-server keys are per environment: the 1Password item has a development and a production section.
+  local item="op://Homelab/Apple Cloud Kit for Workouts Duo/$env"
+  key_id=$(op read "$item/key id" 2>/dev/null) || die "media-upload: could not read the key id from 1Password"
+  [[ -n "$key_id" ]] || die "media-upload: the CloudKit key id is empty"
+
+  trap mu_cleanup EXIT
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+  trap 'exit 129' HUP
+  umask 077
+  MU_TMP=$(mktemp -d "${TMPDIR:-/tmp}/workouts-media-upload.XXXXXX") || die "media-upload: mktemp failed"
+  local key_file="$MU_TMP/cloudkit-key.pem"
+  # The PEM may be stored on one line (spaces where the newlines were) or as normal multi-line text. Keep the BEGIN/END
+  # label (EC PRIVATE KEY or PRIVATE KEY), strip whitespace from the body and re-wrap it at 64 columns. The key only ever
+  # flows through this pipe into the file.
+  if ! op read "$item/private key" 2>/dev/null | awk '
+      { s = s " " $0 }
+      END {
+        if (!match(s, /-----BEGIN [A-Z ]+-----/)) exit 1
+        label = substr(s, RSTART + 11, RLENGTH - 16)
+        body = substr(s, RSTART + RLENGTH)
+        sub(/-----END [A-Z ]+-----.*/, "", body)
+        gsub(/[ \t\r\n]/, "", body)
+        if (body == "") exit 1
+        print "-----BEGIN " label "-----"
+        for (i = 1; i <= length(body); i += 64) print substr(body, i, 64)
+        print "-----END " label "-----"
+      }' >"$key_file"; then
+    die "media-upload: could not read the private key from 1Password"
+  fi
+  chmod 600 "$key_file"
+  openssl pkey -in "$key_file" -noout >/dev/null 2>&1 || die "media-upload: the private key from 1Password is not a valid PEM"
+
+  local args=(--key-file "$key_file" --key-id "$key_id" --env "$env" --media-dir "$media_dir" --limit "$limit")
+  [[ -z "$only" ]] || args+=(--only "$only")
+  ((lookup == 0)) || args+=(--lookup)
+  python3 -I scripts/media-upload.py "${args[@]}"
+}
+
 cmd_clean() { rm -rf .build; }
 
 cmd_check() {
@@ -578,8 +642,11 @@ fold <pose> [png]  Duo hinge: closed|half-open|open (agent-device); png = captur
 orient <o> [png]   portrait|landscape-left|landscape-right|portrait-upside-down; png as for fold
 testflight [--upload]  signed App Store archive + export to .build/testflight/export (no upload unless --upload);
                    key from 1Password via op, build number = UTC yyyymmddHHMM; no simulator lock
+media-upload [--env development|production] [--limit N] [--only <sourceId>]
+                   upload exercise videos to CloudKit's public database (Web Services, server-to-server key via op);
+                   re-runs skip records that already hold both assets; no simulator lock
 clean              rm -rf .build
-check              lint, kit, build, test; stops at first failure; on success touches .build/check.stamp
+check             lint, kit, build, test; stops at first failure; on success touches .build/check.stamp
 help               this list
 USAGE
 }
@@ -602,6 +669,7 @@ case "$sub" in
   orient) sim_guarded cmd_orient "$@" ;;
   sims) cmd_sims ;;
   testflight) cmd_testflight "$@" ;;
+  media-upload) cmd_media_upload "$@" ;;
   clean) cmd_clean ;;
   check) sim_guarded cmd_check ;;
   help | -h | --help) cmd_help ;;

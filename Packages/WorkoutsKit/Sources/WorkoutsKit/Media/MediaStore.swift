@@ -11,72 +11,62 @@ public nonisolated enum MediaScheme: String, Sendable, CaseIterable {
     case light
     case dark
 
-    /// The file served at `<baseURL>/<sourceId>/<fileName>`.
+    /// The cached file name, `video-<scheme>.mp4`.
     public var fileName: String { "video-\(rawValue).mp4" }
 }
 
 public nonisolated enum MediaError: Error, Equatable, Sendable {
-    /// The server answered with a status outside 200...299.
-    case badStatus(Int)
-    /// The response was not HTTP.
-    case notHTTP
     /// The source id is empty or would escape the cache folder.
     case invalidSourceID(String)
 }
 
+/// Where videos come from when the cache misses (CloudKit's public database in the app; a fake in tests).
+///
+/// The kit never imports CloudKit: the app supplies a conforming type. A source only produces a local file; caching,
+/// the LRU cap and de-duplication of concurrent requests stay in `MediaStore`.
+public nonisolated protocol MediaSource: Sendable {
+    /// A local file holding the video, or nil when the source has no video for that id (and scheme). The store copies
+    /// the file into its cache, so the source may hand back a file it owns. Throws for transient failures.
+    func fetchVideo(sourceId: String, scheme: MediaScheme) async throws -> URL?
+
+    /// As `fetchVideo(sourceId:scheme:)`, but a bulk download can ask for Wi-Fi only. The default ignores the flag.
+    func fetchVideo(sourceId: String, scheme: MediaScheme, allowsCellular: Bool) async throws -> URL?
+}
+
+extension MediaSource {
+    public func fetchVideo(sourceId: String, scheme: MediaScheme, allowsCellular: Bool) async throws -> URL? {
+        try await fetchVideo(sourceId: sourceId, scheme: scheme)
+    }
+}
+
 /// Bundled thumbnails and on-demand cached exercise videos (see `docs/port/media.md`).
 ///
-/// An `actor`, so downloads and cache bookkeeping never run on the main actor and concurrent requests for the same
-/// file share one download. Only Foundation; compiles on macOS.
+/// An `actor`, so cache bookkeeping never runs on the main actor and concurrent requests for the same file share one
+/// fetch. Only Foundation; compiles on macOS.
 public actor MediaStore {
-    /// Info.plist key holding the media base URL.
-    public nonisolated static let baseURLInfoKey = "WorkoutsMediaBaseURL"
     public nonisolated static let defaultCapBytes: Int64 = 2 * 1024 * 1024 * 1024
 
-    private nonisolated let baseURL: URL
+    private nonisolated let source: (any MediaSource)?
     private nonisolated let bundle: Bundle
     private nonisolated let mediaDirectory: URL
-    private nonisolated let session: URLSession
     private nonisolated let capBytes: Int64
-    private var inFlight: [String: Task<URL, any Error>] = [:]
+    private var inFlight: [String: Task<URL?, any Error>] = [:]
 
     /// - Parameters:
-    ///   - baseURL: Server root; videos live at `<baseURL>/<sourceId>/video-<scheme>.mp4`.
+    ///   - source: Fills the cache on a miss; nil turns videos off (`video(for:scheme:)` returns nil).
     ///   - bundle: Holds `Library/thumbs/<id>-<phase>.png`.
-    ///   - cacheDirectory: Typically `Caches`; files go to `<cacheDirectory>/media/<sourceId>/<file>`.
-    ///   - session: Injectable for tests.
+    ///   - cacheDirectory: Typically `Caches`; files go to `<cacheDirectory>/media/<sourceId>/video-<scheme>.mp4`.
     ///   - capBytes: Least-recently-used files are evicted past this total.
     public init(
-        baseURL: URL,
+        source: (any MediaSource)?,
         bundle: Bundle,
         cacheDirectory: URL,
-        session: URLSession = .shared,
         capBytes: Int64 = MediaStore.defaultCapBytes
     ) {
-        self.baseURL = baseURL
+        self.source = source
         self.bundle = bundle
         self.mediaDirectory = cacheDirectory.appendingPathComponent("media", isDirectory: true)
-        self.session = session
         self.capBytes = capBytes
-    }
-
-    // MARK: Base URL
-
-    /// Reads `WorkoutsMediaBaseURL` from the bundle's Info.plist.
-    public nonisolated static func baseURL(from bundle: Bundle) -> URL? {
-        baseURL(fromInfo: bundle.infoDictionary)
-    }
-
-    /// Parses the `WorkoutsMediaBaseURL` entry of an Info.plist dictionary; nil unless it is an http(s) URL with a host.
-    public nonisolated static func baseURL(fromInfo info: [String: Any]?) -> URL? {
-        guard let raw = (info?[baseURLInfoKey] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
-            !raw.isEmpty,
-            let url = URL(string: raw),
-            let scheme = url.scheme?.lowercased(),
-            scheme == "http" || scheme == "https",
-            url.host() != nil
-        else { return nil }
-        return url
     }
 
     // MARK: Thumbnails
@@ -100,21 +90,27 @@ public actor MediaStore {
         return file
     }
 
-    /// A local file URL for the video, downloading it first when it is not cached.
-    public func video(for sourceID: String, scheme: MediaScheme) async throws -> URL {
+    /// A local file URL for the video, fetching it from the source first when it is not cached. Nil when there is no
+    /// source or the source has no video for this id. Throws what the source throws; nothing is retried.
+    public func video(for sourceID: String, scheme: MediaScheme, allowsCellular: Bool = true) async throws -> URL? {
         let file = try fileURL(for: sourceID, scheme: scheme)
         if FileManager.default.fileExists(atPath: file.path) {
             touch(file)
             return file
         }
+        guard let source else { return nil }
         let key = file.path
         if let running = inFlight[key] {
             return try await running.value
         }
-        let remote = baseURL.appendingPathComponent(sourceID).appendingPathComponent(scheme.fileName)
-        let task = Task { [session] () async throws -> URL in
+        let task = Task { () async throws -> URL? in
             do {
-                let url = try await Self.download(remote, to: file, session: session)
+                let fetched = try await source.fetchVideo(
+                    sourceId: sourceID,
+                    scheme: scheme,
+                    allowsCellular: allowsCellular
+                )
+                let url = try fetched.map { try Self.install($0, at: file) }
                 self.finish(key)
                 return url
             } catch {
@@ -124,15 +120,22 @@ public actor MediaStore {
         }
         inFlight[key] = task
         let url = try await task.value
-        evict(keeping: url)
+        if let url { evict(keeping: url) }
         return url
     }
 
-    /// Best-effort sequential download of many videos; failures are skipped, cancellation stops early.
-    public func prefetch(sourceIDs: [String], scheme: MediaScheme) async {
-        for sourceID in sourceIDs {
+    /// Best-effort sequential fetch of many videos; failures and missing videos are skipped, cancellation stops early.
+    /// `progress` is called after each id with (ids handled so far, total), cached ones included.
+    public func prefetch(
+        sourceIDs: [String],
+        scheme: MediaScheme,
+        allowsCellular: Bool = true,
+        progress: (@Sendable (_ done: Int, _ total: Int) -> Void)? = nil
+    ) async {
+        for (offset, sourceID) in sourceIDs.enumerated() {
             if Task.isCancelled { return }
-            _ = try? await video(for: sourceID, scheme: scheme)
+            _ = try? await video(for: sourceID, scheme: scheme, allowsCellular: allowsCellular)
+            progress?(offset + 1, sourceIDs.count)
         }
     }
 
@@ -165,16 +168,16 @@ public actor MediaStore {
         try? FileManager.default.setAttributes([.modificationDate: Date()], ofItemAtPath: file.path)
     }
 
-    /// Downloads to a temporary file, then moves it into place so a reader never sees a partial file.
-    private nonisolated static func download(_ remote: URL, to file: URL, session: URLSession) async throws -> URL {
-        let (temp, response) = try await session.download(from: remote)
+    /// Copies the source's file next to its destination, then moves it into place so a reader never sees a partial file.
+    private nonisolated static func install(_ fetched: URL, at file: URL) throws -> URL {
         let fm = FileManager.default
-        defer { try? fm.removeItem(at: temp) }
-        guard let http = response as? HTTPURLResponse else { throw MediaError.notHTTP }
-        guard (200..<300).contains(http.statusCode) else { throw MediaError.badStatus(http.statusCode) }
-        try fm.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let folder = file.deletingLastPathComponent()
+        try fm.createDirectory(at: folder, withIntermediateDirectories: true)
+        let partial = folder.appendingPathComponent(".\(UUID().uuidString).partial", isDirectory: false)
+        defer { try? fm.removeItem(at: partial) }
+        try fm.copyItem(at: fetched, to: partial)
         if fm.fileExists(atPath: file.path) { try fm.removeItem(at: file) }
-        try fm.moveItem(at: temp, to: file)
+        try fm.moveItem(at: partial, to: file)
         try? fm.setAttributes([.modificationDate: Date()], ofItemAtPath: file.path)
         return file
     }

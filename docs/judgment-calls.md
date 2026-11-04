@@ -34,8 +34,8 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
 16. **Weekly chart** (5.2): device time zone (not the web's server TZ), labels unpadded `11/2`, hidden under search and the PRs
     scope, card on `secondarySystemBackground` (the grouped colour was white on white). Goal stays in Settings only.
 17. **UI tests clear the app's UserDefaults at launch** (`-uiTesting`), so settings tapped in one test never leak into another.
-18. **Settings** (5.7a): one combined footer under unit + formula (a Section has one footer); "Download all videos" only persists
-    until MediaStore gets a bulk-download hook; iCloud row reads "Not set up yet" (no entitlement, no CloudKit call).
+18. **Settings** (5.7a): one combined footer under unit + formula (a Section has one footer); "Download all videos" now prefetches every library video for the
+    current colour scheme over Wi-Fi (`BulkVideoDownload`, progress row; keeps going after the sheet closes); iCloud row reads "Not set up yet" (no entitlement, no CloudKit call).
 19. **Resume control** (2.7): strip item = the rest arc while resting, else `figure.strengthtraining.traditional`; time in the
     accessibility label. It is appended after each screen's own items (Add, Settings, ring), so it is last in the strip;
     filed for the Phase 2 review (may need `visibilityPriority` so it never overflows). Relaunch restores the cover from a
@@ -67,8 +67,8 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
 28. **Calendar** (5.4): a day with several workouts lists them under the grid (tap one); unmarked days are plain text (no dead
     buttons); Done sits in the confirmation slot like Settings; the push waits for the sheet to dismiss.
 29. **Exercise detail** (4.2): segments About and Records only until 4.3 adds History/Charts; empty navigation title (the large
-    in-content name would duplicate it); video stays off until `WorkoutsMediaBaseURL` is set in Info.plist (thumbnails cross-fade
-    meanwhile; Reduce Motion stops it); finish-summary PR rows now push the exercise's Records.
+    in-content name would duplicate it); video comes from CloudKit's public database (JC54; `CloudKitMediaSource`, off under `-uiTesting`; thumbnails cross-fade
+    while it loads or when there is no record; Reduce Motion stops it); finish-summary PR rows now push the exercise's Records.
 30. **Workout detail** (5.5): Save as Template is one sheet (name prefilled, folder list, "No Folder", or a new "Templates"
     folder when none exist) instead of the web's two steps; it copies completed sets only. Set labels number by position among
     completed sets. Shared `Color.superset(_:)` palette for SetTable and the detail.
@@ -166,3 +166,11 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
     iCloud and Time Sensitive entitlements; the export/upload still uses the Admin API key and cloud-managed distribution
     signing. The API key alone is refused for development provisioning ("Authentication failed"). If a future run hangs at
     the archive, a keychain prompt is waiting on the server's screen.
+56. **Video upload is a local command, not part of the build**: `./dev media-upload --env development|production` pushes the
+    1,029 web-app videos (light + dark) into the public `ExerciseMedia` records through CloudKit Web Services with a
+    server-to-server key (one key per environment: 1Password item "Apple Cloud Kit for Workouts Duo", sections
+    `development` and `production`). Same trapped-temp-file handling as the ASC key; it skips records that already exist
+    and stops at the first 401/403. Both environments were uploaded 2026-11-04 (Development 1,029, Production 1,029).
+57. **Thumbnail cross-fade fades both frames** (Eric saw two poses overlapped): the bundled thumbnails are transparent PNGs,
+    so the web's "end frame over an opaque start frame" left the start pose showing through. The start frame now fades out
+    as the end frame fades in (opacities sum to 1), same timing as before.

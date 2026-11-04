@@ -32,3 +32,15 @@ licensing concern that kept them off Apple's servers no longer applies. Plan: co
 using a CloudKit **server-to-server key** (public database, Web Services) into Development, then the schema deployed and the
 same upload run against Production (TestFlight builds read Production); `MediaStore` fetches the record by `sourceId` and
 caches the asset as today. Thumbnails stay bundled. The web app's `/media/` URL remains the interim source until then.
+
+**Built 2026-11-04:** `MediaStore` takes an injected `MediaSource` (`fetchVideo(sourceId:scheme:)` -> local file URL or nil); the
+HTTP base-URL path and `WorkoutsMediaBaseURL` are gone. The app's `CloudKitMediaSource` reads the public database record
+`ExerciseMedia/<sourceId>` (`records(for:desiredKeys:)`, one asset field at a time; dark falls back to `videoLight`). The store
+copies the asset into `Caches/media/<id>/video-<scheme>.mp4` as before. A missing record gives nil (thumbnails cross-fade);
+network errors give nil plus a log line, with no retry. Public reads need no iCloud account, so `accountStatus` is not checked.
+
+**Uploaded 2026-11-04:** `./dev media-upload --env development|production [--limit N] [--only <sourceId>] [--lookup]`
+(`scripts/media-upload.py`, stdlib only). Server-to-server keys are per environment; the key id and private key come from
+the `development` / `production` sections of the 1Password item "Apple Cloud Kit for Workouts Duo" and only ever reach a
+trapped mode-600 temp file. The record type had to be created by hand in the Console (Development does not create types for
+server-to-server writes), then deployed. All 1,029 records are in both environments; re-runs skip existing records.

@@ -127,15 +127,19 @@ struct ExerciseThumbnail: View {
 
     @ViewBuilder
     private func frames(start: URL, end: URL?) -> some View {
-        ZStack {
-            image(start)
-            if let end {
-                // 30 fps is plenty for a 64 pt opacity fade and halves the per-frame work of the visible rows.
-                TimelineView(.animation(minimumInterval: 1.0 / 30)) { context in
-                    image(end, placeholder: .clear)
-                        .opacity(ThumbnailCrossfade.endOpacity(at: context.date.timeIntervalSinceReferenceDate))
+        if let end {
+            // 30 fps is plenty for a 64 pt opacity fade and halves the per-frame work of the visible rows.
+            TimelineView(.animation(minimumInterval: 1.0 / 30)) { context in
+                let endOpacity = ThumbnailCrossfade.endOpacity(at: context.date.timeIntervalSinceReferenceDate)
+                // The frames are transparent PNGs, so the start frame fades out as the end frame fades in; laying the
+                // end frame over a fully opaque start frame would show both poses at once.
+                ZStack {
+                    image(start).opacity(1 - endOpacity)
+                    image(end, placeholder: .clear).opacity(endOpacity)
                 }
             }
+        } else {
+            image(start)
         }
     }
 
@@ -148,9 +152,9 @@ struct ExerciseThumbnail: View {
         }
     }
 
-    /// Only the bundled thumbnails are read, so the base URL and cache folder are never used here.
+    /// Only the bundled thumbnails are read, so there is no video source and the cache folder is never used here.
     private static let media = MediaStore(
-        baseURL: MediaStore.baseURL(from: .main) ?? URL(filePath: "/"),
+        source: nil,
         bundle: .main,
         cacheDirectory: .cachesDirectory
     )

@@ -7,18 +7,17 @@ import AVKit
 import SwiftUI
 import WorkoutsKit
 
-/// The app's one `MediaStore`: bundled thumbnails always, videos only when `WorkoutsMediaBaseURL` is set in the
-/// Info.plist (see `docs/port/media.md`).
+/// The app's one `MediaStore`: bundled thumbnails always, videos from CloudKit's public database (see
+/// `docs/port/media.md`) except in UI-test runs, which have no network and keep the thumbnail cross-fade.
 enum ExerciseMedia {
+    /// Whether a video can be fetched at all: not a UI-test run.
+    static let canStreamVideo: Bool = !ProcessInfo.processInfo.arguments.contains("-uiTesting")
+
     static let store = MediaStore(
-        baseURL: MediaStore.baseURL(from: .main) ?? URL(filePath: "/"),
+        source: canStreamVideo ? CloudKitMediaSource() : nil,
         bundle: .main,
         cacheDirectory: .cachesDirectory
     )
-
-    /// Whether a video can be fetched at all: a configured base URL, and not a UI-test run (no network in flows).
-    static let canStreamVideo: Bool =
-        MediaStore.baseURL(from: .main) != nil && !ProcessInfo.processInfo.arguments.contains("-uiTesting")
 }
 
 /// A muted, looping `AVPlayer` over a local file (`AVPlayerLooper` keeps the loop gapless).
@@ -148,5 +147,43 @@ struct ExerciseMediaHeader: View {
             if Task.isCancelled { return }
             withAnimation(.easeInOut(duration: 0.6)) { showsEnd.toggle() }
         }
+    }
+}
+
+/// Settings' "Download all videos": prefetches every library video for one colour scheme, Wi-Fi only, in the
+/// background. It outlives the Settings sheet (closing it does not stop the download); switching the toggle off does.
+@MainActor
+@Observable
+final class BulkVideoDownload {
+    static let shared = BulkVideoDownload()
+
+    /// Videos handled so far and the total, nil while idle or finished.
+    private(set) var progress: (done: Int, total: Int)?
+    private var task: Task<Void, Never>?
+
+    var isRunning: Bool { task != nil }
+
+    /// Starts unless a download is already running or videos are off (UI-test runs). Cached videos count as done at once.
+    func start(sourceIDs: [String], scheme: MediaScheme) {
+        guard task == nil, ExerciseMedia.canStreamVideo, !sourceIDs.isEmpty else { return }
+        progress = (0, sourceIDs.count)
+        task = Task { [weak self] in
+            await ExerciseMedia.store.prefetch(sourceIDs: sourceIDs, scheme: scheme, allowsCellular: false) {
+                done,
+                total in
+                Task { @MainActor in
+                    if let self, self.task != nil { self.progress = (done, total) }
+                }
+            }
+            guard !Task.isCancelled else { return }
+            self?.task = nil
+            self?.progress = nil
+        }
+    }
+
+    func cancel() {
+        task?.cancel()
+        task = nil
+        progress = nil
     }
 }
