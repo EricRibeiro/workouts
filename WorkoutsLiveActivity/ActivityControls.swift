@@ -1,30 +1,35 @@
+import AppIntents
 import SwiftUI
 import WorkoutsKit
 
 /// Skip / +30 s / Done set. Skip and +30 s exist only while a rest runs; Done set is always there, disabled when there
 /// is nothing to check or the set is empty (the app would refuse it).
 ///
-/// The buttons are placeholders until task 1.5 adds the `LiveActivityIntent`s: a plain `Button` in a widget does
-/// nothing, which is the intended no-op for now.
+/// The buttons are `Button(intent:)` with the `LiveActivityIntent`s in `Shared/ActivityIntents.swift`; they run in the
+/// app process and the engine's next state re-renders the activity.
 struct ActivityControls: View {
     let state: WorkoutActivityState
 
     var body: some View {
         HStack(spacing: 8) {
             if state.isResting {
-                // 1.5: Button(intent: SkipRestIntent())
-                ActivityButton(title: "Skip", label: "Skip rest", symbol: "forward.end.fill", style: .secondary) {}
-                // 1.5: Button(intent: AddRestIntent(seconds: 30))
-                ActivityButton(
-                    title: "+30 s",
-                    label: "Add 30 seconds of rest",
-                    symbol: "goforward.30",
-                    style: .secondary
-                ) {}
+                Button(intent: SkipRestIntent()) {
+                    ActivityButtonLabel(title: "Skip", symbol: "forward.end.fill", style: .secondary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Skip rest")
+                Button(intent: AddRestIntent(seconds: 30)) {
+                    ActivityButtonLabel(title: "+30 s", symbol: "goforward.30", style: .secondary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Add 30 seconds of rest")
             }
-            // 1.5: Button(intent: CompleteSetIntent(setID: current.setID))
-            ActivityButton(title: "Done set", label: "Done set", symbol: "checkmark", style: .primary) {}
-                .disabled(isDoneDisabled)
+            Button(intent: DoneSetIntent(setID: state.current?.setID ?? UUID())) {
+                ActivityButtonLabel(title: "Done set", symbol: "checkmark", style: .primary)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Done set")
+            .disabled(isDoneDisabled)
         }
     }
 
@@ -34,34 +39,29 @@ struct ActivityControls: View {
     }
 }
 
-struct ActivityButton: View {
+/// The capsule a control button draws; greys out when the enclosing button is disabled.
+struct ActivityButtonLabel: View {
     enum Style { case primary, secondary }
 
     let title: String
-    let label: String
     let symbol: String
     let style: Style
-    let action: () -> Void
 
     @Environment(\.isEnabled) private var isEnabled
 
     var body: some View {
-        Button(action: action) {
-            Label(title, systemImage: symbol)
-                .font(.subheadline.weight(.semibold))
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-                .frame(maxWidth: .infinity, minHeight: 36)
-                .foregroundStyle(style == .primary ? Color.white : ActivityStyle.accent)
-                .background(
-                    Capsule().fill(
-                        style == .primary
-                            ? ActivityStyle.accent : ActivityStyle.accent.opacity(0.18)
-                    )
+        Label(title, systemImage: symbol)
+            .font(.subheadline.weight(.semibold))
+            .lineLimit(1)
+            .minimumScaleFactor(0.8)
+            .frame(maxWidth: .infinity, minHeight: 36)
+            .foregroundStyle(style == .primary ? Color.white : ActivityStyle.accent)
+            .background(
+                Capsule().fill(
+                    style == .primary
+                        ? ActivityStyle.accent : ActivityStyle.accent.opacity(0.18)
                 )
-                .opacity(isEnabled ? 1 : 0.5)
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(label)
+            )
+            .opacity(isEnabled ? 1 : 0.5)
     }
 }
