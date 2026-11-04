@@ -8,7 +8,7 @@ import Testing
     private let b = UUID()
 
     @Test func tabsAreInEricsOrderAndWorkoutIsDefault() {
-        #expect(AppTab.allCases == [.history, .workout, .exercises])
+        #expect(AppTab.main == [.history, .workout, .exercises])
         #expect(AppTab.default == .workout)
         let nav = AppNavigation()
         #expect(nav.selectedTab == .workout)
@@ -24,6 +24,20 @@ import Testing
         nav.select(.history)
         #expect(nav.selectedTab == .history)
         #expect(nav.workoutPath == [.template(a)])
+    }
+
+    @Test func templateTabsAreSelectableAndLeaveTheStacksAlone() {
+        let nav = AppNavigation()
+        nav.push(WorkoutRoute.template(a))
+        nav.select(.template(b))
+        #expect(nav.selectedTab == .template(b))
+        nav.select(.template(b))  // reselecting pops to root: nothing to pop here
+        nav.pop(.template(b))
+        nav.popToRoot(.template(b))
+        #expect(nav.selectedTab == .template(b))
+        #expect(nav.workoutPath == [.template(a)])
+        #expect(AppTab.template(a) != .template(b))
+        #expect(!AppTab.main.contains(.template(a)))
     }
 
     @Test func stacksAreIndependentPerTab() {

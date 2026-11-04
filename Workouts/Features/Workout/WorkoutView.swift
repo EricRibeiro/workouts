@@ -12,11 +12,14 @@ struct WorkoutView: View {
     var showSettings: () -> Void = {}
     /// Presents the active workout's cover, which the root view owns.
     var presentWorkout: () -> Void = {}
+    /// A sidebar section's "New Template" asked for the editor (the root view owns the request, since the tab may not
+    /// have existed yet when it was made).
+    var newTemplate: Binding<NewTemplateRequest?> = .constant(nil)
     @Environment(ActiveWorkoutEngine.self) private var engine: ActiveWorkoutEngine?
     @Environment(SaveErrors.self) private var errors: SaveErrors?
     @Environment(\.modelContext) private var context
-    /// The proxy for "the sidebar is showing": the system exposes no environment value for it, and the sidebar-adaptable
-    /// `TabView` shows the sidebar only at regular width. Compact (closed Duo, phones) always keeps the folder headers.
+    /// Regular width opens the preview with a push; compact presents a sheet. Not a proxy for "the sidebar is showing":
+    /// open-tall is regular with the sidebar collapsed, so nothing here hides content because of a sidebar.
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Query(sort: [SortDescriptor(\TemplateFolder.position), SortDescriptor(\TemplateFolder.name)])
     private var folders: [TemplateFolder]
@@ -46,9 +49,7 @@ struct WorkoutView: View {
     @State private var startFlow = StartWorkoutFlow()
     @Namespace private var cardZoom
 
-    private var showsFolderHeaders: Bool { horizontalSizeClass != .regular }
-
-    /// Compact width presents the preview as a sheet; regular width pushes it so the sidebar stays.
+    /// Compact width presents the preview as a sheet; regular width pushes it.
     private func open(_ template: Template) {
         if horizontalSizeClass == .regular {
             previewPush = template
@@ -76,6 +77,9 @@ struct WorkoutView: View {
                 .navigationDestination(item: $editing) { TemplateEditor(template: $0) }
                 .navigationDestination(isPresented: $isCreatingTemplate) {
                     TemplateEditor(newIn: FolderOperations.ordered(folders).first)
+                }
+                .navigationDestination(item: newTemplate) { request in
+                    TemplateEditor(newIn: folders.first { $0.id == request.folderID })
                 }
                 .sheet(
                     item: $previewSheet,
@@ -189,7 +193,6 @@ struct WorkoutView: View {
                             namespace: cardZoom,
                             open: open,
                             actions: cardActions,
-                            showsHeader: showsFolderHeaders,
                             canMoveUp: FolderOperations.canMove(folder, .up, in: folders),
                             canMoveDown: FolderOperations.canMove(folder, .down, in: folders),
                             rename: {
@@ -203,13 +206,11 @@ struct WorkoutView: View {
                     }
                     if !unfiled.isEmpty {
                         VStack(alignment: .leading, spacing: 12) {
-                            if showsFolderHeaders {
-                                Text("Unfiled (\(unfiled.count))")
-                                    .font(.headline)
-                                    .foregroundStyle(.primary)
-                                    .accessibilityAddTraits(.isHeader)
-                                    .accessibilityIdentifier("workout.unfiled")
-                            }
+                            Text("Unfiled (\(unfiled.count))")
+                                .font(.headline)
+                                .foregroundStyle(.primary)
+                                .accessibilityAddTraits(.isHeader)
+                                .accessibilityIdentifier("workout.unfiled")
                             TemplateGrid(
                                 templates: unfiled,
                                 finishedWorkouts: finishedWorkouts,

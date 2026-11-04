@@ -38,10 +38,17 @@ Eric deferred the technical choices to Claude. These close every item in `docs/p
 
 ## Navigation and layout
 
-- `TabView` with `.tabViewStyle(.sidebarAdaptable)` and `.defaultAdaptableTabBarPlacement(.sidebar)`. Three top-level `Tab`s in
+- `TabView` with `.tabViewStyle(.sidebarAdaptable)` and `.defaultTabBarPlacement(.sidebar)`. Not `defaultAdaptableTabBarPlacement`:
+  Apple's doc says that one "is only effective on iPadOS", while `defaultTabBarPlacement` applies "where the `sidebarAdaptable`
+  style statically resolves to either a sidebar or tab bar, such as iPhone", which is the Duo; with the adaptable variant the open
+  Duo showed only the trailing strip, never the sidebar (verified in the 27.2 simulator: open wide shows the sidebar expanded,
+  open tall shows it collapsed behind its toggle). Three top-level `Tab`s in
   Eric's order, **History · Workout · Exercises**; **Workout is the default selection**. One `TabSection` per **folder** (header =
-  folder name), its templates as `Tab`s with `.tabPlacement(.sidebarOnly)` (never in the compact bar) rendering the template
-  preview with Start / Edit; `.sectionActions` carries "New Template". Don't assume where the bar lands.
+  folder name), its templates as `Tab`s with `.tabPlacement(.sidebarOnly)` rendering the template
+  preview with Start / Edit; `.sectionActions` carries "New Template". In 27.2 `.sidebarOnly` (and
+  `defaultVisibility(.hidden, for: .tabBar)`) still leaks the template tabs into the bar, so they are built **only at regular
+  width** (`horizontalSizeClass == .regular`); compact has no sidebar, and its bar is the three main tabs. Don't assume where the
+  bar lands, and never read regular width as "the sidebar is visible" (open tall is regular with the sidebar collapsed).
 - **Settings**: a gear `toolbar` button on the Workout tab and `tabViewSidebarBottomBar` on regular width, opening a `Form` sheet.
 - **Toolbar items** carry a symbol and a title; the ellipsis belongs to the system's `ToolbarOverflowMenu`, so no `⋯` menus.
   Workout: Settings (`gearshape`), Add (`plus`, a `Menu`: **Empty Workout** / New Template / New Folder); other screens' items
@@ -54,8 +61,8 @@ Eric deferred the technical choices to Claude. These close every item in `docs/p
   the grid's own width via `onGeometryChange`, `max(2, 2 * floor(width / (2 * minCard)))`: sidebar open gets 2, full width 4, so
   no card straddles the fold; with `.includeInactive` reserved regions the hinge gap widens. Card tap: compact → medium-detent
   preview sheet (a Maps/Flighty-style panel, fine at phone size); regular → push the preview (zoom transition) so the sidebar
-  stays. Beside a visible sidebar the grid drops its folder headers. The folder collapse flag is per-device `@AppStorage` and
-  drives only the compact header; the sidebar's `TabSection` expansion is the system's and independent (27.2 `TabSection` has no
+  stays. The grid's folder headers always show (also beside an expanded sidebar, which repeats the folder names). The folder
+  collapse flag is per-device `@AppStorage` and drives only the header; the sidebar's `TabSection` expansion is the system's and independent (27.2 `TabSection` has no
   `isExpanded` binding).
 - **Sheet placement**: on regular width every sheet names `presentationPlacement`: picker, settings, calendar, custom timer,
   finish summary → `.center`; rest ring → `.trailing` (it belongs to the strip's ring item).

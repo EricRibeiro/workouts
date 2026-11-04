@@ -122,3 +122,5 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
     iPhone needs `.defaultTabBarPlacement(.sidebar)` (found during 3.7, so the "open-wide sidebar" Phase 2 assumed was a
     strip until now). `.sidebarOnly` template tabs still leak into the 27.2 bar, so they're built only at regular width
     (closed = compact = no sidebar). Grid folder headers now always show (open-tall is regular with the sidebar collapsed).
+46. **Phase 4 review accepted** (docs/reviews/phase-4.md). Taste rows: R4-14 yes (row subtitle one line below AX sizes);
+    R4-20 no (list stays flat — search, pills and the natural-language fallback carry a 1,038-row list; no letter sections).

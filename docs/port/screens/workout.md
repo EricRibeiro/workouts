@@ -116,8 +116,8 @@ omission over. The tab also owns folder and template management.
   a `contextMenu` on the header (Rename Folder, Reorder Templates, Reorder Folders, Delete Folder); no ⋯. Templates
   as rows or a card grid whose even column count comes from its own width (`DECISIONS.md`). Cards take Fitness's shape:
   title row with `chevron.right`, headline = exercise count ("7 exercises"), caption = first exercises, footnote
-  "Last performed · 5 days ago". Beside a visible sidebar the grid drops folder headers. The collapse flag is per-device
-  `@AppStorage` and drives only the compact header; the sidebar's `TabSection` expansion is the system's, independent.
+  "Last performed · 5 days ago". The folder headers always show. The collapse flag is per-device
+  `@AppStorage` and drives only the header; the sidebar's `TabSection` expansion is the system's, independent.
 - Reorder: edit mode with `.onMove` (or iOS 27 `.reorderable`) for templates within a folder and for folders; the
   "Reorder Templates"/"Reorder Folders" menu entries enter edit mode, replacing the web's up/down sheets.
 - Template row/card: swipe actions (trailing Delete destructive, Duplicate, Move to Folder) plus a `contextMenu`

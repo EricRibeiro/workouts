@@ -58,4 +58,21 @@ final class SmokeUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["screen.workout"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.descendants(matching: .any)["screen.settings"].exists)
     }
+
+    /// PLAN 3.7: the compact bar (the closed Duo, the sim's default pose) is the three main tabs; the template tabs are
+    /// sidebar-only and must not leak into it, sample templates or not.
+    @MainActor
+    func testCompactBarHasOnlyTheThreeTabs() throws {
+        let app = makeApp(["-seedSampleData"])
+        app.launch()
+        XCTAssertTrue(app.descendants(matching: .any)["screen.workout"].waitForExistence(timeout: 10))
+        // Template cards are on screen, so the seed is in; their sidebar tabs must still be absent.
+        XCTAssertTrue(app.descendants(matching: .any)["workout.list"].waitForExistence(timeout: 5))
+        for id in ["tab.history", "tab.workout", "tab.exercises"] {
+            XCTAssertTrue(app.descendants(matching: .any)[id].firstMatch.waitForExistence(timeout: 5), id)
+        }
+        let leaked = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier BEGINSWITH 'sidebar.template.'"))
+        XCTAssertEqual(leaked.count, 0)
+    }
 }

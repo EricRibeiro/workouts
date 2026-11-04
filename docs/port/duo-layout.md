@@ -47,8 +47,11 @@ status bar, toolbar items, tab bar. Rules that follow:
 
 ## The inner display
 
-- Tab bar as sidebar: opt in with `.defaultAdaptableTabBarPlacement(.sidebar)` (verified in the
-  27.2 SDK; Apple's talk spells it `.defaultTabBarPlacement(.sidebar)`, check which compiles).
+- Tab bar as sidebar: opt in with `.defaultTabBarPlacement(.sidebar)`. Its doc: it applies "where the `sidebarAdaptable` style
+  statically resolves to either a sidebar or tab bar, such as iPhone"; `defaultAdaptableTabBarPlacement` is "only effective on
+  iPadOS", so on the Duo it leaves the trailing strip and no sidebar (verified in the 27.2 simulator). Open wide shows the
+  sidebar expanded; open tall shows it collapsed behind a toggle, with regular width in both, so size class does not say whether
+  it is visible. `.sidebarOnly` still leaks into the 27.2 bar, so template tabs are built only at regular width.
   Apple: a sidebar is "best for information-dense apps". Our Templates section lives there.
 - Split views expand on the inner display and collapse on the outer; `NavigationSplitView`
   adjusts column widths and margins to the fold on its own. Show one more level of hierarchy

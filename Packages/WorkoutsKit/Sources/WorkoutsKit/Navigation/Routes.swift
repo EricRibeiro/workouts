@@ -1,10 +1,16 @@
 import Foundation
 
-/// The three top-level tabs, in Eric's order (DECISIONS "Navigation and layout": History · Workout · Exercises).
-public enum AppTab: String, CaseIterable, Hashable, Sendable {
+/// The selectable tabs: the three top-level ones, in Eric's order (DECISIONS "Navigation and layout": History · Workout ·
+/// Exercises), and one sidebar-only tab per template (PLAN 3.7), which never appears in the compact bar.
+public enum AppTab: Hashable, Sendable {
     case history
     case workout
     case exercises
+    /// A template's sidebar tab, rendering its preview; the id is the `Template.id`.
+    case template(UUID)
+
+    /// The tabs of the compact bar, in order.
+    public static let main: [AppTab] = [.history, .workout, .exercises]
 
     /// Workout is the default selection (DECISIONS "Navigation and layout").
     public static let `default`: AppTab = .workout

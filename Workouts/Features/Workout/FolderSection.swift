@@ -8,8 +8,8 @@ import WorkoutsKit
 
 /// One folder on the Workout tab: a header over a grid of its template cards (tasks 3.1, 3.2a).
 ///
-/// The collapsed flag is per-device `@AppStorage`, keyed by the folder id (never synced). It drives only the header; when
-/// `showsHeader` is false (a visible sidebar lists the folders) the cards show unconditionally under no header.
+/// The collapsed flag is per-device `@AppStorage`, keyed by the folder id (never synced). It drives only the header, which
+/// always shows (also beside an expanded sidebar, which lists the folders too).
 struct FolderSection: View {
     let folder: TemplateFolder
     /// `folder.name`, read by the list's body so a rename re-renders the header (see `FolderHeader`).
@@ -19,7 +19,6 @@ struct FolderSection: View {
     let namespace: Namespace.ID
     let open: (Template) -> Void
     let actions: TemplateCardActions
-    let showsHeader: Bool
     let canMoveUp: Bool
     let canMoveDown: Bool
     let rename: () -> Void
@@ -36,7 +35,6 @@ struct FolderSection: View {
         namespace: Namespace.ID,
         open: @escaping (Template) -> Void,
         actions: TemplateCardActions,
-        showsHeader: Bool,
         canMoveUp: Bool,
         canMoveDown: Bool,
         rename: @escaping () -> Void,
@@ -50,7 +48,6 @@ struct FolderSection: View {
         self.namespace = namespace
         self.open = open
         self.actions = actions
-        self.showsHeader = showsHeader
         self.canMoveUp = canMoveUp
         self.canMoveDown = canMoveDown
         self.rename = rename
@@ -62,24 +59,20 @@ struct FolderSection: View {
     /// The `UserDefaults` key of a folder's collapsed flag.
     static func collapsedKey(for id: UUID) -> String { "workoutFolderCollapsed.\(id.uuidString)" }
 
-    private var showsRows: Bool { !showsHeader || !collapsed }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            if showsHeader {
-                FolderHeader(
-                    id: folder.id,
-                    name: name,
-                    count: templates.count,
-                    collapsed: $collapsed,
-                    canMoveUp: canMoveUp,
-                    canMoveDown: canMoveDown,
-                    rename: rename,
-                    move: move,
-                    delete: delete
-                )
-            }
-            if showsRows, !templates.isEmpty {
+            FolderHeader(
+                id: folder.id,
+                name: name,
+                count: templates.count,
+                collapsed: $collapsed,
+                canMoveUp: canMoveUp,
+                canMoveDown: canMoveDown,
+                rename: rename,
+                move: move,
+                delete: delete
+            )
+            if !collapsed, !templates.isEmpty {
                 TemplateGrid(
                     templates: templates,
                     finishedWorkouts: finishedWorkouts,

@@ -112,7 +112,7 @@ Live Activity → notifications → logging, then templates, exercises, history.
   all-words accent-insensitive search over name and aliases, archive rule. Needs: 0.1, 0.2. Proof: `./dev kit Library`.
 - [x] **0.4 Settings store** `WorkoutsKit/Settings/SettingsStore`: `@Observable`, `UserDefaults` backend behind a protocol,
   `DECISIONS.md` defaults, one key list. Proof: `./dev kit Settings`.
-- [x] **0.5a Shell and tabs**: `TabView(.sidebarAdaptable)` + `.defaultAdaptableTabBarPlacement(.sidebar)`, empty History · Workout
+- [x] **0.5a Shell and tabs**: `TabView(.sidebarAdaptable)` + `.defaultTabBarPlacement(.sidebar)`, empty History · Workout
   · Exercises skeletons (Workout selected), Settings gear + `tabViewSidebarBottomBar` + empty Form sheet. Proof: `./dev run` +
   closed-pose screenshot (record where the bar lands).
 - [x] **0.5b ArrangementView cover spike**: empty root `fullScreenCover` holding an empty `ArrangementView` (spike for 2.10).
@@ -203,7 +203,7 @@ Live Activity → notifications → logging, then templates, exercises, history.
 
 ### Phase 3 — Workout tab (templates)
 
-- [x] **3.1 Folders**: per-device `@AppStorage` collapse flag per folder (header only; headers dropped beside a visible sidebar),
+- [x] **3.1 Folders**: per-device `@AppStorage` collapse flag per folder (header only; the headers always show),
   `contextMenu` on headers (rename, reorder, delete with move-or-delete dialogs), New Folder in the Add menu. Needs: 2.4, 0.9, 0.10.
   Proof: preview + flow.
 - [x] **3.2a Template grid + cards**: width-derived even columns, Fitness-shaped cards (section 3), `matchedTransitionSource`, tap
@@ -222,7 +222,7 @@ Live Activity → notifications → logging, then templates, exercises, history.
 - [ ] **3.6 Editor block actions**: exercise-header `ellipsis.circle` menu (note, Add Warm-up Sets, Update Rest Timers, Replace
   via the picker, Create/Edit Superset, Preferences unit/bar/rest per row, Remove); the Sticky Note entry arrives with 4.5. Needs:
   3.4, 3.5, 0.10. Proof: flow.
-- [ ] **3.7 Sidebar Templates sections**: `TabSection` per folder, `.sidebarOnly` template tabs rendering the preview,
+- [x] **3.7 Sidebar Templates sections**: `TabSection` per folder, `.sidebarOnly` template tabs rendering the preview,
   `.sectionActions` "New Template". Needs: 3.3. Proof: open-Duo screenshot; compact bar unchanged.
 - [ ] **3.8 Design review: Workout tab** (skill `design-review`): grid, cards, preview, editor, sidebar; seeded with: cards must
   read as Fitness's (fill, no rim, title row with chevron, four text levels), superset colours distinguishable from each other and
@@ -308,8 +308,9 @@ Live Activity → notifications → logging, then templates, exercises, history.
 - **Hinge APIs are real**: SwiftUI `onHingeChange(isEnabled:_:)` (iOS 27.1) and UIKit `UIHinge`. The simulator's fold is not
   scriptable (`verify-ui`), so 6.1 is verified by Device Hub screenshot. `ArrangementView` inside a `fullScreenCover` +
   `NavigationStack` is undocumented: 0.5 spikes it before 2.10 relies on it.
-- **Sidebar placement**: without `defaultAdaptableTabBarPlacement(.sidebar)` the bar is iPad-style on regular width, and template
-  `Tab`s without `.tabPlacement(.sidebarOnly)` leak into the compact bar (screenshots in 0.5, 3.7).
+- **Sidebar placement**: without `defaultTabBarPlacement(.sidebar)` the Duo shows only the trailing strip, never the sidebar, and template
+  `Tab`s leak into the compact bar even with `.tabPlacement(.sidebarOnly)` in 27.2, so they are built only at regular width
+  (screenshots in 0.5, 3.7).
 - **Live Activity cannot update itself while the app is suspended** (no push server): 0:00 and the time-sensitive notification
   are the "rest over" signals.
 - **SwiftData + CloudKit**: no unique constraints, optional relationships, additive-only migrations once CloudKit is on; keep

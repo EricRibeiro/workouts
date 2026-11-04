@@ -70,7 +70,9 @@ Change poses with `./dev fold closed|half-open|open [png]` and `./dev orient por
 (agent-device, pinned in `dev`; it sends the simulator's own HID hinge event and confirms the hinge angle). The optional
 png captures whichever panel is lit: 466x678 pt closed (outer), 951x669 open, 669x951 open rotated. Plain
 `./dev screenshot` may capture a dark panel once the Duo is open, so use the fold/orient capture there. Every
-coordinate and accessibility ref is stale after a pose change. Finish a run with `./dev orient portrait` and
+coordinate and accessibility ref is stale after a pose change. After `fold open`, `./dev orient portrait` gives the wide layout (951x669, sidebar expanded)
+and `./dev orient landscape-left` the tall one (669x951, sidebar collapsed behind its toggle); the names are the reverse of the
+PNG shape. Finish a run with `./dev orient portrait` and
 `./dev fold closed` so the next agent starts from the default pose. Device Hub
 (`/Applications/Xcode.app/Contents/Applications/DeviceHub.app`) remains the manual fallback.
 
