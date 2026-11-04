@@ -244,7 +244,7 @@ Live Activity → notifications → logging, then templates, exercises, history.
 - [ ] **4.5 Sticky note** editor in the detail, shared with the logging pane; swaps `ExerciseDetailView(embedded)` into
   `ExercisePane` (2.10, 3.4), adds 3.6's Sticky Note entry and re-proves the 2.10 fold flow. Needs: 4.2, 2.10, 3.6, 0.9, 0.10. Proof: preview
   + flow.
-- [ ] **4.6 Natural-language exercise search** (kit + app; `DECISIONS.md` "Native layer"): kit `ExerciseQuery` (Codable, Sendable:
+- [x] **4.6 Natural-language exercise search** (kit + app; `DECISIONS.md` "Native layer"): kit `ExerciseQuery` (Codable, Sendable:
   `bodyParts`, `categories`, `equipment`, `words`) and `ExerciseStore.matches(_ query:)` layered on 0.3's all-words search; app-target
   `ExerciseQueryParser` (`import FoundationModels`, never in the kit) with a `@Generable` mirror of `ExerciseQuery`, one
   `LanguageModelSession` prewarmed on tab appear, `respond(to:generating:)` on the debounced `.searchable` text **only when the plain

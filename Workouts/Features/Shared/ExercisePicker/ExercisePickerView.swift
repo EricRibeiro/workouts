@@ -33,6 +33,7 @@ struct ExercisePickerView: View {
     @State private var selection = ExerciseSelection()
     @State private var peeked: ExerciseInfo?
     @State private var isCreating = false
+    @State private var naturalMatch: NaturalSearchMatch?
 
     init(title: String = "Add Exercise", mode: ExercisePickerMode) {
         self.title = title
@@ -50,7 +51,13 @@ struct ExercisePickerView: View {
     }
 
     var body: some View {
-        let results = ExerciseFilter.results(in: store, query: query, bodyPart: bodyPart, category: category)
+        let plain = store.search(query)
+        // Only when the plain search found nothing and the parser answered for this exact text (PLAN 4.6).
+        let results = ExerciseFilter.apply(
+            plain.isEmpty ? naturalResults : plain,
+            bodyPart: bodyPart,
+            category: category
+        )
         NavigationStack {
             List {
                 filterRow
@@ -78,6 +85,7 @@ struct ExercisePickerView: View {
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $query, prompt: "Search exercises")
+            .naturalLanguageSearch(text: query, match: $naturalMatch)
             .accessibilityIdentifier("picker.search")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -124,6 +132,11 @@ struct ExercisePickerView: View {
             }
         }
         .accessibilityIdentifier("screen.exercisePicker")
+    }
+
+    private var naturalResults: [ExerciseInfo] {
+        guard let naturalMatch, naturalMatch.text == query else { return [] }
+        return store.matches(naturalMatch.query)
     }
 
     private var trimmedQuery: String { query.trimmingCharacters(in: .whitespacesAndNewlines) }

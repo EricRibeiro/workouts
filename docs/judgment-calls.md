@@ -89,3 +89,9 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
     a dedicated result alert (decode and version errors read plainly).
 36. **Template cards** (3.2a): 160 pt minimum so the closed Duo shows two columns like Fitness; "Last performed" from the
     newest finished workout linked to the template, else same name; long exercise names truncate on narrow cards.
+37. **Phase 5 review accepted** (docs/reviews/phase-5.md). Taste rows decided per the reviewer: duration gets a number field +
+    stepper (reverses JC32), "workouts this week", `doc.on.doc` for Save as Template, plainer iCloud copy (reverses JC18's
+    copy), `.headline` row titles everywhere, card heights equalised (reverses JC24). R5-06/R5-14 tokens deferred to a sweep.
+38. **Natural-language search** (4.6): runs only when plain search finds nothing and the model is available; 400 ms debounce;
+    a fresh prewarmed session per parse (no transcript leakage); body-part/category pills still apply on top of parsed
+    results. Verified with the real model on the simulator ("rear delts with dumbbells" → shoulder dumbbell exercises).

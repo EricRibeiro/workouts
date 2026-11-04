@@ -21,6 +21,7 @@ struct ExercisesView: View {
     @State private var category: String?
     @State private var showRetired = false
     @State private var isCreating = false
+    @State private var naturalMatch: NaturalSearchMatch?
     @Namespace private var zoomNamespace
 
     var body: some View {
@@ -36,18 +37,23 @@ struct ExercisesView: View {
         }
     }
 
+    private var naturalResults: [ExerciseInfo] {
+        guard let naturalMatch, naturalMatch.text == query else { return [] }
+        return store.matches(naturalMatch.query, includeRetired: showRetired)
+    }
+
     private var selectionExists: Bool {
         guard case .exercise(let id) = selection else { return true }
         return store.exercise(id: id) != nil
     }
 
     private var list: some View {
-        let results = ExerciseFilter.results(
-            in: store,
-            query: query,
+        let plain = store.search(query, includeRetired: showRetired)
+        // Only when the plain search found nothing and the parser answered for this exact text (PLAN 4.6).
+        let results = ExerciseFilter.apply(
+            plain.isEmpty ? naturalResults : plain,
             bodyPart: bodyPart,
-            category: category,
-            includeRetired: showRetired
+            category: category
         )
         let labels = store.catalog.labels
         return List(selection: $selection) {
@@ -95,6 +101,7 @@ struct ExercisesView: View {
                 .presentationPlacement(.center)
         }
         .searchable(text: $query, prompt: "Search exercises")
+        .naturalLanguageSearch(text: query, includeRetired: showRetired, match: $naturalMatch)
         .task(id: Fingerprint(finished)) {
             bestSets = ExerciseBestSets.texts(
                 from: ExerciseBestSets.sessions(from: finished) { store.exercise(id: $0)?.weightType },
