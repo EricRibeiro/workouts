@@ -31,6 +31,14 @@ struct SetTableSection: Identifiable, Hashable {
     var rows: [SetRowModel]
 }
 
+/// A rest in progress as the keyboard group shows it (`DECISIONS.md` "Rest UI"): when it ends and the two actions. The table
+/// stays engine-agnostic; only the active source supplies one.
+struct SetTableRest {
+    let endsAt: Date
+    let skip: () -> Void
+    let add30: () -> Void
+}
+
 /// What `SetTable` needs from its owner, in the same shape for every mode. Rows are addressed by `SetRowModel.id`, sections
 /// by `SetTableSection.id`. Actions are fire-and-forget: the source persists, then the table re-reads `sections`, so the
 /// view never holds state of its own besides focus. Implementations are observable through the models they read (the
@@ -55,8 +63,11 @@ protocol SetTableDataSource {
     func deleteSet(_ setID: UUID)
     /// Rewrites the exercise order; `order` holds every section id exactly once.
     func reorder(_ order: [UUID])
+    /// The rest running now, or nil; the keyboard group shows it with Skip and +30 s.
+    var rest: SetTableRest? { get }
 }
 
 extension SetTableDataSource {
     var checkedSetCount: Int { 0 }
+    var rest: SetTableRest? { nil }
 }

@@ -177,7 +177,7 @@ Live Activity → notifications → logging, then templates, exercises, history.
 - [x] **2.5 Rest ring item** per `DECISIONS.md`: idle `Menu` + "Custom…" two-wheel sheet, running expanded sheet (trailing placement)
   with the −10 s / +10 s / Skip group, custom `ProgressViewStyle` ring. Needs: 1.2, 2.4, 0.10. Proof: flow (pick 1:00, adjust, Skip;
   create a custom).
-- [ ] **2.6 Rest toolbar group and minimise**: Skip / +30 s group while a rest runs, countdown + Skip + +30 s in the keyboard
+- [x] **2.6 Rest toolbar group and minimise**: Skip / +30 s group while a rest runs, countdown + Skip + +30 s in the keyboard
   group, Minimise in the Close slot. Needs: 2.5, 0.10. Proof: flow (check a set → ring counts down, Skip ends it, Minimise returns).
 - [ ] **2.7 Resume control**: the ring `ToolbarItem` (elapsed when no rest runs) from a shared `ViewModifier` on every screen's
   root; additive `tabViewSidebarBottomBar` card while the sidebar is visible; tap restores the cover; relaunch restores the cover

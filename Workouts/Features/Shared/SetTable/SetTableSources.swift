@@ -71,6 +71,15 @@ struct EngineSetTableSource: SetTableDataSource {
         exercises.reduce(0) { $0 + ($1.sets ?? []).filter(\.completed).count }
     }
 
+    var rest: SetTableRest? {
+        guard let endsAt = engine.restTimer.endsAt else { return nil }
+        return SetTableRest(
+            endsAt: endsAt,
+            skip: { try? engine.skipRest() },
+            add30: { try? engine.adjustRest(by: 30) }
+        )
+    }
+
     func cycleKind(of setID: UUID) {
         guard let set = set(setID) else { return }
         try? engine.setKind(set, to: SetInputFormat.nextKind(after: set.kind))

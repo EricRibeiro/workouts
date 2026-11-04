@@ -53,7 +53,8 @@ struct SetTable: View {
             step: { direction in step(direction, in: sections) },
             previous: { if let field = focus { source.applyPrevious(to: field.setID) } },
             next: { focusNext(in: sections) },
-            done: { focus = nil }
+            done: { focus = nil },
+            rest: source.rest
         )
         .setHaptics(checkedSetCount: source.mode == .active ? source.checkedSetCount : 0)
         .accessibilityIdentifier("settable")

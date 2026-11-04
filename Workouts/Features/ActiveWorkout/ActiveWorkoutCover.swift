@@ -18,6 +18,7 @@ struct ActiveWorkoutCover: View {
     @Environment(ExerciseStore.self) private var store: ExerciseStore?
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var isPickerPresented = false
+    @State private var minimiseCount = 0
 
     var body: some View {
         NavigationStack {
@@ -34,13 +35,26 @@ struct ActiveWorkoutCover: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Minimise", systemImage: "chevron.down", action: minimise)
-                        .accessibilityLabel("Minimise")
-                        .accessibilityIdentifier("cover.minimise")
+                    Button("Minimise", systemImage: "chevron.down") {
+                        minimiseCount += 1
+                        minimise()
+                    }
+                    .accessibilityLabel("Minimise")
+                    .accessibilityIdentifier("cover.minimise")
                 }
                 if engine?.workout != nil {
                     ToolbarItem(placement: .primaryAction) {
                         RestRingItem()
+                    }
+                    if let engine, engine.restTimer.isActive {
+                        ToolbarItemGroup(placement: .primaryAction) {
+                            Button("Skip", systemImage: "forward.end") { try? engine.skipRest() }
+                                .accessibilityLabel("Skip rest")
+                                .accessibilityIdentifier("rest.toolbar.skip")
+                            Button("+30 s", systemImage: "goforward.30") { try? engine.adjustRest(by: 30) }
+                                .accessibilityLabel("Add 30 seconds")
+                                .accessibilityIdentifier("rest.toolbar.plus30")
+                        }
                     }
                     ToolbarItem(placement: .primaryAction) {
                         Button("Add Exercise", systemImage: "plus") { isPickerPresented = true }
@@ -63,6 +77,7 @@ struct ActiveWorkoutCover: View {
         // UIKit: SwiftUI has no idle-timer API.
         .onAppear { UIApplication.shared.isIdleTimerDisabled = SettingsStore().keepScreenOn }
         .onDisappear { UIApplication.shared.isIdleTimerDisabled = false }
+        .sensoryFeedback(.selection, trigger: minimiseCount)
         .accessibilityIdentifier("screen.activeWorkout")
     }
 

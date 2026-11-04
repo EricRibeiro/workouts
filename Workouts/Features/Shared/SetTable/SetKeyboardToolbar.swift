@@ -12,16 +12,39 @@ import WorkoutsKit
 ///
 /// `step` is a −1 / +1 step press. `previous` copies the previous set into the focused row. `next` moves focus
 /// (weight → reps → next row's weight) and dismisses after the last field. `done` only closes the keyboard; it never checks.
+/// While a rest runs (`rest` non-nil) the group starts with its countdown, Skip and +30 s.
 struct SetKeyboardToolbar: ViewModifier {
     let step: (SetKeyboard.Direction) -> Void
     let previous: () -> Void
     let next: () -> Void
     let done: () -> Void
+    var rest: SetTableRest?
 
     func body(content: Content) -> some View {
         content
             .toolbar {
                 ToolbarItemGroup(placement: .keyboard) {
+                    if let rest {
+                        Text(timerInterval: min(.now, rest.endsAt)...rest.endsAt, countsDown: true)
+                            .font(.body.monospacedDigit())
+                            .accessibilityLabel("Rest remaining")
+                            .accessibilityIdentifier("rest.keyboard.countdown")
+
+                        Button(action: rest.skip) {
+                            Label("Skip", systemImage: "forward.end")
+                        }
+                        .accessibilityLabel("Skip rest")
+                        .accessibilityIdentifier("rest.keyboard.skip")
+
+                        Button(action: rest.add30) {
+                            Label("Add 30 seconds", systemImage: "goforward.30")
+                        }
+                        .accessibilityLabel("Add 30 seconds")
+                        .accessibilityIdentifier("rest.keyboard.plus30")
+
+                        Spacer()
+                    }
+
                     Button {
                         step(.decrement)
                     } label: {
@@ -69,8 +92,9 @@ extension View {
         step: @escaping (SetKeyboard.Direction) -> Void,
         previous: @escaping () -> Void,
         next: @escaping () -> Void,
-        done: @escaping () -> Void
+        done: @escaping () -> Void,
+        rest: SetTableRest? = nil
     ) -> some View {
-        modifier(SetKeyboardToolbar(step: step, previous: previous, next: next, done: done))
+        modifier(SetKeyboardToolbar(step: step, previous: previous, next: next, done: done, rest: rest))
     }
 }
