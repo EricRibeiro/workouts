@@ -163,7 +163,7 @@ and commit in `docs/testflight.md`. A failed upload is reported, not retried in 
 
 ## Secrets (App Store Connect key)
 
-The App Store Connect API key lives only in 1Password (`op://Homelab/App Store Connect API/…`). The **only** code that
+The App Store Connect API key lives only in 1Password (`op://Homelab/Apple App Store Connect API/…`). The **only** code that
 touches it is `./dev testflight`, which pipes `op read` into a mode-600 file in a fresh `mktemp -d` that a trap deletes
 on exit. Never `op read` the key yourself, echo or `cat` it, put it in a variable, env var, argument, log, scratch file,
 commit, PR or chat, or copy a `.p8` anywhere. Key ID and Issuer ID are not secret. If a task seems to need the key some

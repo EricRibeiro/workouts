@@ -473,8 +473,8 @@ cmd_testflight() {
   command -v op >/dev/null 2>&1 || die "testflight: the 1Password CLI (op) is not installed"
 
   local key_id issuer_id build
-  key_id=$(op read "op://Homelab/App Store Connect API/key id" 2>/dev/null) || die "testflight: could not read the key id from 1Password"
-  issuer_id=$(op read "op://Homelab/App Store Connect API/issuer id" 2>/dev/null) || die "testflight: could not read the issuer id from 1Password"
+  key_id=$(op read "op://Homelab/Apple App Store Connect API/key id" 2>/dev/null) || die "testflight: could not read the key id from 1Password"
+  issuer_id=$(op read "op://Homelab/Apple App Store Connect API/issuer id" 2>/dev/null) || die "testflight: could not read the issuer id from 1Password"
   [[ -n "$key_id" && -n "$issuer_id" ]] || die "testflight: an App Store Connect API id is empty"
 
   trap tf_cleanup EXIT
@@ -486,7 +486,7 @@ cmd_testflight() {
   local key_file="$TF_TMP/AuthKey_${key_id}.p8"
   # The vault stores the PEM on one line, spaces where the newlines were. Keep the BEGIN/END markers, strip every space
   # from the body and re-wrap it at 64 columns. The key only ever flows through this pipe into the file.
-  if ! op read "op://Homelab/App Store Connect API/auth key" 2>/dev/null | awk '
+  if ! op read "op://Homelab/Apple App Store Connect API/auth key" 2>/dev/null | awk '
       { s = s $0 }
       END {
         gsub(/-----BEGIN PRIVATE KEY-----/, "", s); gsub(/-----END PRIVATE KEY-----/, "", s); gsub(/[ \t\r]/, "", s)
