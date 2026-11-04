@@ -1,0 +1,76 @@
+//
+//  SetKeyboardToolbar.swift
+//  Workouts
+//
+
+import SwiftUI
+import WorkoutsKit
+
+/// The keyboard accessory group of the set table (task 2.2b, `DECISIONS.md` "Keyboard"): −step, +step, Previous, Next and
+/// Done, installed as a `.keyboard` `ToolbarItemGroup`. It never touches the engine; the table supplies closures that act on
+/// whichever field has focus, and `SetKeyboard` (kit) decides step sizes and the Next order.
+///
+/// `step` is a −1 / +1 step press. `previous` copies the previous set into the focused row. `next` moves focus
+/// (weight → reps → next row's weight) and dismisses after the last field. `done` only closes the keyboard; it never checks.
+struct SetKeyboardToolbar: ViewModifier {
+    let step: (SetKeyboard.Direction) -> Void
+    let previous: () -> Void
+    let next: () -> Void
+    let done: () -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .toolbar {
+                ToolbarItemGroup(placement: .keyboard) {
+                    Button {
+                        step(.decrement)
+                    } label: {
+                        Label("Decrease", systemImage: "minus")
+                    }
+                    .accessibilityLabel("Decrease by one step")
+                    .accessibilityIdentifier("setkeyboard.minus")
+
+                    Button {
+                        step(.increment)
+                    } label: {
+                        Label("Increase", systemImage: "plus")
+                    }
+                    .accessibilityLabel("Increase by one step")
+                    .accessibilityIdentifier("setkeyboard.plus")
+
+                    Button(action: previous) {
+                        Label("Previous", systemImage: "arrow.uturn.backward")
+                    }
+                    .accessibilityLabel("Copy previous set")
+                    .accessibilityIdentifier("setkeyboard.previous")
+
+                    Spacer()
+
+                    Button(action: next) {
+                        Label("Next", systemImage: "chevron.right")
+                    }
+                    .accessibilityLabel("Next field")
+                    .accessibilityIdentifier("setkeyboard.next")
+
+                    Button(action: done) {
+                        Label("Done", systemImage: "keyboard.chevron.compact.down")
+                    }
+                    .accessibilityLabel("Done")
+                    .accessibilityHint("Closes the keyboard")
+                    .accessibilityIdentifier("setkeyboard.done")
+                }
+            }
+    }
+}
+
+extension View {
+    /// Installs the set keyboard's accessory group; see `SetKeyboardToolbar`.
+    func setKeyboardToolbar(
+        step: @escaping (SetKeyboard.Direction) -> Void,
+        previous: @escaping () -> Void,
+        next: @escaping () -> Void,
+        done: @escaping () -> Void
+    ) -> some View {
+        modifier(SetKeyboardToolbar(step: step, previous: previous, next: next, done: done))
+    }
+}

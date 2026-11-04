@@ -165,7 +165,7 @@ Live Activity → notifications → logging, then templates, exercises, history.
 - [x] **2.2a Set row**: one row (set · previous · weight · reps · ✓), kind cycling normal → W → D → F, Previous tap copies,
   per-cell `@FocusState`, `.decimalPad`, `ViewThatFits` two-line row at AX sizes. Needs: 0.7, 0.9, 0.10. Proof: previews at
   `.large` and `.accessibility3`, both widths.
-- [ ] **2.2b Keyboard group and haptics**: keyboard group (−step, +step, Previous, Done, Next), `.sensoryFeedback` on engine
+- [x] **2.2b Keyboard group and haptics**: keyboard group (−step, +step, Previous, Done, Next), `.sensoryFeedback` on engine
   counters. Needs: 0.7, 0.9, 0.10, 2.2a. Proof: preview + flow.
 - [ ] **2.3 SetTable** (`Workouts/Features/Shared/SetTable`): modes template/active/past; exercise `Section` headers per section
   3; `LazyVStack` in `swipeActionsContainer()` for set Delete; block reorder via `.reorderable()` + `reorderContainer(for:)`;

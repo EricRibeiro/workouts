@@ -23,20 +23,13 @@ struct SetRowModel: Identifiable, Hashable {
     var weightPlaceholder: String = "–"
     var repsPlaceholder: String = "–"
     var unit: WeightUnit = .kg
+    /// Decides the keyboard's weight step (barbells jump by double).
+    var weightType: WeightType = .weighted
     var measure: SetInputFormat.Measure = .reps
     /// False for exercises that have no weight column.
     var showsWeight: Bool = true
 }
 
 /// One focusable cell of a set row. The set table owns a single `@FocusState<SetRowField?>` so the keyboard's Next can move
-/// weight → reps → the next row's weight (task 2.2b).
-struct SetRowField: Hashable {
-    enum Column: Hashable {
-        case weight
-        /// Reps, or the duration field of a time exercise.
-        case reps
-    }
-
-    var setID: UUID
-    var column: Column
-}
+/// weight → reps → the next row's weight (`SetKeyboard.nextField`, task 2.2b). Defined in the kit so the order is tested there.
+typealias SetRowField = SetKeyboard.Field

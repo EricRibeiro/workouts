@@ -201,6 +201,43 @@ struct SetRow: View {
                 .padding(.top, 16)
             }
             .accessibilityIdentifier("screen.setRowDemo")
+            .setKeyboardToolbar(
+                step: { direction in stepFocused(direction) },
+                previous: { if let field = focus { applyPrevious(field.setID) } },
+                next: { focusNext() },
+                done: { focus = nil }
+            )
+            .setHaptics(checkedSetCount: rows.filter(\.isChecked).count)
+        }
+
+        private func stepFocused(_ direction: SetKeyboard.Direction) {
+            guard let field = focus, let row = rows.first(where: { $0.id == field.setID }) else { return }
+            switch field.column {
+            case .weight:
+                let text = SetKeyboard.stepped(
+                    row.weightText,
+                    column: .weight,
+                    direction: direction,
+                    unit: row.unit,
+                    weightType: row.weightType
+                )
+                update(row.id) { $0.weightText = text }
+            case .reps:
+                let text = SetKeyboard.stepped(
+                    row.repsText,
+                    column: .reps,
+                    direction: direction,
+                    unit: row.unit,
+                    weightType: row.weightType
+                )
+                update(row.id) { $0.repsText = text }
+            }
+        }
+
+        private func focusNext() {
+            guard let field = focus else { return }
+            let weightless = Set(rows.filter { !$0.showsWeight }.map(\.id))
+            focus = SetKeyboard.nextField(after: field, in: rows.map(\.id), weightlessSetIDs: weightless)
         }
 
         private func update(_ id: UUID, _ change: (inout SetRowModel) -> Void) {
