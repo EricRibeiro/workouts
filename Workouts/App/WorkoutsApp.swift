@@ -88,19 +88,23 @@ struct WorkoutsApp: App {
 
     #if DEBUG
         /// `-startSampleWorkout`: seeds the sample data when the store has no templates, then starts a workout from the
-        /// first template (if none runs) and a 5-minute rest, so the Live Activity can be shown without any UI.
+        /// first template (if none runs), then always starts a 5-minute rest, so the Live Activity can be shown without any UI.
         @MainActor
         private static func startSampleWorkoutIfRequested(engine: ActiveWorkoutEngine, context: ModelContext) throws {
             guard ProcessInfo.processInfo.arguments.contains("-startSampleWorkout") else { return }
             if try context.fetchCount(FetchDescriptor<Template>()) == 0 {
                 try SampleData.seed(into: context, catalog: LibraryCatalog.bundled(in: .main))
             }
-            guard engine.workout == nil else { return }
-            var descriptor = FetchDescriptor<Template>(sortBy: [SortDescriptor(\.position), SortDescriptor(\.name)])
-            descriptor.fetchLimit = 1
-            guard let template = try context.fetch(descriptor).first else { return }
-            try engine.start(from: template)
-            try engine.startRest(seconds: 300)
+            if engine.workout == nil {
+                var descriptor = FetchDescriptor<Template>(sortBy: [SortDescriptor(\.position), SortDescriptor(\.name)])
+                descriptor.fetchLimit = 1
+                guard let template = try context.fetch(descriptor).first else { return }
+                try engine.start(from: template)
+            }
+            // `-sampleRestSeconds N` (launch arguments land in UserDefaults) shortens it, e.g. to prove the rest-end
+            // notification.
+            let seconds = UserDefaults.standard.integer(forKey: "sampleRestSeconds")
+            try engine.startRest(seconds: seconds > 0 ? seconds : 300)
         }
     #endif
 }
