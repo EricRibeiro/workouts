@@ -23,6 +23,7 @@ protocol NotificationCenterProviding: AnyObject {
 
 /// The real center.
 final class SystemNotificationCenter: NotificationCenterProviding {
+    private nonisolated static let logger = Logger(subsystem: "com.ericribeiro.Workouts", category: "RestNotifier")
     private var center: UNUserNotificationCenter { .current() }
 
     func authorizationStatus() async -> UNAuthorizationStatus {
@@ -38,7 +39,14 @@ final class SystemNotificationCenter: NotificationCenterProviding {
     }
 
     func schedule(_ request: UNNotificationRequest) {
-        center.add(request, withCompletionHandler: nil)
+        let identifier = request.identifier
+        center.add(request) { error in
+            if let error {
+                Self.logger.error("Scheduling \(identifier) failed: \(error.localizedDescription)")
+            } else {
+                Self.logger.info("Scheduled \(identifier)")
+            }
+        }
     }
 
     func removePending(identifiers: [String]) {
@@ -134,6 +142,8 @@ final class RestNotifier: NSObject {
     /// schedules nothing (the rest ended; nothing is left to announce, and a request in the past would be refused).
     func sync(plan: RestNotificationPlan?) {
         let ids = [RestNotificationPlan.identifier]
+        let remainingText = plan.map { String($0.fireDate.timeIntervalSince(now())) } ?? "none"
+        logger.info("sync plan=\(plan == nil ? "nil" : "present") remaining=\(remainingText)")
         guard let plan else {
             center.removePending(identifiers: ids)
             center.removeDelivered(identifiers: ids)

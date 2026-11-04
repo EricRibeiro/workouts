@@ -274,6 +274,13 @@ agent_device_do() { # agent_device_do <fold|orientation> <value> [screenshot.png
   "${AGENT_DEVICE[@]}" close --udid "$udid" >/dev/null 2>&1 || true
   return "$rc"
 }
+cmd_home() { # background the app (Home screen) so the Live Activity / notifications show; the session is always closed
+  local udid; udid=$(booted_udid); [[ -n "$udid" ]] || die "$DEV_SIM is not booted; ./dev run first"
+  local rc=0
+  "${AGENT_DEVICE[@]}" open com.apple.springboard --platform ios --udid "$udid" >/dev/null || rc=$?
+  "${AGENT_DEVICE[@]}" close --udid "$udid" >/dev/null 2>&1 || true
+  return "$rc"
+}
 cmd_fold() { [[ "${1:-}" =~ ^(closed|half-open|open)$ ]] || die "usage: fold closed|half-open|open [screenshot.png]"; agent_device_do fold "$1" "${2:-}"; }
 cmd_orient() { [[ "${1:-}" =~ ^(portrait|portrait-upside-down|landscape-left|landscape-right)$ ]] || die "usage: orient portrait|landscape-left|landscape-right|portrait-upside-down [screenshot.png]"; agent_device_do orientation "$1" "${2:-}"; }
 
@@ -300,6 +307,7 @@ lint               swift-format lint --strict
 format             swift-format in place
 run [-- args]      boot sim, build, install, launch; args go to the app (-- -preview <Name>); prints log command
 screenshot [path]  simulator screenshot (default .build/screenshots/<timestamp>.png)
+home               send the app to the background (Home screen); agent-device session closed after
 fold <pose> [png]  Duo hinge: closed|half-open|open (agent-device); png = capture of the lit panel
 orient <o> [png]   portrait|landscape-left|landscape-right|portrait-upside-down; png as for fold
 clean              rm -rf .build
@@ -320,6 +328,7 @@ case "$sub" in
   format) cmd_format ;;
   run) sim_guarded cmd_run "$@" ;;
   screenshot) sim_guarded cmd_screenshot "$@" ;;
+  home) sim_guarded cmd_home ;;
   fold) sim_guarded cmd_fold "$@" ;;
   orient) sim_guarded cmd_orient "$@" ;;
   clean) cmd_clean ;;

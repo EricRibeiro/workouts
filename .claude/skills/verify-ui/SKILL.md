@@ -84,8 +84,9 @@ they run. If that happens: stop, `xcrun simctl shutdown all`, and report it. Nev
 ## Live Activity on the simulator (proven 2026-11-03, task 1.5)
 
 1. `./dev run -- -startSampleWorkout` (DEBUG: seeds sample data, starts the first template, starts a 300 s rest).
-2. Background the app: `npx --yes agent-device@0.21.36 open com.apple.springboard --platform ios --udid <Duo udid>`
-   (the MCP's `b h` / `b p` hardware buttons do nothing on this simulator).
+2. Background the app: `./dev home` (the MCP's `b h` / `b p` hardware buttons do nothing on this simulator). Never run
+   agent-device `open` by hand without a matching `close`: a leaked session holds the Duo and every later `./dev fold`
+   fails with DEVICE_IN_USE.
 3. Pull down the Lock Screen view with the MCP: `DeviceInteractionStartSession` on the Duo, then
    `DeviceInteractionSynthesize` `t 150 2 f 150 450 0.4` (closed pose, 466x678 pt). The Live Activity banner is there;
    the first time, the system asks "Allow Live Activities from Workouts?" inside the banner: tap Allow.
