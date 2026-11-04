@@ -144,7 +144,7 @@ Live Activity → notifications → logging, then templates, exercises, history.
   1.3a. Proof: `./dev build`.
 - [x] **1.4 Live Activity views**: lock screen and Island presentations per `DECISIONS.md` (no Island on the inner display). Needs:
   1.3. Proof: `#Preview(as:using:)` renders (MCP) or, without it, Lock Screen/Island simulator screenshots.
-- [ ] **1.5 Live Activity lifecycle + intents**: request/update/end from the engine; Skip / +30 s / Done set as `nonisolated
+- [x] **1.5 Live Activity lifecycle + intents**: request/update/end from the engine; Skip / +30 s / Done set as `nonisolated
   struct` intents in `Workouts/App/Intents/` (`perform()` is nonisolated; under `SWIFT_DEFAULT_ACTOR_ISOLATION=MainActor` the type
   opts out, then `await MainActor.run` into the engine, which first resumes the persisted workout). Needs: 1.2, 1.3. Proof: `./dev
   test Activity` + a Lock Screen tap on the sim.

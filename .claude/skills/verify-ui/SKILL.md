@@ -80,3 +80,16 @@ stop rendering and fix the view (it would crash on device too). Never re-render 
 
 `./dev run|test|ui-test|screenshot|check` fail when a new `SpringBoard-*.ips` crash report appears while
 they run. If that happens: stop, `xcrun simctl shutdown all`, and report it. Never retry past it.
+
+## Live Activity on the simulator (proven 2026-11-03, task 1.5)
+
+1. `./dev run -- -startSampleWorkout` (DEBUG: seeds sample data, starts the first template, starts a 300 s rest).
+2. Background the app: `npx --yes agent-device@0.21.36 open com.apple.springboard --platform ios --udid <Duo udid>`
+   (the MCP's `b h` / `b p` hardware buttons do nothing on this simulator).
+3. Pull down the Lock Screen view with the MCP: `DeviceInteractionStartSession` on the Duo, then
+   `DeviceInteractionSynthesize` `t 150 2 f 150 450 0.4` (closed pose, 466x678 pt). The Live Activity banner is there;
+   the first time, the system asks "Allow Live Activities from Workouts?" inside the banner: tap Allow.
+4. Tap the banner's buttons by coordinates from the screenshot (`t <x> <y> w 3`), read the screenshot after each.
+   Dismiss with `t 233 670 f 233 200 0.3`, then `DeviceInteractionEndSession` (key `interactionSessionKey`) and
+   `npx --yes agent-device@0.21.36 close --udid <udid>`.
+The Dynamic Island is not drawn in simulator screenshots of the closed Duo's strip; use the Lock Screen banner.
