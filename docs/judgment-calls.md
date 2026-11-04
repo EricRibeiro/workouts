@@ -50,3 +50,6 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
     swaps view branches); the pane follows the last focused/tapped block, else the first with an unchecked set, else the
     first block. Open-tall (portrait open) is unverified: `./dev orient` hung there. Draft/focus/scroll across a live fold
     is unverified (XCUITest cannot fold) — for the Phase 2 review.
+23. **Mistake, fixed forward**: b20b73e (2.10) was committed with `LoggingUITests` red — my filter showed only the `check: ok`
+    line. `check` does not run UI tests. From here on every feature commit is preceded by a full `./dev ui-test` read in full.
+    A worker is fixing the red suites (ExerciseList from 4.1b, Logging) on main.
