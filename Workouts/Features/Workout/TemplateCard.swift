@@ -99,38 +99,3 @@ struct TemplateCard: View {
         .accessibilityIdentifier("workout.template.\(template.id.uuidString)")
     }
 }
-
-/// The preview of a template; until task 3.3 it is a placeholder that names the template.
-struct TemplatePreviewPlaceholder: View {
-    let template: Template
-
-    var body: some View {
-        ContentUnavailableView(
-            template.name,
-            systemImage: "dumbbell",
-            description: Text("The template preview arrives in a later task.")
-        )
-        .navigationBarTitleDisplayMode(.inline)
-        .accessibilityIdentifier("template.preview")
-    }
-}
-
-/// The compact-width presentation: a medium-detent sheet with its own stack and a Close item.
-struct TemplatePreviewSheet: View {
-    let template: Template
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        NavigationStack {
-            TemplatePreviewPlaceholder(template: template)
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("Close", systemImage: "xmark") { dismiss() }
-                            .accessibilityLabel("Close")
-                            .accessibilityIdentifier("template.preview.close")
-                    }
-                }
-        }
-        .presentationDetents([.medium, .large])
-    }
-}

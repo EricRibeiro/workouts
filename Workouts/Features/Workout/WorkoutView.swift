@@ -30,9 +30,12 @@ struct WorkoutView: View {
     @State private var deleting: TemplateFolder?
     @State private var isCreatingFolder = false
     @State private var newFolderName = ""
-    /// The card that opened the placeholder preview: a sheet at compact width, a zoom push at regular width.
+    /// The card that opened the preview: a sheet at compact width, a zoom push at regular width.
     @State private var previewSheet: Template?
     @State private var previewPush: Template?
+    /// A workout was started from the sheet: the cover opens once the sheet has gone (a sheet and a cover cannot overlap).
+    @State private var presentAfterSheet = false
+    @State private var startFlow = StartWorkoutFlow()
     @Namespace private var cardZoom
 
     private var showsFolderHeaders: Bool { horizontalSizeClass != .regular }
@@ -59,10 +62,19 @@ struct WorkoutView: View {
             content
                 .navigationTitle("Workout")
                 .navigationDestination(item: $previewPush) { template in
-                    TemplatePreviewPlaceholder(template: template)
+                    TemplatePreview(template: template, started: workoutStarted)
                         .navigationTransition(.zoom(sourceID: template.id, in: cardZoom))
                 }
-                .sheet(item: $previewSheet) { TemplatePreviewSheet(template: $0) }
+                .sheet(
+                    item: $previewSheet,
+                    onDismiss: {
+                        if presentAfterSheet {
+                            presentAfterSheet = false
+                            presentWorkout()
+                        }
+                    }
+                ) { TemplatePreviewSheet(template: $0, started: workoutStarted) }
+                .startWorkoutFlow(startFlow)
                 .resumeControl()
                 .toolbar {
                     ToolbarItem(placement: .primaryAction) {
@@ -240,17 +252,19 @@ struct WorkoutView: View {
         }
     }
 
-    private func startEmpty() {
-        // TODO: with a workout already running, show the "Workout in progress" sheet (Resume / Discard and Start New).
-        if let engine, engine.workout == nil {
-            do {
-                try engine.startEmpty()
-            } catch {
-                errors?.report(error)
-            }
+    /// A workout is running and should be on screen: close the preview (the sheet first, then the cover), or pop the push.
+    private func workoutStarted() {
+        if previewSheet != nil {
+            presentAfterSheet = true
+            previewSheet = nil
+        } else {
+            previewPush = nil
+            presentWorkout()
         }
-        // Never present the cover without a workout behind it (a failed start would leave a dead end).
-        if engine?.workout != nil { presentWorkout() }
+    }
+
+    private func startEmpty() {
+        startFlow.begin(.empty, engine: engine, errors: errors, present: presentWorkout)
     }
 }
 

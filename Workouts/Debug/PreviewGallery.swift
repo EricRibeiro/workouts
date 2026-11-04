@@ -29,6 +29,7 @@
         case pastEditor = "PastEditor"
         case customExerciseForm = "CustomExerciseForm"
         case customExerciseFormEdit = "CustomExerciseFormEdit"
+        case templatePreview = "TemplatePreview"
 
         var id: String { rawValue }
 
@@ -56,6 +57,7 @@
             case .pastEditor: PastEditorDemo()
             case .customExerciseForm: CustomExerciseFormView(prefill: "Zz Sled Drag")
             case .customExerciseFormEdit: CustomExerciseFormEditDemo()
+            case .templatePreview: TemplatePreviewDemo()
             case .exercisePickerMulti:
                 ExercisePickerView(title: "Add Exercises", mode: .multiple(add: { _ in }, superset: { _ in }))
             }

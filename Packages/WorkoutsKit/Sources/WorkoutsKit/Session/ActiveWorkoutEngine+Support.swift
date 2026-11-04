@@ -347,7 +347,8 @@ extension ActiveWorkoutEngine {
             workoutNumber: workoutNumber,
             uncheckedWithValues: uncheckedWithValues,
             uncheckedWithoutValues: uncheckedWithoutValues,
-            dialog: dialog
+            dialog: dialog,
+            workoutID: workout.id
         )
     }
 }

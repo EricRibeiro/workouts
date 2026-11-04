@@ -86,6 +86,8 @@ public nonisolated struct FinishSummary: Sendable, Hashable {
     /// Unchecked sets with nothing entered.
     public var uncheckedWithoutValues: Int
     public var dialog: FinishDialog
+    /// The workout this summary describes (it is saved by the time the summary exists); nil for hand-made summaries.
+    public var workoutID: UUID?
 
     public init(
         duration: TimeInterval,
@@ -98,7 +100,8 @@ public nonisolated struct FinishSummary: Sendable, Hashable {
         workoutNumber: Int,
         uncheckedWithValues: Int,
         uncheckedWithoutValues: Int,
-        dialog: FinishDialog
+        dialog: FinishDialog,
+        workoutID: UUID? = nil
     ) {
         self.duration = duration
         self.setCount = setCount
@@ -111,6 +114,7 @@ public nonisolated struct FinishSummary: Sendable, Hashable {
         self.uncheckedWithValues = uncheckedWithValues
         self.uncheckedWithoutValues = uncheckedWithoutValues
         self.dialog = dialog
+        self.workoutID = workoutID
     }
 }
 

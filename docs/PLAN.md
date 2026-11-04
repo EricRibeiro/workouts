@@ -210,7 +210,7 @@ Live Activity → notifications → logging, then templates, exercises, history.
   = sheet on compact / push on regular. Needs: 3.1, 0.9, 0.10. Proof: preview.
 - [ ] **3.2b Template card actions**: `contextMenu`s and swipes on cards (Edit, Duplicate "<name> copy", Move, Delete), no ⋯;
   optional drag via `reorderContainer`; New Template in the Add menu. Needs: 3.1, 0.10, 3.2a. Proof: flow.
-- [ ] **3.3 Template preview** (medium-detent sheet on compact, zoom push on regular) laid out per section 3, Start Workout from
+- [x] **3.3 Template preview** (medium-detent sheet on compact, zoom push on regular) laid out per section 3, Start Workout from
   the engine. Needs: 3.2, 1.1, 0.9, 0.10. Proof: preview + flow on both widths.
   Also (Phase 2 review R-07, R-12): the "Workout in progress" dialog (Resume / Discard and Start New) for Start Workout and
   Empty Workout, and the "Update Template?" finish dialog (kit: diff template vs finished workout).

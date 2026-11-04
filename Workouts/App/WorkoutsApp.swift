@@ -148,14 +148,18 @@ struct WorkoutsApp: App {
     }
 
     #if DEBUG
+        /// `-seedSampleData`: seeds the sample data when the store has no templates and stops there.
         /// `-startSampleWorkout`: seeds the sample data when the store has no templates, then starts a workout from the
         /// first template (if none runs), then always starts a 5-minute rest, so the Live Activity can be shown without any UI.
         @MainActor
         private static func startSampleWorkoutIfRequested(engine: ActiveWorkoutEngine, context: ModelContext) throws {
-            guard ProcessInfo.processInfo.arguments.contains("-startSampleWorkout") else { return }
+            let arguments = ProcessInfo.processInfo.arguments
+            let starts = arguments.contains("-startSampleWorkout")
+            guard starts || arguments.contains("-seedSampleData") else { return }
             if try context.fetchCount(FetchDescriptor<Template>()) == 0 {
                 try SampleData.seed(into: context, catalog: LibraryCatalog.bundled(in: .main))
             }
+            guard starts else { return }
             if engine.workout == nil {
                 var descriptor = FetchDescriptor<Template>(sortBy: [SortDescriptor(\.position), SortDescriptor(\.name)])
                 descriptor.fetchLimit = 1

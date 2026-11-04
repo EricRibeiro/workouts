@@ -95,3 +95,6 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
 38. **Natural-language search** (4.6): runs only when plain search finds nothing and the model is available; 400 ms debounce;
     a fresh prewarmed session per parse (no transcript leakage); body-part/category pills still apply on top of parsed
     results. Verified with the real model on the simulator ("rear delts with dumbbells" → shoulder dumbbell exercises).
+39. **Template preview and dialogs** (3.3): preview has Close only (Edit comes with 3.4); "Workout in progress" and "Update
+    Template?" are confirmationDialogs (popover form drops the cancel-role button; tapping outside = keep). Structure = exercise
+    order, set count, kinds, superset grouping; values = weight/reps/duration/distance. DEBUG `-seedSampleData` for UI tests.
