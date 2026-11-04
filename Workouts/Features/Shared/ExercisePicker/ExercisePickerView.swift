@@ -150,46 +150,6 @@ struct ExercisePickerView: View {
     }
 }
 
-/// One capsule `Menu` pill with a checkmarked single choice; the first item resets to "Any".
-private struct FilterMenu: View {
-    let title: String
-    let anyLabel: String
-    let identifier: String
-    @Binding var selection: String?
-    let keys: () -> [String]
-    let label: (String) -> String
-
-    var body: some View {
-        let current = selection.map(label) ?? anyLabel
-        Menu {
-            Picker(title, selection: $selection) {
-                Text(anyLabel).tag(String?.none)
-                ForEach(keys(), id: \.self) { key in
-                    Text(label(key)).tag(Optional(key))
-                }
-            }
-        } label: {
-            Label(current, systemImage: "chevron.up.chevron.down")
-                .labelStyle(PillLabelStyle())
-        }
-        .buttonStyle(.bordered)
-        .buttonBorderShape(.capsule)
-        .tint(selection == nil ? .secondary : .accentColor)
-        .accessibilityLabel("\(title): \(current)")
-        .accessibilityIdentifier(identifier)
-    }
-}
-
-private struct PillLabelStyle: LabelStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        HStack(spacing: 4) {
-            configuration.title.lineLimit(1)
-            configuration.icon.imageScale(.small)
-        }
-        .font(.subheadline)
-    }
-}
-
 /// A light row: optional checkmark, thumbnail, name, "Body part · Equipment", and a trailing `?` button for the peek.
 /// The rest of the row is the select button.
 private struct ExercisePickerRow: View {
@@ -216,7 +176,9 @@ private struct ExercisePickerRow: View {
                 .contentShape(.rect)
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(subtitle.isEmpty ? info.name : "\(info.name), \(subtitle)")
+            .accessibilityLabel(
+                [info.name, ExerciseRow.tagText(for: info), subtitle].filter { !$0.isEmpty }.joined(separator: ", ")
+            )
             .accessibilityAddTraits(isSelected ? .isSelected : [])
             .accessibilityIdentifier("picker.row.\(info.id.uuidString)")
 

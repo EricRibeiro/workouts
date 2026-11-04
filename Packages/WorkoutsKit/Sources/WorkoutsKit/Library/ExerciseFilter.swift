@@ -49,15 +49,16 @@ public nonisolated enum ExerciseFilter {
         return parts.joined(separator: " · ")
     }
 
-    /// Search first (name and aliases, all words), then both filters. Retired exercises are hidden.
+    /// Search first (name and aliases, all words), then both filters. Retired exercises are hidden unless asked for.
     @MainActor
     public static func results(
         in store: ExerciseStore,
         query: String,
         bodyPart: String? = nil,
-        category: String? = nil
+        category: String? = nil,
+        includeRetired: Bool = false
     ) -> [ExerciseInfo] {
-        apply(store.search(query), bodyPart: bodyPart, category: category)
+        apply(store.search(query, includeRetired: includeRetired), bodyPart: bodyPart, category: category)
     }
 
     private static func sortedByLabel(_ keys: Set<String>, label: (String) -> String) -> [String] {

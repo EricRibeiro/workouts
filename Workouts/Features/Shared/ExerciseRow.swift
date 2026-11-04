@@ -18,9 +18,13 @@ struct ExerciseRow: View {
         HStack(spacing: 12) {
             ExerciseThumbnail(id: info.isCustom ? nil : info.id)
             VStack(alignment: .leading, spacing: 2) {
-                Text(info.name)
-                    .font(.body)
-                    .foregroundStyle(.primary)
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text(info.name)
+                        .font(.body)
+                        .foregroundStyle(.primary)
+                    if info.isCustom { ExerciseTag(text: "Custom", tint: .accentColor) }
+                    if info.isRetired { ExerciseTag(text: "Retired", tint: .secondary) }
+                }
                 if !subtitle.isEmpty {
                     Text(subtitle)
                         .font(.subheadline)
@@ -35,6 +39,29 @@ struct ExerciseRow: View {
                     .multilineTextAlignment(.trailing)
             }
         }
+    }
+}
+
+extension ExerciseRow {
+    /// "Custom, Retired" for the accessibility label; empty when the exercise has neither tag.
+    static func tagText(for info: ExerciseInfo) -> String {
+        [info.isCustom ? "Custom" : "", info.isRetired ? "Retired" : ""].filter { !$0.isEmpty }.joined(separator: ", ")
+    }
+}
+
+/// A small capsule tag after the name (`Custom`, `Retired`). Decorative: the row's label already names it.
+private struct ExerciseTag: View {
+    let text: String
+    let tint: Color
+
+    var body: some View {
+        Text(text)
+            .font(.caption2.weight(.medium))
+            .foregroundStyle(tint)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 1)
+            .background(tint.opacity(0.15), in: .capsule)
+            .fixedSize()
     }
 }
 

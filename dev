@@ -255,6 +255,10 @@ for name in sorted(os.listdir(root)):
     proc = body.get("procName", name.split("-")[0])
     # Fatal: our own processes (a real bug) and the processes whose crash loops flood the Mac with dialogs.
     fatal = proc in {"Workouts", "WorkoutsLiveActivity", "SpringBoard", "PosterBoard", "backboardd"}
+    # An extension relaunched from the bundle a reinstall just moved to containermanagerd's Dead/ folder crashes in
+    # ExtensionFoundation before any of our code runs (a Live Activity was still up during the install): install noise.
+    if fatal and "/com.apple.containermanagerd/System/Dead/" in body.get("procPath", ""):
+        fatal = False
     print(("fatal " if fatal else "warn ") + name)
 PY
 }

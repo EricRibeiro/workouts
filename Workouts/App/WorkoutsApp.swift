@@ -5,6 +5,7 @@
 //  Created by Eric Ribeiro on 2026-11-03.
 //
 
+import ActivityKit
 import SwiftData
 import SwiftUI
 import WorkoutsKit
@@ -50,7 +51,11 @@ struct WorkoutsApp: App {
                 try Self.startSampleWorkoutIfRequested(engine: engine, context: context)
             #endif
             notifier.observe(engine)
-            activityController.observe(engine)
+            if Self.wantsLiveActivity {
+                activityController.observe(engine)
+            } else {
+                Self.endLiveActivities()
+            }
             let handler = EngineActivityIntentHandler(engine: engine)
             ActivityIntentRouter.handler = handler
             intentHandler = handler
@@ -109,6 +114,27 @@ struct WorkoutsApp: App {
                 systemImage: "exclamationmark.triangle",
                 description: Text(containerError ?? "")
             )
+        }
+    }
+
+    /// UI tests (`-uiTesting`) run without a Live Activity unless they pass `-liveActivity`: an activity left running when the
+    /// next build is installed makes iOS relaunch the widget extension from the deleted bundle, which crashes it
+    /// (`WorkoutsLiveActivity` reports under containermanagerd's `Dead/`, 2026-11-03).
+    private static var wantsLiveActivity: Bool {
+        #if DEBUG
+            let arguments = ProcessInfo.processInfo.arguments
+            return !arguments.contains("-uiTesting") || arguments.contains("-liveActivity")
+        #else
+            return true
+        #endif
+    }
+
+    /// Ends any activity a previous run left behind.
+    private static func endLiveActivities() {
+        Task {
+            for activity in Activity<WorkoutActivityAttributes>.activities {
+                await activity.end(nil, dismissalPolicy: .immediate)
+            }
         }
     }
 

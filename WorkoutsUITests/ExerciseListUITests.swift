@@ -56,4 +56,54 @@ final class ExerciseListUITests: XCTestCase {
         first.tap()
         XCTAssertTrue(any["exercises.detail"].waitForExistence(timeout: 5), "tapping a row did not open a detail")
     }
+
+    @MainActor
+    func testBodyPartFilterAndShowRetired() throws {
+        let app = XCUIApplication()
+        app.launchArguments += ["-uiTesting", "-preview", "Exercises"]
+        app.launch()
+
+        let rows = rows(app)
+        XCTAssertTrue(rows.element(boundBy: 0).waitForExistence(timeout: 10), "no exercise rows")
+        let unfiltered = rows.count
+
+        let bodyPart = app.buttons.matching(identifier: "exercises.filter.bodyPart").firstMatch
+        XCTAssertTrue(bodyPart.waitForExistence(timeout: 5))
+        XCTAssertEqual(bodyPart.label, "Body Part: Any Body Part")
+        bodyPart.tap()
+        // Pick the second menu item (the menu lists "Any Body Part" first).
+        let item = app.menuItems.element(boundBy: 1)
+        XCTAssertTrue(item.waitForExistence(timeout: 5))
+        let chosen = item.label
+        XCTAssertNotEqual(chosen, "Any Body Part")
+        item.tap()
+
+        XCTAssertEqual(bodyPart.label, "Body Part: \(chosen)")
+        XCTAssertTrue(rows.element(boundBy: 0).waitForExistence(timeout: 5))
+        let filtered = min(rows.count, 8)
+        XCTAssertGreaterThan(filtered, 0)
+        for index in 0..<filtered {
+            let label = rows.element(boundBy: index).label
+            XCTAssertTrue(label.contains(chosen), "row \(index) '\(label)' lacks '\(chosen)'")
+        }
+
+        // Back to Any: the list is whole again.
+        bodyPart.tap()
+        let any = app.menuItems["Any Body Part"]
+        XCTAssertTrue(any.waitForExistence(timeout: 5))
+        any.tap()
+        XCTAssertEqual(bodyPart.label, "Body Part: Any Body Part")
+        XCTAssertTrue(rows.element(boundBy: 0).waitForExistence(timeout: 5))
+        XCTAssertGreaterThanOrEqual(rows.count, unfiltered)
+
+        // Show Retired toggles its label (the toolbar may fold it into the overflow on the closed Duo).
+        let toggle = app.descendants(matching: .any).matching(identifier: "exercises.showRetired").firstMatch
+        XCTAssertTrue(toggle.waitForExistence(timeout: 5))
+        XCTAssertEqual(toggle.label, "Show Retired")
+        toggle.tap()
+        XCTAssertEqual(
+            app.descendants(matching: .any).matching(identifier: "exercises.showRetired").firstMatch.label,
+            "Hide Retired"
+        )
+    }
 }

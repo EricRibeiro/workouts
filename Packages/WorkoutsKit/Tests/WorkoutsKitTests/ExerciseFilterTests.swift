@@ -57,6 +57,15 @@ import Testing
         #expect(ExerciseFilter.results(in: store, query: "curl", bodyPart: "biceps").map(\.name) == ["Zottman Curl"])
     }
 
+    @Test func resultsIncludeRetiredOnRequest() throws {
+        let store = ExerciseStore(catalog: try LibraryFixture.catalog())
+        let hidden = ExerciseFilter.results(in: store, query: "")
+        let shown = ExerciseFilter.results(in: store, query: "", includeRetired: true)
+        #expect(!hidden.contains { $0.isRetired })
+        #expect(shown.contains { $0.name == "Old Machine Press" && $0.isRetired })
+        #expect(shown.count == hidden.count + shown.filter(\.isRetired).count)
+    }
+
     @Test func optionListsAreSortedByLabelAndSkipEmpty() {
         let list = sample + [info("Mystery", bodyPart: "", equipment: [])]
         #expect(ExerciseFilter.bodyParts(in: list, labels: labels) == ["biceps", "legs"])
