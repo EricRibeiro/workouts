@@ -18,6 +18,7 @@
         case settings = "Settings"
         case activeWorkoutCover = "ActiveWorkoutCover"
         case swatches = "Swatches"
+        case exercisePicker = "ExercisePicker"
 
         var id: String { rawValue }
 
@@ -35,6 +36,7 @@
             case .settings: SettingsView()
             case .activeWorkoutCover: ActiveWorkoutCover(minimise: {})
             case .swatches: SwatchesView()
+            case .exercisePicker: ExercisePickerView(title: "Add Exercise") { _ in }
             }
         }
     }
@@ -53,6 +55,15 @@
         /// The one sample container every entry shares.
         private static let container = Result { try ModelContainer.preview(catalog: LibraryCatalog.bundled(in: .main)) }
 
+        /// The one exercise store (bundled catalog plus the sample container's custom exercises), shared like the container.
+        private static let store = Result { () throws -> ExerciseStore in
+            let context = try container.get().mainContext
+            return ExerciseStore(
+                catalog: try LibraryCatalog.bundled(in: .main),
+                custom: try context.fetch(FetchDescriptor<Exercise>())
+            )
+        }
+
         @ViewBuilder
         static func host(_ name: String) -> some View {
             switch container {
@@ -63,8 +74,8 @@
                     description: Text(error.localizedDescription)
                 )
             case .success(let container):
-                if let entry = GalleryEntry(rawValue: name) {
-                    entry.view.modelContainer(container)
+                if let entry = GalleryEntry(rawValue: name), case .success(let store) = store {
+                    entry.view.modelContainer(container).environment(store)
                 } else {
                     ContentUnavailableView(
                         "Unknown preview \"\(name)\"",

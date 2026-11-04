@@ -16,6 +16,8 @@ struct WorkoutsApp: App {
     private let containerError: String?
     /// The one engine for the in-progress workout; resumes a running workout from the store at launch.
     private let engine: ActiveWorkoutEngine?
+    /// The library plus custom exercises, shared by the engine and the pickers.
+    private let store: ExerciseStore?
     /// Owns the rest-end notification; the center holds its delegate weakly, so the app keeps it.
     private let restNotifier: RestNotifier
     /// Mirrors the engine into the Live Activity; kept alive with its intent handler for the life of the app.
@@ -47,10 +49,12 @@ struct WorkoutsApp: App {
             intentHandler = handler
             self.container = container
             self.engine = engine
+            self.store = store
             containerError = nil
         } catch {
             container = nil
             engine = nil
+            store = nil
             intentHandler = nil
             containerError = error.localizedDescription
         }
@@ -73,10 +77,11 @@ struct WorkoutsApp: App {
 
     @ViewBuilder
     private var appRoot: some View {
-        if let container, let engine {
+        if let container, let engine, let store {
             RootView()
                 .modelContainer(container)
                 .environment(engine)
+                .environment(store)
         } else {
             ContentUnavailableView(
                 "Could not open the database",

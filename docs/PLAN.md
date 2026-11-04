@@ -157,7 +157,7 @@ Live Activity → notifications → logging, then templates, exercises, history.
 
 ### Phase 2 — Active workout (with its shared components)
 
-- [ ] **2.1a Exercise picker list** (moved from Phase 3: Empty Workout cannot log without it): single select,
+- [x] **2.1a Exercise picker list** (moved from Phase 3: Empty Workout cannot log without it): single select,
   `.searchable`, body-part and category `Menu` pills, a reusable sheet for Add / Replace (inline create is wired by 4.4), Cancel in
   the Close slot. Needs: 0.3, 0.9, 0.10. Proof: preview.
 - [ ] **2.1b Exercise picker multi-select**: multi-select Add (N) (`plus`) and Superset (`rectangle.stack`) toolbar items, "?"
