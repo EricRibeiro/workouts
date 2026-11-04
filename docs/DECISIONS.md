@@ -146,3 +146,19 @@ Eric deferred the technical choices to Claude. These close every item in `docs/p
 - **Web keeps that are fine** (not re-litigated): tab set and order; set-table columns, Previous autofill, Add Set row; cards by
   fill; large titles; `ContentUnavailableView` empty details; segmented About / History / Charts / Records; chip row; calendar
   sheet; `confirmationDialog` copy; `fullScreenCover` logging with the ring item as resume control.
+
+## Design review (2026-11-03)
+
+- **No design plugin; one repo-local skill.** Eric asked whether [impeccable](https://github.com/pbakaus/impeccable)
+  (Apache 2.0) and [Design with Intent](https://designwithintent.ai) (CC0) should steer the UI. Neither is installed. Impeccable's
+  detector, hooks, `live`/`generate` and `craft-floor` read and judge web markup (JSX/HTML/CSS; its hook never fires on `.swift`),
+  it runs a downloaded binary at setup, and its bans (cards, progress rings, hero metrics, system display faces) contradict the
+  Fitness-style cards, the ring item and SF that DECISIONS settles; its `PRODUCT.md`/`DESIGN.md` would duplicate `AGENTS.md`
+  and this file. Intent is a UX-process system (research, IA, service blueprints, HEART, dark-pattern catalog) for teams and
+  products with users to persuade; this is a private single-user app whose copy and flows are decided. What transfers (the iOS
+  slop test, a scored native audit, the cognitive-load rule, polish triage, the state inventory) is distilled into
+  `.claude/skills/design-review`, ~8 KB per worker instead of 45 KB+ references. **HIG and this file remain the authority**;
+  a review never re-litigates a settled heading and never proposes custom chrome.
+- **A review is a phase gate, read-only** (PLAN 2.11, 3.8, 4.7, 5.8): findings P0–P3 with the fix classified (token / shared
+  component / conceptual / local), P0–P2 become worker tasks, taste rows become one batched question to Eric. Accessibility
+  audits stay with Apple's `accessibility-*` skills (6.3); poses stay with `verify-ui` (6.2).

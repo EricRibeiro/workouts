@@ -83,6 +83,9 @@ Workouts.xcodeproj
   "flow" below mean exactly this; every UI task registers its views in the gallery (0.10).
 - **Skills to add as patterns appear**: `new-screen`, `swiftdata-model`, `live-activity`, `testflight-release`. **Ask Eric only
   for taste** (colours, copy, native deviations). **Status**: tick the task, add one outcome line, dates absolute.
+- **Every UI phase ends with a design review** (skill `design-review`; tasks 2.11, 3.8, 4.7, 5.8): one read-only worker
+  scores the phase's screens from light/dark/AX screenshots and source, files P0–P3 findings, and the orchestrator turns
+  P0–P2 rows into bite-sized tasks and batches the taste rows into one question for Eric. Reviews never edit code.
 
 ## 6. Phases and tasks
 
@@ -190,6 +193,10 @@ Live Activity → notifications → logging, then templates, exercises, history.
   (`DECISIONS.md`), `.split`; the pane never straddles a `.division` region. `ExercisePane` ships as a `ContentUnavailableView`
   placeholder; 4.5 swaps in the real pane and re-proves. Needs: 2.4, 0.5. Proof: open-tall / open-wide screenshots; fold
   mid-workout keeps draft, focus, scroll.
+- [ ] **2.11 Design review: logging** (skill `design-review`, read-only): picker, SetTable in all three modes, logging screen,
+  rest sheets, finish summary; seeded with the known findings: the set fields' placeholder digits are too faint (a Previous
+  value is content, `SetFieldCell` prompts it `.tertiary`), spacing literals differ between views, dark mode unreviewed. Needs:
+  2.10. Proof: the findings table with scores; P0–P2 rows become tasks before Phase 3 starts.
 
 ### Phase 3 — Workout tab (templates)
 
@@ -212,6 +219,9 @@ Live Activity → notifications → logging, then templates, exercises, history.
   3.4, 3.5, 0.10. Proof: flow.
 - [ ] **3.7 Sidebar Templates sections**: `TabSection` per folder, `.sidebarOnly` template tabs rendering the preview,
   `.sectionActions` "New Template". Needs: 3.3. Proof: open-Duo screenshot; compact bar unchanged.
+- [ ] **3.8 Design review: Workout tab** (skill `design-review`): grid, cards, preview, editor, sidebar; seeded with: cards must
+  read as Fitness's (fill, no rim, title row with chevron, four text levels), superset colours distinguishable from each other and
+  from ok/danger in both appearances. Needs: 3.7. Proof: the findings table; P0–P2 rows become tasks before Phase 4 starts.
 
 ### Phase 4 — Exercises tab
 
@@ -237,6 +247,8 @@ Live Activity → notifications → logging, then templates, exercises, history.
   Intelligence off, model not ready, guardrail or decode error) leaves the field exactly as today, no banner. Same field in the Exercises
   list and the picker (2.1a). Needs: 0.3, 4.1b, 2.1a. Proof: `./dev kit Query` (matching with hand-built structs) + preview with the parser
   stubbed; one on-device parse checked by hand, since the simulator borrows the host Mac's model.
+- [ ] **4.7 Design review: Exercises tab** (skill `design-review`): list, filters, detail segments, custom form, sticky note, the
+  embedded pane inside 2.10's arrangement. Needs: 4.5, 4.6. Proof: the findings table; P0–P2 rows become tasks before Phase 5 starts.
 
 ### Phase 5 — History
 
@@ -258,6 +270,9 @@ Live Activity → notifications → logging, then templates, exercises, history.
   defaults. Needs: 1.7, 0.8, 0.9, 0.10. Proof: preview.
 - [ ] **5.7b Settings Import and Export**: Import and **Export…** via the share sheet, same codec as 1.7. Needs: 1.7, 0.8, 0.10,
   5.7a. Proof: flow (`./dev ui-test`: import the sample JSON, export, re-import is idempotent).
+- [ ] **5.8 Design review: History and Settings** (skill `design-review`): dashboard cards (Fitness's shape, same card component as
+  3.8's), month sections, detail, past editor, calendar, Settings form; the cross-screen pass too: one spacing scale, one card,
+  one row style across all tabs. Needs: 5.7b. Proof: the findings table; P0–P2 rows become tasks before Phase 6 starts.
 
 ### Phase 6 — Duo and accessibility pass
 

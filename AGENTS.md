@@ -145,6 +145,8 @@ orchestrator after review. Workers do not commit.
 
 - `.claude/skills/xcode-project` — `xcrun xcodeproj` recipes: list/add packages, link products,
   read/set build settings, add targets; always followed by `xcprojformatter`.
+- `.claude/skills/design-review` — the read-only critique at the end of each UI phase (slop test, five scored
+  dimensions, state inventory, P0–P3 findings → worker tasks, taste → Eric). HIG and `DECISIONS.md` are its authority.
 - `.claude/skills/verify-ui` — render a preview, run on the Duo, screenshot, drive the UI, and
   what each pose of the Duo should be checked for.
 - Apple's bundled skills (`swiftui-specialist`, `app-resizability`, `device-interaction`,
