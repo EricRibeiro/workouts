@@ -21,6 +21,7 @@ struct WorkoutView: View {
     @Query(sort: [SortDescriptor(\TemplateFolder.position), SortDescriptor(\TemplateFolder.name)])
     private var folders: [TemplateFolder]
     @Query private var templates: [Template]
+    @Query(filter: #Predicate<Workout> { $0.finishedAt != nil }) private var finishedWorkouts: [Workout]
 
     /// The folder being renamed, with the alert's text.
     @State private var renaming: TemplateFolder?
@@ -29,8 +30,21 @@ struct WorkoutView: View {
     @State private var deleting: TemplateFolder?
     @State private var isCreatingFolder = false
     @State private var newFolderName = ""
+    /// The card that opened the placeholder preview: a sheet at compact width, a zoom push at regular width.
+    @State private var previewSheet: Template?
+    @State private var previewPush: Template?
+    @Namespace private var cardZoom
 
     private var showsFolderHeaders: Bool { horizontalSizeClass != .regular }
+
+    /// Compact width presents the preview as a sheet; regular width pushes it so the sidebar stays.
+    private func open(_ template: Template) {
+        if horizontalSizeClass == .regular {
+            previewPush = template
+        } else {
+            previewSheet = template
+        }
+    }
 
     private func templates(in folder: TemplateFolder) -> [Template] {
         FolderOperations.orderedTemplates(templates.filter { $0.folder?.id == folder.id })
@@ -44,6 +58,11 @@ struct WorkoutView: View {
         NavigationStack {
             content
                 .navigationTitle("Workout")
+                .navigationDestination(item: $previewPush) { template in
+                    TemplatePreviewPlaceholder(template: template)
+                        .navigationTransition(.zoom(sourceID: template.id, in: cardZoom))
+                }
+                .sheet(item: $previewSheet) { TemplatePreviewSheet(template: $0) }
                 .resumeControl()
                 .toolbar {
                     ToolbarItem(placement: .primaryAction) {
@@ -114,37 +133,47 @@ struct WorkoutView: View {
                 description: Text("Your workout templates will appear here.")
             )
         } else {
-            List {
-                ForEach(FolderOperations.ordered(folders)) { folder in
-                    FolderSection(
-                        folder: folder,
-                        name: folder.name,
-                        templates: templates(in: folder),
-                        showsHeader: showsFolderHeaders,
-                        canMoveUp: FolderOperations.canMove(folder, .up, in: folders),
-                        canMoveDown: FolderOperations.canMove(folder, .down, in: folders),
-                        rename: {
-                            renameText = folder.name
-                            renaming = folder
-                            isRenaming = true
-                        },
-                        move: { direction in move(folder, direction) },
-                        delete: { deleting = folder }
-                    )
-                }
-                if !unfiled.isEmpty {
-                    Section {
-                        ForEach(unfiled) { TemplateRow(template: $0) }
-                    } header: {
-                        if showsFolderHeaders {
-                            Text("Unfiled (\(unfiled.count))")
-                                .font(.headline)
-                                .foregroundStyle(.primary)
-                                .textCase(nil)
-                                .accessibilityIdentifier("workout.unfiled")
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 20) {
+                    ForEach(FolderOperations.ordered(folders)) { folder in
+                        FolderSection(
+                            folder: folder,
+                            name: folder.name,
+                            templates: templates(in: folder),
+                            finishedWorkouts: finishedWorkouts,
+                            namespace: cardZoom,
+                            open: open,
+                            showsHeader: showsFolderHeaders,
+                            canMoveUp: FolderOperations.canMove(folder, .up, in: folders),
+                            canMoveDown: FolderOperations.canMove(folder, .down, in: folders),
+                            rename: {
+                                renameText = folder.name
+                                renaming = folder
+                                isRenaming = true
+                            },
+                            move: { direction in move(folder, direction) },
+                            delete: { deleting = folder }
+                        )
+                    }
+                    if !unfiled.isEmpty {
+                        VStack(alignment: .leading, spacing: 12) {
+                            if showsFolderHeaders {
+                                Text("Unfiled (\(unfiled.count))")
+                                    .font(.headline)
+                                    .foregroundStyle(.primary)
+                                    .accessibilityAddTraits(.isHeader)
+                                    .accessibilityIdentifier("workout.unfiled")
+                            }
+                            TemplateGrid(
+                                templates: unfiled,
+                                finishedWorkouts: finishedWorkouts,
+                                namespace: cardZoom,
+                                open: open
+                            )
                         }
                     }
                 }
+                .padding(.horizontal)
             }
             .accessibilityIdentifier("workout.list")
         }

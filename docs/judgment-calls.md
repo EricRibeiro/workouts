@@ -82,3 +82,10 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
     though the web spec never orphans templates; deleting a folder offers move-to-Unfiled or delete-with-templates. Folder
     headers are a `Menu` with a primaryAction (tap = collapse, long press = Rename/Move/Delete) because `.contextMenu` on a
     Section header never opened on the Duo simulator. Regular width hides headers (sizeClass proxy for "sidebar visible").
+34. **Custom exercises** (4.4): body part optional (spec says required; a name-only save must work); equipment as tick rows;
+    no un-archive yet; saving from New Exercise doesn't open the new exercise.
+35. **Import/Export** (5.7b): Export via `ShareLink` with a lazily written `workouts-export-YYYY-MM-DD.json`; Import applies on
+    the main context (the models are MainActor-bound) with file read/decode off-main — a very large import can briefly block;
+    a dedicated result alert (decode and version errors read plainly).
+36. **Template cards** (3.2a): 160 pt minimum so the closed Duo shows two columns like Fitness; "Last performed" from the
+    newest finished workout linked to the template, else same name; long exercise names truncate on narrow cards.

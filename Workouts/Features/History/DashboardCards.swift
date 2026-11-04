@@ -92,33 +92,14 @@ struct DashboardCards: View {
     var calendar: Calendar = .current
     var now: Date = .now
 
-    @ScaledMetric(relativeTo: .body) private var columnMinimum = 250
-    @State private var width: CGFloat = 0
-
-    /// Columns that fit `width` at the scaled minimum; an even number from two up, so the gutter falls on the fold
-    /// and no card straddles it (`docs/port/duo-layout.md`, Grids).
-    private var columnCount: Int {
-        let spacing: CGFloat = 12
-        let fit = max(1, Int(((width + spacing) / (columnMinimum + spacing)).rounded(.down)))
-        return fit >= 3 && fit.isMultiple(of: 2) == false ? fit - 1 : fit
-    }
-
+    /// The columns come from `EvenColumnGrid`: an even count from two up, so no card straddles the fold.
     var body: some View {
-        LazyVGrid(
-            columns: Array(repeating: GridItem(.flexible(), spacing: 12, alignment: .top), count: columnCount),
-            alignment: .leading,
-            spacing: 12
-        ) {
+        EvenColumnGrid(minimum: 250) {
             thisWeek
             recents
             if let last = HistoryDashboard.lastWorkout(entries: entries) {
                 lastWorkout(last)
             }
-        }
-        .onGeometryChange(for: CGFloat.self) {
-            $0.size.width
-        } action: {
-            width = $0
         }
     }
 

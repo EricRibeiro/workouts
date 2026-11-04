@@ -6,15 +6,18 @@
 import SwiftUI
 import WorkoutsKit
 
-/// One folder in the Workout list: a collapsible section of its templates (task 3.1).
+/// One folder on the Workout tab: a header over a grid of its template cards (tasks 3.1, 3.2a).
 ///
 /// The collapsed flag is per-device `@AppStorage`, keyed by the folder id (never synced). It drives only the header; when
-/// `showsHeader` is false (a visible sidebar lists the folders) the templates show unconditionally under no header.
+/// `showsHeader` is false (a visible sidebar lists the folders) the cards show unconditionally under no header.
 struct FolderSection: View {
     let folder: TemplateFolder
     /// `folder.name`, read by the list's body so a rename re-renders the header (see `FolderHeader`).
     let name: String
     let templates: [Template]
+    let finishedWorkouts: [Workout]
+    let namespace: Namespace.ID
+    let open: (Template) -> Void
     let showsHeader: Bool
     let canMoveUp: Bool
     let canMoveDown: Bool
@@ -28,6 +31,9 @@ struct FolderSection: View {
         folder: TemplateFolder,
         name: String,
         templates: [Template],
+        finishedWorkouts: [Workout],
+        namespace: Namespace.ID,
+        open: @escaping (Template) -> Void,
         showsHeader: Bool,
         canMoveUp: Bool,
         canMoveDown: Bool,
@@ -38,6 +44,9 @@ struct FolderSection: View {
         self.folder = folder
         self.name = name
         self.templates = templates
+        self.finishedWorkouts = finishedWorkouts
+        self.namespace = namespace
+        self.open = open
         self.showsHeader = showsHeader
         self.canMoveUp = canMoveUp
         self.canMoveDown = canMoveDown
@@ -53,10 +62,8 @@ struct FolderSection: View {
     private var showsRows: Bool { !showsHeader || !collapsed }
 
     var body: some View {
-        if showsHeader {
-            Section {
-                rows
-            } header: {
+        VStack(alignment: .leading, spacing: 12) {
+            if showsHeader {
                 FolderHeader(
                     id: folder.id,
                     name: name,
@@ -69,18 +76,13 @@ struct FolderSection: View {
                     delete: delete
                 )
             }
-        } else {
-            Section {
-                rows
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var rows: some View {
-        if showsRows {
-            ForEach(templates) { template in
-                TemplateRow(template: template)
+            if showsRows, !templates.isEmpty {
+                TemplateGrid(
+                    templates: templates,
+                    finishedWorkouts: finishedWorkouts,
+                    namespace: namespace,
+                    open: open
+                )
             }
         }
     }
@@ -145,15 +147,5 @@ private struct FolderHeader: View {
         .accessibilityValue(collapsed ? "Collapsed" : "Expanded")
         .accessibilityAddTraits(.isHeader)
         .accessibilityIdentifier("workout.folder.\(id.uuidString).toggle")
-    }
-}
-
-/// A template as a plain name row; task 3.2a replaces it with the card grid.
-struct TemplateRow: View {
-    let template: Template
-
-    var body: some View {
-        Text(template.name)
-            .accessibilityIdentifier("workout.template.\(template.id.uuidString)")
     }
 }

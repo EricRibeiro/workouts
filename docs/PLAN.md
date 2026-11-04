@@ -206,7 +206,7 @@ Live Activity → notifications → logging, then templates, exercises, history.
 - [x] **3.1 Folders**: per-device `@AppStorage` collapse flag per folder (header only; headers dropped beside a visible sidebar),
   `contextMenu` on headers (rename, reorder, delete with move-or-delete dialogs), New Folder in the Add menu. Needs: 2.4, 0.9, 0.10.
   Proof: preview + flow.
-- [ ] **3.2a Template grid + cards**: width-derived even columns, Fitness-shaped cards (section 3), `matchedTransitionSource`, tap
+- [x] **3.2a Template grid + cards**: width-derived even columns, Fitness-shaped cards (section 3), `matchedTransitionSource`, tap
   = sheet on compact / push on regular. Needs: 3.1, 0.9, 0.10. Proof: preview.
 - [ ] **3.2b Template card actions**: `contextMenu`s and swipes on cards (Edit, Duplicate "<name> copy", Move, Delete), no ⋯;
   optional drag via `reorderContainer`; New Template in the Add menu. Needs: 3.1, 0.10, 3.2a. Proof: flow.
@@ -239,7 +239,7 @@ Live Activity → notifications → logging, then templates, exercises, history.
   also links 2.9's PR rows to Records. Needs: 4.1, 0.8, 2.9, 0.9, 0.10. Proof: preview per segment.
 - [x] **4.3 Exercise detail History and Charts**: History segment, Swift Charts from `chartSeries`. Needs: 4.2, 0.9, 0.10. Proof: preview per
   segment.
-- [ ] **4.4 Custom exercise form** (create/edit/archive/delete-if-unused) + picker inline create. Needs: 4.1, 2.1, 0.10. Proof: flow
+- [x] **4.4 Custom exercise form** (create/edit/archive/delete-if-unused) + picker inline create. Needs: 4.1, 2.1, 0.10. Proof: flow
   (create → in list → archive).
 - [ ] **4.5 Sticky note** editor in the detail, shared with the logging pane; swaps `ExerciseDetailView(embedded)` into
   `ExercisePane` (2.10, 3.4), adds 3.6's Sticky Note entry and re-proves the 2.10 fold flow. Needs: 4.2, 2.10, 3.6, 0.9, 0.10. Proof: preview
@@ -273,7 +273,7 @@ Live Activity → notifications → logging, then templates, exercises, history.
   as in 3.4. Needs: 5.5, 3.4, 0.10. Proof: flow; later workouts' PR counts update.
 - [x] **5.7a Settings form rows** (everything except Import/Export): iCloud status, Download all videos (Wi-Fi only), the
   defaults. Needs: 1.7, 0.8, 0.9, 0.10. Proof: preview.
-- [ ] **5.7b Settings Import and Export**: Import and **Export…** via the share sheet, same codec as 1.7. Needs: 1.7, 0.8, 0.10,
+- [x] **5.7b Settings Import and Export**: Import and **Export…** via the share sheet, same codec as 1.7. Needs: 1.7, 0.8, 0.10,
   5.7a. Proof: flow (`./dev ui-test`: import the sample JSON, export, re-import is idempotent).
 - [ ] **5.8 Design review: History and Settings** (skill `design-review`): dashboard cards (Fitness's shape, same card component as
   3.8's), month sections, detail, past editor, calendar, Settings form; the cross-screen pass too: one spacing scale, one card,
