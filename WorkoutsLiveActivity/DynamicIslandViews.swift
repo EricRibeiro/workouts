@@ -77,7 +77,7 @@ struct MinimalView: View {
             }
             .progressViewStyle(.circular)
             .tint(ActivityStyle.accent)
-            .accessibilityLabel("Rest progress")
+            .activityTimerAccessibility(for: state)
         } else {
             Image(systemName: ActivityStyle.glyph)
                 .foregroundStyle(ActivityStyle.accent)

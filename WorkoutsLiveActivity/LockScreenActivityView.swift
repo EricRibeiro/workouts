@@ -31,7 +31,7 @@ struct LockScreenActivityView: View {
                     }
                     .progressViewStyle(.linear)
                     .tint(ActivityStyle.accent)
-                    .accessibilityLabel("Rest progress")
+                    .accessibilityHidden(true)  // ActivityTimerText already conveys the rest
                 }
                 Spacer(minLength: 0)
             }
