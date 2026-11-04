@@ -1,0 +1,31 @@
+# Judgment calls (unsupervised runs)
+
+Decisions the orchestrator made without asking, for Eric to review. Newest last. Each: what, why, how to revert.
+
+## 2026-11-03 (overnight run)
+
+1. **Rest ring in the strip is a drawn arc, no digits** (2.5 follow-up, Eric's "progress line" idea). The system only stacks
+   symbol/`Image` labels in the trailing strip; the arc is `Image(size:renderer:)`. Countdown digits live in the rest sheet,
+   keyboard group, Live Activity and the button's accessibility label. Revert: `RestRingItem.runningButton` back to the
+   TimelineView ring (it then sits in the top bar). DECISIONS "Minimised workout" records it.
+2. **Finish dialogs keep the system popover behaviour** (2.8): attached to Finish, iOS shows them as a popover without the
+   cancel-role buttons (Keep Going / Cancel / Keep Logging); tapping outside dismisses. Native, so kept.
+3. **"Finish failed" alert offers Retry** besides Dismiss (spec §4 asks for a way to retry).
+4. **Finish summary PR value is pink, not Fitness yellow** (2.9): yellow text failed contrast on the light background; trophy
+   icons stay yellow. Stat tints are system colours (orange, blue, green, cyan, pink).
+5. **Exercise list best set = best set of the most recent session**, written "100 kg × 5" (4.1a), per the spec rather than an
+   all-time heaviest set.
+6. **History duration reads "1h 0min"** for an exact hour; spec only showed "1h 12min", "45min", "<1min" (5.1).
+7. **Search scopes appear when search opens** (`activation: .onSearchPresentation`), since with the default the All · PRs
+   control only appeared after typing (5.1).
+8. **Tab bar minimises on scroll everywhere except the Workout tab** (`tabBarMinimizeBehavior` is a TabView modifier) (5.1).
+9. **Design tools**: neither impeccable nor Design with Intent is installed; their native-transferable parts became the
+   `design-review` skill and review gates 2.11 / 3.8 / 4.7 / 5.8 (DECISIONS "Design review").
+10. **Placeholder Previous digits are content**: the 2.11 review will darken them to secondary text (≥ 4.5:1) rather than keep
+    Apple's faint placeholder (Eric deferred).
+11. **Design-review taste rows are decided by the orchestrator and logged here**, not batched as questions (Eric deferred).
+12. **Empty set fields report "Empty" to accessibility** instead of the placeholder (the Previous value), so VoiceOver and UI
+    tests can tell a filled field from an empty one (2.4).
+13. **Picker Superset** adds the picks then groups them with the new `makeSuperset` (3.5 kit rules: members gathered at the
+    first member's position, groups < 2 dissolve, renumbered 1, 2, 3).
+14. **Warm-up ramp with no bar** has no empty-bar step; a custom bar without a weight counts as no bar (3.5).
