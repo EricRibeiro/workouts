@@ -12,6 +12,7 @@ struct WorkoutView: View {
     /// Presents the active workout's cover, which the root view owns.
     var presentWorkout: () -> Void = {}
     @Environment(ActiveWorkoutEngine.self) private var engine: ActiveWorkoutEngine?
+    @Environment(SaveErrors.self) private var errors: SaveErrors?
 
     var body: some View {
         NavigationStack {
@@ -44,8 +45,15 @@ struct WorkoutView: View {
 
     private func startEmpty() {
         // TODO: with a workout already running, show the "Workout in progress" sheet (Resume / Discard and Start New).
-        if engine?.workout == nil { _ = try? engine?.startEmpty() }
-        presentWorkout()
+        if let engine, engine.workout == nil {
+            do {
+                try engine.startEmpty()
+            } catch {
+                errors?.report(error)
+            }
+        }
+        // Never present the cover without a workout behind it (a failed start would leave a dead end).
+        if engine?.workout != nil { presentWorkout() }
     }
 }
 

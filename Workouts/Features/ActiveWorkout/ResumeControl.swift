@@ -82,12 +82,15 @@ private struct ResumeRingButton: View {
             // A rest already over when this view appears must not buzz.
             var hasEnded = timer.endsAt.map { $0 <= now } ?? true
             while !Task.isCancelled {
+                // Cancellation ends the loop through `Task.isCancelled`; there is nothing to report.
                 try? await Task.sleep(for: .seconds(1))
                 now = .now
                 if !hasEnded, let endsAt = engine.restTimer.endsAt, endsAt <= now {
                     hasEnded = true
                     restEndCount += 1
                 }
+                // A failed save while forgetting an over rest is harmless: the next tick retries it, so no alert
+                // (it would repeat every second).
                 if engine.restTimer.endsAt != nil, (try? engine.tickRest()) == true { break }
             }
         }
@@ -109,6 +112,8 @@ private struct ResumeRingButton: View {
 struct ResumeCard: View {
     let engine: ActiveWorkoutEngine?
     let navigation: AppNavigation
+    /// Passed in like the engine: the sidebar bar's content does not reliably see the root's environment.
+    var errors: SaveErrors?
     @State private var restoreCount = 0
 
     var body: some View {
@@ -141,7 +146,7 @@ struct ResumeCard: View {
                 .accessibilityLabel("Resume workout, \(workout.name)")
                 .accessibilityIdentifier("resume.card")
                 if timer.isActive {
-                    Button("Skip rest", systemImage: "forward.end") { try? engine.skipRest() }
+                    Button("Skip rest", systemImage: "forward.end") { skipRest(engine) }
                         .labelStyle(.iconOnly)
                         .accessibilityLabel("Skip rest")
                         .accessibilityIdentifier("resume.card.skip")
@@ -150,6 +155,14 @@ struct ResumeCard: View {
             .padding(10)
             .background(.quaternary, in: .rect(cornerRadius: 12))
             .sensoryFeedback(.selection, trigger: restoreCount)
+        }
+    }
+
+    private func skipRest(_ engine: ActiveWorkoutEngine) {
+        do {
+            try engine.skipRest()
+        } catch {
+            errors?.report(error)
         }
     }
 }

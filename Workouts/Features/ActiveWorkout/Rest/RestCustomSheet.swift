@@ -10,6 +10,7 @@ import WorkoutsKit
 /// Start begins the rest, which also records the length in the saved customs (newest first, no defaults, max 6).
 struct RestCustomSheet: View {
     @Environment(ActiveWorkoutEngine.self) private var engine: ActiveWorkoutEngine?
+    @Environment(SaveErrors.self) private var errors: SaveErrors?
     @Environment(\.dismiss) private var dismiss
     @State private var minutes = 1
     @State private var seconds = 0
@@ -55,7 +56,11 @@ struct RestCustomSheet: View {
 
     private func start() {
         // The engine saves a non-default length to the customs list as part of starting.
-        try? engine?.startRest(seconds: total)
+        do {
+            try engine?.startRest(seconds: total)
+        } catch {
+            errors?.report(error)
+        }
         dismiss()
     }
 }

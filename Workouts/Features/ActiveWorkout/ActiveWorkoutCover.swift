@@ -20,6 +20,7 @@ struct ActiveWorkoutCover: View {
     let onDiscarded: () -> Void
     @Environment(ActiveWorkoutEngine.self) private var engine: ActiveWorkoutEngine?
     @Environment(ExerciseStore.self) private var store: ExerciseStore?
+    @Environment(SaveErrors.self) private var errors: SaveErrors?
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var isPickerPresented = false
     @State private var minimiseCount = 0
@@ -67,10 +68,10 @@ struct ActiveWorkoutCover: View {
                     }
                     if let engine, engine.restTimer.isActive {
                         ToolbarItemGroup(placement: .primaryAction) {
-                            Button("Skip", systemImage: "forward.end") { try? engine.skipRest() }
+                            Button("Skip", systemImage: "forward.end") { perform { try engine.skipRest() } }
                                 .accessibilityLabel("Skip rest")
                                 .accessibilityIdentifier("rest.toolbar.skip")
-                            Button("+30 s", systemImage: "goforward.30") { try? engine.adjustRest(by: 30) }
+                            Button("+30 s", systemImage: "goforward.30") { perform { try engine.adjustRest(by: 30) } }
                                 .accessibilityLabel("Add 30 seconds")
                                 .accessibilityIdentifier("rest.toolbar.plus30")
                         }
@@ -97,18 +98,20 @@ struct ActiveWorkoutCover: View {
         .onAppear { UIApplication.shared.isIdleTimerDisabled = SettingsStore().keepScreenOn }
         .onDisappear { UIApplication.shared.isIdleTimerDisabled = false }
         .sensoryFeedback(.selection, trigger: minimiseCount)
+        // The cover is a presentation of its own, so it hosts its own save-error alert.
+        .saveErrorAlert()
         .accessibilityIdentifier("screen.activeWorkout")
     }
 
     @ViewBuilder
     private func content(engine: ActiveWorkoutEngine, store: ExerciseStore, workout: Workout) -> some View {
-        let sections = EngineSetTableSource(engine: engine, store: store).sections
+        let sections = EngineSetTableSource(engine: engine, store: store, errors: errors).sections
         let focused = focusedSection(in: sections)
         // One ArrangementView in both widths, so folding never swaps the table's identity (draft, focus and scroll stay);
         // the pane is simply absent on compact width.
         ArrangementView {
             SetTable(
-                source: EngineSetTableSource(engine: engine, store: store),
+                source: EngineSetTableSource(engine: engine, store: store, errors: errors),
                 focusedSection: $focusedSectionID
             )
         } secondary: {
@@ -184,14 +187,23 @@ struct ActiveWorkoutCover: View {
         }
     }
 
+    /// Runs an engine call and reports a failure through the save-error alert.
+    private func perform(_ action: () throws -> Void) {
+        do {
+            try action()
+        } catch {
+            errors?.report(error)
+        }
+    }
+
     private func addExercises(_ infos: [ExerciseInfo]) {
-        _ = try? engine?.addExercises(infos)
+        perform { _ = try engine?.addExercises(infos) }
     }
 
     /// The picker's Superset: adds the picks, then groups them as one superset.
     private func addSuperset(_ infos: [ExerciseInfo]) {
-        guard let engine, let rows = try? engine.addExercises(infos) else { return }
-        try? engine.makeSuperset(rows)
+        guard let engine else { return }
+        perform { try engine.makeSuperset(try engine.addExercises(infos)) }
     }
 }
 

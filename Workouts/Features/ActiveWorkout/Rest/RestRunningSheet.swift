@@ -10,6 +10,7 @@ import WorkoutsKit
 /// places. Closes itself when the rest ends.
 struct RestRunningSheet: View {
     @Environment(ActiveWorkoutEngine.self) private var engine: ActiveWorkoutEngine?
+    @Environment(SaveErrors.self) private var errors: SaveErrors?
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -80,11 +81,19 @@ struct RestRunningSheet: View {
     }
 
     private func adjust(by seconds: Int) {
-        try? engine?.adjustRest(by: seconds)
+        do {
+            try engine?.adjustRest(by: seconds)
+        } catch {
+            errors?.report(error)
+        }
     }
 
     private func skip() {
-        try? engine?.skipRest()
+        do {
+            try engine?.skipRest()
+        } catch {
+            errors?.report(error)
+        }
         dismiss()
     }
 }

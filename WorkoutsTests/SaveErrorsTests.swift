@@ -1,0 +1,29 @@
+import Foundation
+import Testing
+
+@testable import Workouts
+
+@MainActor
+struct SaveErrorsTests {
+    private struct Failure: LocalizedError {
+        var errorDescription: String? { "the disk is full" }
+    }
+
+    @Test func startsWithoutAMessage() {
+        #expect(SaveErrors().message == nil)
+    }
+
+    @Test func reportSetsTheMessage() {
+        let errors = SaveErrors()
+        errors.report(Failure())
+        #expect(errors.message == "Could not save: the disk is full.")
+    }
+
+    @Test func aLaterFailureReplacesTheMessage() {
+        let errors = SaveErrors()
+        errors.report(Failure())
+        errors.report(CocoaError(.fileWriteOutOfSpace))
+        #expect(errors.message?.hasPrefix("Could not save: ") == true)
+        #expect(errors.message?.contains("the disk is full") == false)
+    }
+}

@@ -23,6 +23,8 @@ struct WorkoutsApp: App {
     private let restNotifier: RestNotifier
     /// Mirrors the engine into the Live Activity; kept alive with its intent handler for the life of the app.
     private let activityController: LiveActivityController
+    /// Where save failures are reported; the root view and the logging cover each host its alert.
+    private let saveErrors = SaveErrors()
     private let intentHandler: EngineActivityIntentHandler?
 
     @MainActor
@@ -108,6 +110,7 @@ struct WorkoutsApp: App {
                 .modelContainer(container)
                 .environment(engine)
                 .environment(store)
+                .environment(saveErrors)
         } else {
             ContentUnavailableView(
                 "Could not open the database",

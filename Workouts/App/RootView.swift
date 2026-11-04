@@ -15,6 +15,7 @@ struct RootView: View {
     @State private var finishSummary: FinishSummaryItem?
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(ActiveWorkoutEngine.self) private var engine: ActiveWorkoutEngine?
+    @Environment(SaveErrors.self) private var saveErrors: SaveErrors?
     /// Whether the cover was open when the app last changed it: per device, so a relaunch can reopen it (task 2.7). A
     /// minimised workout relaunches as only the resume ring.
     @AppStorage("workoutCoverWasOpen") private var coverWasOpen = false
@@ -45,7 +46,7 @@ struct RootView: View {
         // The scrolling lists (History, Exercises) let the tab bar collapse; the Workout tab keeps it (DECISIONS).
         .tabBarMinimizeBehavior(navigation.selectedTab == .workout ? .never : .onScrollDown)
         .tabViewSidebarBottomBar {
-            ResumeCard(engine: engine, navigation: navigation)
+            ResumeCard(engine: engine, navigation: navigation, errors: saveErrors)
             if horizontalSizeClass == .regular {
                 Button("Settings", systemImage: "gearshape") { navigation.openSettings() }
                     .accessibilityLabel("Settings")
@@ -76,6 +77,8 @@ struct RootView: View {
                 onDiscarded: { navigation.endWorkout() }
             )
         }
+        // The cover hosts its own alert; this one stands down while it is up, since a presenter cannot show a second.
+        .saveErrorAlert(isEnabled: !navigation.isWorkoutCoverPresented)
         .onChange(of: navigation.isWorkoutCoverPresented) { _, isPresented in
             coverWasOpen = isPresented
         }

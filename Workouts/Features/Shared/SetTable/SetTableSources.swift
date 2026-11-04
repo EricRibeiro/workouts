@@ -10,11 +10,13 @@ import WorkoutsKit
 // MARK: - Active
 
 /// The active workout (`ActiveWorkoutEngine`) as a set table: Previous and plan from the engine, check and rest through it.
-/// Engine errors are swallowed here, except that a refused check (`emptySet`) leaves the set unchecked and
-/// `toggleCheck` reports it so the row can show the refusal.
+/// Engine errors go to `errors` (the save-error alert), except that a refused check (`emptySet`) is the normal "nothing to
+/// record" path: it leaves the set unchecked and `toggleCheck` returns false so the row can show the refusal.
 struct EngineSetTableSource: SetTableDataSource {
     let engine: ActiveWorkoutEngine
     let store: ExerciseStore
+    /// Where failures are reported; `nil` (previews, the gallery) drops them.
+    var errors: SaveErrors?
 
     var mode: SetTableMode { .active }
 
@@ -75,35 +77,37 @@ struct EngineSetTableSource: SetTableDataSource {
         guard let endsAt = engine.restTimer.endsAt else { return nil }
         return SetTableRest(
             endsAt: endsAt,
-            skip: { try? engine.skipRest() },
-            add30: { try? engine.adjustRest(by: 30) }
+            skip: { perform { try engine.skipRest() } },
+            add30: { perform { try engine.adjustRest(by: 30) } }
         )
     }
 
     func cycleKind(of setID: UUID) {
         guard let set = set(setID) else { return }
-        try? engine.setKind(set, to: SetInputFormat.nextKind(after: set.kind))
+        perform { try engine.setKind(set, to: SetInputFormat.nextKind(after: set.kind)) }
     }
 
     func applyPrevious(to setID: UUID) {
         guard let set = set(setID) else { return }
-        _ = try? engine.applyPrevious(to: set)
+        perform { _ = try engine.applyPrevious(to: set) }
     }
 
     func commitWeight(_ weight: Double?, for setID: UUID) {
         guard let set = set(setID) else { return }
-        try? engine.setValues(set, weight: weight, reps: set.reps, durationSeconds: set.durationSeconds)
+        perform { try engine.setValues(set, weight: weight, reps: set.reps, durationSeconds: set.durationSeconds) }
     }
 
     func commitReps(_ value: Int?, for setID: UUID) {
         guard let set = set(setID), let row = set.workoutExercise else { return }
         let timed = set.durationSeconds != nil || isTimed(row)
-        try? engine.setValues(
-            set,
-            weight: set.weight,
-            reps: timed ? set.reps : value,
-            durationSeconds: timed ? value : set.durationSeconds
-        )
+        perform {
+            try engine.setValues(
+                set,
+                weight: set.weight,
+                reps: timed ? set.reps : value,
+                durationSeconds: timed ? value : set.durationSeconds
+            )
+        }
     }
 
     @discardableResult
@@ -116,26 +120,39 @@ struct EngineSetTableSource: SetTableDataSource {
                 try engine.check(set)
             }
             return true
+        } catch ActiveWorkoutError.emptySet {
+            // The refusal, not a failure: the row shows it.
+            return false
         } catch {
+            errors?.report(error)
             return false
         }
     }
 
     func addSet(to sectionID: UUID) {
         guard let row = exercises.first(where: { $0.id == sectionID }) else { return }
-        _ = try? engine.addSet(to: row)
+        perform { _ = try engine.addSet(to: row) }
     }
 
     func deleteSet(_ setID: UUID) {
         guard let set = set(setID) else { return }
-        try? engine.removeSet(set)
+        perform { try engine.removeSet(set) }
     }
 
     func reorder(_ order: [UUID]) {
         let byID = Dictionary(uniqueKeysWithValues: exercises.map { ($0.id, $0) })
         let ordered = order.compactMap { byID[$0] }
         guard ordered.count == byID.count else { return }
-        try? engine.reorderExercises(ordered)
+        perform { try engine.reorderExercises(ordered) }
+    }
+
+    /// Runs an engine call and reports a failure.
+    private func perform(_ action: () throws -> Void) {
+        do {
+            try action()
+        } catch {
+            errors?.report(error)
+        }
     }
 
     private func set(_ id: UUID) -> WorkoutSet? {
@@ -160,6 +177,8 @@ struct TemplateSetTableSource: SetTableDataSource {
     let template: Template
     let context: ModelContext
     let store: ExerciseStore
+    /// Where a failed save is reported; `nil` (previews, the gallery) drops it.
+    var errors: SaveErrors?
 
     var mode: SetTableMode { .template }
 
@@ -264,7 +283,11 @@ struct TemplateSetTableSource: SetTableDataSource {
         let now = Date()
         row?.updatedAt = now
         template.updatedAt = now
-        try? context.save()
+        do {
+            try context.save()
+        } catch {
+            errors?.report(error)
+        }
     }
 }
 

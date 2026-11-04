@@ -13,6 +13,7 @@ import WorkoutsKit
 /// `TimelineView` only feeds the ring's arc.
 struct RestRingItem: View {
     @Environment(ActiveWorkoutEngine.self) private var engine: ActiveWorkoutEngine?
+    @Environment(SaveErrors.self) private var errors: SaveErrors?
     @State private var isCustomPresented = false
     @State private var isRunningPresented = false
     /// Updated by the 1 s rest loop; the arc and the accessibility time derive from it.
@@ -63,9 +64,17 @@ struct RestRingItem: View {
 
     private func presetButton(_ seconds: Int, engine: ActiveWorkoutEngine) -> some View {
         let text = ElapsedFormat.string(seconds: seconds)
-        return Button(text, systemImage: "timer") { try? engine.startRest(seconds: seconds) }
+        return Button(text, systemImage: "timer") { start(seconds, engine: engine) }
             .accessibilityLabel("Rest \(text)")
             .accessibilityIdentifier("rest.preset.\(seconds)")
+    }
+
+    private func start(_ seconds: Int, engine: ActiveWorkoutEngine) {
+        do {
+            try engine.startRest(seconds: seconds)
+        } catch {
+            errors?.report(error)
+        }
     }
 
     private func runningButton(engine: ActiveWorkoutEngine, endsAt: Date, total: Int) -> some View {
@@ -99,12 +108,15 @@ struct RestRingItem: View {
             // A rest already over when this view appears (relaunch) must not buzz.
             var hasEnded = endsAt <= now
             while !Task.isCancelled {
+                // Cancellation ends the loop through `Task.isCancelled`; there is nothing to report.
                 try? await Task.sleep(for: .seconds(1))
                 now = .now
                 if !hasEnded, endsAt <= now {
                     hasEnded = true
                     restEndCount += 1
                 }
+                // A failed save while forgetting an over rest is harmless: the next tick retries it, so no alert
+                // (it would repeat every second).
                 if (try? engine.tickRest()) == true { break }
             }
         }

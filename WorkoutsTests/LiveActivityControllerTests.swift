@@ -198,4 +198,31 @@ final class FakeLiveActivityProvider: LiveActivityProviding {
         #expect(idle.staleDate == nil)
         #expect(idle.relevanceScore == 0)
     }
+
+    // MARK: Coalescing
+
+    @Test func aBurstOfChangesUpdatesOnceWithTheFinalState() async throws {
+        let debounced = LiveActivityController(provider: provider, debounce: .milliseconds(80))
+        try engine.startEmpty()
+        debounced.observe(engine)
+        try await Task.sleep(for: .milliseconds(300))
+        let activity = try #require(provider.requested.first)
+        #expect(activity.contents.count == 1)
+
+        try engine.startRest(seconds: 60)
+        for _ in 0..<5 { try engine.adjustRest(by: 30) }
+        // Inside the window nothing has been sent yet.
+        #expect(activity.contents.count == 1)
+
+        try await Task.sleep(for: .milliseconds(400))
+        #expect(activity.contents.count == 2)
+        #expect(activity.contents.last?.staleDate == clock.date.addingTimeInterval(210))
+        #expect(activity.contents.last?.state == engine.activityState)
+
+        // A change after the window is its own update.
+        try engine.adjustRest(by: 30)
+        try await Task.sleep(for: .milliseconds(400))
+        #expect(activity.contents.count == 3)
+        #expect(activity.contents.last?.staleDate == clock.date.addingTimeInterval(240))
+    }
 }

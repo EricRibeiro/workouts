@@ -72,8 +72,10 @@ final class SystemNotificationCenter: NotificationCenterProviding {
 /// ### Keeping the schedule in step
 /// ``observe(_:)`` runs `withObservationTracking` over `engine.restNotificationPlan` and re-syncs on every change, so no
 /// call site that mutates the engine (check, uncheck, rest buttons, finish, discard, editing the next set's values) has
-/// to remember to do it. The change callback fires before the mutation lands, so it hops to the next main-actor turn and
-/// re-reads, which also coalesces bursts.
+/// to remember to do it. The change callback fires before the mutation lands, so it hops to the next main-actor turn,
+/// re-arms the tracking, and schedules a re-read after ``debounce`` (300 ms by default); a newer change cancels the
+/// pending re-read, so a burst (a keystroke per change in a set field) removes and re-adds the notification once, with
+/// the final plan. The first sync at ``observe(_:)`` is immediate.
 @MainActor
 final class RestNotifier: NSObject {
     private let center: any NotificationCenterProviding
@@ -81,13 +83,22 @@ final class RestNotifier: NSObject {
     private let logger = Logger(subsystem: "com.ericribeiro.Workouts", category: "RestNotifier")
     private var engine: ActiveWorkoutEngine?
     private var didRequestAuthorization = false
+    private let debounce: Duration
+    private var pendingSync: Task<Void, Never>?
 
     /// Called when a rest ends while the app is in the foreground (the system would have shown the notification).
     var onRestEndedInForeground: (() -> Void)?
 
-    init(center: any NotificationCenterProviding = SystemNotificationCenter(), now: @escaping () -> Date = Date.init) {
+    /// `debounce` is how long the engine must stay quiet before the schedule is re-synced; tests pass `.zero` or a short
+    /// value.
+    init(
+        center: any NotificationCenterProviding = SystemNotificationCenter(),
+        now: @escaping () -> Date = Date.init,
+        debounce: Duration = .milliseconds(300)
+    ) {
         self.center = center
         self.now = now
+        self.debounce = debounce
         super.init()
     }
 
@@ -169,21 +180,43 @@ final class RestNotifier: NSObject {
         )
     }
 
-    /// Syncs now and again after every change to the engine's rest plan. Also asks for permission once a workout
-    /// exists. Call once per engine.
+    /// Syncs now and again (debounced) after every change to the engine's rest plan. Also asks for permission once a
+    /// workout exists. Call once per engine.
     func observe(_ engine: ActiveWorkoutEngine) {
         self.engine = engine
+        pendingSync?.cancel()
+        pendingSync = nil
         track(engine)
+        syncNow(engine)
     }
 
+    /// Arms one round of observation tracking; the change callback re-arms it and (re)schedules the debounced sync.
     private func track(_ engine: ActiveWorkoutEngine) {
-        let (plan, hasWorkout) = withObservationTracking {
-            (engine.restNotificationPlan, engine.workout != nil)
+        withObservationTracking {
+            _ = engine.restNotificationPlan
+            _ = engine.workout != nil
         } onChange: { [weak self] in
-            Task { @MainActor in self?.track(engine) }
+            Task { @MainActor in self?.changed(engine) }
         }
-        sync(plan: plan)
-        if hasWorkout, !didRequestAuthorization {
+    }
+
+    private func changed(_ engine: ActiveWorkoutEngine) {
+        track(engine)
+        pendingSync?.cancel()
+        pendingSync = nil
+        guard debounce > .zero else { return syncNow(engine) }
+        let debounce = debounce
+        pendingSync = Task { @MainActor [weak self] in
+            do { try await Task.sleep(for: debounce) } catch { return }
+            guard !Task.isCancelled else { return }
+            self?.syncNow(engine)
+        }
+    }
+
+    /// Syncs the latest plan, whatever it is when this runs.
+    private func syncNow(_ engine: ActiveWorkoutEngine) {
+        sync(plan: engine.restNotificationPlan)
+        if engine.workout != nil, !didRequestAuthorization {
             Task { await requestAuthorizationIfNeeded() }
         }
     }

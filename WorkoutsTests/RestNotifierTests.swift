@@ -60,9 +60,9 @@ final class FakeNotificationCenter: NotificationCenterProviding {
         container = try ModelContainer.workouts(inMemory: true, cloudKit: false)
     }
 
-    private func notifier() -> RestNotifier {
+    private func notifier(debounce: Duration = .zero) -> RestNotifier {
         let clock = clock
-        return RestNotifier(center: center, now: { clock.date })
+        return RestNotifier(center: center, now: { clock.date }, debounce: debounce)
     }
 
     private func plan(in seconds: TimeInterval, body: String = "Rest over · Set 3 · 27.5 lb × 8")
@@ -253,5 +253,38 @@ final class FakeNotificationCenter: NotificationCenterProviding {
         notifier.observe(engine)
         for _ in 0..<5 { await Task.yield() }
         #expect(center.authorizationRequests == 1)
+    }
+
+    // MARK: Coalescing
+
+    private func scheduledSeconds() -> TimeInterval? {
+        (center.pending[RestNotificationPlan.identifier]?.trigger as? UNTimeIntervalNotificationTrigger)?.timeInterval
+    }
+
+    @Test func aBurstOfChangesSchedulesOnceWithTheFinalPlan() async throws {
+        let engine = try engine()
+        let notifier = notifier(debounce: .milliseconds(80))
+        notifier.observe(engine)
+        center.log = []
+
+        try engine.startRest(seconds: 60)
+        for _ in 0..<5 { try engine.adjustRest(by: 30) }
+        // Inside the window nothing has been touched yet.
+        #expect(center.log.isEmpty)
+
+        try await Task.sleep(for: .milliseconds(400))
+        #expect(center.log.filter { $0 == "add" }.count == 1)
+        #expect(center.log.filter { $0 == "removePending" }.count == 1)
+        #expect(scheduledSeconds() == 210)
+
+        // A change after the window is its own sync.
+        try engine.adjustRest(by: 30)
+        try await Task.sleep(for: .milliseconds(400))
+        #expect(center.log.filter { $0 == "add" }.count == 2)
+        #expect(scheduledSeconds() == 240)
+
+        try engine.skipRest()
+        try await Task.sleep(for: .milliseconds(400))
+        #expect(center.pending.isEmpty)
     }
 }

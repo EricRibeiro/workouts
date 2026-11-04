@@ -76,7 +76,10 @@ final class SystemLiveActivity: LiveActivityHandle {
 ///
 /// ### Keeping in step
 /// ``observe(_:)`` mirrors `RestNotifier`: `withObservationTracking` over the activity state, and on every change a
-/// hop to the next main-actor turn that re-reads and reconciles. Reconciling is async (ActivityKit's `update` and `end`
+/// hop to the next main-actor turn that re-arms the tracking and, after ``debounce`` (300 ms by default) of quiet,
+/// re-reads and reconciles: a newer change cancels the pending reconcile, so a burst (a keystroke per change in a set
+/// field) costs one `Activity.update` carrying the final state. The first reconcile at ``observe(_:)`` is immediate.
+/// Reconciling is async (ActivityKit's `update` and `end`
 /// are), so runs are serialised: a change that lands mid-run marks it dirty and the run loops once more.
 @MainActor
 final class LiveActivityController {
@@ -87,9 +90,13 @@ final class LiveActivityController {
     private var lastContent: ActivityContent<WorkoutActivityState>?
     private var isReconciling = false
     private var isDirty = false
+    private let debounce: Duration
+    private var pendingReconcile: Task<Void, Never>?
 
-    init(provider: (any LiveActivityProviding)? = nil) {
+    /// `debounce` is how long the activity state must stay quiet before reconciling; tests pass `.zero` or a short value.
+    init(provider: (any LiveActivityProviding)? = nil, debounce: Duration = .milliseconds(300)) {
         self.provider = provider ?? SystemLiveActivityProvider()
+        self.debounce = debounce
     }
 
     /// The Live Activity content for `state`: stale when the rest ends, most relevant while resting.
@@ -100,7 +107,10 @@ final class LiveActivityController {
     /// Reconciles now and again after every change to the engine's activity state. Call once per engine.
     func observe(_ engine: ActiveWorkoutEngine) {
         attach(engine)
+        pendingReconcile?.cancel()
+        pendingReconcile = nil
         track(engine)
+        Task { await reconcile() }
     }
 
     /// Sets the engine without observing it; tests then call ``reconcile()`` themselves.
@@ -108,13 +118,26 @@ final class LiveActivityController {
         self.engine = engine
     }
 
+    /// Arms one round of observation tracking; the change callback re-arms it and (re)schedules the debounced reconcile.
     private func track(_ engine: ActiveWorkoutEngine) {
         withObservationTracking {
             _ = engine.activityState
         } onChange: { [weak self] in
-            Task { @MainActor in self?.track(engine) }
+            Task { @MainActor in self?.changed(engine) }
         }
-        Task { await reconcile() }
+    }
+
+    private func changed(_ engine: ActiveWorkoutEngine) {
+        track(engine)
+        pendingReconcile?.cancel()
+        let debounce = debounce
+        pendingReconcile = Task { @MainActor [weak self] in
+            if debounce > .zero {
+                do { try await Task.sleep(for: debounce) } catch { return }
+            }
+            guard !Task.isCancelled else { return }
+            await self?.reconcile()
+        }
     }
 
     /// Makes the system's activities match the engine: request, adopt, update or end. Safe to call often.
