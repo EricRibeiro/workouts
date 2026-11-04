@@ -9,9 +9,10 @@ import WorkoutsKit
 /// The app shell: three tabs (sidebar-adaptable) and the Settings sheet.
 struct RootView: View {
     @State private var navigation = AppNavigation()
-    /// The last finished workout's numbers.
-    // TODO(2.9): summary sheet
-    @State private var finishSummary: FinishSummary?
+    /// The finished workout's numbers, held until the cover has closed.
+    @State private var pendingSummary: FinishSummaryItem?
+    /// The summary sheet's item; presented from here (not the cover) once the cover is gone.
+    @State private var finishSummary: FinishSummaryItem?
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     var body: some View {
@@ -49,11 +50,21 @@ struct RootView: View {
             SettingsView()
                 .presentationPlacement(.center)
         }
-        .fullScreenCover(isPresented: $navigation.isWorkoutCoverPresented) {
+        .sheet(item: $finishSummary) { item in
+            FinishSummaryView(summary: item.summary)
+                .presentationPlacement(.center)
+        }
+        .fullScreenCover(
+            isPresented: $navigation.isWorkoutCoverPresented,
+            onDismiss: {
+                finishSummary = pendingSummary
+                pendingSummary = nil
+            }
+        ) {
             ActiveWorkoutCover(
                 minimise: { navigation.minimiseWorkout() },
                 onFinished: { summary in
-                    finishSummary = summary
+                    pendingSummary = FinishSummaryItem(summary: summary)
                     navigation.endWorkout()
                 },
                 onDiscarded: { navigation.endWorkout() }

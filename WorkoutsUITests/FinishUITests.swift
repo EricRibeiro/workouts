@@ -64,7 +64,13 @@ final class FinishUITests: XCTestCase {
         XCTAssertTrue(complete.waitForExistence(timeout: 5), "Finish Workout? dialog missing")
         complete.tap()
 
-        XCTAssertTrue(any["screen.workout"].waitForExistence(timeout: 10))
+        // The cover closes, then the summary sheet presents from the root; Done dismisses it.
+        XCTAssertTrue(any["screen.finishSummary"].waitForExistence(timeout: 10), "finish summary missing")
         XCTAssertTrue(any["screen.activeWorkout"].waitForNonExistence(timeout: 10))
+        let done = app.buttons["summary.done"].firstMatch
+        XCTAssertTrue(done.waitForExistence(timeout: 5))
+        done.tap()
+        XCTAssertTrue(any["screen.finishSummary"].waitForNonExistence(timeout: 10))
+        XCTAssertTrue(any["screen.workout"].waitForExistence(timeout: 10))
     }
 }

@@ -186,7 +186,7 @@ Live Activity → notifications → logging, then templates, exercises, history.
   root; additive `tabViewSidebarBottomBar` card while the sidebar is visible; tap restores the cover; relaunch restores the cover
   if it was open (else only the ring). Needs: 2.6, 0.10. Proof: flow on both widths, the ring visible from History and Exercises.
 - [ ] **2.8 Finish and Discard**: finish dialogs, Discard confirmation, `.warning` haptic. Needs: 2.4, 0.10. Proof: flow.
-- [ ] **2.9 Finish summary sheet** per `active-workout.md` §3: centred, Done in the Close slot, coloured-value list incl. PRs
+- [x] **2.9 Finish summary sheet** per `active-workout.md` §3: centred, Done in the Close slot, coloured-value list incl. PRs
   (rows inert until 4.2 links them to Records), `.levelChange` on a PR. Needs: 2.8, 0.9, 0.10. Proof: preview at `.large` and
   `.accessibility3` + flow.
 - [ ] **2.10 Regular-width logging**: `ArrangementView(primary: SetTable, secondary: ExercisePane)` following the focused exercise
