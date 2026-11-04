@@ -11,3 +11,4 @@ Builds uploaded with `./dev testflight --upload` (cadence: AGENTS.md "TestFlight
 | 202611041935 | 1ad820d | Half-open bench mode (pane + rest above the hinge, table below) |
 | 202611042033 | d2cffc0 | iCloud + Time Sensitive entitlements (data still local); no overlapping empty states on the open Duo |
 | 202611042208 | d9d82aa | Exercise videos from CloudKit (detail hero, Settings > Download all videos); list thumbnails fade cleanly between poses |
+| 202611042330 | 4757239 | Fold pass: focus/scroll survive folds, editors bench-style, History two columns on the fold, wider Exercises list, no video edge lines, AX filter pills |
