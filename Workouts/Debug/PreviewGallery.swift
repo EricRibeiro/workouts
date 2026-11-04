@@ -37,7 +37,7 @@
             case .workout: WorkoutView()
             case .exercises: ExercisesView()
             case .settings: SettingsView()
-            case .activeWorkoutCover: ActiveWorkoutCover(minimise: {})
+            case .activeWorkoutCover: ActiveWorkoutCover(minimise: {}, onFinished: { _ in }, onDiscarded: {})
             case .swatches: SwatchesView()
             case .exercisePicker: ExercisePickerView(title: "Add Exercise") { _ in }
             case .setRow: SetRowDemo()

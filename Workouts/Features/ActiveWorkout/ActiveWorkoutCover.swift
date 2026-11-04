@@ -8,17 +8,22 @@ import UIKit
 import WorkoutsKit
 
 /// The logging screen (task 2.4): the in-progress workout's set table under a title with the start date and live elapsed
-/// time, Minimise and Add Exercise in the toolbar. the rest ring is `RestRingItem` (2.5); Finish and Discard arrive with 2.8; the
+/// time, Minimise, Finish and Add Exercise in the toolbar. The rest ring is `RestRingItem` (2.5); the Finish dialogs are `FinishFlow`; the
 /// regular-width secondary panes are placeholders until 2.10.
 ///
 /// Reads the engine and the exercise store from the environment. Keeps the screen awake while open when Settings asks.
 struct ActiveWorkoutCover: View {
     let minimise: () -> Void
+    /// Called after Finish saved the workout, with the numbers for the summary sheet (2.9).
+    let onFinished: (FinishSummary) -> Void
+    /// Called after the workout was discarded.
+    let onDiscarded: () -> Void
     @Environment(ActiveWorkoutEngine.self) private var engine: ActiveWorkoutEngine?
     @Environment(ExerciseStore.self) private var store: ExerciseStore?
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var isPickerPresented = false
     @State private var minimiseCount = 0
+    @State private var finishFlow = FinishFlowState()
 
     var body: some View {
         NavigationStack {
@@ -43,6 +48,16 @@ struct ActiveWorkoutCover: View {
                     .accessibilityIdentifier("cover.minimise")
                 }
                 if engine?.workout != nil {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Finish", systemImage: "checkmark") {
+                            guard let engine else { return }
+                            finishFlow.begin(engine: engine, onFinished: onFinished, onDiscarded: onDiscarded)
+                        }
+                        .accessibilityLabel("Finish")
+                        .accessibilityIdentifier("cover.finish")
+                        // On the button so a popover (regular width) points at it.
+                        .finishFlow(finishFlow)
+                    }
                     ToolbarItem(placement: .primaryAction) {
                         RestRingItem()
                     }
@@ -137,5 +152,5 @@ struct ActiveWorkoutCover: View {
 }
 
 #Preview {
-    ActiveWorkoutCover(minimise: {})
+    ActiveWorkoutCover(minimise: {}, onFinished: { _ in }, onDiscarded: {})
 }
