@@ -78,3 +78,7 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
 32. **Past-workout editor** (5.6): duration is a whole-minute Stepper (not an end time); edits go to a kit value draft and
     Save applies them (Cancel drops it); with no check column, Save marks sets with values completed and drops empty sets and
     emptied exercises; the back button is hidden in favour of Cancel/Save.
+33. **Folders** (3.1): an "Unfiled" section exists (the model's folder is optional and Save as Template offers No Folder),
+    though the web spec never orphans templates; deleting a folder offers move-to-Unfiled or delete-with-templates. Folder
+    headers are a `Menu` with a primaryAction (tap = collapse, long press = Rename/Move/Delete) because `.contextMenu` on a
+    Section header never opened on the Duo simulator. Regular width hides headers (sizeClass proxy for "sidebar visible").

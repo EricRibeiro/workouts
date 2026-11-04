@@ -1,0 +1,159 @@
+//
+//  FolderSection.swift
+//  Workouts
+//
+
+import SwiftUI
+import WorkoutsKit
+
+/// One folder in the Workout list: a collapsible section of its templates (task 3.1).
+///
+/// The collapsed flag is per-device `@AppStorage`, keyed by the folder id (never synced). It drives only the header; when
+/// `showsHeader` is false (a visible sidebar lists the folders) the templates show unconditionally under no header.
+struct FolderSection: View {
+    let folder: TemplateFolder
+    /// `folder.name`, read by the list's body so a rename re-renders the header (see `FolderHeader`).
+    let name: String
+    let templates: [Template]
+    let showsHeader: Bool
+    let canMoveUp: Bool
+    let canMoveDown: Bool
+    let rename: () -> Void
+    let move: (FolderMove) -> Void
+    let delete: () -> Void
+
+    @AppStorage private var collapsed: Bool
+
+    init(
+        folder: TemplateFolder,
+        name: String,
+        templates: [Template],
+        showsHeader: Bool,
+        canMoveUp: Bool,
+        canMoveDown: Bool,
+        rename: @escaping () -> Void,
+        move: @escaping (FolderMove) -> Void,
+        delete: @escaping () -> Void
+    ) {
+        self.folder = folder
+        self.name = name
+        self.templates = templates
+        self.showsHeader = showsHeader
+        self.canMoveUp = canMoveUp
+        self.canMoveDown = canMoveDown
+        self.rename = rename
+        self.move = move
+        self.delete = delete
+        _collapsed = AppStorage(wrappedValue: false, FolderSection.collapsedKey(for: folder.id))
+    }
+
+    /// The `UserDefaults` key of a folder's collapsed flag.
+    static func collapsedKey(for id: UUID) -> String { "workoutFolderCollapsed.\(id.uuidString)" }
+
+    private var showsRows: Bool { !showsHeader || !collapsed }
+
+    var body: some View {
+        if showsHeader {
+            Section {
+                rows
+            } header: {
+                FolderHeader(
+                    id: folder.id,
+                    name: name,
+                    count: templates.count,
+                    collapsed: $collapsed,
+                    canMoveUp: canMoveUp,
+                    canMoveDown: canMoveDown,
+                    rename: rename,
+                    move: move,
+                    delete: delete
+                )
+            }
+        } else {
+            Section {
+                rows
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var rows: some View {
+        if showsRows {
+            ForEach(templates) { template in
+                TemplateRow(template: template)
+            }
+        }
+    }
+}
+
+/// A folder's section header. It takes plain values, not the model: a header that read `folder.name` itself stayed stale
+/// after a rename (the list's header sits outside the observation that re-renders the section), so the list's body
+/// reads the name and passes it down.
+private struct FolderHeader: View {
+    let id: UUID
+    let name: String
+    let count: Int
+    @Binding var collapsed: Bool
+    let canMoveUp: Bool
+    let canMoveDown: Bool
+    let rename: () -> Void
+    let move: (FolderMove) -> Void
+    let delete: () -> Void
+
+    var body: some View {
+        menu
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("workout.folder.\(id.uuidString)")
+    }
+
+    /// A `Menu` with a primary action: a tap toggles, a long press opens the folder's actions. (A `contextMenu` on a
+    /// `Section` header never opened, and a `Button` there swallowed the long press, in the Duo simulator.)
+    private var menu: some View {
+        Menu {
+            Button("Rename Folder", systemImage: "pencil", action: rename)
+                .accessibilityIdentifier("workout.folder.rename")
+            if canMoveUp {
+                Button("Move Up", systemImage: "arrow.up") { move(.up) }
+                    .accessibilityIdentifier("workout.folder.moveUp")
+            }
+            if canMoveDown {
+                Button("Move Down", systemImage: "arrow.down") { move(.down) }
+                    .accessibilityIdentifier("workout.folder.moveDown")
+            }
+            Button("Delete Folder", systemImage: "trash", role: .destructive, action: delete)
+                .accessibilityIdentifier("workout.folder.delete")
+        } label: {
+            HStack {
+                Text("\(name) (\(count))")
+                    .font(.headline)
+                    .foregroundStyle(.primary)
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .rotationEffect(.degrees(collapsed ? 0 : 90))
+            }
+            .contentShape(Rectangle())
+        } primaryAction: {
+            withAnimation { collapsed.toggle() }
+        }
+        .menuStyle(.button)
+        .buttonStyle(.plain)
+        .menuIndicator(.hidden)
+        .textCase(nil)
+        .accessibilityLabel("\(name), \(count) \(count == 1 ? "template" : "templates")")
+        .accessibilityValue(collapsed ? "Collapsed" : "Expanded")
+        .accessibilityAddTraits(.isHeader)
+        .accessibilityIdentifier("workout.folder.\(id.uuidString).toggle")
+    }
+}
+
+/// A template as a plain name row; task 3.2a replaces it with the card grid.
+struct TemplateRow: View {
+    let template: Template
+
+    var body: some View {
+        Text(template.name)
+            .accessibilityIdentifier("workout.template.\(template.id.uuidString)")
+    }
+}

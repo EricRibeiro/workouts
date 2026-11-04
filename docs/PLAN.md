@@ -203,7 +203,7 @@ Live Activity → notifications → logging, then templates, exercises, history.
 
 ### Phase 3 — Workout tab (templates)
 
-- [ ] **3.1 Folders**: per-device `@AppStorage` collapse flag per folder (header only; headers dropped beside a visible sidebar),
+- [x] **3.1 Folders**: per-device `@AppStorage` collapse flag per folder (header only; headers dropped beside a visible sidebar),
   `contextMenu` on headers (rename, reorder, delete with move-or-delete dialogs), New Folder in the Add menu. Needs: 2.4, 0.9, 0.10.
   Proof: preview + flow.
 - [ ] **3.2a Template grid + cards**: width-derived even columns, Fitness-shaped cards (section 3), `matchedTransitionSource`, tap
