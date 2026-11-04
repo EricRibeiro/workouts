@@ -121,7 +121,7 @@ extension ActiveWorkoutEngine {
     /// The current set is the **first unchecked set in ``activitySetOrder(groups:counts:)``**: exercises by `position`,
     /// sets by `position`, with adjacent exercises of one superset group alternating (A1, B1, A2, B2, ...).
     public var activityState: WorkoutActivityState? {
-        guard let workout else { return nil }
+        guard let workout = liveWorkout else { return nil }
         let rest = restTimer
         let rows = sortedExercises(of: workout)
         let rowSets = rows.map { sortedSets(of: $0) }
@@ -160,7 +160,7 @@ extension ActiveWorkoutEngine {
 
     /// The static part of the activity, nil without a workout.
     public var activityStaticInfo: WorkoutActivityStaticInfo? {
-        workout.map { WorkoutActivityStaticInfo(workoutID: $0.id) }
+        liveWorkout.map { WorkoutActivityStaticInfo(workoutID: $0.id) }
     }
 }
 

@@ -175,7 +175,7 @@ public struct RestTimer {
 extension ActiveWorkoutEngine {
     /// The rest timer of the in-progress workout (idle without one). Read-only snapshot; operate through the engine.
     public var restTimer: RestTimer {
-        guard let workout else { return RestTimer(now: now) }
+        guard let workout = liveWorkout else { return RestTimer(now: now) }
         return RestTimer(workout: workout, now: now)
     }
 

@@ -373,9 +373,10 @@ public final class ActiveWorkoutEngine {
     /// Deletes the workout with everything in it. The caller confirms first ("Discard workout?").
     public func discard() throws {
         let workout = try activeWorkout()
+        // Cleared first so nothing observing the engine can read the model while it is being deleted.
+        self.workout = nil
         context.delete(workout)
         try context.save()
-        self.workout = nil
         previousCache = [:]
         previousLoaded = []
     }

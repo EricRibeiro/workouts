@@ -26,6 +26,14 @@ extension ActiveWorkoutEngine {
         }
     }
 
+    /// ``workout`` only while it is safe to read: not deleted and still in a context. Reading a persisted property of a
+    /// deleted model traps in SwiftData, so every read-only derivation (rest timer, activity state, notification plan)
+    /// goes through this and reports "nothing running" instead.
+    var liveWorkout: Workout? {
+        guard let workout, !workout.isDeleted, workout.modelContext != nil else { return nil }
+        return workout
+    }
+
     func activeWorkout() throws -> Workout {
         guard let workout else { throw ActiveWorkoutError.noActiveWorkout }
         return workout
