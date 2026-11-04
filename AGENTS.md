@@ -153,6 +153,14 @@ orchestrator after review. Workers do not commit.
 - Apple's bundled skills (`swiftui-specialist`, `app-resizability`, `device-interaction`,
   `modernize-tests`, accessibility auditors, …) come with the Xcode plugin; invoke them by name.
 
+## Secrets (App Store Connect key)
+
+The App Store Connect API key lives only in 1Password (`op://Homelab/App Store Connect API/…`). The **only** code that
+touches it is `./dev testflight`, which pipes `op read` into a mode-600 file in a fresh `mktemp -d` that a trap deletes
+on exit. Never `op read` the key yourself, echo or `cat` it, put it in a variable, env var, argument, log, scratch file,
+commit, PR or chat, or copy a `.p8` anywhere. Key ID and Issuer ID are not secret. If a task seems to need the key some
+other way, stop and ask Eric.
+
 ## Git
 
 Commit directly to `main`, no feature branches unless asked. Commits are signed (see the
