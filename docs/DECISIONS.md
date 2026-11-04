@@ -70,8 +70,11 @@ Eric deferred the technical choices to Claude. These close every item in `docs/p
 - Minimised workout lives in the system bars, never in a bottom pill (Eric, 2026-11-03: no native app on the Duo has a bottom bar;
   Flighty's trailing strip is the model). One `ToolbarItem` carries it in every width: a ring (custom `ProgressViewStyle`,
   `Circle().trim` fed by `TimelineView`; `ProgressView(timerInterval:)` `.circular` is a spinner on iOS) with
-  `Text(timerInterval:)` inside (elapsed time when no rest runs), placed by the system in the trailing strip when closed or
-  open-wide and in the top bar when open-tall. It is the resume control (tap restores) and the logging screen's own timer item; no
+  `Text(timerInterval:)` inside (elapsed time when no rest runs), placed by the system. **Measured 2026-11-03 (27.2):** the
+  system stacks only symbol `Label` items in the trailing strip; a custom-view item (the live ring) stays in the horizontal top
+  bar beside the title in every pose, and no public API moves it (`toolbarVerticalBehavior` is only an opt-out). We keep the
+  live ring in the top bar rather than swap it for a variable SF Symbol (reads as a loading spinner, no visible time) or render
+  it to an image (a hack; Eric: Apple's behaviour over the plan). It is the resume control (tap restores) and the logging screen's own timer item; no
   `.glassEffect()`. Toolbar items do not inherit on push, so a shared `ViewModifier` applies it on every screen's root. Additive:
   a `tabViewSidebarBottomBar` card (name · elapsed · countdown · Skip) while the sidebar is visible. No `.tabViewBottomAccessory`.
   History and Exercises lists set `tabBarMinimizeBehavior(.onScrollDown)`.
