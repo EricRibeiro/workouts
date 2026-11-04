@@ -114,3 +114,11 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
     expiry), each simulator has its own lock (the original keeps the old path), the crash guard stays global. `./dev run`
     no longer opens Simulator.app (headless boot; three windows would pile up on your Mac); restore `open -a Simulator` in
     `cmd_run` if you want to watch. A cold boot waits 15 s before `shot` captures.
+44. **Template card actions** (3.2b): context menu only (Edit, Duplicate, Move ▸ folders + No Folder, Delete); no swipes (a
+    grid isn't a List) and no drag reorder yet. Delete copy from the spec ("Delete <name>?" … "Workouts you did from it stay
+    in your history."); a moved card lands last in its folder; a copy of a copy is "X copy copy". New Template sits in the
+    + menu and opens in the first folder (or unfiled).
+45. **Real sidebar on the open Duo** (3.7): it never appeared before — `.defaultAdaptableTabBarPlacement` is iPadOS-only;
+    iPhone needs `.defaultTabBarPlacement(.sidebar)` (found during 3.7, so the "open-wide sidebar" Phase 2 assumed was a
+    strip until now). `.sidebarOnly` template tabs still leak into the 27.2 bar, so they're built only at regular width
+    (closed = compact = no sidebar). Grid folder headers now always show (open-tall is regular with the sidebar collapsed).

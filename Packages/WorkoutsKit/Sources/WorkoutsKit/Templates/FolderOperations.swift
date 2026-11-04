@@ -116,6 +116,82 @@ public enum FolderOperations {
         try save(context)
     }
 
+    // MARK: Templates
+
+    /// The templates in `folder` (nil: unfiled), ordered, read from the store so it holds before the relationship
+    /// arrays have refreshed.
+    private static func siblings(in folder: TemplateFolder?, context: ModelContext) throws -> [Template] {
+        let all = try context.fetch(FetchDescriptor<Template>())
+        return orderedTemplates(all.filter { $0.folder?.id == folder?.id })
+    }
+
+    /// Copies the template, its exercises and their sets (all with new ids) into the same folder, named "<name> copy",
+    /// right after the original; the siblings behind it are renumbered 0, 1, 2. Returns the copy.
+    @discardableResult
+    public static func duplicate(_ template: Template, in context: ModelContext) throws -> Template {
+        let now = Date()
+        let copy = Template(name: "\(template.name) copy", note: template.note, folder: template.folder)
+        copy.createdAt = now
+        copy.updatedAt = now
+        context.insert(copy)
+        for exercise in (template.exercises ?? []).sorted(by: { $0.position < $1.position }) {
+            let row = TemplateExercise(
+                exerciseID: exercise.exerciseID,
+                exerciseName: exercise.exerciseName,
+                position: exercise.position,
+                supersetGroup: exercise.supersetGroup,
+                note: exercise.note,
+                restSeconds: exercise.restSeconds,
+                unit: exercise.unit,
+                barType: exercise.barType,
+                barWeight: exercise.barWeight,
+                updatedAt: now
+            )
+            row.template = copy
+            context.insert(row)
+            for set in (exercise.sets ?? []).sorted(by: { $0.position < $1.position }) {
+                let planned = TemplateSet(
+                    position: set.position,
+                    kind: set.kind,
+                    weight: set.weight,
+                    reps: set.reps,
+                    durationSeconds: set.durationSeconds,
+                    distanceMeters: set.distanceMeters
+                )
+                planned.templateExercise = row
+                context.insert(planned)
+            }
+        }
+        var list = try siblings(in: template.folder, context: context).filter { $0.id != copy.id }
+        let index = list.firstIndex(where: { $0.id == template.id }).map { $0 + 1 } ?? list.count
+        list.insert(copy, at: index)
+        for (position, item) in list.enumerated() where item.position != position {
+            item.position = position
+            if item.id != copy.id { item.updatedAt = now }
+        }
+        try save(context)
+        return copy
+    }
+
+    /// Moves the template to the end of `folder` (nil: unfiled). Returns `false` (and changes nothing) when it is
+    /// already there.
+    @discardableResult
+    public static func move(_ template: Template, to folder: TemplateFolder?, in context: ModelContext) throws -> Bool {
+        guard template.folder?.id != folder?.id else { return false }
+        let others = try siblings(in: folder, context: context)
+        template.folder = folder
+        template.position = (others.map(\.position).max() ?? -1) + 1
+        template.updatedAt = Date()
+        try save(context)
+        return true
+    }
+
+    /// Deletes the template with its exercises and sets. Workouts done from it stay in history (their link clears).
+    public static func delete(_ template: Template, in context: ModelContext) throws {
+        context.delete(template)
+        try save(context)
+    }
+
     private static func save(_ context: ModelContext) throws {
         do {
             try context.save()

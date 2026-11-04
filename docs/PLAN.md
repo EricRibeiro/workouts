@@ -208,7 +208,7 @@ Live Activity → notifications → logging, then templates, exercises, history.
   Proof: preview + flow.
 - [x] **3.2a Template grid + cards**: width-derived even columns, Fitness-shaped cards (section 3), `matchedTransitionSource`, tap
   = sheet on compact / push on regular. Needs: 3.1, 0.9, 0.10. Proof: preview.
-- [ ] **3.2b Template card actions**: `contextMenu`s and swipes on cards (Edit, Duplicate "<name> copy", Move, Delete), no ⋯;
+- [x] **3.2b Template card actions**: `contextMenu`s and swipes on cards (Edit, Duplicate "<name> copy", Move, Delete), no ⋯;
   optional drag via `reorderContainer`; New Template in the Add menu. Needs: 3.1, 0.10, 3.2a. Proof: flow.
 - [x] **3.3 Template preview** (medium-detent sheet on compact, zoom push on regular) laid out per section 3, Start Workout from
   the engine. Needs: 3.2, 1.1, 0.9, 0.10. Proof: preview + flow on both widths.

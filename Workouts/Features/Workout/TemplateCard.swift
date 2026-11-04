@@ -6,6 +6,19 @@
 import SwiftUI
 import WorkoutsKit
 
+/// What a card's context menu can do (task 3.2b). The screen owns the work (errors, the delete confirmation, the editor
+/// push); the card only offers it.
+struct TemplateCardActions {
+    /// Every folder in order, for the Move submenu.
+    var folders: [TemplateFolder] = []
+    var edit: (Template) -> Void = { _ in }
+    var duplicate: (Template) -> Void = { _ in }
+    /// Moves to the end of that folder (nil: unfiled).
+    var move: (Template, TemplateFolder?) -> Void = { _, _ in }
+    /// Asks first; the screen shows the confirmation.
+    var delete: (Template) -> Void = { _ in }
+}
+
 /// A folder's templates as Fitness-shaped cards in even columns (task 3.2a). The columns come from the grid's own width
 /// (`EvenColumnGrid`), so on the open Duo the gutter falls on the fold; at the closed Duo's width it is two.
 struct TemplateGrid: View {
@@ -13,6 +26,7 @@ struct TemplateGrid: View {
     let finishedWorkouts: [Workout]
     let namespace: Namespace.ID
     let open: (Template) -> Void
+    var actions = TemplateCardActions()
 
     var body: some View {
         EvenColumnGrid(minimum: 160) {
@@ -21,6 +35,7 @@ struct TemplateGrid: View {
                     template: template,
                     summary: TemplateCardSummary.make(for: template, finishedWorkouts: finishedWorkouts),
                     namespace: namespace,
+                    actions: actions,
                     open: { open(template) }
                 )
             }
@@ -36,6 +51,7 @@ struct TemplateCard: View {
     let template: Template
     let summary: TemplateCardSummary
     let namespace: Namespace.ID
+    let actions: TemplateCardActions
     let open: () -> Void
 
     private var hasSuperset: Bool { summary.lines.contains { $0.supersetGroup != nil } }
@@ -93,9 +109,50 @@ struct TemplateCard: View {
         }
         .buttonStyle(.plain)
         .matchedTransitionSource(id: template.id, in: namespace)
+        .contextMenu { menu }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(summary.accessibilityLabel(name: template.name))
         .accessibilityAddTraits(.isButton)
         .accessibilityIdentifier("workout.template.\(template.id.uuidString)")
+    }
+}
+
+extension TemplateCard {
+    /// Edit, Duplicate, Move, then Delete. There is no ⋯ button and no swipe: a grid has no swipe actions, so the
+    /// long-press menu is the one path.
+    @ViewBuilder
+    fileprivate var menu: some View {
+        Button("Edit", systemImage: "pencil") { actions.edit(template) }
+            .accessibilityLabel("Edit")
+            .accessibilityIdentifier("templateCard.edit")
+        Button("Duplicate", systemImage: "plus.square.on.square") { actions.duplicate(template) }
+            .accessibilityLabel("Duplicate")
+            .accessibilityIdentifier("templateCard.duplicate")
+        if !actions.folders.isEmpty {
+            Menu("Move", systemImage: "folder") {
+                ForEach(actions.folders) { folder in
+                    let isCurrent = template.folder?.id == folder.id
+                    Button(folder.name, systemImage: isCurrent ? "checkmark" : "folder") {
+                        actions.move(template, folder)
+                    }
+                    .disabled(isCurrent)
+                    .accessibilityLabel(folder.name)
+                    .accessibilityIdentifier("templateCard.move.\(folder.id.uuidString)")
+                }
+                let isUnfiled = template.folder == nil
+                Button("No Folder", systemImage: isUnfiled ? "checkmark" : "tray") {
+                    actions.move(template, nil)
+                }
+                .disabled(isUnfiled)
+                .accessibilityLabel("No Folder")
+                .accessibilityIdentifier("templateCard.move.none")
+            }
+            .accessibilityLabel("Move")
+            .accessibilityIdentifier("templateCard.move")
+        }
+        Divider()
+        Button("Delete", systemImage: "trash", role: .destructive) { actions.delete(template) }
+            .accessibilityLabel("Delete")
+            .accessibilityIdentifier("templateCard.delete")
     }
 }

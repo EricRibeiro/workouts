@@ -37,6 +37,10 @@ struct WorkoutView: View {
     @State private var presentAfterSheet = false
     /// The template whose editor is pushed on this stack (task 3.4), from the preview's Edit item.
     @State private var editing: Template?
+    /// New Template was chosen in the Add menu: the editor is pushed for a new template.
+    @State private var isCreatingTemplate = false
+    /// The card whose Delete was chosen, until the confirmation answers.
+    @State private var deletingTemplate: Template?
     /// Edit was tapped in the sheet: the editor is pushed once the sheet has gone.
     @State private var editAfterSheet: Template?
     @State private var startFlow = StartWorkoutFlow()
@@ -70,6 +74,9 @@ struct WorkoutView: View {
                         .navigationTransition(.zoom(sourceID: template.id, in: cardZoom))
                 }
                 .navigationDestination(item: $editing) { TemplateEditor(template: $0) }
+                .navigationDestination(isPresented: $isCreatingTemplate) {
+                    TemplateEditor(newIn: FolderOperations.ordered(folders).first)
+                }
                 .sheet(
                     item: $previewSheet,
                     onDismiss: {
@@ -95,6 +102,11 @@ struct WorkoutView: View {
                             )
                             .accessibilityLabel("Empty Workout")
                             .accessibilityIdentifier("toolbar.add.emptyWorkout")
+                            Button("New Template", systemImage: "square.and.pencil") {
+                                isCreatingTemplate = true
+                            }
+                            .accessibilityLabel("New Template")
+                            .accessibilityIdentifier("workout.newTemplate")
                             Button("New Folder", systemImage: "folder.badge.plus", action: beginNewFolder)
                                 .accessibilityLabel("New Folder")
                                 .accessibilityIdentifier("toolbar.add.newFolder")
@@ -143,6 +155,18 @@ struct WorkoutView: View {
         } message: { folder in
             Text(deleteMessage(for: folder))
         }
+        .confirmationDialog(
+            deletingTemplate.map { "Delete \($0.name)?" } ?? "Delete Template?",
+            isPresented: Binding(get: { deletingTemplate != nil }, set: { if !$0 { deletingTemplate = nil } }),
+            titleVisibility: .visible,
+            presenting: deletingTemplate
+        ) { template in
+            Button("Delete Template", role: .destructive) { delete(template) }
+                .accessibilityIdentifier("templateCard.delete.confirm")
+            Button("Cancel", role: .cancel) {}
+        } message: { _ in
+            Text("The template is deleted. Workouts you did from it stay in your history.")
+        }
     }
 
     @ViewBuilder
@@ -164,6 +188,7 @@ struct WorkoutView: View {
                             finishedWorkouts: finishedWorkouts,
                             namespace: cardZoom,
                             open: open,
+                            actions: cardActions,
                             showsHeader: showsFolderHeaders,
                             canMoveUp: FolderOperations.canMove(folder, .up, in: folders),
                             canMoveDown: FolderOperations.canMove(folder, .down, in: folders),
@@ -189,7 +214,8 @@ struct WorkoutView: View {
                                 templates: unfiled,
                                 finishedWorkouts: finishedWorkouts,
                                 namespace: cardZoom,
-                                open: open
+                                open: open,
+                                actions: cardActions
                             )
                         }
                     }
@@ -198,6 +224,22 @@ struct WorkoutView: View {
             }
             .accessibilityIdentifier("workout.list")
         }
+    }
+
+    // MARK: Card actions
+
+    private var cardActions: TemplateCardActions {
+        TemplateCardActions(
+            folders: FolderOperations.ordered(folders),
+            edit: edit,
+            duplicate: { template in perform { try FolderOperations.duplicate(template, in: context) } },
+            move: { template, folder in perform { try FolderOperations.move(template, to: folder, in: context) } },
+            delete: { deletingTemplate = $0 }
+        )
+    }
+
+    private func delete(_ template: Template) {
+        perform { try FolderOperations.delete(template, in: context) }
     }
 
     // MARK: Folder dialogs

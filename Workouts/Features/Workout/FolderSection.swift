@@ -18,6 +18,7 @@ struct FolderSection: View {
     let finishedWorkouts: [Workout]
     let namespace: Namespace.ID
     let open: (Template) -> Void
+    let actions: TemplateCardActions
     let showsHeader: Bool
     let canMoveUp: Bool
     let canMoveDown: Bool
@@ -34,6 +35,7 @@ struct FolderSection: View {
         finishedWorkouts: [Workout],
         namespace: Namespace.ID,
         open: @escaping (Template) -> Void,
+        actions: TemplateCardActions,
         showsHeader: Bool,
         canMoveUp: Bool,
         canMoveDown: Bool,
@@ -47,6 +49,7 @@ struct FolderSection: View {
         self.finishedWorkouts = finishedWorkouts
         self.namespace = namespace
         self.open = open
+        self.actions = actions
         self.showsHeader = showsHeader
         self.canMoveUp = canMoveUp
         self.canMoveDown = canMoveDown
@@ -81,7 +84,8 @@ struct FolderSection: View {
                     templates: templates,
                     finishedWorkouts: finishedWorkouts,
                     namespace: namespace,
-                    open: open
+                    open: open,
+                    actions: actions
                 )
             }
         }
