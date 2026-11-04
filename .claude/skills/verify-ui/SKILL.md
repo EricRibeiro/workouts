@@ -61,6 +61,8 @@ outer display), open tall and open wide (regular/regular, inner display, hinge i
 Orientation changes go through `DeviceInteractionSynthesize`. Switching folded/unfolded from the
 CLI is **not supported**; use the Simulator's Device Hub window for that (a person does it) and
 screenshot with `./dev screenshot`.
+Open Device Hub from `/Applications/Xcode.app/Contents/Applications/DeviceHub.app`: an older copy found via
+Spotlight can lack the fold controls (Apple Developer Forums thread 847556).
 
 **Never experiment with the simulator's displays.** `xcrun simctl io <dev> screenConfig --display=N
 power off|on` (tried 2026-11-03 to fake folding) put SpringBoard into a crash loop: a "SpringBoard quit
