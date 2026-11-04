@@ -111,6 +111,9 @@ private struct Editor: View {
             Button("Cancel", role: .cancel) {}
                 .accessibilityIdentifier("pastEditor.rename.cancel")
         }
+        // Fires when "Discard changes?" is raised, not when Discard is tapped: confirming dismisses this screen in the
+        // same pass, which would cut the haptic off, and the presenters (several) cannot be hooked cheaply.
+        .sensoryFeedback(.warning, trigger: isDiscardConfirming) { _, shown in shown }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("screen.pastEditor")
     }

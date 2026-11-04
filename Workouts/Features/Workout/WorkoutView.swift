@@ -12,16 +12,10 @@ struct WorkoutView: View {
     var showSettings: () -> Void = {}
     /// Presents the active workout's cover, which the root view owns.
     var presentWorkout: () -> Void = {}
-    /// A sidebar section's "New Template" asked for the editor (the root view owns the request, since the tab may not
-    /// have existed yet when it was made).
-    var newTemplate: Binding<NewTemplateRequest?> = .constant(nil)
-    /// A sidebar template tab's Edit asked for that template's editor, so it lives on this tab's stack and survives a fold.
-    var editTemplate: Binding<EditTemplateRequest?> = .constant(nil)
     @Environment(ActiveWorkoutEngine.self) private var engine: ActiveWorkoutEngine?
     @Environment(SaveErrors.self) private var errors: SaveErrors?
     @Environment(\.modelContext) private var context
-    /// Regular width opens the preview with a push; compact presents a sheet. Not a proxy for "the sidebar is showing":
-    /// open-tall is regular with the sidebar collapsed, so nothing here hides content because of a sidebar.
+    /// Regular width opens the preview with a push; compact presents a sheet.
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Query(sort: [SortDescriptor(\TemplateFolder.position), SortDescriptor(\TemplateFolder.name)])
     private var folders: [TemplateFolder]
@@ -48,6 +42,8 @@ struct WorkoutView: View {
     @State private var isCreatingTemplate = false
     /// The card whose Delete was chosen, until the confirmation answers.
     @State private var deletingTemplate: Template?
+    /// Bumps when a folder or template is deleted; drives the `.warning` haptic.
+    @State private var destructiveCount = 0
     /// Edit was tapped in the sheet: the editor is pushed once the sheet has gone.
     @State private var editAfterSheet: Template?
     @State private var startFlow = StartWorkoutFlow()
@@ -81,14 +77,6 @@ struct WorkoutView: View {
                 .navigationDestination(item: $editing) { TemplateEditor(template: $0) }
                 .navigationDestination(isPresented: $isCreatingTemplate) {
                     TemplateEditor(newIn: FolderOperations.ordered(folders).first)
-                }
-                .navigationDestination(item: newTemplate) { request in
-                    TemplateEditor(newIn: folders.first { $0.id == request.folderID })
-                }
-                .navigationDestination(item: editTemplate) { request in
-                    if let template = templates.first(where: { $0.id == request.templateID }) {
-                        TemplateEditor(template: template)
-                    }
                 }
                 .sheet(
                     item: $previewSheet,
@@ -180,6 +168,7 @@ struct WorkoutView: View {
         } message: { _ in
             Text("The template is deleted. Workouts you did from it stay in your history.")
         }
+        .sensoryFeedback(.warning, trigger: destructiveCount)
     }
 
     @ViewBuilder
@@ -257,6 +246,7 @@ struct WorkoutView: View {
     }
 
     private func delete(_ template: Template) {
+        destructiveCount += 1
         perform { try FolderOperations.delete(template, in: context) }
     }
 
@@ -314,6 +304,7 @@ struct WorkoutView: View {
     }
 
     private func delete(_ folder: TemplateFolder, _ deletion: FolderDeletion) {
+        if deletion == .deleteTemplates { destructiveCount += 1 }
         let key = FolderSection.collapsedKey(for: folder.id)
         perform {
             try FolderOperations.delete(folder, deletion, in: context)

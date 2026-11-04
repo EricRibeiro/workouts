@@ -15,6 +15,7 @@ struct StickyNoteView: View {
 
     @Query private var notes: [StickyNote]
     @State private var isEditing = false
+    @State private var removals = 0
 
     init(exerciseID: UUID) {
         self.exerciseID = exerciseID
@@ -58,9 +59,11 @@ struct StickyNoteView: View {
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("exerciseDetail.stickyNote")
         .sheet(isPresented: $isEditing) {
-            StickyNoteEditor(exerciseID: exerciseID, initialText: text ?? "")
+            StickyNoteEditor(exerciseID: exerciseID, initialText: text ?? "", onRemoved: { removals += 1 })
                 .presentationPlacement(.center)
         }
+        // Here, not on the sheet: this view outlives the sheet's dismissal, which would cut the haptic off.
+        .sensoryFeedback(.warning, trigger: removals)
     }
 }
 
@@ -68,16 +71,18 @@ struct StickyNoteView: View {
 struct StickyNoteEditor: View {
     let exerciseID: UUID
     let initialText: String
+    /// Called when the note is removed, just before the sheet closes; the presenter owns the haptic.
+    var onRemoved: () -> Void = {}
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
     @State private var draft: String
     @State private var saveError: String?
-    @State private var removals = 0
 
-    init(exerciseID: UUID, initialText: String) {
+    init(exerciseID: UUID, initialText: String, onRemoved: @escaping () -> Void = {}) {
         self.exerciseID = exerciseID
         self.initialText = initialText
+        self.onRemoved = onRemoved
         _draft = State(initialValue: initialText)
     }
 
@@ -98,7 +103,7 @@ struct StickyNoteEditor: View {
                 if !initialText.isEmpty {
                     Section {
                         Button("Remove Sticky Note", systemImage: "trash", role: .destructive) {
-                            removals += 1
+                            onRemoved()
                             perform { try StickyNotes.clear(exerciseID, in: context) }
                         }
                         .accessibilityIdentifier("stickyNote.remove")
@@ -129,7 +134,6 @@ struct StickyNoteEditor: View {
             }
         }
         .interactiveDismissDisabled(draft != initialText)
-        .sensoryFeedback(.warning, trigger: removals)
         .accessibilityIdentifier("stickyNote.editor")
     }
 

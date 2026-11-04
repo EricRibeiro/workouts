@@ -13,7 +13,7 @@ public final class AppNavigation {
     public var workoutPath: [WorkoutRoute]
     public var exercisesPath: [ExercisesRoute]
 
-    /// The Settings `Form` sheet, opened from the Workout tab's gear or the sidebar's bottom bar.
+    /// The Settings `Form` sheet, opened from the Workout tab's gear.
     public var isSettingsPresented: Bool
 
     /// The active workout's `fullScreenCover` on the root `TabView`, not tied to any tab.
@@ -64,7 +64,6 @@ public final class AppNavigation {
         case .history: _ = historyPath.popLast()
         case .workout: _ = workoutPath.popLast()
         case .exercises: _ = exercisesPath.popLast()
-        case .template: break  // a template tab keeps its stack in its own view
         }
     }
 
@@ -73,7 +72,6 @@ public final class AppNavigation {
         case .history: historyPath.removeAll()
         case .workout: workoutPath.removeAll()
         case .exercises: exercisesPath.removeAll()
-        case .template: break
         }
     }
 

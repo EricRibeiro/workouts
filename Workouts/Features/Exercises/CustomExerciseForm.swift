@@ -17,6 +17,8 @@ struct CustomExerciseFormView: View {
     var prefill = ""
     /// Called with the saved exercise just before the sheet closes.
     var onSaved: (ExerciseInfo) -> Void = { _ in }
+    /// Called after Archive or Delete succeeds, just before the sheet closes; the presenter owns the `.warning` haptic.
+    var onRemoved: () -> Void = {}
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
@@ -26,7 +28,6 @@ struct CustomExerciseFormView: View {
     @State private var loadedDraft = CustomExerciseForm.Draft()
     @State private var loaded = false
     @State private var isReferenced = false
-    @State private var removed = 0
     @State private var nameTouched = false
     @State private var removal: Removal?
     @State private var failure: String?
@@ -114,7 +115,6 @@ struct CustomExerciseFormView: View {
             } message: {
                 Text(failure ?? "")
             }
-            .sensoryFeedback(.warning, trigger: removed)
             .task { load() }
         }
         .interactiveDismissDisabled(draft != loadedDraft)
@@ -282,7 +282,7 @@ struct CustomExerciseFormView: View {
             case .archive: try CustomExerciseForm.archive(exercise, in: modelContext, store: store)
             case .delete: try CustomExerciseForm.delete(exercise, in: modelContext, store: store)
             }
-            removed += 1
+            onRemoved()
             dismiss()
         } catch {
             failure = error.localizedDescription

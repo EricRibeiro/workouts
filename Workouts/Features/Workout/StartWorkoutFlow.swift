@@ -28,6 +28,8 @@ final class StartWorkoutFlow {
     fileprivate var blocked: Blocked?
     /// Counts started workouts; drives the `.impact` haptic.
     fileprivate(set) var startCount = 0
+    /// Counts discards of the running workout; drives the `.warning` haptic on the dialog's owner.
+    fileprivate(set) var discardCount = 0
 
     private var engine: ActiveWorkoutEngine?
     private var errors: SaveErrors?
@@ -60,6 +62,7 @@ final class StartWorkoutFlow {
         guard let engine else { return }
         do {
             try engine.discard()
+            discardCount += 1
         } catch {
             errors?.report(error)
             return
@@ -114,5 +117,6 @@ private struct StartWorkoutDialog: ViewModifier {
                 )
             }
             .sensoryFeedback(.impact, trigger: flow.startCount)
+            .sensoryFeedback(.warning, trigger: flow.discardCount)
     }
 }

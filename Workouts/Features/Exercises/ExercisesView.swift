@@ -7,9 +7,9 @@ import SwiftData
 import SwiftUI
 import WorkoutsKit
 
-/// The Exercises tab (task 4.1a): a `NavigationSplitView` with the exercise list in the content column and the exercise
-/// detail in the detail column (`ExerciseDetailView`, 4.2). Compact width pushes the detail; regular width shows it beside
-/// the list. Search is `.searchable` only, over name and aliases. Two `Menu` pills (body part, category) lead the list; the
+/// The Exercises tab (task 4.1a): a `NavigationSplitView` with the exercise list in the sidebar column and the exercise
+/// detail in the detail column (`ExerciseDetailView`, 4.2). Compact width pushes the detail; regular width always shows
+/// the list beside the detail (JC52), with "Select an Exercise" until a row is chosen. Search is `.searchable` only, over name and aliases. Two `Menu` pills (body part, category) lead the list; the
 /// toolbar has New Exercise (the custom exercise form) and a Show Retired toggle.
 struct ExercisesView: View {
     @Environment(ExerciseStore.self) private var store
@@ -32,11 +32,16 @@ struct ExercisesView: View {
     @Namespace private var zoomNamespace
 
     var body: some View {
-        NavigationSplitView {
+        // Regular width: the list column is permanent beside the detail, never behind a toggle (JC52). `.all` keeps it
+        // shown; the binding's setter ignores the system's collapse requests. Compact width still pushes the detail.
+        NavigationSplitView(columnVisibility: .constant(.all)) {
             list
+                // The list never collapses, so the system's show/hide button has nothing to do.
+                .toolbar(removing: .sidebarToggle)
         } detail: {
             detail
         }
+        .navigationSplitViewStyle(.balanced)
         .accessibilityIdentifier("screen.exercises")
         // Deleting the selected custom exercise empties the selection, which also pops the pushed detail on compact width.
         .onChange(of: selectionExists) { _, exists in
@@ -116,7 +121,7 @@ struct ExercisesView: View {
             CustomExerciseFormView()
                 .presentationPlacement(.center)
         }
-        .searchable(text: $query, prompt: "Search exercises")
+        .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search exercises")
         .naturalLanguageSearch(text: query, includeRetired: showRetired, match: $naturalMatch)
         .task(id: fingerprint) {
             bestSets = ExerciseBestSets.texts(

@@ -35,7 +35,7 @@ final class SmokeUITests: XCTestCase {
 
         XCTAssertTrue(app.descendants(matching: .any)["screen.workout"].waitForExistence(timeout: 10))
 
-        // Tab bar on compact width; the sidebar-adaptable bar keeps the same identifiers.
+        // The system tab bar (the trailing strip on the closed Duo).
         let history = app.descendants(matching: .any)["tab.history"].firstMatch
         XCTAssertTrue(history.waitForExistence(timeout: 5))
         history.tap()
@@ -59,20 +59,19 @@ final class SmokeUITests: XCTestCase {
         XCTAssertFalse(app.descendants(matching: .any)["screen.settings"].exists)
     }
 
-    /// PLAN 3.7: the compact bar (the closed Duo, the sim's default pose) is the three main tabs; the template tabs are
-    /// sidebar-only and must not leak into it, sample templates or not.
+    /// JC52: the tab bar is the three main tabs and nothing else (no app sidebar, no template tabs), sample templates or not.
     @MainActor
-    func testCompactBarHasOnlyTheThreeTabs() throws {
+    func testTabBarHasOnlyTheThreeTabs() throws {
         let app = makeApp(["-seedSampleData"])
         app.launch()
         XCTAssertTrue(app.descendants(matching: .any)["screen.workout"].waitForExistence(timeout: 10))
-        // Template cards are on screen, so the seed is in; their sidebar tabs must still be absent.
+        // Template cards are on screen, so the seed is in.
         XCTAssertTrue(app.descendants(matching: .any)["workout.list"].waitForExistence(timeout: 5))
         for id in ["tab.history", "tab.workout", "tab.exercises"] {
             XCTAssertTrue(app.descendants(matching: .any)[id].firstMatch.waitForExistence(timeout: 5), id)
         }
         let leaked = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "identifier BEGINSWITH 'sidebar.template.'"))
+            .matching(NSPredicate(format: "identifier BEGINSWITH 'sidebar.'"))
         XCTAssertEqual(leaked.count, 0)
     }
 }

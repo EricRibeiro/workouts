@@ -32,6 +32,7 @@ struct ExerciseDetailView: View {
     @State private var sessions: [Session] = []
     @State private var history: [ExerciseHistorySession] = []
     @State private var isEditing = false
+    @State private var removals = 0
 
     init(exerciseID: UUID, embedded: Bool = false, initialSegment: Segment = .about) {
         self.exerciseID = exerciseID
@@ -41,15 +42,19 @@ struct ExerciseDetailView: View {
     }
 
     var body: some View {
-        if let info = store.exercise(id: exerciseID) {
-            content(info)
-        } else {
-            ContentUnavailableView(
-                "That exercise does not exist.",
-                systemImage: "questionmark.folder"
-            )
-            .accessibilityIdentifier("screen.exerciseDetail")
+        Group {
+            if let info = store.exercise(id: exerciseID) {
+                content(info)
+            } else {
+                ContentUnavailableView(
+                    "That exercise does not exist.",
+                    systemImage: "questionmark.folder"
+                )
+                .accessibilityIdentifier("screen.exerciseDetail")
+            }
         }
+        // On the Group, which outlives both the edit sheet and a deleted exercise's content (the branch flips).
+        .sensoryFeedback(.warning, trigger: removals)
     }
 
     private var unit: WeightUnit { (settings ?? SettingsStore()).defaultUnit }
@@ -98,7 +103,7 @@ struct ExerciseDetailView: View {
         }
         .modifier(DetailChrome(showsEdit: info.isCustom && !embedded, embedded: embedded) { isEditing = true })
         .sheet(isPresented: $isEditing) {
-            CustomExerciseFormView(editing: exerciseID)
+            CustomExerciseFormView(editing: exerciseID, onRemoved: { removals += 1 })
                 .presentationPlacement(.center)
         }
         .task(id: Fingerprint(finished, unit: unit, formula: options.formula)) {

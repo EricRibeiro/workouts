@@ -38,32 +38,25 @@ Eric deferred the technical choices to Claude. These close every item in `docs/p
 
 ## Navigation and layout
 
-- `TabView` with `.tabViewStyle(.sidebarAdaptable)` and `.defaultTabBarPlacement(.sidebar)`. Not `defaultAdaptableTabBarPlacement`:
-  Apple's doc says that one "is only effective on iPadOS", while `defaultTabBarPlacement` applies "where the `sidebarAdaptable`
-  style statically resolves to either a sidebar or tab bar, such as iPhone", which is the Duo; with the adaptable variant the open
-  Duo showed only the trailing strip, never the sidebar (verified in the 27.2 simulator: open wide shows the sidebar expanded,
-  open tall shows it collapsed behind its toggle). Three top-level `Tab`s in
-  Eric's order, **History · Workout · Exercises**; **Workout is the default selection**. One `TabSection` per **folder** (header =
-  folder name), its templates as `Tab`s with `.tabPlacement(.sidebarOnly)` rendering the template
-  preview with Start / Edit; `.sectionActions` carries "New Template". In 27.2 `.sidebarOnly` (and
-  `defaultVisibility(.hidden, for: .tabBar)`) still leaks the template tabs into the bar, so they are built **only at regular
-  width** (`horizontalSizeClass == .regular`); compact has no sidebar, and its bar is the three main tabs. Don't assume where the
-  bar lands, and never read regular width as "the sidebar is visible" (open tall is regular with the sidebar collapsed).
-- **Settings**: a gear `toolbar` button on the Workout tab and `tabViewSidebarBottomBar` on regular width, opening a `Form` sheet.
+- **No app sidebar** (JC52, Eric 2026-11-04). A plain `TabView` (no `.sidebarAdaptable`, no `defaultTabBarPlacement`): the tabs
+  stay in the system tab bar, which is the trailing strip on the Duo in every pose. Three top-level `Tab`s in Eric's order,
+  **History · Workout · Exercises**; **Workout is the default selection**. Templates live on the Workout tab's card grid only
+  (the 3.7 sidebar `TabSection`s, their `.sidebarOnly` tabs and the sidebar resume card were removed). Never assume where the
+  bar lands.
+- **Settings**: the gear `toolbar` button on the Workout tab, in every pose, opening a `Form` sheet.
 - **Toolbar items** carry a symbol and a title; the ellipsis belongs to the system's `ToolbarOverflowMenu`, so no `⋯` menus.
   Workout: Settings (`gearshape`), Add (`plus`, a `Menu`: **Empty Workout** / New Template / New Folder); other screens' items
   are in their specs. Row and card actions are `contextMenu` + `swipeActions` only; only content blocks inside the set table
   may keep `ellipsis.circle`. Task screens set `toolbarVerticalCompressionBehavior(.prefersToolbarItems)` and order items
   Close → prominent → state (ring) → actions, since the bottom overflows first: nothing below the ring may be needed mid-set.
-- Exercises uses `NavigationSplitView` with no column-width modifiers: the system sizes columns and keeps them off the fold
-  (compact → push); the empty detail is a `ContentUnavailableView` (Mail's model). History and Workout are single columns in both
-  widths (the sidebar lists templates). The Workout tab is a **card grid** (collapsible folders) with an even column count from
-  the grid's own width via `onGeometryChange`, `max(2, 2 * floor(width / (2 * minCard)))`: sidebar open gets 2, full width 4, so
-  no card straddles the fold; with `.includeInactive` reserved regions the hinge gap widens. Card tap: compact → medium-detent
-  preview sheet (a Maps/Flighty-style panel, fine at phone size); regular → push the preview (zoom transition) so the sidebar
-  stays. The grid's folder headers always show (also beside an expanded sidebar, which repeats the folder names). The folder
-  collapse flag is per-device `@AppStorage` and drives only the header; the sidebar's `TabSection` expansion is the system's and independent (27.2 `TabSection` has no
-  `isExpanded` binding).
+- Exercises uses `NavigationSplitView(columnVisibility: .all)` with `.balanced` and no column-width modifiers: on regular width the
+  list is a **permanent** pane beside the detail (never behind a toggle; JC52); the system keeps columns off the fold (compact
+  -> push); the empty detail is a `ContentUnavailableView` ("Select an Exercise"). History and Workout are single columns in both
+  widths. The Workout tab is a **card grid** (collapsible folders) with an even column count from the grid's own width via
+  `onGeometryChange`, `max(2, 2 * floor(width / (2 * minCard)))`, so no card straddles the fold; with `.includeInactive`
+  reserved regions the hinge gap widens. Card tap: compact -> medium-detent preview sheet (a Maps/Flighty-style panel, fine at
+  phone size); regular -> push the preview (zoom transition). The grid's folder headers always show. The folder collapse flag
+  is per-device `@AppStorage`.
 - **Sheet placement**: on regular width every sheet names `presentationPlacement`: picker, settings, calendar, custom timer,
   finish summary → `.center`; rest ring → `.trailing` (it belongs to the strip's ring item).
 - **Active workout**: one presentation in both widths, a `fullScreenCover` on the root `TabView`, not tied to any tab. Layout
@@ -83,7 +76,7 @@ Eric deferred the technical choices to Claude. These close every item in `docs/p
   like Claude's context indicator), no digits; the countdown is in its accessibility label ("Rest timer, 4:57"), the rest
   sheet, the keyboard group and the Live Activity. The strip renders it as a template (foreground colour, no tinted track). It is the resume control (tap restores) and the logging screen's own timer item; no
   `.glassEffect()`. Toolbar items do not inherit on push, so a shared `ViewModifier` applies it on every screen's root. Additive:
-  a `tabViewSidebarBottomBar` card (name · elapsed · countdown · Skip) while the sidebar is visible. No `.tabViewBottomAccessory`.
+  nothing else (no sidebar card, JC52). No `.tabViewBottomAccessory`.
   History and Exercises lists set `tabBarMinimizeBehavior(.onScrollDown)`.
 - `AppNavigation` (@Observable, WorkoutsKit) with typed routes, so Live Activity buttons and notification actions can open the
   logging screen or a template. App Intents exist only behind those buttons (no Shortcuts or Spotlight).

@@ -47,12 +47,10 @@ status bar, toolbar items, tab bar. Rules that follow:
 
 ## The inner display
 
-- Tab bar as sidebar: opt in with `.defaultTabBarPlacement(.sidebar)`. Its doc: it applies "where the `sidebarAdaptable` style
-  statically resolves to either a sidebar or tab bar, such as iPhone"; `defaultAdaptableTabBarPlacement` is "only effective on
-  iPadOS", so on the Duo it leaves the trailing strip and no sidebar (verified in the 27.2 simulator). Open wide shows the
-  sidebar expanded; open tall shows it collapsed behind a toggle, with regular width in both, so size class does not say whether
-  it is visible. `.sidebarOnly` still leaks into the 27.2 bar, so template tabs are built only at regular width.
-  Apple: a sidebar is "best for information-dense apps". Our Templates section lives there.
+- Tab bar: we do **not** opt into the sidebar (JC52). A plain `TabView` keeps the tabs in the trailing strip on the inner display
+  too. (For the record: `.defaultTabBarPlacement(.sidebar)` with `.sidebarAdaptable` gives a sidebar, expanded when open wide and
+  collapsed behind a toggle when open tall; `.sidebarOnly` tabs leak into the 27.2 bar.) Apple: a sidebar is "best for
+  information-dense apps"; ours has three destinations, and Exercises already has its own list column.
 - Split views expand on the inner display and collapse on the outer; `NavigationSplitView`
   adjusts column widths and margins to the fold on its own. Show one more level of hierarchy
   than on the outer display (Mail's model), with the same functionality and element state.
@@ -111,9 +109,9 @@ Apps Eric likes the feel of: Claude, Flighty, Apple Fitness.
   Island and status on top. Content uses the full height. There is no bottom bar anywhere, so the
   web's bottom tab capsule and dock have no native counterpart. The minimised workout therefore
   lives in the bars: a ring toolbar item (resume control, shown on the open display's strip too)
-  plus an additive card at the bottom of the sidebar (decided with Eric, 2026-11-03).
+  (the sidebar card of the 2026-11-03 decision was dropped with the sidebar, JC52).
 - **Open wide, Claude**: leading sidebar (section list), content in the middle, toolbar actions
-  in the trailing strip. This is the shape of our shell: Templates/History/Exercises in the sidebar.
+  in the trailing strip. Not our shell: we have no sidebar (JC52); our tabs stay in the strip.
 - **Open wide, Flighty**: full-bleed map with a floating panel at the **leading** edge that carries
   its own **horizontal** tab bar, while the trailing strip holds the map toolbar. Apple's
   placement rule, seen live: leading/centered panels get horizontal bars, the trailing edge is

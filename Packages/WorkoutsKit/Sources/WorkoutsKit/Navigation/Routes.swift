@@ -1,13 +1,11 @@
 import Foundation
 
 /// The selectable tabs: the three top-level ones, in Eric's order (DECISIONS "Navigation and layout": History · Workout ·
-/// Exercises), and one sidebar-only tab per template (PLAN 3.7), which never appears in the compact bar.
+/// Exercises). The tab bar is the system's (the trailing strip on the Duo's closed display); there is no app sidebar (JC52).
 public enum AppTab: Hashable, Sendable {
     case history
     case workout
     case exercises
-    /// A template's sidebar tab, rendering its preview; the id is the `Template.id`.
-    case template(UUID)
 
     /// The tabs of the compact bar, in order.
     public static let main: [AppTab] = [.history, .workout, .exercises]

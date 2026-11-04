@@ -58,6 +58,8 @@ final class BlockActionState {
     var superset: BlockID?
     var preferences: BlockID?
     var removeBlockID: UUID?
+    /// Bumps when a block or its sticky note is removed; drives the `.warning` haptic on the owning screen.
+    var destructiveCount = 0
 
     /// The menu entries, each opening its prompt (or acting straight away, for warm-ups).
     func actions(host: BlockActionHost) -> SetTableBlockActions {
@@ -108,7 +110,8 @@ private struct BlockActionSheets: ViewModifier {
                 if let block = block(target.id) {
                     StickyNoteEditor(
                         exerciseID: block.exerciseID,
-                        initialText: stickyNotes.first { $0.exerciseID == block.exerciseID }?.text ?? ""
+                        initialText: stickyNotes.first { $0.exerciseID == block.exerciseID }?.text ?? "",
+                        onRemoved: { state.destructiveCount += 1 }
                     )
                     .presentationPlacement(.center)
                 }
@@ -141,6 +144,7 @@ private struct BlockActionSheets: ViewModifier {
                 Button("Remove Exercise", role: .destructive) {
                     if let id = state.removeBlockID { host.remove(id) }
                     state.removeBlockID = nil
+                    state.destructiveCount += 1
                 }
                 .accessibilityIdentifier("\(host.idPrefix).remove.confirm")
                 Button("Cancel", role: .cancel) {}
@@ -148,6 +152,9 @@ private struct BlockActionSheets: ViewModifier {
             } message: {
                 Text(host.removeMessage)
             }
+            // On the owner's content, which outlives the confirmation and the sticky note sheet (a sheet that is
+            // dismissing may cut the haptic off).
+            .sensoryFeedback(.warning, trigger: state.destructiveCount)
     }
 
     private func block(_ id: UUID?) -> BlockActionBlock? {

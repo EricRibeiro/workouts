@@ -227,6 +227,7 @@ Live Activity → notifications → logging, then templates, exercises, history.
   Needs: 3.6. Proof: flow.
 - [x] **3.7 Sidebar Templates sections**: `TabSection` per folder, `.sidebarOnly` template tabs rendering the preview,
   `.sectionActions` "New Template". Needs: 3.3. Proof: open-Duo screenshot; compact bar unchanged.
+  Reverted 2026-11-04 (JC52).
 - [x] **3.8 Design review: Workout tab** (skill `design-review`): grid, cards, preview, editor, sidebar; seeded with: cards must
   read as Fitness's (fill, no rim, title row with chevron, four text levels), superset colours distinguishable from each other and
   from ok/danger in both appearances. Needs: 3.7. Proof: the findings table; P0–P2 rows become tasks before Phase 4 starts.

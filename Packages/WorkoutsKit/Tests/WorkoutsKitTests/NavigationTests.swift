@@ -26,20 +26,6 @@ import Testing
         #expect(nav.workoutPath == [.template(a)])
     }
 
-    @Test func templateTabsAreSelectableAndLeaveTheStacksAlone() {
-        let nav = AppNavigation()
-        nav.push(WorkoutRoute.template(a))
-        nav.select(.template(b))
-        #expect(nav.selectedTab == .template(b))
-        nav.select(.template(b))  // reselecting pops to root: nothing to pop here
-        nav.pop(.template(b))
-        nav.popToRoot(.template(b))
-        #expect(nav.selectedTab == .template(b))
-        #expect(nav.workoutPath == [.template(a)])
-        #expect(AppTab.template(a) != .template(b))
-        #expect(!AppTab.main.contains(.template(a)))
-    }
-
     @Test func stacksAreIndependentPerTab() {
         let nav = AppNavigation()
         nav.push(HistoryRoute.workout(a))
