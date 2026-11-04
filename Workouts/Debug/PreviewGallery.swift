@@ -33,7 +33,7 @@
             switch self {
             case .gallery: GalleryIndex()
             case .root: RootView()
-            case .history: HistoryView()
+            case .history: HistoryDemo()
             case .workout: WorkoutView()
             case .exercises: ExercisesView()
             case .settings: SettingsView()

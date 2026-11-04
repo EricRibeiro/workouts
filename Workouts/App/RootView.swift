@@ -17,7 +17,7 @@ struct RootView: View {
     var body: some View {
         TabView(selection: Binding(get: { navigation.selectedTab }, set: { navigation.select($0) })) {
             Tab("History", systemImage: "clock.arrow.circlepath", value: AppTab.history) {
-                HistoryView()
+                HistoryView(path: $navigation.historyPath)
             }
             .accessibilityIdentifier("tab.history")
 
@@ -36,6 +36,8 @@ struct RootView: View {
         }
         .tabViewStyle(.sidebarAdaptable)
         .defaultAdaptableTabBarPlacement(.sidebar)
+        // The scrolling lists (History, Exercises) let the tab bar collapse; the Workout tab keeps it (DECISIONS).
+        .tabBarMinimizeBehavior(navigation.selectedTab == .workout ? .never : .onScrollDown)
         .tabViewSidebarBottomBar {
             if horizontalSizeClass == .regular {
                 Button("Settings", systemImage: "gearshape") { navigation.openSettings() }
