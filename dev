@@ -167,8 +167,10 @@ cmd_format() { swift_format format --in-place; }
 
 find_app() {
   local app
-  app=$(find "$DERIVED/Build/Products/Debug-iphonesimulator" -maxdepth 1 -name '*.app' -print -quit 2>/dev/null)
-  [[ -n "$app" ]] || die "no .app found under $DERIVED/Build/Products/Debug-iphonesimulator"
+  # By name: after a ui-test run the folder also holds WorkoutsUITests-Runner.app, and `find -print -quit` returned it
+  # first, so `run` installed the runner and launched a stale Workouts build (2026-11-03).
+  app="$DERIVED/Build/Products/Debug-iphonesimulator/Workouts.app"
+  [[ -d "$app" ]] || die "no Workouts.app under $DERIVED/Build/Products/Debug-iphonesimulator"
   echo "$app"
 }
 
@@ -199,6 +201,17 @@ cmd_screenshot() {
     fi
   fi
   echo "$path"
+}
+
+cmd_shot() { # cmd_shot <png> [-- app launch args...]: run + settle + screenshot under ONE lock hold
+  # Separate `run` and `screenshot` calls each take the lock, so a parallel worker could install its own build in between
+  # and the shot would show that build (seen 2026-11-03). Waits ${DEV_SETTLE:-4}s for the first frame and presentations.
+  local path="${1:-}"
+  [[ -n "$path" ]] || die "usage: shot <png> [-- app args...]"
+  shift
+  cmd_run "$@" >/dev/null
+  sleep "${DEV_SETTLE:-4}"
+  cmd_screenshot "$path"
 }
 
 # Simulator commands hold one machine-wide lock, so parallel agents (worktrees included) take turns on the simulator
@@ -320,6 +333,7 @@ kit-build          swift build in Packages/WorkoutsKit
 lint               swift-format lint --strict
 format             swift-format in place
 run [-- args]      boot sim, build, install, launch; args go to the app (-- -preview <Name>); prints log command
+shot <png> [-- args]  run + wait + screenshot in one lock hold (use this for proofs; parallel-safe)
 screenshot [path]  simulator screenshot (default .build/screenshots/<timestamp>.png)
 home               send the app to the background (Home screen); agent-device session closed after
 fold <pose> [png]  Duo hinge: closed|half-open|open (agent-device); png = capture of the lit panel
@@ -342,6 +356,7 @@ case "$sub" in
   format) cmd_format ;;
   run) sim_guarded cmd_run "$@" ;;
   screenshot) sim_guarded cmd_screenshot "$@" ;;
+  shot) sim_guarded cmd_shot "$@" ;;
   home) sim_guarded cmd_home ;;
   fold) sim_guarded cmd_fold "$@" ;;
   orient) sim_guarded cmd_orient "$@" ;;

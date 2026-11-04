@@ -15,7 +15,8 @@ it. The fallback is the proof of record:
 
 - **Screens**: `./dev run -- -preview <Name>` launches the `#if DEBUG` `PreviewGallery` root, which hosts the same views as the
   `#Preview`s on the sample container (PLAN task 0.10). Dynamic Type and dark: `xcrun simctl ui booted content_size
-  accessibility-extra-large`, `xcrun simctl ui booted appearance dark`. Then `./dev screenshot` and look at the PNG.
+  accessibility-extra-large`, `xcrun simctl ui booted appearance dark`. Prefer `./dev shot <png> -- -preview <Name>`: run,
+  settle and screenshot under one simulator lock, so a parallel worker cannot install its build in between. Then Read the PNG.
 - **Flows**: an XCUITest in `WorkoutsUITests`, run with `./dev ui-test Suite/test()`. It navigates by accessibility
   identifier, so unlabeled controls fail it just as they stall agents.
 - Register every new screen in the gallery in the same change.
@@ -39,6 +40,7 @@ dark mode. They are the wrong tool for navigation flows and state.
 ```
 ./dev run            # boots iPhone Duo, builds, installs, launches
 ./dev screenshot     # .build/screenshots/<timestamp>.png — open it with Read
+./dev shot <png> [-- args]   # run + 4 s settle (DEV_SETTLE) + screenshot in one lock hold: the parallel-safe proof
 ```
 Dark mode / text size: `xcrun simctl ui booted appearance dark`,
 `xcrun simctl ui booted content_size accessibility-extra-large`.

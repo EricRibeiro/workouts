@@ -52,6 +52,7 @@ Codable/Sendable state those types wrap and the logic behind them.
 ./dev ui-test [filter]  XCUITest flows on the simulator    — Suite/test(); the flow proof of record
 ./dev run [-- args]     boot sim, install, launch the app; args go to the app (`-- -preview <Name>` = the gallery)
 ./dev screenshot [p]    PNG of the booted simulator (Duo has two displays; DEV_DISPLAY=primary|…)
+./dev shot <p> [-- args] run + settle + screenshot under one simulator lock: the parallel-safe screen proof
 ./dev fold <pose> [p]   Duo hinge closed|half-open|open, p = PNG of the lit panel; ./dev orient <o> [p] rotates
 ./dev check             lint → kit → build → test; the pre-commit gate (~30s warm)
 ```
