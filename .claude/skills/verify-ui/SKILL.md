@@ -60,6 +60,12 @@ session as soon as you are done; it is expensive to keep open.
 
 Layout work must be checked in all four poses: closed portrait and landscape (compact width,
 outer display), open tall and open wide (regular/regular, inner display, hinge in the middle).
+**Simulator pool.** `./dev` gives each checkout (main, each worktree) its own simulator from the pool (`iPhone Duo`,
+`iPhone Duo 2`…`iPhone Duo 5`), remembered in `.build/dev-sim-udid`, so parallel workers rarely queue. Every command in a
+checkout hits that one simulator, so its fold pose and text size belong to your checkout; still leave it closed and
+portrait. Each simulator has its own lock; the crash guard stays global. Booting is headless (no Simulator.app window), and
+a cold boot settles 15 s before `shot` captures. `./dev sims` lists the pool.
+
 Change poses with `./dev fold closed|half-open|open [png]` and `./dev orient portrait|landscape-left|… [png]`
 (agent-device, pinned in `dev`; it sends the simulator's own HID hinge event and confirms the hinge angle). The optional
 png captures whichever panel is lit: 466x678 pt closed (outer), 951x669 open, 669x951 open rotated. Plain

@@ -4,7 +4,6 @@ set -euo pipefail
 
 cd "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-DEV_SIM="${DEV_SIM:-iPhone Duo}"
 SCHEME="Workouts"
 BUNDLE_ID="com.ericribeiro.Workouts"
 DERIVED=".build/DerivedData"
@@ -16,6 +15,110 @@ NOISE='IDERunDestination|IDESchemeActionDeviceRecord|IDETestOperationsObserverDe
 MAX_LINES=80
 
 die() { echo "dev: $*" >&2; exit 1; }
+
+# Simulator pool. The original "iPhone Duo" plus clones "iPhone Duo 2".."iPhone Duo $DEV_SIM_POOL" (made by `./dev sims`),
+# so parallel agents each get their own simulator instead of queueing on one. Every simulator has its own lock; a checkout
+# remembers its simulator in .build/dev-sim-udid, so run -> screenshot -> fold hit one device and its fold pose sticks.
+# DEV_SIM (name) or DEV_SIM_UDID override the assignment. Every simctl/xcodebuild call targets $SIM_UDID, never `booted`.
+SIM_ORIGINAL="iPhone Duo"
+SIM_POOL="${DEV_SIM_POOL:-5}"
+CACHE_DIR="$HOME/Library/Caches"
+SIM_CLAIM=".build/dev-sim-udid"
+SIM_CLAIM_MAX_AGE_MIN=1440 # another checkout's claim counts for a day after it last used the simulator
+SIM_TABLE=""               # tab-separated name, udid, state of every available simulator
+SIM_UDID=""
+SIM_NAME=""
+COLD_BOOT=0
+
+sim_table_load() { SIM_TABLE=$(xcrun simctl list devices available -j | jq -r '.devices[][] | [.name, .udid, .state] | @tsv'); }
+# The lookups read SIM_TABLE, so load it in the main shell first (sim_resolve and cmd_sims do).
+sim_udid_by_name() { awk -F'\t' -v n="$1" '$1 == n { print $2; exit }' <<<"$SIM_TABLE"; }
+sim_name_by_udid() { awk -F'\t' -v u="$1" '$2 == u { print $1; exit }' <<<"$SIM_TABLE"; }
+sim_state_by_udid() { awk -F'\t' -v u="$1" '$2 == u { print $3; exit }' <<<"$SIM_TABLE"; }
+sim_pool_names() {
+  local i
+  for ((i = 1; i <= SIM_POOL; i++)); do
+    if ((i == 1)); then echo "$SIM_ORIGINAL"; else echo "$SIM_ORIGINAL $i"; fi
+  done
+}
+
+# The original keeps the pre-pool lock path, so an older `dev` in another checkout still excludes correctly.
+sim_lock_path() { # sim_lock_path <udid>
+  if [[ -n "$1" && "$1" == "$(sim_udid_by_name "$SIM_ORIGINAL")" ]]; then
+    echo "$CACHE_DIR/workouts-dev-sim.lock"
+  else
+    echo "$CACHE_DIR/workouts-dev-sim.$1.lock"
+  fi
+}
+sim_lock_holder() { # live holder pid of a simulator's lock, else "-"
+  local owner; owner=$(cat "$(sim_lock_path "$1")/pid" 2>/dev/null || true)
+  if [[ -n "$owner" ]] && kill -0 "$owner" 2>/dev/null; then echo "$owner"; else echo "-"; fi
+}
+sim_lock_free() { # free = no lock directory, or its owner is dead
+  [[ ! -d "$(sim_lock_path "$1")" ]] && return 0
+  [[ "$(sim_lock_holder "$1")" == "-" ]] && [[ -n "$(cat "$(sim_lock_path "$1")/pid" 2>/dev/null || true)" ]]
+}
+
+# Best effort: does another checkout's .build/dev-sim-udid name this simulator? Looks at the main checkout and every
+# .claude/worktrees/* checkout, and ignores claims not refreshed within SIM_CLAIM_MAX_AGE_MIN so finished worktrees free up.
+sim_claimed() { # sim_claimed <udid>
+  local common main f
+  common=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || return 1
+  main=$(dirname "$common")
+  for f in "$main/$SIM_CLAIM" "$main"/.claude/worktrees/*/"$SIM_CLAIM"; do
+    [[ -f "$f" ]] || continue
+    [[ "$f" -ef "$SIM_CLAIM" ]] && continue
+    [[ -n "$(find "$f" -mmin "-$SIM_CLAIM_MAX_AGE_MIN" 2>/dev/null)" ]] || continue
+    [[ "$(cat "$f" 2>/dev/null || true)" == "$1" ]] && return 0
+  done
+  return 1
+}
+
+sim_pick() { # first pool member that is lock-free and unclaimed; else a lock-free one; else the original
+  local name udid
+  while IFS= read -r name; do
+    udid=$(sim_udid_by_name "$name"); [[ -n "$udid" ]] || continue
+    if sim_lock_free "$udid" && ! sim_claimed "$udid"; then echo "$udid"; return; fi
+  done < <(sim_pool_names)
+  while IFS= read -r name; do
+    udid=$(sim_udid_by_name "$name"); [[ -n "$udid" ]] || continue
+    if sim_lock_free "$udid"; then echo "$udid"; return; fi
+  done < <(sim_pool_names)
+  sim_udid_by_name "$SIM_ORIGINAL"
+}
+
+# Sets SIM_UDID and SIM_NAME once per process and says which simulator on one stderr line. Call it in the main shell
+# (not inside $(...) or a pipeline) before anything that needs the simulator.
+sim_resolve() {
+  [[ -z "$SIM_UDID" ]] || return 0
+  sim_table_load
+  local remembered mutex="$CACHE_DIR/workouts-dev-sim-pick.lock" n=0
+  if [[ -n "${DEV_SIM_UDID:-}" ]]; then
+    SIM_UDID="$DEV_SIM_UDID"
+    SIM_NAME=$(sim_name_by_udid "$SIM_UDID"); [[ -n "$SIM_NAME" ]] || die "DEV_SIM_UDID $SIM_UDID is not an available simulator"
+  elif [[ -n "${DEV_SIM:-}" ]]; then
+    SIM_NAME="$DEV_SIM"
+    SIM_UDID=$(sim_udid_by_name "$SIM_NAME"); [[ -n "$SIM_UDID" ]] || die "no available simulator named '$SIM_NAME'"
+  else
+    remembered=$(cat "$SIM_CLAIM" 2>/dev/null || true)
+    if [[ -n "$remembered" && -n "$(sim_name_by_udid "$remembered")" ]]; then
+      SIM_UDID="$remembered"
+    else
+      # Two checkouts picking at once must not both take the same free simulator: serialize the pick (it takes ~1s).
+      until mkdir "$mutex" 2>/dev/null; do
+        [[ -z "$(find "$mutex" -maxdepth 0 -mmin +1 2>/dev/null)" ]] || rm -rf "$mutex"
+        sleep 0.2; n=$((n + 1)); ((n < 100)) || break
+      done
+      SIM_UDID=$(sim_pick)
+      [[ -n "$SIM_UDID" ]] || { rm -rf "$mutex"; die "no '$SIM_ORIGINAL' simulator found"; }
+      mkdir -p "$(dirname "$SIM_CLAIM")"; echo "$SIM_UDID" >"$SIM_CLAIM"
+      rm -rf "$mutex"
+    fi
+    SIM_NAME=$(sim_name_by_udid "$SIM_UDID")
+    touch "$SIM_CLAIM" 2>/dev/null || { mkdir -p "$(dirname "$SIM_CLAIM")"; echo "$SIM_UDID" >"$SIM_CLAIM"; }
+  fi
+  echo "dev: simulator $SIM_NAME ($SIM_UDID)" >&2
+}
 
 # Print at most MAX_LINES of stdin, noting truncation.
 cap() {
@@ -58,7 +161,7 @@ excerpt() {
 
 xcb() { # xcb <action> [extra xcodebuild args...]
   local action="$1"; shift
-  xcodebuild "$action" -scheme "$SCHEME" -destination "platform=iOS Simulator,name=$DEV_SIM" \
+  xcodebuild "$action" -scheme "$SCHEME" -destination "platform=iOS Simulator,id=$SIM_UDID" \
     -derivedDataPath "$DERIVED" -quiet "$@"
 }
 
@@ -85,6 +188,7 @@ report_failures() {
 run_tests() { # run_tests <name> <target> [filter]
   local name="$1" target="$2" filter="${3:-}"
   local only="$target" bundle="$RESULTS/$name-$$.xcresult" rc=0
+  sim_resolve
   [[ -n "$filter" ]] && only="$target/$filter"
   mkdir -p "$RESULTS"
   find "$RESULTS" -maxdepth 1 -name '*.xcresult' -mmin +240 -exec rm -rf {} + 2>/dev/null || true
@@ -95,7 +199,7 @@ run_tests() { # run_tests <name> <target> [filter]
     grep -q 'hung before establishing connection'; then
     # A retry against the same simulator hung again (2026-11-03); a cold boot cleared it.
     echo "dev: test runner hung before connecting; rebooting the simulator and retrying once" >&2
-    xcrun simctl shutdown "$DEV_SIM" >/dev/null 2>&1 || true
+    xcrun simctl shutdown "$SIM_UDID" >/dev/null 2>&1 || true
     rm -rf "$bundle"; rc=0
     run_logged "$name" xcb test -parallel-testing-enabled NO -only-testing:"$only" -resultBundlePath "$bundle" || rc=$?
   fi
@@ -118,7 +222,7 @@ test_summary() { # test_summary <name> <only> <bundle>
   jq -r --arg n "$name" '"\($n): \(.passedTests // 0) passed, \(.failedTests // 0) failed, \(.skippedTests // 0) skipped"' <<<"$json"
 }
 
-cmd_build() { run_logged build xcb build; }
+cmd_build() { sim_resolve; run_logged build xcb build; }
 cmd_test() { run_tests test WorkoutsTests "${1:-}"; }
 cmd_ui_test() { run_tests ui-test WorkoutsUITests "${1:-}"; }
 
@@ -177,15 +281,18 @@ find_app() {
 cmd_run() { # cmd_run [-- app launch args...]; args reach the app, e.g. ./dev run -- -preview Swatches
   [[ "${1:-}" == "--" ]] && shift
   local out
-  if ! out=$(xcrun simctl boot "$DEV_SIM" 2>&1); then
+  sim_resolve
+  # Boots headless: no Simulator.app window is opened (with a pool of simulators, windows pile up on Eric's Mac).
+  if out=$(xcrun simctl boot "$SIM_UDID" 2>&1); then
+    COLD_BOOT=1 # a fresh boot (or a new clone) needs longer before its first frame; cmd_shot waits for it
+  else
     [[ "$out" == *"current state: Booted"* || "$out" == *"already"* ]] || die "boot failed: $out"
   fi
-  open -a Simulator 2>/dev/null || true # absent on headless hosts; the sim still boots
-  xcrun simctl bootstatus "$DEV_SIM" -b >/dev/null 2>&1 || true
+  xcrun simctl bootstatus "$SIM_UDID" -b >/dev/null 2>&1 || true
   cmd_build
-  xcrun simctl install booted "$(find_app)"
-  xcrun simctl launch --terminate-running-process booted "$BUNDLE_ID" "$@"
-  echo "logs: xcrun simctl spawn booted log stream --predicate 'subsystem == \"$BUNDLE_ID\"'"
+  xcrun simctl install "$SIM_UDID" "$(find_app)"
+  xcrun simctl launch --terminate-running-process "$SIM_UDID" "$BUNDLE_ID" "$@"
+  echo "logs: xcrun simctl spawn $SIM_UDID log stream --predicate 'subsystem == \"$BUNDLE_ID\"'"
 }
 
 cmd_screenshot() {
@@ -193,9 +300,9 @@ cmd_screenshot() {
   mkdir -p "$(dirname "$path")"
   # Multi-display devices (iPhone Duo) need --display; DEV_DISPLAY overrides the "primary" fallback.
   local out
-  if ! out=$(xcrun simctl io booted screenshot "$path" 2>&1); then
+  if ! out=$(xcrun simctl io "$SIM_UDID" screenshot "$path" 2>&1); then
     if [[ "$out" == *"--display"* ]]; then
-      out=$(xcrun simctl io booted screenshot --display="${DEV_DISPLAY:-primary}" "$path" 2>&1) || die "screenshot failed: $out"
+      out=$(xcrun simctl io "$SIM_UDID" screenshot --display="${DEV_DISPLAY:-primary}" "$path" 2>&1) || die "screenshot failed: $out"
     else
       die "screenshot failed: $out"
     fi
@@ -210,28 +317,31 @@ cmd_shot() { # cmd_shot <png> [-- app launch args...]: run + settle + screenshot
   [[ -n "$path" ]] || die "usage: shot <png> [-- app args...]"
   shift
   cmd_run "$@" >/dev/null
-  sleep "${DEV_SETTLE:-4}"
+  sleep "${DEV_SETTLE:-$((COLD_BOOT ? 15 : 4))}"
   cmd_screenshot "$path"
 }
 
-# Simulator commands hold one machine-wide lock, so parallel agents (worktrees included) take turns on the simulator
-# instead of racing it, and fail when any simulator process crashed while they ran. Seen 2026-11-03: a SpringBoard
-# crash loop after `simctl io screenConfig --display=N power off` (now forbidden) and a PosterBoard crash while
-# xcodebuild booted a parallel-testing clone. Each crash raises a "quit unexpectedly" dialog on Eric's Mac.
+# Simulator commands hold the lock of their one simulator (see the pool above), so parallel agents on the same simulator
+# take turns instead of racing it, and fail when any simulator process crashed while they ran. The crash check is global:
+# a crash on any simulator fails the command. Seen 2026-11-03: a SpringBoard crash loop after
+# `simctl io screenConfig --display=N power off` (now forbidden) and a PosterBoard crash while xcodebuild booted a
+# parallel-testing clone. Each crash raises a "quit unexpectedly" dialog on Eric's Mac.
 CRASH_DIR="$HOME/Library/Logs/DiagnosticReports"
-SIM_LOCK="$HOME/Library/Caches/workouts-dev-sim.lock"
-sim_lock() {
+SIM_LOCK=""
+sim_lock() { # sim_lock <lock-dir>
+  SIM_LOCK="$1"
   local waited=0 owner
   until mkdir "$SIM_LOCK" 2>/dev/null; do
     owner=$(cat "$SIM_LOCK/pid" 2>/dev/null || true)
     if [[ -n "$owner" ]] && ! kill -0 "$owner" 2>/dev/null; then rm -rf "$SIM_LOCK"; continue; fi
-    ((waited % 30 == 0)) && echo "dev: waiting for the simulator (held by pid ${owner:-?})" >&2
+    ((waited % 30 == 0)) && echo "dev: waiting for $SIM_NAME (held by pid ${owner:-?})" >&2
     sleep 2; waited=$((waited + 2))
     ((waited < 1800)) || die "simulator lock held for 30 min by pid ${owner:-?}; remove $SIM_LOCK if it is stale"
   done
   echo $$ >"$SIM_LOCK/pid"
   trap 'rm -rf "$SIM_LOCK"' EXIT
 }
+sim_unlock() { rm -rf "$SIM_LOCK"; trap - EXIT; }
 sim_crashes() { # sim_crashes <since-epoch>: simulator-process crash reports captured after <since-epoch>
   # Reads each report's own captureTime (files are sometimes re-touched long after the crash) and skips daemons killed
   # while a simulator shuts down (SIGTERM timeout), which are shutdown noise, not crashes.
@@ -264,7 +374,8 @@ PY
 }
 sim_guarded() { # sim_guarded <cmd> [args...]
   local rc=0 crashes
-  sim_lock
+  sim_resolve
+  sim_lock "$(sim_lock_path "$SIM_UDID")"
   local since; since=$(date +%s)
   # Not `"$@" || rc=$?`: bash disables `set -e` inside anything run in a `||` context, so check kept going past a
   # failed step and printed "check: ok" (2026-11-03). A subshell with errexit re-enabled stops at the first failure.
@@ -290,12 +401,10 @@ sim_guarded() { # sim_guarded <cmd> [args...]
 # SpringBoard crashes, unlike `simctl io screenConfig` display toggling (forbidden). Each call opens an agent-device
 # session on the running app, acts, captures the lit panel when a path is given, and closes the session.
 AGENT_DEVICE=(npx --yes agent-device@0.21.36)
-booted_udid() {
-  xcrun simctl list devices booted | sed -n "s/.*$DEV_SIM (\([0-9A-F-]*\)) (Booted).*/\1/p" | head -1
-}
+sim_require_booted() { [[ "$(xcrun simctl list devices booted)" == *"$SIM_UDID"* ]] || die "$SIM_NAME is not booted; ./dev run first"; }
 agent_device_do() { # agent_device_do <fold|orientation> <value> [screenshot.png]
-  local udid shot="${3:-}"
-  udid=$(booted_udid); [[ -n "$udid" ]] || die "$DEV_SIM is not booted; ./dev run first"
+  local udid="$SIM_UDID" shot="${3:-}"
+  sim_require_booted
   "${AGENT_DEVICE[@]}" open "$BUNDLE_ID" --udid "$udid" --timeout 120000 >/dev/null || die "agent-device open failed"
   local rc=0
   "${AGENT_DEVICE[@]}" "$1" "$2" --udid "$udid" || rc=$?
@@ -306,7 +415,7 @@ agent_device_do() { # agent_device_do <fold|orientation> <value> [screenshot.png
   return "$rc"
 }
 cmd_home() { # background the app (Home screen) so the Live Activity / notifications show; the session is always closed
-  local udid; udid=$(booted_udid); [[ -n "$udid" ]] || die "$DEV_SIM is not booted; ./dev run first"
+  local udid="$SIM_UDID"; sim_require_booted
   local rc=0
   "${AGENT_DEVICE[@]}" open com.apple.springboard --platform ios --udid "$udid" >/dev/null || rc=$?
   "${AGENT_DEVICE[@]}" close --udid "$udid" >/dev/null 2>&1 || true
@@ -314,6 +423,34 @@ cmd_home() { # background the app (Home screen) so the Live Activity / notificat
 }
 cmd_fold() { [[ "${1:-}" =~ ^(closed|half-open|open)$ ]] || die "usage: fold closed|half-open|open [screenshot.png]"; agent_device_do fold "$1" "${2:-}"; }
 cmd_orient() { [[ "${1:-}" =~ ^(portrait|portrait-upside-down|landscape-left|landscape-right)$ ]] || die "usage: orient portrait|landscape-left|landscape-right|portrait-upside-down [screenshot.png]"; agent_device_do orientation "$1" "${2:-}"; }
+
+cmd_sims() { # create any missing pool clone, then list the pool; idempotent
+  sim_table_load
+  local orig name need=()
+  orig=$(sim_udid_by_name "$SIM_ORIGINAL"); [[ -n "$orig" ]] || die "no simulator named '$SIM_ORIGINAL' to clone"
+  while IFS= read -r name; do
+    [[ -n "$(sim_udid_by_name "$name")" ]] || need+=("$name")
+  done < <(sim_pool_names)
+  if ((${#need[@]} > 0)); then
+    SIM_NAME="$SIM_ORIGINAL" # clone needs the original shut down: hold its lock so nobody is mid-run on it
+    sim_lock "$(sim_lock_path "$orig")"
+    xcrun simctl shutdown "$orig" >/dev/null 2>&1 || true # errors when it is already shut down
+    for name in "${need[@]}"; do
+      echo "dev: cloning $SIM_ORIGINAL -> $name" >&2
+      xcrun simctl clone "$orig" "$name" >/dev/null || die "clone to '$name' failed"
+    done
+    sim_unlock
+    sim_table_load
+  fi
+  local mine; mine=$(cat "$SIM_CLAIM" 2>/dev/null || true)
+  printf '%-14s %-36s %-9s %-5s %s\n' NAME UDID STATE LOCK THIS-CHECKOUT
+  while IFS= read -r name; do
+    local udid; udid=$(sim_udid_by_name "$name")
+    if [[ -z "$udid" ]]; then printf '%-14s %s\n' "$name" "(missing; run ./dev sims)"; continue; fi
+    printf '%-14s %-36s %-9s %-5s %s\n' "$name" "$udid" "$(sim_state_by_udid "$udid")" "$(sim_lock_holder "$udid")" \
+      "$([[ "$udid" == "$mine" ]] && echo yes || echo -)"
+  done < <(sim_pool_names)
+}
 
 cmd_clean() { rm -rf .build; }
 
@@ -329,7 +466,10 @@ cmd_check() {
 
 cmd_help() {
   cat <<'USAGE'
-build              build the app for $DEV_SIM (default "iPhone Duo")
+sims               create the missing simulator clones (iPhone Duo 2..$DEV_SIM_POOL, default 5) and list the pool
+                   (simulator commands use this checkout's own simulator, kept in .build/dev-sim-udid; DEV_SIM=<name>
+                   or DEV_SIM_UDID=<udid> overrides)
+build              build the app for this checkout's simulator
 test [filter]      run WorkoutsTests (filter = suite or suite/test); prints totals, fails if none ran
 ui-test [filter]   run WorkoutsUITests; prints totals, fails if none ran
 kit [filter]       swift test in Packages/WorkoutsKit; prints summary line, fails if filter matched nothing
@@ -364,6 +504,7 @@ case "$sub" in
   home) sim_guarded cmd_home ;;
   fold) sim_guarded cmd_fold "$@" ;;
   orient) sim_guarded cmd_orient "$@" ;;
+  sims) cmd_sims ;;
   clean) cmd_clean ;;
   check) sim_guarded cmd_check ;;
   help | -h | --help) cmd_help ;;

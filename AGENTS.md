@@ -15,7 +15,7 @@ feature spec extracted from the web app.
 | Deployment target | iOS 27.2 (Duo layout needs the 27.1+ SDK) |
 | Project | `Workouts.xcodeproj` — Xcode 27 **folder-based `project.xcproj`** format (JSON-like, no pbxproj) |
 | Scheme | `Workouts` |
-| Simulator | `iPhone Duo` (iOS 27.2) — override with `DEV_SIM=...` |
+| Simulator | a pool: `iPhone Duo` (iOS 27.2) plus clones `iPhone Duo 2`…`5` (`./dev sims`; `DEV_SIM_POOL` sets the size); each checkout keeps its own (`DEV_SIM=<name>` / `DEV_SIM_UDID=` override) |
 | Bundle id | `com.ericribeiro.Workouts` |
 | Tests | Swift Testing (`import Testing`, `@Test`, `#expect`) everywhere; XCUITest only in `WorkoutsUITests` |
 | Formatter | `xcrun swift-format` (bundled), config in `.swift-format` |
@@ -55,6 +55,7 @@ Codable/Sendable state those types wrap and the logic behind them.
 ./dev shot <p> [-- args] run + settle + screenshot under one simulator lock: the parallel-safe screen proof
 ./dev fold <pose> [p]   Duo hinge closed|half-open|open, p = PNG of the lit panel; ./dev orient <o> [p] rotates
 ./dev check             lint → kit → build → test; the pre-commit gate (~30s warm)
+./dev sims              create missing simulator clones and list the pool (who holds which lock, which is yours)
 ```
 
 Every test command prints one totals line on success (`kit: Test run with 100 tests …`, `test: 2 passed, …`) and

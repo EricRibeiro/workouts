@@ -106,3 +106,11 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
     and pane) — kept, each surface stands alone when the other is folded away. Notes trim and cap at 2000 characters; blank =
     removed. The 3.6 header menu will reuse `StickyNoteEditor`. A SetTable UI test now waits for the new row's id instead of
     a row count (the band shifts the lazy layout).
+42. **Template block ops** (3.6 kit): Replace in the template editor takes the new exercise's unit/bar/rest defaults (the
+    logging engine keeps the old block's), since a template has no performed sets tied to the old settings. Warm-ups ramp
+    from the first working set's weight, as in logging. Removing a block renumbers supersets 1, 2, 3 (the engine only
+    dissolves); rest changes one block only.
+43. **Simulator pool** (dev): `./dev sims` cloned the Duo four times (pool of 5, Eric: "we have tons of ram"); each checkout sticks to one simulator (claim file, 24 h
+    expiry), each simulator has its own lock (the original keeps the old path), the crash guard stays global. `./dev run`
+    no longer opens Simulator.app (headless boot; three windows would pile up on your Mac); restore `open -a Simulator` in
+    `cmd_run` if you want to watch. A cold boot waits 15 s before `shot` captures.
