@@ -15,7 +15,7 @@ final class FinishUITests: XCTestCase {
         let any = app.descendants(matching: .any)
         XCTAssertTrue(any["screen.activeWorkout"].waitForExistence(timeout: 15))
 
-        let finish = app.buttons["cover.finish"].firstMatch
+        let finish = app.anyControl("cover.finish")
         let keepGoing = app.buttons.matching(NSPredicate(format: "label == 'Keep Going'")).firstMatch
         let keepLogging = app.buttons.matching(NSPredicate(format: "label == 'Keep Logging'")).firstMatch
         XCTAssertTrue(finish.waitForExistence(timeout: 10))
@@ -58,6 +58,19 @@ final class FinishUITests: XCTestCase {
         XCTAssertTrue(weight.waitForExistence(timeout: 5))
         weight.tap()
         weight.typeText("50")
+        // With the keyboard up the closed-display toolbar strip is too short and the system folds Finish into its
+        // overflow ("More") menu, so close the keyboard first. While a rest runs its accessory group is too wide and
+        // folds Done into its own "More" menu too (menu items lose their identifier, so match the label).
+        let keyboardDone = app.anyControl("setkeyboard.done")
+        if keyboardDone.exists {
+            keyboardDone.tap()
+        } else {
+            let accessoryMore = app.buttons.matching(identifier: "BottomOverflowBarButtonItem")
+                .allElementsBoundByIndex.max { $0.frame.minY < $1.frame.minY }
+            accessoryMore?.tap()
+            app.collectionViews.buttons["Done"].firstMatch.tap()
+        }
+        XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 5), "keyboard still up")
 
         finish.tap()
         let complete = app.buttons["finish.complete"].firstMatch

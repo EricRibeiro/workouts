@@ -110,7 +110,7 @@ final class TemplatePreviewUITests: XCTestCase {
         ).element(boundBy: 0)
         XCTAssertTrue(check.waitForExistence(timeout: 10))
         check.tap()
-        app.buttons["cover.finish"].firstMatch.tap()
+        app.anyControl("cover.finish").tap()
         let finish = dialogButton(app, id: "finish.finish", label: "Finish Workout")
         XCTAssertTrue(finish.exists)
         finish.tap()
