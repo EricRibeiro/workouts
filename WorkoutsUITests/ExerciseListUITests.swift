@@ -34,6 +34,11 @@ final class ExerciseListUITests: XCTestCase {
             button.tap()
         }
         XCTAssertTrue(search.waitForExistence(timeout: 5))
+        // The field animates in and takes focus a beat after it exists; tap it only if the keyboard is not up yet.
+        if !app.keyboards.firstMatch.waitForExistence(timeout: 3) {
+            search.tap()
+            XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5), "search field did not take focus")
+        }
         search.typeText("bench\n")
 
         let first = rows.element(boundBy: 0)
@@ -71,9 +76,17 @@ final class ExerciseListUITests: XCTestCase {
         XCTAssertTrue(bodyPart.waitForExistence(timeout: 5))
         XCTAssertEqual(bodyPart.label, "Body Part: Any Body Part")
         bodyPart.tap()
-        // Pick the second menu item (the menu lists "Any Body Part" first).
-        let item = app.menuItems.element(boundBy: 1)
-        XCTAssertTrue(item.waitForExistence(timeout: 5))
+        // The menu's picker rows surface as buttons in the popover's collection view (the last one on screen); pick
+        // the second row (the menu lists "Any Body Part" first).
+        XCTAssertTrue(app.buttons["Any Body Part"].waitForExistence(timeout: 5), "the filter menu did not open")
+        let menu = app.collectionViews.containing(
+            NSPredicate(
+                format: "elementType == %d AND label == 'Any Body Part'",
+                XCUIElement.ElementType.button.rawValue
+            )
+        ).firstMatch
+        let item = menu.cells.element(boundBy: 1).buttons.firstMatch
+        XCTAssertTrue(item.waitForExistence(timeout: 5), "the menu has no second item")
         let chosen = item.label
         XCTAssertNotEqual(chosen, "Any Body Part")
         item.tap()
@@ -89,7 +102,7 @@ final class ExerciseListUITests: XCTestCase {
 
         // Back to Any: the list is whole again.
         bodyPart.tap()
-        let any = app.menuItems["Any Body Part"]
+        let any = app.buttons["Any Body Part"]
         XCTAssertTrue(any.waitForExistence(timeout: 5))
         any.tap()
         XCTAssertEqual(bodyPart.label, "Body Part: Any Body Part")
