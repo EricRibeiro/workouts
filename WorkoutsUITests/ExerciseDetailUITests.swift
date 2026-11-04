@@ -57,6 +57,26 @@ final class ExerciseDetailUITests: XCTestCase {
         XCTAssertTrue(any["exerciseDetail.records.heaviest"].exists)
         XCTAssertTrue(any["exerciseDetail.records.repsAtWeight.0"].exists)
 
+        // History (task 4.3): at least one session, newest first.
+        segment.buttons["History"].tap()
+        let sessionCards = any.matching(
+            NSPredicate(
+                format: "identifier BEGINSWITH 'exerciseDetail.history.session.' AND NOT identifier CONTAINS '.set.'"
+            )
+        )
+        XCTAssertTrue(sessionCards.firstMatch.waitForExistence(timeout: 5), "no History session")
+
+        // Charts: the chart shows, and switching the metric keeps it.
+        segment.buttons["Charts"].tap()
+        XCTAssertTrue(any["exerciseDetail.chart.metric"].waitForExistence(timeout: 5))
+        XCTAssertTrue(any["exerciseDetail.chart"].waitForExistence(timeout: 5), "no chart")
+        let totalReps = app.buttons["exerciseDetail.chart.metric.totalReps"]
+        XCTAssertTrue(totalReps.waitForExistence(timeout: 5))
+        totalReps.tap()
+        XCTAssertTrue(any["exerciseDetail.chart"].waitForExistence(timeout: 5), "chart gone after switching metric")
+        app.buttons["exerciseDetail.chart.metric.volume"].tap()
+        XCTAssertTrue(any["exerciseDetail.chart"].waitForExistence(timeout: 5), "chart gone after switching metric")
+
         segment.buttons["About"].tap()
         XCTAssertTrue(any["exerciseDetail.about.instructions"].waitForExistence(timeout: 5))
     }

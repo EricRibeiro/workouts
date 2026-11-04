@@ -7,12 +7,14 @@ import SwiftData
 import SwiftUI
 import WorkoutsKit
 
-/// The exercise detail (task 4.2): a media header, the full wrapping name, and a segmented control over About and
-/// Records (History and Charts arrive with 4.3). `embedded` drops the navigation chrome (title, Edit) and the
+/// The exercise detail (task 4.2): a media header, the full wrapping name, and a segmented control over About,
+/// History, Charts and Records (4.3). `embedded` drops the navigation chrome (title, Edit) and the
 /// edge-to-edge hero, for the logging pane. Edit exists for custom exercises only.
 struct ExerciseDetailView: View {
     enum Segment: String, CaseIterable, Identifiable {
         case about = "About"
+        case history = "History"
+        case charts = "Charts"
         case records = "Records"
 
         var id: String { rawValue }
@@ -27,6 +29,8 @@ struct ExerciseDetailView: View {
     @Query(filter: #Predicate<Workout> { $0.finishedAt != nil }) private var finished: [Workout]
     @State private var segment: Segment
     @State private var records: [ExerciseRecord] = []
+    @State private var sessions: [Session] = []
+    @State private var history: [ExerciseHistorySession] = []
     @State private var isEditing = false
 
     init(exerciseID: UUID, embedded: Bool = false, initialSegment: Segment = .about) {
@@ -74,6 +78,10 @@ struct ExerciseDetailView: View {
                             labels: store.catalog.labels,
                             customInstructions: customs.first?.instructions ?? []
                         )
+                    case .history:
+                        ExerciseHistoryView(sessions: history)
+                    case .charts:
+                        ExerciseChartsView(sessions: sessions, weightType: info.weightType, options: options)
                     case .records:
                         ExerciseRecordsView(records: records, weightType: info.weightType, unit: unit)
                     }
@@ -97,10 +105,14 @@ struct ExerciseDetailView: View {
             EditExerciseStubSheet()
         }
         .task(id: Fingerprint(finished, unit: unit, formula: options.formula)) {
-            let sessions = ExerciseBestSets.sessions(from: finished) { id in
-                id == info.id ? info.weightType : nil
-            }[info.id]
-            records = WorkoutsKit.records(sessions ?? [], weightType: info.weightType, options: options)
+            let found =
+                ExerciseBestSets.sessions(from: finished) { id in
+                    id == info.id ? info.weightType : nil
+                }[info.id] ?? []
+            sessions = found
+            records = WorkoutsKit.records(found, weightType: info.weightType, options: options)
+            let names = Dictionary(finished.map { ($0.id, $0.name) }, uniquingKeysWith: { first, _ in first })
+            history = ExerciseHistory.sessions(found, names: names, weightType: info.weightType, options: options)
         }
         .accessibilityIdentifier("screen.exerciseDetail")
     }

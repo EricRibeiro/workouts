@@ -72,3 +72,6 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
 30. **Workout detail** (5.5): Save as Template is one sheet (name prefilled, folder list, "No Folder", or a new "Templates"
     folder when none exist) instead of the web's two steps; it copies completed sets only. Set labels number by position among
     completed sets. Shared `Color.superset(_:)` palette for SetTable and the detail.
+31. **Exercise History/Charts** (4.3): metric chips (scrolling row) not a segmented picker (five labels don't fit closed); the
+    spec's range control (1M/3M default/6M/1Y/All) added; no duration chart metric (none in the kit/spec lists); history in the
+    session's own unit, charts in the display unit (per spec).

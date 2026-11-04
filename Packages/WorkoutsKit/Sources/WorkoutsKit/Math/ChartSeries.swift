@@ -96,3 +96,70 @@ public nonisolated func chartSeries(_ sessions: [Session], metric: ChartMetric, 
     }
     return points
 }
+
+extension ChartMetric {
+    /// The metric chips of an exercise's chart, default first (`docs/port/screens/exercises.md` section 2, "Charts
+    /// tab"): strength `e1rm`, `maxWeight`, `volume`, `totalReps`, `bestReps`; rep types `bestReps`, `totalReps`,
+    /// `maxWeight`, `volume`; assisted `maxWeight` (least assistance), `bestReps`, `totalReps`.
+    public static func available(for category: WeightCategory) -> [ChartMetric] {
+        switch category {
+        case .strength: [.e1rm, .maxWeight, .volume, .totalReps, .bestReps]
+        case .repBased: [.bestReps, .totalReps, .maxWeight, .volume]
+        case .assisted: [.maxWeight, .bestReps, .totalReps]
+        }
+    }
+
+    public static func defaultMetric(for category: WeightCategory) -> ChartMetric {
+        available(for: category)[0]
+    }
+
+    /// The chip title.
+    public func title(for category: WeightCategory) -> String {
+        switch self {
+        case .e1rm: "Est. 1RM"
+        case .maxWeight: category == .assisted ? "Least assistance" : "Max weight"
+        case .volume: "Volume"
+        case .totalReps: "Total reps"
+        case .bestReps: "Best reps"
+        }
+    }
+
+    /// Whether values are weights in the display unit (so the axis and readout carry the unit suffix).
+    public var isWeightValued: Bool {
+        switch self {
+        case .e1rm, .maxWeight, .volume: true
+        case .totalReps, .bestReps: false
+        }
+    }
+}
+
+/// How far back a chart reaches.
+public nonisolated enum ChartRange: String, CaseIterable, Sendable, Identifiable {
+    case month = "1M"
+    case threeMonths = "3M"
+    case sixMonths = "6M"
+    case year = "1Y"
+    case all = "All"
+
+    public var id: String { rawValue }
+
+    /// The default range.
+    public static let standard = ChartRange.threeMonths
+
+    /// The earliest included instant for `now`; nil for `all`.
+    public func start(now: Date, calendar: Calendar = .current) -> Date? {
+        switch self {
+        case .month: calendar.date(byAdding: .month, value: -1, to: now)
+        case .threeMonths: calendar.date(byAdding: .month, value: -3, to: now)
+        case .sixMonths: calendar.date(byAdding: .month, value: -6, to: now)
+        case .year: calendar.date(byAdding: .year, value: -1, to: now)
+        case .all: nil
+        }
+    }
+
+    /// The points from `start(now:)` on (all of them for `all`), order kept.
+    public func filter(_ points: [ChartPoint], now: Date, calendar: Calendar = .current) -> [ChartPoint] {
+        guard let start = start(now: now, calendar: calendar) else { return points }
+        return points.filter { $0.time >= start }
+    }
+}

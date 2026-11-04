@@ -237,7 +237,7 @@ Live Activity → notifications → logging, then templates, exercises, history.
 - [x] **4.2 Exercise detail shell**: `ExerciseDetailView` with an `embedded` mode (for the logging pane), About and Records
   segments, `MediaStore` video header with `.backgroundExtensionEffect()`, `records(...)`, Edit (custom only), zoom from the row;
   also links 2.9's PR rows to Records. Needs: 4.1, 0.8, 2.9, 0.9, 0.10. Proof: preview per segment.
-- [ ] **4.3 Exercise detail History and Charts**: History segment, Swift Charts from `chartSeries`. Needs: 4.2, 0.9, 0.10. Proof: preview per
+- [x] **4.3 Exercise detail History and Charts**: History segment, Swift Charts from `chartSeries`. Needs: 4.2, 0.9, 0.10. Proof: preview per
   segment.
 - [ ] **4.4 Custom exercise form** (create/edit/archive/delete-if-unused) + picker inline create. Needs: 4.1, 2.1, 0.10. Proof: flow
   (create → in list → archive).
