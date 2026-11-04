@@ -215,7 +215,7 @@ Live Activity → notifications → logging, then templates, exercises, history.
 
 ### Phase 4 — Exercises tab
 
-- [ ] **4.1a Exercise list**: `NavigationSplitView`, rows from `ExerciseStore` by displayed name, `.searchable` only (no inline
+- [x] **4.1a Exercise list**: `NavigationSplitView`, rows from `ExerciseStore` by displayed name, `.searchable` only (no inline
   field, sort control or A-Z rail), thumbnail rows with best set and tags. Needs: 0.3, 0.9, 0.10. Proof: sample-data preview.
 - [ ] **4.1b Exercise list filters and toolbar**: body-part and category `Menu` pills, New Exercise + Show Retired toolbar items,
   `tabBarMinimizeBehavior(.onScrollDown)`. Needs: 0.3, 0.9, 0.10, 4.1a. Proof: preview + flow.
