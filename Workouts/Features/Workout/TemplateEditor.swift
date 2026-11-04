@@ -42,6 +42,9 @@ struct TemplateEditor: View {
     @State private var isWarmupAlertShown = false
     @State private var restBlockID: BlockID?
     @State private var removeBlockID: UUID?
+    @State private var replaceBlockID: BlockID?
+    @State private var supersetBlockID: BlockID?
+    @State private var preferencesBlockID: BlockID?
     @Query private var stickyNotes: [StickyNote]
 
     /// A block id as a sheet item.
@@ -173,6 +176,25 @@ struct TemplateEditor: View {
                 }
                 .presentationPlacement(.center)
             }
+            .sheet(item: $replaceBlockID) { target in
+                ExercisePickerView(title: "Replace Exercise") { info in
+                    draft.replaceExercise(
+                        target.id,
+                        with: info,
+                        defaultUnit: settings?.defaultUnit ?? SettingsStore.defaultUnitDefault,
+                        defaultRestSeconds: settings?.defaultRestSeconds ?? SettingsStore.defaultRestSecondsDefault
+                    )
+                }
+                .presentationPlacement(.center)
+            }
+            .sheet(item: $supersetBlockID) { target in
+                supersetSheet(for: target.id)
+                    .presentationPlacement(.center)
+            }
+            .sheet(item: $preferencesBlockID) { target in
+                preferencesSheet(for: target.id)
+                    .presentationPlacement(.center)
+            }
             .confirmationDialog(
                 removeBlockName.map { "Remove \($0)?" } ?? "Remove Exercise?",
                 isPresented: Binding(get: { removeBlockID != nil }, set: { if !$0 { removeBlockID = nil } }),
@@ -214,8 +236,49 @@ struct TemplateEditor: View {
                 if draft.addWarmupSets(to: id) == 0 { isWarmupAlertShown = true }
             },
             updateRest: { id in restBlockID = BlockID(id: id) },
-            remove: { id in removeBlockID = id }
+            remove: { id in removeBlockID = id },
+            replace: { id in replaceBlockID = BlockID(id: id) },
+            superset: { id in supersetBlockID = BlockID(id: id) },
+            preferences: { id in preferencesBlockID = BlockID(id: id) }
         )
+    }
+
+    @ViewBuilder
+    private func supersetSheet(for id: UUID) -> some View {
+        if let block = draft.exercises.first(where: { $0.id == id }) {
+            let members = Set(
+                draft.exercises
+                    .filter { block.supersetGroup != nil && $0.supersetGroup == block.supersetGroup && $0.id != id }
+                    .map(\.id)
+            )
+            SupersetSheet(
+                blocks: draft.exercises.map { SupersetSheet.Block(id: $0.id, name: $0.name) },
+                currentID: id,
+                initialMembers: members,
+                isInSuperset: block.supersetGroup != nil,
+                onSave: { picked in draft.makeSuperset([id] + picked) },
+                onRemove: { draft.removeFromSuperset(id) }
+            )
+        }
+    }
+
+    @ViewBuilder
+    private func preferencesSheet(for id: UUID) -> some View {
+        if let block = draft.exercises.first(where: { $0.id == id }) {
+            BlockPreferencesSheet(
+                exerciseName: block.name,
+                initial: BlockPreferencesSheet.Values(
+                    unit: block.unit,
+                    barType: block.barType,
+                    barWeight: block.barWeight,
+                    restSeconds: block.restSeconds
+                )
+            ) { values in
+                draft.setUnit(values.unit, for: id)
+                draft.setBar(values.barType, weight: values.barWeight, for: id)
+                draft.updateRestTimers(values.restSeconds, for: id)
+            }
+        }
     }
 
     // MARK: Table
