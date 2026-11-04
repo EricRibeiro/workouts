@@ -93,7 +93,9 @@ run_tests() { # run_tests <name> <target> [filter]
   # Xcode infrastructure flake (no test ran): retry once, never for a real test failure.
   if ((rc != 0)) && xcrun xcresulttool get test-results summary --path "$bundle" --compact 2>/dev/null |
     grep -q 'hung before establishing connection'; then
-    echo "dev: test runner hung before connecting; retrying once" >&2
+    # A retry against the same simulator hung again (2026-11-03); a cold boot cleared it.
+    echo "dev: test runner hung before connecting; rebooting the simulator and retrying once" >&2
+    xcrun simctl shutdown "$DEV_SIM" >/dev/null 2>&1 || true
     rm -rf "$bundle"; rc=0
     run_logged "$name" xcb test -parallel-testing-enabled NO -only-testing:"$only" -resultBundlePath "$bundle" || rc=$?
   fi
