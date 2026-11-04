@@ -55,8 +55,7 @@ struct ActiveWorkoutCover: View {
                 title: "Add Exercises",
                 mode: .multiple(
                     add: { addExercises($0) },
-                    // TODO(3.5): group the added exercises as a superset once the engine has an API for it.
-                    superset: { addExercises($0) }
+                    superset: { addSuperset($0) }
                 )
             )
             .presentationPlacement(.center)
@@ -103,6 +102,12 @@ struct ActiveWorkoutCover: View {
 
     private func addExercises(_ infos: [ExerciseInfo]) {
         _ = try? engine?.addExercises(infos)
+    }
+
+    /// The picker's Superset: adds the picks, then groups them as one superset.
+    private func addSuperset(_ infos: [ExerciseInfo]) {
+        guard let engine, let rows = try? engine.addExercises(infos) else { return }
+        try? engine.makeSuperset(rows)
     }
 
     private func pane(_ title: String, color: Color) -> some View {

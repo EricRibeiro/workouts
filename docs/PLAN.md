@@ -205,7 +205,7 @@ Live Activity → notifications → logging, then templates, exercises, history.
 - [ ] **3.4 Template editor shell**: pushed in both widths, `ArrangementView` on regular as in 2.10 (placeholder pane until 4.5),
   no width cap; SetTable template mode, name via `toolbarTitleMenu`, Save and unsaved-changes guard (dirty = differs from what
   opened). Needs: 2.1, 2.3, 2.10, 3.3, 0.10. Proof: flow.
-- [ ] **3.5 Supersets and warm-up ramp**: `WorkoutsKit/Session` helpers (ramp, renumbering) and superset colours. Needs: 0.1, 0.9, 0.10.
+- [x] **3.5 Supersets and warm-up ramp**: `WorkoutsKit/Session` helpers (ramp, renumbering) and superset colours. Needs: 0.1, 0.9, 0.10.
   Proof: `./dev kit Template` + preview.
 - [ ] **3.6 Editor block actions**: exercise-header `ellipsis.circle` menu (note, Add Warm-up Sets, Update Rest Timers, Replace
   via the picker, Create/Edit Superset, Preferences unit/bar/rest per row, Remove); the Sticky Note entry arrives with 4.5. Needs:
