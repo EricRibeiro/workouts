@@ -48,6 +48,7 @@ struct ExerciseMediaHeader: View {
     @Environment(\.colorScheme) private var colorScheme
     @State private var video: LoopingPlayer?
     @State private var showsEnd = false
+    @State private var heroCap: CGFloat = .infinity
 
     private var startURL: URL? { info.isCustom ? nil : ExerciseMedia.store.thumbnailURL(for: info.id, phase: .start) }
     private var endURL: URL? { info.isCustom ? nil : ExerciseMedia.store.thumbnailURL(for: info.id, phase: .end) }
@@ -64,6 +65,7 @@ struct ExerciseMediaHeader: View {
             hero
                 .task(id: colorScheme) { await loadVideo() }
                 .task(id: reduceMotion) { await crossfade() }
+                .onAppear { if !reduceMotion { video?.player.play() } }
                 .onDisappear { video?.player.pause() }
         }
     }
@@ -81,6 +83,18 @@ struct ExerciseMediaHeader: View {
         }
         .aspectRatio(16 / 9, contentMode: .fit)
         .frame(maxWidth: .infinity)
+        .frame(maxHeight: heroCap)
+        .background {
+            // `containerRelativeFrame` only sets an exact size, so a probe measures the cap (35 % of the container's
+            // height) and the hero takes it as a maximum. One rule in every pose; the closed Duo stays under it.
+            Color.clear
+                .containerRelativeFrame(.vertical) { height, _ in height * 0.35 }
+                .onGeometryChange(for: CGFloat.self) {
+                    $0.size.height
+                } action: {
+                    heroCap = $0
+                }
+        }
         if embedded {
             frame
                 .clipShape(.rect(cornerRadius: 12))

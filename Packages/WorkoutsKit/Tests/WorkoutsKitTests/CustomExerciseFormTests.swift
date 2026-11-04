@@ -16,6 +16,46 @@ import Testing
         }
     }
 
+    // MARK: default bar
+
+    @Test func defaultBarFollowsWeightType() {
+        typealias Draft = CustomExerciseForm.Draft
+        #expect(Draft(weightType: .barbell).barType == .olympic)
+        #expect(Draft(weightType: .dumbbell).barType == BarType.none)
+        #expect(Draft(weightType: .bodyweight).barType == BarType.none)
+        #expect(Draft().barType == BarType.none)
+        #expect(Draft(weightType: .dumbbell, barType: .ez).barType == .ez)
+        #expect(Draft.defaultBarType(for: .machine) == BarType.none)
+    }
+
+    @Test func changingWeightTypeReDerivesAnUntouchedBar() {
+        var draft = CustomExerciseForm.Draft(weightType: .dumbbell)
+        draft.setWeightType(.barbell)
+        #expect(draft.weightType == .barbell && draft.barType == .olympic)
+        draft.setWeightType(.machine)
+        #expect(draft.weightType == .machine && draft.barType == BarType.none)
+    }
+
+    @Test func changingWeightTypeKeepsAnExplicitBar() {
+        var draft = CustomExerciseForm.Draft(weightType: .dumbbell)
+        draft.barType = .ez
+        draft.setWeightType(.barbell)
+        #expect(draft.barType == .ez)
+        draft.setWeightType(.machine)
+        #expect(draft.barType == .ez)
+    }
+
+    @Test func savedDumbbellDraftHasNoBar() throws {
+        let rig = try Rig()
+        let created = try CustomExerciseForm.create(
+            .init(name: "Curl", weightType: .dumbbell),
+            in: rig.context,
+            store: rig.store
+        )
+        #expect(created.barType == BarType.none)
+        #expect(CustomExerciseForm.Draft(created).barType == BarType.none)
+    }
+
     // MARK: validation
 
     @Test func nameIsRequiredAndTrimmed() throws {

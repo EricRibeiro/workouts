@@ -60,7 +60,7 @@ final class ExercisePickerUITests: XCTestCase {
         XCTAssertTrue(about.waitForExistence(timeout: 5))
         about.tap()
         XCTAssertTrue(any["screen.exerciseAbout"].waitForExistence(timeout: 5))
-        XCTAssertTrue(any["about.name"].exists)
+        XCTAssertTrue(any["exerciseDetail.name"].exists)
         let close = any["about.close"].firstMatch
         XCTAssertTrue(close.waitForExistence(timeout: 5))
         close.tap()

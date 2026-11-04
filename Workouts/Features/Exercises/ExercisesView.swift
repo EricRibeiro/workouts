@@ -13,7 +13,14 @@ import WorkoutsKit
 /// toolbar has New Exercise (the custom exercise form) and a Show Retired toggle.
 struct ExercisesView: View {
     @Environment(ExerciseStore.self) private var store
+    @Environment(SettingsStore.self) private var settings
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Query(filter: #Predicate<Workout> { $0.finishedAt != nil }) private var finished: [Workout]
+    /// The newest edit among finished workouts: with the count it keys the best-set task without reading every workout.
+    @Query(ExercisesView.newestEdit) private var newest: [Workout]
+    // Read here only so a unit or formula change in Settings recomputes the best sets.
+    @AppStorage(SettingsKey.defaultUnit.rawValue) private var unitRaw = ""
+    @AppStorage(SettingsKey.e1rmFormula.rawValue) private var formulaRaw = ""
     @State private var query = ""
     @State private var selection: ExercisesRoute?
     @State private var bestSets: [UUID: String] = [:]
@@ -35,6 +42,15 @@ struct ExercisesView: View {
         .onChange(of: selectionExists) { _, exists in
             if !exists { selection = nil }
         }
+    }
+
+    private static var newestEdit: FetchDescriptor<Workout> {
+        var descriptor = FetchDescriptor<Workout>(
+            predicate: #Predicate { $0.finishedAt != nil },
+            sortBy: [SortDescriptor(\.updatedAt, order: .reverse)]
+        )
+        descriptor.fetchLimit = 1
+        return descriptor
     }
 
     private var naturalResults: [ExerciseInfo] {
@@ -102,7 +118,7 @@ struct ExercisesView: View {
         }
         .searchable(text: $query, prompt: "Search exercises")
         .naturalLanguageSearch(text: query, includeRetired: showRetired, match: $naturalMatch)
-        .task(id: Fingerprint(finished)) {
+        .task(id: fingerprint) {
             bestSets = ExerciseBestSets.texts(
                 from: ExerciseBestSets.sessions(from: finished) { store.exercise(id: $0)?.weightType },
                 options: recordsOptions
@@ -112,7 +128,11 @@ struct ExercisesView: View {
 
     /// The two "Any ..." pills as the first list row, like the picker's chip row.
     private var filterRow: some View {
-        HStack(spacing: 8) {
+        let layout =
+            dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+            : AnyLayout(HStackLayout(spacing: 8))
+        return layout {
             FilterMenu(
                 title: "Body Part",
                 anyLabel: "Any Body Part",
@@ -129,7 +149,7 @@ struct ExercisesView: View {
                 keys: { ExerciseFilter.categories(in: store.all(includeRetired: true), labels: store.catalog.labels) },
                 label: { ExerciseFilter.equipmentLabel($0, labels: store.catalog.labels) }
             )
-            Spacer(minLength: 0)
+            if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: 0) }
         }
         .listRowSeparator(.hidden)
         .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
@@ -150,31 +170,35 @@ struct ExercisesView: View {
         }
     }
 
+    private var fingerprint: Fingerprint {
+        Fingerprint(count: finished.count, newestEdit: newest.first?.updatedAt, unit: unitRaw, formula: formulaRaw)
+    }
+
     private var recordsOptions: RecordsOptions {
-        let settings = SettingsStore()
-        return RecordsOptions(formula: settings.e1rmFormula, displayUnit: settings.defaultUnit)
+        RecordsOptions(formula: settings.e1rmFormula, displayUnit: settings.defaultUnit)
     }
 }
 
-/// Changes when a finished workout is added, removed or edited, so the best sets are recomputed then and not per render.
+/// Changes when a finished workout is added, removed or edited, or a setting that changes the numbers does, so the best
+/// sets are recomputed then and not per render. Built from a count and the newest `updatedAt` so no per-workout read runs
+/// per body evaluation; every editor stamps `updatedAt` (`PastWorkoutDraft.apply`, the engine's finish).
 private struct Fingerprint: Hashable {
     let count: Int
     let newestEdit: Date?
-
-    init(_ workouts: [Workout]) {
-        count = workouts.count
-        newestEdit = workouts.map(\.updatedAt).max()
-    }
+    let unit: String
+    let formula: String
 }
 
 #if DEBUG
     #Preview("Large") {
         PreviewGallery.host("Exercises")
+            .environment(SettingsStore())
             .dynamicTypeSize(.large)
     }
 
     #Preview("Accessibility 3") {
         PreviewGallery.host("Exercises")
+            .environment(SettingsStore())
             .dynamicTypeSize(.accessibility3)
     }
 #endif

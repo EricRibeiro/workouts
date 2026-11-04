@@ -126,7 +126,7 @@ struct ExercisePickerView: View {
                 .presentationPlacement(.center)
             }
             .sheet(item: $peeked) { info in
-                ExerciseAboutView(info: info)
+                ExercisePeekSheet(exerciseID: info.id)
                     .presentationDetents([.medium, .large])
                     .presentationPlacement(.center)
             }
@@ -231,79 +231,24 @@ private struct ExercisePickerRow: View {
     }
 }
 
-/// The "?" peek: both thumbnail frames, name, body part and equipment, and the instructions when there are any. Library
-/// exercises read them from the catalog, custom ones from their row. Plain text, no history or charts.
-private struct ExerciseAboutView: View {
-    let info: ExerciseInfo
+/// The "?" peek: the exercise detail itself (About, History, Charts, Records), embedded in a sheet with a Close button.
+private struct ExercisePeekSheet: View {
+    let exerciseID: UUID
 
-    @Environment(ExerciseStore.self) private var store
-    @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        let labels = store.catalog.labels
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    if !info.isCustom {
-                        HStack(spacing: 8) {
-                            ExerciseThumbnail(id: info.id, phase: .start, height: 96)
-                            ExerciseThumbnail(id: info.id, phase: .end, height: 96)
-                        }
-                    }
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(info.name)
-                            .font(.title2.bold())
-                            .accessibilityIdentifier("about.name")
-                        if !info.bodyPart.isEmpty {
-                            Text(ExerciseFilter.bodyPartLabel(info.bodyPart, labels: labels))
-                                .foregroundStyle(.secondary)
-                        }
-                        if !info.equipment.isEmpty {
-                            Text(
-                                info.equipment.map { ExerciseFilter.equipmentLabel($0, labels: labels) }
-                                    .joined(separator: ", ")
-                            )
-                            .foregroundStyle(.secondary)
-                        }
-                    }
-                    let steps = instructions
-                    if steps.isEmpty {
-                        Text("No instructions for this exercise.")
-                            .foregroundStyle(.secondary)
-                    } else {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Instructions").font(.headline)
-                            ForEach(Array(steps.enumerated()), id: \.offset) { offset, step in
-                                Text("\(offset + 1). \(step)")
-                            }
-                        }
+            ExerciseDetailView(exerciseID: exerciseID, embedded: true)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Close", systemImage: "xmark") { dismiss() }
+                            .accessibilityLabel("Close")
+                            .accessibilityIdentifier("about.close")
                     }
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding()
-            }
-            .navigationTitle("About")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Close", systemImage: "xmark") { dismiss() }
-                        .accessibilityLabel("Close")
-                        .accessibilityIdentifier("about.close")
-                }
-            }
         }
         .accessibilityIdentifier("screen.exerciseAbout")
-    }
-
-    private var instructions: [String] {
-        if !info.isCustom {
-            return store.catalog.exercise(id: info.id)?.instructions ?? []
-        }
-        let id = info.id
-        var descriptor = FetchDescriptor<Exercise>(predicate: #Predicate { $0.id == id })
-        descriptor.fetchLimit = 1
-        return (try? modelContext.fetch(descriptor))?.first?.instructions ?? []
     }
 }
 

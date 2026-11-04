@@ -15,9 +15,6 @@ struct ExerciseAboutSection: View {
     /// The custom exercise's own steps (empty for library exercises).
     let customInstructions: [String]
 
-    /// Intensity at or above this is a primary muscle (our choice, not the source's).
-    static let primaryThreshold = 70
-
     private var instructions: [String] { library?.instructions ?? customInstructions }
 
     var body: some View {
@@ -119,7 +116,7 @@ struct ExerciseAboutSection: View {
 
     @ViewBuilder
     private var muscles: some View {
-        let split = Self.splitMuscles(library?.muscles ?? [:], labels: labels)
+        let split = LibraryMuscles.split(library?.muscles ?? [:], labels: labels)
         if !split.primary.isEmpty || !split.secondary.isEmpty {
             section("Muscles") {
                 VStack(alignment: .leading, spacing: 12) {
@@ -177,30 +174,6 @@ struct ExerciseAboutSection: View {
             content()
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    // MARK: Muscles
-
-    /// Intensity >= 70 is primary, 1-69 secondary, 0 dropped; strongest first, ties by label.
-    static func splitMuscles(_ muscles: [String: Int], labels: LibraryLabels) -> (
-        primary: [String], secondary: [String]
-    ) {
-        let ordered =
-            muscles
-            .filter { $0.value > 0 }
-            .map { (label: muscleLabel($0.key, labels: labels), intensity: $0.value) }
-            .sorted { $0.intensity != $1.intensity ? $0.intensity > $1.intensity : $0.label < $1.label }
-        return (
-            ordered.filter { $0.intensity >= primaryThreshold }.map(\.label),
-            ordered.filter { $0.intensity < primaryThreshold }.map(\.label)
-        )
-    }
-
-    /// The catalog label, else the key made readable ("chest_upper" becomes "Chest upper").
-    static func muscleLabel(_ key: String, labels: LibraryLabels) -> String {
-        if let label = labels.muscles[key], !label.isEmpty { return label }
-        let words = key.replacingOccurrences(of: "_", with: " ").replacingOccurrences(of: "-", with: " ")
-        return words.prefix(1).uppercased() + words.dropFirst()
     }
 }
 

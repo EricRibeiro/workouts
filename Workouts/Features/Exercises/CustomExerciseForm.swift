@@ -23,7 +23,10 @@ struct CustomExerciseFormView: View {
     @Environment(ExerciseStore.self) private var store
     @Environment(SettingsStore.self) private var settings
     @State private var draft = CustomExerciseForm.Draft()
+    @State private var loadedDraft = CustomExerciseForm.Draft()
     @State private var loaded = false
+    @State private var isReferenced = false
+    @State private var removed = 0
     @State private var nameTouched = false
     @State private var removal: Removal?
     @State private var failure: String?
@@ -50,7 +53,10 @@ struct CustomExerciseFormView: View {
                         }
                     }
                     .accessibilityIdentifier("customExercise.bodyPart")
-                    Picker("Weight type", selection: $draft.weightType) {
+                    Picker(
+                        "Weight type",
+                        selection: Binding(get: { draft.weightType }, set: { draft.setWeightType($0) })
+                    ) {
                         ForEach(Self.weightTypes, id: \.self) { Text(Self.weightTypeTitle($0)).tag($0) }
                     }
                     .accessibilityIdentifier("customExercise.weightType")
@@ -108,8 +114,10 @@ struct CustomExerciseFormView: View {
             } message: {
                 Text(failure ?? "")
             }
+            .sensoryFeedback(.warning, trigger: removed)
             .task { load() }
         }
+        .interactiveDismissDisabled(draft != loadedDraft)
         .accessibilityIdentifier(isEditing ? "screen.editExercise" : "screen.newExercise")
     }
 
@@ -132,7 +140,7 @@ struct CustomExerciseFormView: View {
                 $0 == .nameTaken || $0 == .nameTooLong || ($0 == .nameMissing && nameTouched)
             }) {
                 Text(issue.message)
-                    .foregroundStyle(.red)
+                    .foregroundStyle(Color.danger)
                     .accessibilityIdentifier("customExercise.nameError")
             }
         }
@@ -210,7 +218,7 @@ struct CustomExerciseFormView: View {
         } footer: {
             if let issue = issues.first(where: { $0 == .restInvalid || $0 == .barWeightInvalid }) {
                 Text(issue.message)
-                    .foregroundStyle(.red)
+                    .foregroundStyle(Color.danger)
                     .accessibilityIdentifier("customExercise.defaultsError")
             }
         }
@@ -219,7 +227,7 @@ struct CustomExerciseFormView: View {
     @ViewBuilder
     private func removalSection(for id: UUID) -> some View {
         Section {
-            if CustomExerciseForm.isReferenced(exerciseID: id, in: modelContext) {
+            if isReferenced {
                 Button("Archive Exercise", systemImage: "archivebox", role: .destructive) { removal = .archive }
                     .accessibilityLabel("Archive Exercise")
                     .accessibilityIdentifier("customExercise.archive")
@@ -242,11 +250,13 @@ struct CustomExerciseFormView: View {
             if let exercise = CustomExerciseForm.exercise(id: editing, in: modelContext) {
                 draft = CustomExerciseForm.Draft(exercise)
             }
+            isReferenced = CustomExerciseForm.isReferenced(exerciseID: editing, in: modelContext)
         } else {
             draft.name = prefill.trimmingCharacters(in: .whitespacesAndNewlines)
             nameTouched = !draft.name.isEmpty
             if draft.name.isEmpty { nameFocused = true }
         }
+        loadedDraft = draft
     }
 
     private func save() {
@@ -272,6 +282,7 @@ struct CustomExerciseFormView: View {
             case .archive: try CustomExerciseForm.archive(exercise, in: modelContext, store: store)
             case .delete: try CustomExerciseForm.delete(exercise, in: modelContext, store: store)
             }
+            removed += 1
             dismiss()
         } catch {
             failure = error.localizedDescription

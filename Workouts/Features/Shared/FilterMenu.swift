@@ -36,9 +36,11 @@ struct FilterMenu: View {
 }
 
 private struct PillLabelStyle: LabelStyle {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     func makeBody(configuration: Configuration) -> some View {
         HStack(spacing: 4) {
-            configuration.title.lineLimit(1)
+            configuration.title.lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
             configuration.icon.imageScale(.small)
         }
         .font(.subheadline)

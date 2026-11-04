@@ -8,11 +8,15 @@ import WorkoutsKit
 
 /// The History segment (task 4.3): the exercise's sessions newest first, each a card with the workout name and date as
 /// its header and its completed sets as rows (`docs/port/screens/exercises.md` section 2, "History tab"). Lazy, so a
-/// long history only builds the cards on screen.
+/// long history only builds the cards on screen. The header opens the workout in the History tab; the embedded pane
+/// (the logging screen's exercise pane, over the active workout's cover) keeps it plain text, because switching tabs
+/// behind the cover would change nothing the user can see.
 struct ExerciseHistoryView: View {
     let sessions: [ExerciseHistorySession]
+    var embedded = false
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(AppNavigation.self) private var navigation: AppNavigation?
 
     var body: some View {
         if sessions.isEmpty {
@@ -32,8 +36,7 @@ struct ExerciseHistoryView: View {
 
     private func card(_ session: ExerciseHistorySession) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            header(session)
-                .padding(.vertical, 10)
+            openableHeader(session)
             ForEach(session.sets) { set in
                 Divider()
                 row(set, in: session)
@@ -44,7 +47,25 @@ struct ExerciseHistoryView: View {
         .accessibilityIdentifier("exerciseDetail.history.session.\(session.id)")
     }
 
-    private func header(_ session: ExerciseHistorySession) -> some View {
+    @ViewBuilder
+    private func openableHeader(_ session: ExerciseHistorySession) -> some View {
+        if !embedded, let navigation {
+            Button {
+                navigation.openWorkout(session.workoutID)
+            } label: {
+                header(session, opens: true)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .padding(.vertical, 10)
+            .accessibilityIdentifier("exerciseDetail.history.session.\(session.id).open")
+        } else {
+            header(session, opens: false)
+                .padding(.vertical, 10)
+        }
+    }
+
+    private func header(_ session: ExerciseHistorySession, opens: Bool) -> some View {
         let date = RecordFormat.date(session.time)
         let layout =
             dynamicTypeSize.isAccessibilitySize
@@ -66,6 +87,12 @@ struct ExerciseHistoryView: View {
                 .font(.footnote.weight(.semibold))
                 .foregroundStyle(.tint)
             }
+            if opens {
+                Image(systemName: "chevron.right")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+                    .accessibilityHidden(true)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .ignore)
@@ -76,6 +103,7 @@ struct ExerciseHistoryView: View {
                     ? (session.prCount == 1 ? "1 personal record" : "\(session.prCount) personal records") : nil,
             ].compactMap { $0 }.joined(separator: ", ")
         )
+        .accessibilityHint(opens ? "Opens \(session.workoutName) from \(date) in History" : "")
         .accessibilityAddTraits(.isHeader)
     }
 
@@ -88,7 +116,7 @@ struct ExerciseHistoryView: View {
         return HStack(alignment: .firstTextBaseline, spacing: 12) {
             Text(set.label)
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(set.kind == .normal ? Color.secondary : Color.accentColor)
+                .foregroundStyle(set.kind == .normal ? Color.secondary : set.kind.color)
                 .frame(minWidth: 24, alignment: .leading)
             Text(set.text)
                 .font(.body)

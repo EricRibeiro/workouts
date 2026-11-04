@@ -83,13 +83,11 @@ struct ExerciseChartsView: View {
                     .buttonStyle(.bordered)
                     .buttonBorderShape(.capsule)
                     .tint(selected ? .accentColor : .secondary)
-                    .background(selected ? Color.accentColor.opacity(0.15) : .clear, in: Capsule())
                     .accessibilityAddTraits(selected ? .isSelected : [])
                     .accessibilityIdentifier("exerciseDetail.chart.metric.\(candidate.rawValue)")
                 }
             }
         }
-        .scrollClipDisabled()
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("exerciseDetail.chart.metric")
     }
@@ -104,7 +102,7 @@ struct ExerciseChartsView: View {
     }
 
     private func valueText(_ value: Double) -> String {
-        if metric.isWeightValued { return "\(SetInputFormat.weightText(value)) \(unit)" }
+        if metric.isWeightValued { return "\(HistoryDashboard.groupedWeight(value)) \(unit)" }
         let count = Int(value.rounded())
         return "\(count) \(count == 1 ? "rep" : "reps")"
     }

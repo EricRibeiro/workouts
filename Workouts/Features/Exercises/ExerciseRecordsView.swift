@@ -20,12 +20,12 @@ enum RecordFormat {
 
     /// `225 lb`, `Bodyweight` for zero.
     static func weight(_ value: Double, unit: WeightUnit) -> String {
-        value > 0 ? "\(SetInputFormat.weightText(value)) \(unit.rawValue)" : "Bodyweight"
+        value > 0 ? "\(HistoryDashboard.groupedWeight(value)) \(unit.rawValue)" : "Bodyweight"
     }
 
     static func value(_ record: ExerciseRecord, unit: WeightUnit) -> String {
         switch record.kind {
-        case .e1rm, .heaviest, .bestVolumeSet: "\(SetInputFormat.weightText(record.value)) \(unit.rawValue)"
+        case .e1rm, .heaviest, .bestVolumeSet: "\(HistoryDashboard.groupedWeight(record.value)) \(unit.rawValue)"
         case .longestDuration: ElapsedFormat.string(seconds: Int(record.value))
         case .repsAtWeight: "\(record.reps) \(record.reps == 1 ? "rep" : "reps")"
         }
@@ -45,14 +45,17 @@ enum RecordFormat {
     }
 }
 
-/// The Records segment: the headline records as rows, then the reps-at-weight table. Rows are plain text for now
-/// (linking them to the workout in History needs the History tab's workout detail).
+/// The Records segment: the headline records as rows, then the reps-at-weight table. Each headline row opens the
+/// workout that set it in the History tab; the embedded pane (over the active workout's cover) and the reps-at-weight
+/// table stay plain text.
 struct ExerciseRecordsView: View {
     let records: [ExerciseRecord]
     let weightType: WeightType
     let unit: WeightUnit
+    var embedded = false
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(AppNavigation.self) private var navigation: AppNavigation?
 
     private var headline: [ExerciseRecord] { records.filter { $0.kind != .repsAtWeight } }
     private var table: [ExerciseRecord] { records.filter { $0.kind == .repsAtWeight } }
@@ -71,7 +74,7 @@ struct ExerciseRecordsView: View {
                     VStack(spacing: 0) {
                         ForEach(Array(headline.enumerated()), id: \.element.kind) { index, record in
                             if index > 0 { Divider() }
-                            row(record)
+                            openableRow(record)
                         }
                     }
                     .detailCardStyle()
@@ -81,7 +84,24 @@ struct ExerciseRecordsView: View {
         }
     }
 
-    private func row(_ record: ExerciseRecord) -> some View {
+    @ViewBuilder
+    private func openableRow(_ record: ExerciseRecord) -> some View {
+        if !embedded, let navigation {
+            Button {
+                navigation.openWorkout(record.workoutID)
+            } label: {
+                row(record, opens: true)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("exerciseDetail.records.\(record.kind.rawValue)")
+        } else {
+            row(record, opens: false)
+                .accessibilityIdentifier("exerciseDetail.records.\(record.kind.rawValue)")
+        }
+    }
+
+    private func row(_ record: ExerciseRecord, opens: Bool) -> some View {
         let title = RecordFormat.title(record, weightType: weightType)
         let value = RecordFormat.value(record, unit: unit)
         let detail = RecordFormat.detail(record, unit: unit)
@@ -107,12 +127,18 @@ struct ExerciseRecordsView: View {
                     Text(detail).font(.footnote).foregroundStyle(.secondary)
                 }
             }
+            if opens {
+                Image(systemName: "chevron.right")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+                    .accessibilityHidden(true)
+            }
         }
         .padding(.vertical, 10)
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(spoken)
-        .accessibilityIdentifier("exerciseDetail.records.\(record.kind.rawValue)")
+        .accessibilityHint(opens ? "Opens the workout from \(date) in History" : "")
     }
 
     @ViewBuilder

@@ -23,6 +23,8 @@ public nonisolated enum CustomExerciseForm {
         public var instructions: String
         /// nil = the Settings default unit.
         public var unit: WeightUnit?
+        /// The bar the first warm-up step starts from. Follows the weight type until the user picks one: see
+        /// ``defaultBarType(for:)`` and ``setWeightType(_:)``.
         public var barType: BarType
         public var barWeightText: String
         /// Blank = the default rest timer.
@@ -35,7 +37,7 @@ public nonisolated enum CustomExerciseForm {
             weightType: WeightType = .weighted,
             instructions: String = "",
             unit: WeightUnit? = nil,
-            barType: BarType = .olympic,
+            barType: BarType? = nil,
             barWeightText: String = "",
             restText: String = ""
         ) {
@@ -45,7 +47,7 @@ public nonisolated enum CustomExerciseForm {
             self.weightType = weightType
             self.instructions = instructions
             self.unit = unit
-            self.barType = barType
+            self.barType = barType ?? Self.defaultBarType(for: weightType)
             self.barWeightText = barWeightText
             self.restText = restText
         }
@@ -63,6 +65,18 @@ public nonisolated enum CustomExerciseForm {
                 barWeightText: exercise.barWeight.map { Self.format($0) } ?? "",
                 restText: exercise.restSeconds.map(String.init) ?? ""
             )
+        }
+
+        /// The bar a new exercise of this weight type starts with: an Olympic bar for a barbell, none otherwise.
+        public static func defaultBarType(for weightType: WeightType) -> BarType {
+            weightType == .barbell ? .olympic : BarType.none
+        }
+
+        /// Changes the weight type. A bar that is still the old type's default follows to the new type's default; a bar
+        /// the user picked (anything else) is kept.
+        public mutating func setWeightType(_ newValue: WeightType) {
+            if barType == Self.defaultBarType(for: weightType) { barType = Self.defaultBarType(for: newValue) }
+            weightType = newValue
         }
 
         /// The name without surrounding whitespace.

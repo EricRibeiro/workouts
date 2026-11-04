@@ -13,29 +13,7 @@ final class ExerciseDetailUITests: XCTestCase {
         app.launch()
 
         let any = app.descendants(matching: .any)
-        XCTAssertTrue(any["screen.exercises"].waitForExistence(timeout: 10))
-        let rows = app.descendants(matching: .any).matching(
-            NSPredicate(format: "identifier BEGINSWITH 'exercises.row.'")
-        )
-        XCTAssertTrue(rows.element(boundBy: 0).waitForExistence(timeout: 10), "no exercise rows")
-
-        // On the closed Duo the system folds search into a button in the trailing strip; tap it to get the field.
-        let search = app.searchFields.firstMatch
-        if !search.waitForExistence(timeout: 3) {
-            let button = app.buttons["Search"].firstMatch
-            XCTAssertTrue(button.waitForExistence(timeout: 5))
-            button.tap()
-        }
-        XCTAssertTrue(search.waitForExistence(timeout: 5))
-        if !app.keyboards.firstMatch.waitForExistence(timeout: 3) {
-            search.tap()
-            XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5), "search field did not take focus")
-        }
-        search.typeText("Barbell Bench Press\n")
-
-        let row = rows.matching(NSPredicate(format: "label BEGINSWITH 'Barbell Bench Press'")).firstMatch
-        XCTAssertTrue(row.waitForExistence(timeout: 5), "no Barbell Bench Press row")
-        row.tap()
+        try openBenchPress(app)
 
         XCTAssertTrue(any["screen.exerciseDetail"].waitForExistence(timeout: 5), "the detail did not open")
         let name = any["exerciseDetail.name"]
@@ -79,5 +57,65 @@ final class ExerciseDetailUITests: XCTestCase {
 
         segment.buttons["About"].tap()
         XCTAssertTrue(any["exerciseDetail.about.instructions"].waitForExistence(timeout: 5))
+    }
+
+    /// From the Exercises list: searches for Barbell Bench Press (the sample history has sessions of it) and opens it.
+    @MainActor
+    private func openBenchPress(_ app: XCUIApplication) throws {
+        let any = app.descendants(matching: .any)
+        XCTAssertTrue(any["screen.exercises"].waitForExistence(timeout: 10))
+        let rows = app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier BEGINSWITH 'exercises.row.'")
+        )
+        XCTAssertTrue(rows.element(boundBy: 0).waitForExistence(timeout: 10), "no exercise rows")
+
+        // On the closed Duo the system folds search into a button in the trailing strip; tap it to get the field.
+        let search = app.searchFields.firstMatch
+        if !search.waitForExistence(timeout: 3), !app.buttons["Search"].firstMatch.exists {
+            // Inside the tab shell the field sits above the first row until the list is pulled down.
+            app.collectionViews.firstMatch.swipeDown()
+        }
+        if !search.waitForExistence(timeout: 3) {
+            let button = app.buttons["Search"].firstMatch
+            XCTAssertTrue(button.waitForExistence(timeout: 5))
+            button.tap()
+        }
+        XCTAssertTrue(search.waitForExistence(timeout: 5))
+        if !app.keyboards.firstMatch.waitForExistence(timeout: 3) {
+            search.tap()
+            XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5), "search field did not take focus")
+        }
+        search.typeText("Barbell Bench Press\n")
+
+        let row = rows.matching(NSPredicate(format: "label BEGINSWITH 'Barbell Bench Press'")).firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 5), "no Barbell Bench Press row")
+        row.tap()
+    }
+
+    /// R4-06: the History segment's session header opens the workout in the History tab. Needs the whole tab shell
+    /// (`-preview Root`), because the link is `AppNavigation.openWorkout`.
+    @MainActor
+    func testSessionOpensWorkout() throws {
+        let app = XCUIApplication()
+        app.launchArguments += ["-uiTesting", "-preview", "Root"]
+        app.launch()
+
+        let any = app.descendants(matching: .any)
+        let tab = any["tab.exercises"].firstMatch
+        XCTAssertTrue(tab.waitForExistence(timeout: 10), "no Exercises tab")
+        tab.tap()
+        try openBenchPress(app)
+
+        let segment = app.segmentedControls["exerciseDetail.segment"]
+        XCTAssertTrue(segment.waitForExistence(timeout: 5))
+        segment.buttons["History"].tap()
+        let session = app.buttons.matching(
+            NSPredicate(
+                format: "identifier BEGINSWITH 'exerciseDetail.history.session.' AND identifier ENDSWITH '.open'"
+            )
+        ).firstMatch
+        XCTAssertTrue(session.waitForExistence(timeout: 5), "no History session header")
+        session.tap()
+        XCTAssertTrue(any["history.detail"].waitForExistence(timeout: 5), "the session did not open its workout")
     }
 }

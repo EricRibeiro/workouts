@@ -80,11 +80,16 @@ struct ExerciseDetailView: View {
                             customInstructions: customs.first?.instructions ?? []
                         )
                     case .history:
-                        ExerciseHistoryView(sessions: history)
+                        ExerciseHistoryView(sessions: history, embedded: embedded)
                     case .charts:
                         ExerciseChartsView(sessions: sessions, weightType: info.weightType, options: options)
                     case .records:
-                        ExerciseRecordsView(records: records, weightType: info.weightType, unit: unit)
+                        ExerciseRecordsView(
+                            records: records,
+                            weightType: info.weightType,
+                            unit: unit,
+                            embedded: embedded
+                        )
                     }
                 }
                 .padding(.horizontal)

@@ -124,3 +124,9 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
     (closed = compact = no sidebar). Grid folder headers now always show (open-tall is regular with the sidebar collapsed).
 46. **Phase 4 review accepted** (docs/reviews/phase-4.md). Taste rows: R4-14 yes (row subtitle one line below AX sizes);
     R4-20 no (list stays flat — search, pills and the natural-language fallback carry a 1,038-row list; no letter sections).
+47. **Phase 4 fixes** (R4-*): custom exercise bar defaults by weight type (barbell → Olympic, else none) and follows a
+    weight-type change until you pick one; the hero is capped at 35 % of the container height (measured with
+    `containerRelativeFrame` + `onGeometryChange`, since that modifier only sets exact sizes); History/Records rows open
+    the workout in History except inside the logging pane (it would switch tabs behind the cover); the sticky note has a
+    `stickyNote` asset (#FFF1B0 / #4A370E). Unverified until a device: the `.warning` haptics on Archive/Delete/Remove fire
+    as their sheet dismisses and may be cut off — move the trigger to the presenting view if you don't feel them.

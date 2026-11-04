@@ -119,4 +119,52 @@ final class ExerciseListUITests: XCTestCase {
             "Hide Retired"
         )
     }
+
+    /// R4-02: the best-set column follows the display unit chosen in Settings (the default unit is lb).
+    @MainActor
+    func testBestSetFollowsUnitChange() throws {
+        let app = XCUIApplication()
+        app.launchArguments += ["-uiTesting"]
+        app.launch()
+        let any = app.descendants(matching: .any)
+
+        // Sample data gives the exercises a best set.
+        let settings = any["toolbar.settings"].firstMatch
+        XCTAssertTrue(settings.waitForExistence(timeout: 10))
+        settings.tap()
+        let load = app.buttons["settings.loadSampleData"].firstMatch
+        XCTAssertTrue(any["screen.settings"].waitForExistence(timeout: 5))
+        for _ in 0..<5 where !load.isHittable { app.swipeUp() }
+        XCTAssertTrue(load.waitForExistence(timeout: 5))
+        load.tap()
+        let ok = app.alerts.buttons["OK"].firstMatch
+        XCTAssertTrue(ok.waitForExistence(timeout: 10))
+        ok.tap()
+        app.buttons["settings.done"].firstMatch.tap()
+
+        any["tab.exercises"].firstMatch.tap()
+        XCTAssertTrue(any["screen.exercises"].waitForExistence(timeout: 5))
+        let withBest = rows(app).matching(NSPredicate(format: "label CONTAINS ' lb ×'"))
+        let row = withBest.element(boundBy: 0)
+        // Alphabetical, so the exercises with history sit below the fold.
+        for _ in 0..<15 where !row.exists { app.swipeUp() }
+        XCTAssertTrue(row.waitForExistence(timeout: 5), "no row shows a best set in lb")
+        let identifier = row.identifier
+
+        // Switch to kg in Settings and come back: the same row now reads in kg.
+        any["tab.workout"].firstMatch.tap()
+        settings.tap()
+        let unit = app.segmentedControls["settings.defaultUnit"]
+        XCTAssertTrue(unit.waitForExistence(timeout: 5), "no unit control")
+        unit.buttons["kg"].tap()
+        XCTAssertTrue(unit.buttons["kg"].isSelected)
+        app.buttons["settings.done"].firstMatch.tap()
+
+        any["tab.exercises"].firstMatch.tap()
+        let same = rows(app).matching(identifier: identifier).firstMatch
+        XCTAssertTrue(same.waitForExistence(timeout: 10))
+        let converted = NSPredicate(format: "label CONTAINS ' kg ×' AND NOT (label CONTAINS ' lb ×')")
+        expectation(for: converted, evaluatedWith: same)
+        waitForExpectations(timeout: 10)
+    }
 }
