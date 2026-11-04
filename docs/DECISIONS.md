@@ -119,7 +119,7 @@ Eric deferred the technical choices to Claude. These close every item in `docs/p
   `ProgressView(timerInterval:)` ring (drawn by the system). `staleDate = restEndsAt`, `relevanceScore` 1 while resting. Request
   on start, update on every check/skip/adjust, `end(dismissalPolicy: .immediate)` on Finish/Discard. Suspended (no push server) it
   cannot flip to "rest over": 0:00 is the only in-Island signal, the notification the alarm. `WorkoutActivityAttributes:
-  ActivityAttributes` wraps the state and lives in the app (also a member of the extension target).
+  ActivityAttributes` wraps the state and lives in `Shared/`, a synced folder in both the app and the extension target.
 - **Haptics** via `.sensoryFeedback`: check `.impact(weight: .light)`, rest end `.success`, PR `.levelChange`, destructive
   confirm `.warning`, minimise/restore `.selection`.
 - **Liquid Glass**: system bars and controls; no hand-placed `.glassEffect()` (nothing floats over content);

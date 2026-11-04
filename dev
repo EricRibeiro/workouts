@@ -11,7 +11,7 @@ DERIVED=".build/DerivedData"
 RESULTS=".build/results"
 LOGS=".build/logs"
 KIT="Packages/WorkoutsKit"
-LINT_PATHS=(Workouts WorkoutsTests WorkoutsUITests Packages)
+LINT_PATHS=(Workouts WorkoutsLiveActivity Shared WorkoutsTests WorkoutsUITests Packages)
 NOISE='IDERunDestination|IDESchemeActionDeviceRecord|IDETestOperationsObserverDebug'
 MAX_LINES=80
 
