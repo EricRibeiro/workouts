@@ -33,13 +33,15 @@ extension ActiveWorkoutEngine {
     /// a weight above 0, in the row's unit and bar. The ramp sits ahead of the working sets (kind warm-up, unchecked,
     /// weight and reps filled) and set positions are renumbered. Without such a working weight nothing changes; a
     /// working weight whose ramp is empty (45 lb on the 45 lb bar) still removes the old warm-ups.
+    /// Returns false, changing nothing, when there is no such working weight (the UI asks for one first).
     /// - Throws: ``ActiveWorkoutError/notInActiveWorkout`` when the row is not in the workout.
-    public func addWarmupSets(to row: WorkoutExercise) throws {
+    @discardableResult
+    public func addWarmupSets(to row: WorkoutExercise) throws -> Bool {
         let workout = try owned(row)
         let existing = sortedSets(of: row)
         guard let working = existing.first(where: { $0.kind != .warmup && ($0.weight ?? 0) > 0 }),
             let weight = working.weight
-        else { return }
+        else { return false }
         let ramp = WarmupRamp.steps(
             workingWeight: weight,
             unit: row.unit,
@@ -58,5 +60,6 @@ extension ActiveWorkoutEngine {
             set.position = ramp.count + index
         }
         try commitRollingBack(workout, row)
+        return true
     }
 }

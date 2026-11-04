@@ -219,10 +219,10 @@ Live Activity → notifications → logging, then templates, exercises, history.
   opened). Needs: 2.1, 2.3, 2.10, 3.3, 0.10. Proof: flow.
 - [x] **3.5 Supersets and warm-up ramp**: `WorkoutsKit/Session` helpers (ramp, renumbering) and superset colours. Needs: 0.1, 0.9, 0.10.
   Proof: `./dev kit Template` + preview.
-- [ ] **3.6 Editor block actions**: exercise-header `ellipsis.circle` menu (note, Add Warm-up Sets, Update Rest Timers, Replace
+- [x] **3.6 Editor block actions**: exercise-header `ellipsis.circle` menu (note, Add Warm-up Sets, Update Rest Timers, Replace
   via the picker, Create/Edit Superset, Preferences unit/bar/rest per row, Remove); the Sticky Note entry arrives with 4.5. Needs:
   3.4, 3.5, 0.10. Proof: flow.
-- [ ] **3.6d Logging block menu** (gap found in 3.6): the same `SetTableBlockActions` header menu on the active workout's
+- [x] **3.6d Logging block menu** (gap found in 3.6): the same `SetTableBlockActions` header menu on the active workout's
   set table, backed by the engine (note, sticky note, warm-ups, rest, replace via the picker, superset, preferences, remove).
   Needs: 3.6. Proof: flow.
 - [x] **3.7 Sidebar Templates sections**: `TabSection` per folder, `.sidebarOnly` template tabs rendering the preview,

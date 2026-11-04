@@ -30,6 +30,8 @@ struct ActiveWorkoutCover: View {
     @State private var renameText = ""
     @State private var renameError: String?
     @State private var focusedSectionID: UUID?
+    /// The block menu's pending prompts (task 3.6d).
+    @State private var blockSheets = BlockActionState()
     /// The last content shown for a running workout, as plain values (never the model, which Finish and Discard delete),
     /// so the cover keeps drawing it while it animates away instead of flashing the empty state.
     @State private var lastShown: LastShown?
@@ -118,43 +120,48 @@ struct ActiveWorkoutCover: View {
     private func content(engine: ActiveWorkoutEngine, store: ExerciseStore, workout: Workout) -> some View {
         let source = EngineSetTableSource(engine: engine, store: store, errors: errors)
         let sections = source.sections
-        arrangement(source: source, sections: sections)
-            .navigationTitle(workout.name)
-            .onChange(
-                of: LastShown(name: workout.name, startedAt: workout.startedAt, sections: sections),
-                initial: true
-            ) {
-                _,
-                new in lastShown = new
+        arrangement(
+            source: source,
+            sections: sections,
+            blockActions: blockSheets.actions(host: blockHost(engine: engine, workout: workout))
+        )
+        .blockActionSheets(blockSheets, host: blockHost(engine: engine, workout: workout))
+        .navigationTitle(workout.name)
+        .onChange(
+            of: LastShown(name: workout.name, startedAt: workout.startedAt, sections: sections),
+            initial: true
+        ) {
+            _,
+            new in lastShown = new
+        }
+        .toolbarTitleMenu {
+            Button("Rename…", systemImage: "pencil") {
+                renameText = workout.name
+                isRenaming = true
             }
-            .toolbarTitleMenu {
-                Button("Rename…", systemImage: "pencil") {
-                    renameText = workout.name
-                    isRenaming = true
-                }
-                .accessibilityIdentifier("cover.titleMenu.rename")
-                Button("Discard Workout", systemImage: "trash", role: .destructive) {
-                    finishFlow.requestDiscard(engine: engine, onDiscarded: onDiscarded)
-                }
-                .accessibilityIdentifier("cover.titleMenu.discard")
+            .accessibilityIdentifier("cover.titleMenu.rename")
+            Button("Discard Workout", systemImage: "trash", role: .destructive) {
+                finishFlow.requestDiscard(engine: engine, onDiscarded: onDiscarded)
             }
-            .alert("Rename Workout", isPresented: $isRenaming) {
-                TextField("Name", text: $renameText)
-                    .accessibilityIdentifier("rename.field")
-                Button("Save") { rename(engine, to: renameText) }
-                    .accessibilityIdentifier("rename.save")
-                Button("Cancel", role: .cancel) {}
-                    .accessibilityIdentifier("rename.cancel")
-            }
-            .alert(
-                "Could Not Rename",
-                isPresented: Binding(get: { renameError != nil }, set: { if !$0 { renameError = nil } })
-            ) {
-                Button("OK", role: .cancel) {}
-            } message: {
-                Text(renameError ?? "")
-            }
-            .navigationSubtitle(subtitle(startedAt: workout.startedAt))
+            .accessibilityIdentifier("cover.titleMenu.discard")
+        }
+        .alert("Rename Workout", isPresented: $isRenaming) {
+            TextField("Name", text: $renameText)
+                .accessibilityIdentifier("rename.field")
+            Button("Save") { rename(engine, to: renameText) }
+                .accessibilityIdentifier("rename.save")
+            Button("Cancel", role: .cancel) {}
+                .accessibilityIdentifier("rename.cancel")
+        }
+        .alert(
+            "Could Not Rename",
+            isPresented: Binding(get: { renameError != nil }, set: { if !$0 { renameError = nil } })
+        ) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(renameError ?? "")
+        }
+        .navigationSubtitle(subtitle(startedAt: workout.startedAt))
     }
 
     /// What the cover shows between Finish or Discard and the end of its dismissal: the last content, read-only.
@@ -167,9 +174,13 @@ struct ActiveWorkoutCover: View {
 
     /// One ArrangementView in both widths, so folding never swaps the table's identity (draft, focus and scroll stay);
     /// the pane is simply absent on compact width.
-    private func arrangement(source: any SetTableDataSource, sections: [SetTableSection]) -> some View {
+    private func arrangement(
+        source: any SetTableDataSource,
+        sections: [SetTableSection],
+        blockActions: SetTableBlockActions? = nil
+    ) -> some View {
         ArrangementView {
-            SetTable(source: source, focusedSection: $focusedSectionID)
+            SetTable(source: source, focusedSection: $focusedSectionID, blockActions: blockActions)
         } secondary: {
             if horizontalSizeClass == .regular {
                 let focused = focusedSection(in: sections)
@@ -216,6 +227,69 @@ struct ActiveWorkoutCover: View {
         } catch {
             errors?.report(error)
         }
+    }
+
+    /// The engine behind the block menu's prompts. Each closure resolves the row by the section id; a failure is reported
+    /// through `perform` (the engine rolls back or keeps the value as its rules say).
+    private func blockHost(engine: ActiveWorkoutEngine, workout: Workout) -> BlockActionHost {
+        func row(_ id: UUID) -> WorkoutExercise? { (workout.exercises ?? []).first { $0.id == id } }
+        return BlockActionHost(
+            blocks: (workout.exercises ?? []).sorted { $0.position < $1.position }.map {
+                BlockActionBlock(
+                    id: $0.id,
+                    exerciseID: $0.exerciseID,
+                    name: $0.exerciseName,
+                    note: $0.note,
+                    restSeconds: $0.restSeconds,
+                    supersetGroup: $0.supersetGroup,
+                    unit: $0.unit,
+                    barType: $0.barType,
+                    barWeight: $0.barWeight
+                )
+            },
+            idPrefix: "cover",
+            removeMessage: "Its sets, checked or not, are removed from the workout.",
+            setNote: { id, text in
+                guard let row = row(id) else { return }
+                perform { try engine.setNote(text, for: row) }
+            },
+            addWarmups: { id in
+                guard let row = row(id) else { return true }
+                do {
+                    return try engine.addWarmupSets(to: row)
+                } catch {
+                    errors?.report(error)
+                    return true
+                }
+            },
+            setRest: { id, seconds in
+                guard let row = row(id) else { return }
+                perform { try engine.setRest(seconds, for: row) }
+            },
+            remove: { id in
+                guard let row = row(id) else { return }
+                perform { try engine.removeExercise(row) }
+            },
+            replace: { id, info in
+                guard let row = row(id) else { return }
+                perform { try engine.replaceExercise(row, with: info) }
+            },
+            makeSuperset: { id, picked in
+                perform { try engine.makeSuperset(([id] + picked).compactMap(row)) }
+            },
+            removeFromSuperset: { id in
+                guard let row = row(id) else { return }
+                perform { try engine.removeFromSuperset(row) }
+            },
+            savePreferences: { id, values in
+                guard let row = row(id) else { return }
+                perform {
+                    try engine.setUnit(values.unit, for: row)
+                    try engine.setBar(values.barType, weight: values.barWeight, for: row)
+                    try engine.setRest(values.restSeconds, for: row)
+                }
+            }
+        )
     }
 
     private func addExercises(_ infos: [ExerciseInfo]) {

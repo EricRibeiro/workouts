@@ -170,4 +170,124 @@ import Testing
         rig.context.insert(stranger)
         #expect(throws: ActiveWorkoutError.notInActiveWorkout) { try engine.addWarmupSets(to: stranger) }
     }
+
+    @Test func addWarmupSetsReportsWhetherItApplied() throws {
+        let (rig, engine, rows3) = try threeRows()
+        defer { withExtendedLifetime(rig) {} }
+        let squat = rows3[0]
+        #expect(try engine.addWarmupSets(to: squat) == false)
+        try setUpWorkingSets(engine, squat, weight: 100)
+        #expect(try engine.addWarmupSets(to: squat) == true)
+    }
+
+    // MARK: - Block edits (3.6d)
+
+    @Test func removeFromSupersetDissolvesAPairAndRenumbers() throws {
+        let (rig, engine, rows3) = try threeRows()
+        defer { withExtendedLifetime(rig) {} }
+        try engine.makeSuperset([rows3[0], rows3[1]])
+        try engine.removeFromSuperset(rows3[1])
+        #expect(rows3.map(\.supersetGroup) == [nil, nil, nil])
+    }
+
+    @Test func removeFromSupersetKeepsTheRestOfABiggerGroupAndRenumbers() throws {
+        let (rig, engine, rows3) = try threeRows()
+        defer { withExtendedLifetime(rig) {} }
+        try engine.makeSuperset([rows3[0], rows3[1], rows3[2]])
+        try engine.removeFromSuperset(rows3[0])
+        #expect(rows3.map(\.supersetGroup) == [nil, 1, 1])
+    }
+
+    @Test func removeFromSupersetOutsideAGroupChangesNothing() throws {
+        let (rig, engine, rows3) = try threeRows()
+        defer { withExtendedLifetime(rig) {} }
+        try engine.removeFromSuperset(rows3[2])
+        #expect(rows3.map(\.supersetGroup) == [nil, nil, nil])
+        #expect(rows3.map(\.position) == [0, 1, 2])
+    }
+
+    @Test func failedRemoveFromSupersetRollsBack() throws {
+        let (rig, engine, rows3) = try threeRows()
+        defer { withExtendedLifetime(rig) {} }
+        try engine.makeSuperset([rows3[0], rows3[1]])
+        engine.saveHook = { throw BlockEditSaveFailed() }
+        #expect(throws: BlockEditSaveFailed.self) { try engine.removeFromSuperset(rows3[0]) }
+        #expect(rows3[0].supersetGroup == 1 && rows3[1].supersetGroup == 1)
+    }
+
+    @Test func blockEditsRefuseAForeignRow() throws {
+        let (rig, engine, _) = try threeRows()
+        let stranger = WorkoutExercise(exerciseID: LibraryFixture.squat)
+        rig.context.insert(stranger)
+        #expect(throws: ActiveWorkoutError.notInActiveWorkout) { try engine.removeFromSuperset(stranger) }
+        #expect(throws: ActiveWorkoutError.notInActiveWorkout) { try engine.setNote("x", for: stranger) }
+        #expect(throws: ActiveWorkoutError.notInActiveWorkout) { try engine.setRest(30, for: stranger) }
+        #expect(throws: ActiveWorkoutError.notInActiveWorkout) { try engine.setUnit(.kg, for: stranger) }
+        #expect(throws: ActiveWorkoutError.notInActiveWorkout) { try engine.setBar(.ez, weight: nil, for: stranger) }
+    }
+
+    @Test func setNoteTrimsAndClears() throws {
+        let (rig, engine, rows3) = try threeRows()
+        defer { withExtendedLifetime(rig) {} }
+        try engine.setNote("  slow tempo \n", for: rows3[0])
+        #expect(rows3[0].note == "slow tempo")
+        try engine.setNote("   ", for: rows3[0])
+        #expect(rows3[0].note == "")
+    }
+
+    @Test func setRestChangesOnlyThatRowAndPersists() throws {
+        let (rig, engine, rows3) = try threeRows()
+        defer { withExtendedLifetime(rig) {} }
+        let other = rows3[1].restSeconds
+        try engine.setRest(45, for: rows3[0])
+        #expect(rows3[0].restSeconds == 45)
+        #expect(rows3[1].restSeconds == other)
+        try engine.setRest(nil, for: rows3[0])
+        #expect(rows3[0].restSeconds == nil)
+        #expect(try !rig.context.hasChanges)
+    }
+
+    @Test func setUnitDoesNotConvertTheSets() throws {
+        let (rig, engine, rows3) = try threeRows()
+        defer { withExtendedLifetime(rig) {} }
+        let squat = rows3[0]
+        try setUpWorkingSets(engine, squat, weight: 100)
+        let from = squat.unit
+        let to: WeightUnit = from == .kg ? .lb : .kg
+        try engine.setUnit(to, for: squat)
+        #expect(squat.unit == to)
+        #expect(sets(squat).allSatisfy { $0.weight == 100 })
+    }
+
+    @Test func setBarWritesTypeAndCustomWeight() throws {
+        let (rig, engine, rows3) = try threeRows()
+        defer { withExtendedLifetime(rig) {} }
+        try engine.setBar(.custom, weight: 15, for: rows3[0])
+        #expect(rows3[0].barType == .custom && rows3[0].barWeight == 15)
+        try engine.setBar(.none, weight: nil, for: rows3[0])
+        #expect(rows3[0].barType == BarType.none && rows3[0].barWeight == nil)
+    }
+
+    @Test func aSingleValueEditKeepsItsValueWhenTheSaveFails() throws {
+        let (rig, engine, rows3) = try threeRows()
+        defer { withExtendedLifetime(rig) {} }
+        engine.saveHook = { throw BlockEditSaveFailed() }
+        #expect(throws: BlockEditSaveFailed.self) { try engine.setNote("kept", for: rows3[0]) }
+        #expect(throws: BlockEditSaveFailed.self) { try engine.setRest(77, for: rows3[0]) }
+        #expect(throws: BlockEditSaveFailed.self) { try engine.setBar(.ez, weight: nil, for: rows3[0]) }
+        #expect(rows3[0].note == "kept" && rows3[0].restSeconds == 77 && rows3[0].barType == .ez)
+    }
+
+    @Test func replaceExerciseKeepsTheRowsSets() throws {
+        let (rig, engine, rows3) = try threeRows()
+        defer { withExtendedLifetime(rig) {} }
+        let squat = rows3[0]
+        try setUpWorkingSets(engine, squat, weight: 100)
+        let ids = sets(squat).map(\.id)
+        try engine.replaceExercise(squat, with: try rig.info(LibraryFixture.curl))
+        #expect(squat.exerciseID == LibraryFixture.curl)
+        #expect(sets(squat).map(\.id) == ids)
+    }
 }
+
+private struct BlockEditSaveFailed: Error {}

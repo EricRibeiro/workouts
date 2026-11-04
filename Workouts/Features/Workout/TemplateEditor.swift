@@ -34,29 +34,8 @@ struct TemplateEditor: View {
     @State private var renameText = ""
     @State private var isPickerPresented = false
     @State private var focusedSectionID: UUID?
-    /// The block menu's pending prompts (task 3.6); each holds the block's id.
-    @State private var isNoteEditing = false
-    @State private var noteText = ""
-    @State private var noteBlockID: UUID?
-    @State private var stickyTarget: StickyTarget?
-    @State private var isWarmupAlertShown = false
-    @State private var restBlockID: BlockID?
-    @State private var removeBlockID: UUID?
-    @State private var replaceBlockID: BlockID?
-    @State private var supersetBlockID: BlockID?
-    @State private var preferencesBlockID: BlockID?
-    @Query private var stickyNotes: [StickyNote]
-
-    /// A block id as a sheet item.
-    private struct BlockID: Identifiable {
-        let id: UUID
-    }
-
-    private struct StickyTarget: Identifiable {
-        let id: UUID
-        let exerciseID: UUID
-        let text: String
-    }
+    /// The block menu's pending prompts (task 3.6).
+    @State private var blockSheets = BlockActionState()
 
     /// Edits `template`.
     init(template: Template) {
@@ -150,96 +129,52 @@ struct TemplateEditor: View {
                 )
                 .presentationPlacement(.center)
             }
-            .alert("Note", isPresented: $isNoteEditing) {
-                TextField("Note", text: $noteText)
-                    .accessibilityIdentifier("templateEditor.note.field")
-                Button("Save") {
-                    if let noteBlockID { draft.setNote(noteText, for: noteBlockID) }
-                }
-                .accessibilityIdentifier("templateEditor.note.save")
-                Button("Cancel", role: .cancel) {}
-                    .accessibilityIdentifier("templateEditor.note.cancel")
-            }
-            .alert("Add a working weight first", isPresented: $isWarmupAlertShown) {
-                Button("OK", role: .cancel) {}
-                    .accessibilityIdentifier("templateEditor.warmup.ok")
-            } message: {
-                Text("Warm-up sets are built from the first set with a weight.")
-            }
-            .sheet(item: $stickyTarget) { target in
-                StickyNoteEditor(exerciseID: target.exerciseID, initialText: target.text)
-                    .presentationPlacement(.center)
-            }
-            .sheet(item: $restBlockID) { target in
-                RestTimerPickerSheet(current: draft.exercises.first { $0.id == target.id }?.restSeconds) {
-                    draft.updateRestTimers($0, for: target.id)
-                }
-                .presentationPlacement(.center)
-            }
-            .sheet(item: $replaceBlockID) { target in
-                ExercisePickerView(title: "Replace Exercise") { info in
-                    draft.replaceExercise(
-                        target.id,
-                        with: info,
-                        defaultUnit: settings?.defaultUnit ?? SettingsStore.defaultUnitDefault,
-                        defaultRestSeconds: settings?.defaultRestSeconds ?? SettingsStore.defaultRestSecondsDefault
-                    )
-                }
-                .presentationPlacement(.center)
-            }
-            .sheet(item: $supersetBlockID) { target in
-                supersetSheet(for: target.id)
-                    .presentationPlacement(.center)
-            }
-            .sheet(item: $preferencesBlockID) { target in
-                preferencesSheet(for: target.id)
-                    .presentationPlacement(.center)
-            }
-            .confirmationDialog(
-                removeBlockName.map { "Remove \($0)?" } ?? "Remove Exercise?",
-                isPresented: Binding(get: { removeBlockID != nil }, set: { if !$0 { removeBlockID = nil } }),
-                titleVisibility: .visible
-            ) {
-                Button("Remove Exercise", role: .destructive) {
-                    if let removeBlockID { draft.removeExercise(removeBlockID) }
-                    removeBlockID = nil
-                }
-                .accessibilityIdentifier("templateEditor.remove.confirm")
-                Button("Cancel", role: .cancel) {}
-                    .accessibilityIdentifier("templateEditor.remove.cancel")
-            } message: {
-                Text("Its sets are removed from the template. Nothing is saved until you tap Save.")
-            }
+            .blockActionSheets(blockSheets, host: blockHost)
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("screen.templateEditor")
     }
 
-    private var removeBlockName: String? {
-        draft.exercises.first { $0.id == removeBlockID }?.name
-    }
-
     // MARK: Block menu
 
-    private var blockActions: SetTableBlockActions {
-        SetTableBlockActions(
-            note: { id in
-                noteBlockID = id
-                noteText = draft.exercises.first { $0.id == id }?.note ?? ""
-                isNoteEditing = true
+    private var blockActions: SetTableBlockActions { blockSheets.actions(host: blockHost) }
+
+    /// The draft behind the block menu's prompts.
+    private var blockHost: BlockActionHost {
+        BlockActionHost(
+            blocks: draft.exercises.map {
+                BlockActionBlock(
+                    id: $0.id,
+                    exerciseID: $0.exerciseID,
+                    name: $0.name,
+                    note: $0.note,
+                    restSeconds: $0.restSeconds,
+                    supersetGroup: $0.supersetGroup,
+                    unit: $0.unit,
+                    barType: $0.barType,
+                    barWeight: $0.barWeight
+                )
             },
-            stickyNote: { id in
-                guard let block = draft.exercises.first(where: { $0.id == id }) else { return }
-                let text = stickyNotes.first { $0.exerciseID == block.exerciseID }?.text ?? ""
-                stickyTarget = StickyTarget(id: id, exerciseID: block.exerciseID, text: text)
+            idPrefix: "templateEditor",
+            removeMessage: "Its sets are removed from the template. Nothing is saved until you tap Save.",
+            setNote: { draft.setNote($1, for: $0) },
+            addWarmups: { draft.addWarmupSets(to: $0) != 0 },
+            setRest: { draft.updateRestTimers($1, for: $0) },
+            remove: { draft.removeExercise($0) },
+            replace: { id, info in
+                draft.replaceExercise(
+                    id,
+                    with: info,
+                    defaultUnit: settings?.defaultUnit ?? SettingsStore.defaultUnitDefault,
+                    defaultRestSeconds: settings?.defaultRestSeconds ?? SettingsStore.defaultRestSecondsDefault
+                )
             },
-            addWarmups: { id in
-                if draft.addWarmupSets(to: id) == 0 { isWarmupAlertShown = true }
-            },
-            updateRest: { id in restBlockID = BlockID(id: id) },
-            remove: { id in removeBlockID = id },
-            replace: { id in replaceBlockID = BlockID(id: id) },
-            superset: { id in supersetBlockID = BlockID(id: id) },
-            preferences: { id in preferencesBlockID = BlockID(id: id) }
+            makeSuperset: { id, picked in draft.makeSuperset([id] + picked) },
+            removeFromSuperset: { draft.removeFromSuperset($0) },
+            savePreferences: { id, values in
+                draft.setUnit(values.unit, for: id)
+                draft.setBar(values.barType, weight: values.barWeight, for: id)
+                draft.updateRestTimers(values.restSeconds, for: id)
+            }
         )
     }
 
