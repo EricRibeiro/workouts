@@ -115,7 +115,7 @@ Live Activity → notifications → logging, then templates, exercises, history.
 - [x] **0.7 Design colours**: asset-catalog semantic colours, light/dark. Proof: `./dev build` + a swatch `#Preview` (shown in the
   gallery once 0.10 lands).
 - [x] **0.8 MediaStore** per `docs/port/media.md`, fake `URLProtocol`. Proof: `./dev kit Media`.
-- [ ] **0.9 Sample data + preview container** (kit `Sample/`): `ModelContainer.preview` seeded by `SampleData` (takes a
+- [x] **0.9 Sample data + preview container** (kit `Sample/`): `ModelContainer.preview` seeded by `SampleData` (takes a
   `LibraryCatalog`; 3 templates, 50 workouts with PRs) and a `#if DEBUG` "Load sample data" row in the Settings sheet; every
   `#Preview` and gallery entry uses it. Needs: 0.1, 0.3, 0.5. Proof: `./dev kit Sample`.
 - [ ] **0.10 Preview gallery + UI-test harness**: `#if DEBUG` `PreviewGallery` root chosen by launch argument `-preview <Name>`
