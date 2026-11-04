@@ -105,4 +105,4 @@ they run. If that happens: stop, `xcrun simctl shutdown all`, and report it. Nev
    `npx --yes agent-device@0.21.36 close --udid <udid>`.
 The Dynamic Island is not drawn in simulator screenshots of the closed Duo's strip; use the Lock Screen banner.
 
-- **Text size without touching the shared simulator**: pass it per launch, e.g. `./dev shot x.png -- -uiTesting -preview History -UIPreferredContentSizeCategoryName UICTContentSizeCategoryAccessibilityXL` (other workers keep the default size). Prefer this over `xcrun simctl ui booted content_size …`.
+- **Text size**: the `-UIPreferredContentSizeCategoryName` launch argument does **not** apply through `./dev shot` (Phase 3 review, 2026-11-04). Your checkout has its own pool simulator, so set it there: `xcrun simctl ui <udid> content_size accessibility-extra-large` (udid = the THIS-CHECKOUT row of `./dev sims`), shoot, then `xcrun simctl ui <udid> content_size medium`. Same for `appearance dark|light`.

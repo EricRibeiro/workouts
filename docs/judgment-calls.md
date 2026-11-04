@@ -138,3 +138,7 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
 49. **Finish/Done fold into "More" on the closed Duo** (found by the FinishUITests fix): with the number pad up and a rest
     running, the trailing strip is too short, so the system overflows Finish and the keyboard accessory's Done into a More
     menu. Tests now dismiss via the accessory; the UX itself goes to the Phase 3 review (visibilityPriority / fewer items).
+50. **Phase 3 review accepted** (docs/reviews/phase-3.md). Taste rows: R3-04 the reviewer's six superset hues; R3-09 rest
+    lives only in "Update Rest Timer" (dropped from Preferences); R3-15 the block note becomes a multi-line sheet; R3-16 a
+    card hides a lone superset bar whose partner is in "+ N more". R3-01 changes behaviour: rest "Off" is now really off
+    (0) and a new "Default (1:30)" row follows Settings (nil).
