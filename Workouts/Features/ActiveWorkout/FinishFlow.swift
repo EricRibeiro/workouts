@@ -38,7 +38,7 @@ final class FinishFlowState {
         self.onFinished = onFinished
         self.onDiscarded = onDiscarded
         do {
-            let dialog = try engine.finishSummary().dialog
+            let dialog = try engine.finishDialog()
             if dialog == .none {
                 finish(.discard)
             } else {

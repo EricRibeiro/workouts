@@ -87,7 +87,8 @@ struct FinishSummaryView: View {
     private var header: some View {
         VStack(spacing: 8) {
             Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 56))
+                .font(.largeTitle)
+                .imageScale(.large)
                 .foregroundStyle(Color.ok)
                 .accessibilityHidden(true)
             Text("Workout complete")

@@ -21,11 +21,14 @@ struct SetRow: View {
     let onCommitWeight: (Double?) -> Void
     /// Reps, or seconds for a duration row.
     let onCommitReps: (Int?) -> Void
-    let onToggleCheck: () -> Void
+    /// Returns `false` when the check was refused (nothing to record); the row then wiggles, buzzes and rings red.
+    let onToggleCheck: () -> Bool
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @ScaledMetric(relativeTo: .body) private var touch = 44.0
     @ScaledMetric(relativeTo: .body) private var labelWidth = 28.0
+    @State private var refusedCount = 0
+    @State private var showsRefusal = false
 
     var body: some View {
         Group {
@@ -42,8 +45,15 @@ struct SetRow: View {
         .padding(.horizontal, 8)
         .background(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(model.isChecked ? Color.okFill.opacity(0.22) : .clear)
+                .fill(model.isChecked ? Color.okRow : .clear)
         )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(Color.danger, lineWidth: 2)
+                .opacity(showsRefusal ? 1 : 0)
+                .allowsHitTesting(false)
+        )
+        .sensoryFeedback(.error, trigger: refusedCount)
         .animation(.easeOut(duration: 0.2), value: model.isChecked)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("setrow.\(model.id.uuidString)")
@@ -132,6 +142,7 @@ struct SetRow: View {
             value: model.weightText,
             placeholder: model.weightPlaceholder,
             keyboard: .decimalPad,
+            isChecked: model.isChecked,
             field: SetRowField(setID: model.id, column: .weight),
             focus: focus,
             label: "Weight",
@@ -147,6 +158,7 @@ struct SetRow: View {
             value: model.repsText,
             placeholder: model.repsPlaceholder,
             keyboard: .numberPad,
+            isChecked: model.isChecked,
             field: SetRowField(setID: model.id, column: .reps),
             focus: focus,
             label: model.measure == .duration ? "Duration" : "Reps",
@@ -157,11 +169,22 @@ struct SetRow: View {
         )
     }
 
+    private func toggleCheck() {
+        guard !onToggleCheck() else { return }
+        refusedCount += 1
+        showsRefusal = true
+        Task {
+            try? await Task.sleep(for: .milliseconds(400))
+            withAnimation(.easeOut(duration: 0.2)) { showsRefusal = false }
+        }
+    }
+
     private var checkButton: some View {
-        Button(action: onToggleCheck) {
+        Button(action: toggleCheck) {
             Image(systemName: "checkmark")
                 .font(.body.bold())
-                .foregroundStyle(model.isChecked ? Color.black.opacity(0.85) : Color.secondary)
+                .foregroundStyle(model.isChecked ? Color.onOkFill : Color.secondary)
+                .symbolEffect(.wiggle, value: refusedCount)
                 .frame(width: touch, height: touch)
                 .background(
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
@@ -197,7 +220,10 @@ struct SetRow: View {
                                 update(row.id) { $0.weightText = SetInputFormat.weightText(value) }
                             },
                             onCommitReps: { value in update(row.id) { $0.repsText = SetInputFormat.countText(value) } },
-                            onToggleCheck: { update(row.id) { $0.isChecked.toggle() } }
+                            onToggleCheck: {
+                                update(row.id) { $0.isChecked.toggle() }
+                                return true
+                            }
                         )
                     }
                 }

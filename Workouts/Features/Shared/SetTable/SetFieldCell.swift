@@ -13,6 +13,8 @@ struct SetFieldCell: View {
     let value: String
     let placeholder: String
     let keyboard: UIKeyboardType
+    /// A checked row's cells drop their fill so the values read as plain text (still editable).
+    let isChecked: Bool
     let field: SetRowField
     var focus: FocusState<SetRowField?>.Binding
     let label: String
@@ -28,12 +30,17 @@ struct SetFieldCell: View {
 
     private var isFocused: Bool { focus.wrappedValue == field }
 
+    private var fill: AnyShapeStyle {
+        if isFocused { return AnyShapeStyle(Color.accentColor.opacity(0.2)) }
+        return isChecked ? AnyShapeStyle(Color.clear) : AnyShapeStyle(.quaternary)
+    }
+
     var body: some View {
         TextField(
             label,
             text: $text,
             selection: $selection,
-            prompt: Text(placeholder).foregroundStyle(.tertiary)
+            prompt: Text(placeholder).foregroundStyle(Color.secondary)
         )
         .keyboardType(keyboard)
         .focused(focus, equals: field)
@@ -43,7 +50,7 @@ struct SetFieldCell: View {
         .frame(maxWidth: .infinity, minHeight: minHeight)
         .background(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(isFocused ? AnyShapeStyle(Color.accentColor.opacity(0.2)) : AnyShapeStyle(.quaternary))
+                .fill(fill)
         )
         .contentShape(.rect)
         .onTapGesture { focus.wrappedValue = field }

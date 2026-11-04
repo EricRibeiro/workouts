@@ -11,6 +11,8 @@ import WorkoutsKit
 //
 //   Color.ok              green for text and icons on a page surface
 //   Color.okFill          green for filled shapes (a checked set); pair with dark text
+//   Color.okRow           soft green row tint behind a checked set
+//   Color.onOkFill        dark glyph or text on okFill
 //   Color.danger          destructive text and icons
 //   Color.warmup          warm-up set kind
 //   Color.setKindDrop     drop set kind

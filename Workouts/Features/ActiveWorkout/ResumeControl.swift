@@ -22,6 +22,8 @@ private struct ResumeControl: ViewModifier {
         content
             .toolbar {
                 if let engine, let navigation, let workout = engine.workout, !navigation.isWorkoutCoverPresented {
+                    // Its own glass group, still last: the ring is a status, not a third action beside the others.
+                    ToolbarSpacer(.fixed, placement: .primaryAction)
                     ToolbarItem(placement: .primaryAction) {
                         ResumeRingButton(engine: engine, startedAt: workout.startedAt) {
                             restoreCount += 1
@@ -47,6 +49,8 @@ private struct ResumeRingButton: View {
     let restore: () -> Void
     /// Updated by a 1 s loop; the arc and the accessibility text derive from it.
     @State private var now = Date.now
+    /// Bumped by the 1 s loop when the rest reaches 0 while the cover is closed; drives the success haptic.
+    @State private var restEndCount = 0
     @ScaledMetric(relativeTo: .body) private var arcSize: CGFloat = 22
 
     var body: some View {
@@ -61,7 +65,8 @@ private struct ResumeRingButton: View {
                     RestArc.image(
                         fraction: min(1, remaining / Double(max(1, total))),
                         size: arcSize,
-                        label: Text("Resume workout")
+                        label: Text("Resume workout"),
+                        tint: remaining <= 0 ? .ok : nil
                     )
                 } else {
                     Image(systemName: "figure.strengthtraining.traditional")
@@ -71,11 +76,18 @@ private struct ResumeRingButton: View {
         .accessibilityLabel("Resume workout, \(state)")
         .accessibilityIdentifier("resume.ring")
         // The engine keeps an over rest for a few seconds (the flash); with the cover closed nothing else forgets it.
+        .sensoryFeedback(.success, trigger: restEndCount)
         .task(id: timer.endsAt) {
             now = .now
+            // A rest already over when this view appears must not buzz.
+            var hasEnded = timer.endsAt.map { $0 <= now } ?? true
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(1))
                 now = .now
+                if !hasEnded, let endsAt = engine.restTimer.endsAt, endsAt <= now {
+                    hasEnded = true
+                    restEndCount += 1
+                }
                 if engine.restTimer.endsAt != nil, (try? engine.tickRest()) == true { break }
             }
         }

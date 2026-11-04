@@ -9,7 +9,9 @@ import SwiftUI
 /// and the remaining fraction from 12 o'clock, clockwise, no digits. Drawn with `Image(size:renderer:)` so the item can
 /// stay a `Label` with an `Image` icon, which is what the closed Duo moves into the trailing strip.
 enum RestArc {
-    static func image(fraction: Double, size: CGFloat, label: Text) -> Image {
+    /// `tint` colours the arc and track (the ok colour while a finished rest sits in its grace); nil follows the
+    /// foreground style.
+    static func image(fraction: Double, size: CGFloat, label: Text, tint: Color? = nil) -> Image {
         let lineWidth: CGFloat = 2
         return Image(size: CGSize(width: size, height: size), label: label) { context in
             let rect = CGRect(origin: .zero, size: context.clipBoundingRect.size)
@@ -17,7 +19,7 @@ enum RestArc {
             let style = StrokeStyle(lineWidth: lineWidth, lineCap: .round)
             var track = context
             track.opacity = 0.25
-            track.stroke(Path(ellipseIn: rect), with: .foreground, style: style)
+            track.stroke(Path(ellipseIn: rect), with: tint.map { .color($0) } ?? .foreground, style: style)
             guard fraction > 0 else { return }
             var arc = Path()
             arc.addArc(
@@ -27,7 +29,7 @@ enum RestArc {
                 endAngle: .degrees(-90 + 360 * fraction),
                 clockwise: false
             )
-            context.stroke(arc, with: .foreground, style: style)
+            context.stroke(arc, with: tint.map { .color($0) } ?? .foreground, style: style)
         }
     }
 }

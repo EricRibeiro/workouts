@@ -110,4 +110,22 @@ final class RestRingUITests: XCTestCase {
         XCTAssertTrue(preset45.waitForExistence(timeout: 5), "custom 0:45 not listed")
         XCTAssertEqual(preset45.label, "Rest 0:45")
     }
+
+    /// A 3 s rest ends on its own: the ring returns to idle after the grace. The success haptic and ok tint are
+    /// timer-driven but cannot be asserted from XCUITest.
+    @MainActor
+    func testRestEndsAndRingReturnsToIdle() throws {
+        let app = XCUIApplication()
+        app.launchArguments += ["-uiTesting", "-startSampleWorkout", "-sampleRestSeconds", "3", "-openWorkoutCover"]
+        app.launch()
+        let any = app.descendants(matching: .any)
+        XCTAssertTrue(any["screen.activeWorkout"].waitForExistence(timeout: 15))
+        let ring = app.buttons["rest.ring"].firstMatch
+        XCTAssertTrue(ring.waitForExistence(timeout: 10))
+        // 3 s rest + 3 s grace + loop tick; the idle ring's label has no ", ".
+        let idle = NSPredicate(format: "NOT (label CONTAINS ', ')")
+        expectation(for: idle, evaluatedWith: ring)
+        waitForExpectations(timeout: 12)
+        XCTAssertEqual(ring.label, "Rest timer")
+    }
 }

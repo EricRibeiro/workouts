@@ -55,7 +55,25 @@ extension ActiveWorkoutEngine {
         let stamp = now()
         workout.updatedAt = stamp
         row?.updatedAt = stamp
+        try save()
+    }
+
+    /// Saves through the test seam ``saveHook``.
+    func save() throws {
+        try saveHook?()
         try context.save()
+    }
+
+    /// ``commit(_:_:)`` for mutations that insert, delete or renumber several models: when the save fails the whole
+    /// in-memory change is rolled back, so the context never keeps deleted rows or half-applied positions that a
+    /// retry or the next read would walk.
+    func commitRollingBack(_ workout: Workout, _ row: WorkoutExercise?) throws {
+        do {
+            try commit(workout, row)
+        } catch {
+            context.rollback()
+            throw error
+        }
     }
 
     /// Inserts a new workout, lets `build` fill it, loads Previous for its exercises and saves. On failure the new
@@ -69,9 +87,9 @@ extension ActiveWorkoutEngine {
         do {
             build(workout)
             try loadPrevious(for: Set(sortedExercises(of: workout).map(\.exerciseID)))
-            try context.save()
+            try save()
         } catch {
-            context.delete(workout)
+            context.rollback()
             throw error
         }
         self.workout = workout
@@ -246,6 +264,21 @@ extension ActiveWorkoutEngine {
         }
     }
 
+    /// Unchecked sets with and without something to record, over all of the workout's rows.
+    func uncheckedCounts(in rows: [(WorkoutExercise, [WorkoutSet])]) -> (withValues: Int, withoutValues: Int) {
+        let unchecked = rows.flatMap { row, sets in sets.filter { !$0.completed }.map { (row, $0) } }
+        let withValues = unchecked.filter { hasValues($0.1, in: $0.0) }.count
+        return (withValues, unchecked.count - withValues)
+    }
+
+    /// The one rule for which Finish dialog applies.
+    static func dialog(anyChecked: Bool, uncheckedWithValues: Int, uncheckedWithoutValues: Int) -> FinishDialog {
+        guard anyChecked else { return .nothingLogged }
+        if uncheckedWithValues > 0 { return .unfinishedWithValues(count: uncheckedWithValues) }
+        if uncheckedWithoutValues > 0 { return .unfinishedWithoutValues(count: uncheckedWithoutValues) }
+        return .none
+    }
+
     /// The summary of `kept` (rows with the checked sets that are or will be saved).
     func makeSummary(
         workout: Workout,
@@ -298,12 +331,11 @@ extension ActiveWorkoutEngine {
         }
 
         let setCount = kept.reduce(0) { $0 + $1.1.count }
-        let dialog: FinishDialog =
-            setCount == 0
-            ? .nothingLogged
-            : uncheckedWithValues > 0
-                ? .unfinishedWithValues(count: uncheckedWithValues)
-                : uncheckedWithoutValues > 0 ? .unfinishedWithoutValues(count: uncheckedWithoutValues) : .none
+        let dialog = Self.dialog(
+            anyChecked: setCount > 0,
+            uncheckedWithValues: uncheckedWithValues,
+            uncheckedWithoutValues: uncheckedWithoutValues
+        )
         return FinishSummary(
             duration: max(0, end.timeIntervalSince(workout.startedAt)),
             setCount: setCount,

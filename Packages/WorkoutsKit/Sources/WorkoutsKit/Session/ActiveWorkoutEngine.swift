@@ -6,7 +6,8 @@ import SwiftData
 ///
 /// The in-progress workout is an ordinary `Workout` with `finishedAt == nil` (`data-model.md` section 5), saved on
 /// every change, so a new engine on the same store resumes it after relaunch. At most one exists. Every mutation sets
-/// `updatedAt` and saves; save errors are thrown and the in-memory change stays (nothing is discarded on error).
+/// `updatedAt` and saves; save errors are thrown. Value edits keep their in-memory change on error; mutations that
+/// insert, delete or renumber models, ``finish(unfinished:)`` and ``discard()`` roll the context back instead.
 /// The rest timer is an engine extension in `RestTimer.swift`; its fields persist on the workout.
 @Observable
 public final class ActiveWorkoutEngine {
@@ -25,6 +26,8 @@ public final class ActiveWorkoutEngine {
     /// Previous entries by exercise id, loaded at start/resume and when exercises are added or replaced.
     @ObservationIgnored var previousCache: [UUID: PreviousEntry] = [:]
     @ObservationIgnored var previousLoaded: Set<UUID> = []
+    /// Test seam: runs before every save and may throw to simulate a failed save. Always nil in the app.
+    @ObservationIgnored var saveHook: (() throws -> Void)?
 
     /// Creates the engine and resumes the in-progress workout, if the store has one (relaunch).
     public init(
@@ -165,7 +168,7 @@ public final class ActiveWorkoutEngine {
         set.reps = last?.reps
         set.durationSeconds = last?.durationSeconds
         set.distanceMeters = last?.distanceMeters
-        try commit(workout, row)
+        try commitRollingBack(workout, row)
         return set
     }
 
@@ -177,7 +180,7 @@ public final class ActiveWorkoutEngine {
         for (position, remaining) in sortedSets(of: row).filter({ $0 !== set }).enumerated() {
             remaining.position = position
         }
-        try commit(workout, row)
+        try commitRollingBack(workout, row)
     }
 
     /// The "Previous" cell of `set`: the same set index among the completed sets of the exercise's most recent
@@ -255,7 +258,7 @@ public final class ActiveWorkoutEngine {
             added.append(row)
             position += 1
         }
-        try commit(workout, nil)
+        try commitRollingBack(workout, nil)
         return added
     }
 
@@ -266,7 +269,7 @@ public final class ActiveWorkoutEngine {
         try loadPrevious(for: [info.id])
         row.exerciseID = info.id
         row.exerciseName = info.name
-        try commit(workout, row)
+        try commitRollingBack(workout, row)
     }
 
     /// Removes `row` with its sets, renumbers positions and dissolves a superset left with one member.
@@ -276,7 +279,7 @@ public final class ActiveWorkoutEngine {
         context.delete(row)
         let remaining = sortedExercises(of: workout).filter { $0 !== row }
         renumber(remaining)
-        try commit(workout, nil)
+        try commitRollingBack(workout, nil)
     }
 
     /// Rewrites exercise positions from `order`, which must contain each of the workout's exercises exactly once.
@@ -290,7 +293,7 @@ public final class ActiveWorkoutEngine {
             row.position = position
             row.updatedAt = now()
         }
-        try commit(workout, nil)
+        try commitRollingBack(workout, nil)
     }
 
     /// Renames the workout.
@@ -308,15 +311,28 @@ public final class ActiveWorkoutEngine {
         let workout = try activeWorkout()
         let rows = sortedExercises(of: workout).map { ($0, sortedSets(of: $0)) }
         let kept = rows.map { row, sets in (row, sets.filter(\.completed)) }.filter { !$0.1.isEmpty }
-        let unchecked = rows.flatMap { row, sets in sets.filter { !$0.completed }.map { (row, $0) } }
-        let withValues = unchecked.filter { hasValues($0.1, in: $0.0) }.count
+        let (withValues, withoutValues) = uncheckedCounts(in: rows)
         return try makeSummary(
             workout: workout,
             kept: kept,
             end: now(),
             workoutNumber: try finishedCount(excluding: workout) + 1,
             uncheckedWithValues: withValues,
-            uncheckedWithoutValues: unchecked.count - withValues
+            uncheckedWithoutValues: withoutValues
+        )
+    }
+
+    /// Which Finish dialog applies right now: the same answer as ``finishSummary()``'s `dialog`, from set counts alone
+    /// (no PR scan over the history), for the Finish button.
+    public func finishDialog() throws -> FinishDialog {
+        let workout = try activeWorkout()
+        let rows = sortedExercises(of: workout).map { ($0, sortedSets(of: $0)) }
+        let (withValues, withoutValues) = uncheckedCounts(in: rows)
+        let anyChecked = rows.contains { $0.1.contains(where: \.completed) }
+        return Self.dialog(
+            anyChecked: anyChecked,
+            uncheckedWithValues: withValues,
+            uncheckedWithoutValues: withoutValues
         )
     }
 
@@ -334,29 +350,40 @@ public final class ActiveWorkoutEngine {
         }
         let end = max(now(), workout.startedAt)
         var kept: [(WorkoutExercise, [WorkoutSet])] = []
-        var keptRows: [WorkoutExercise] = []
-        for row in rows {
-            var survivors: [WorkoutSet] = []
-            for set in sortedSets(of: row) {
-                if !set.completed && unfinished == .complete && hasValues(set, in: row) {
-                    set.completed = true
-                    set.completedAt = end
+        do {
+            var keptRows: [WorkoutExercise] = []
+            for row in rows {
+                var survivors: [WorkoutSet] = []
+                for set in sortedSets(of: row) {
+                    if !set.completed && unfinished == .complete && hasValues(set, in: row) {
+                        set.completed = true
+                        set.completedAt = end
+                    }
+                    if set.completed { survivors.append(set) } else { context.delete(set) }
                 }
-                if set.completed { survivors.append(set) } else { context.delete(set) }
+                if survivors.isEmpty {
+                    context.delete(row)
+                } else {
+                    for (position, set) in survivors.enumerated() { set.position = position }
+                    kept.append((row, survivors))
+                    keptRows.append(row)
+                }
             }
-            if survivors.isEmpty {
-                context.delete(row)
-            } else {
-                for (position, set) in survivors.enumerated() { set.position = position }
-                kept.append((row, survivors))
-                keptRows.append(row)
-            }
+            renumber(keptRows)
+            workout.finishedAt = end
+            RestTimer().write(to: workout)
+            try commit(workout, nil)
+        } catch {
+            // A failed save must not leave the deletions and `finishedAt` behind: the table would re-read deleted
+            // rows and a retry would walk deleted models. The engine still reports the (restored) workout.
+            context.rollback()
+            throw error
         }
-        renumber(keptRows)
-        workout.finishedAt = end
-        RestTimer().write(to: workout)
-        try commit(workout, nil)
-        let summary = try makeSummary(
+        // The workout is saved as finished: the engine lets go of it even if building the summary throws below.
+        self.workout = nil
+        previousCache = [:]
+        previousLoaded = []
+        return try makeSummary(
             workout: workout,
             kept: kept,
             end: end,
@@ -364,10 +391,6 @@ public final class ActiveWorkoutEngine {
             uncheckedWithValues: 0,
             uncheckedWithoutValues: 0
         )
-        self.workout = nil
-        previousCache = [:]
-        previousLoaded = []
-        return summary
     }
 
     /// Deletes the workout with everything in it. The caller confirms first ("Discard workout?").
@@ -376,7 +399,13 @@ public final class ActiveWorkoutEngine {
         // Cleared first so nothing observing the engine can read the model while it is being deleted.
         self.workout = nil
         context.delete(workout)
-        try context.save()
+        do {
+            try save()
+        } catch {
+            context.rollback()
+            self.workout = workout
+            throw error
+        }
         previousCache = [:]
         previousLoaded = []
     }

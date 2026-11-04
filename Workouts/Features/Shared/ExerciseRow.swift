@@ -14,30 +14,50 @@ struct ExerciseRow: View {
     let subtitle: String
     var trailing: String = ""
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     var body: some View {
+        // At accessibility sizes the decorative thumbnail goes (HIG) and the trailing text moves under the name, so the
+        // name keeps the full row width instead of wrapping a letter per line.
+        let compact = dynamicTypeSize.isAccessibilitySize
         HStack(spacing: 12) {
-            ExerciseThumbnail(id: info.isCustom ? nil : info.id)
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text(info.name)
-                        .font(.body)
-                        .foregroundStyle(.primary)
-                    if info.isCustom { ExerciseTag(text: "Custom", tint: .accentColor) }
-                    if info.isRetired { ExerciseTag(text: "Retired", tint: .secondary) }
+            if !compact { ExerciseThumbnail(id: info.isCustom ? nil : info.id) }
+            if compact {
+                VStack(alignment: .leading, spacing: 2) {
+                    details
+                    trailingText
                 }
-                if !subtitle.isEmpty {
-                    Text(subtitle)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
+            } else {
+                details
+                Spacer(minLength: 0)
+                trailingText
             }
-            Spacer(minLength: 0)
-            if !trailing.isEmpty {
-                Text(trailing)
+        }
+    }
+
+    private var details: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(info.name)
+                    .font(.body)
+                    .foregroundStyle(.primary)
+                if info.isCustom { ExerciseTag(text: "Custom", tint: .accentColor) }
+                if info.isRetired { ExerciseTag(text: "Retired", tint: .secondary) }
+            }
+            if !subtitle.isEmpty {
+                Text(subtitle)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.trailing)
             }
+        }
+    }
+
+    @ViewBuilder private var trailingText: some View {
+        if !trailing.isEmpty {
+            Text(trailing)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(dynamicTypeSize.isAccessibilitySize ? .leading : .trailing)
         }
     }
 }
@@ -79,7 +99,8 @@ struct ExerciseThumbnail: View {
         baseHeight = height
     }
 
-    private var height: CGFloat { baseHeight * scale }
+    /// Scaling is capped so a large Dynamic Type size cannot blow the thumbnail up (rows hide it at accessibility sizes).
+    private var height: CGFloat { baseHeight * min(scale, 1.4) }
 
     var body: some View {
         Group {

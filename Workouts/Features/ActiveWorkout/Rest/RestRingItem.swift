@@ -17,6 +17,8 @@ struct RestRingItem: View {
     @State private var isRunningPresented = false
     /// Updated by the 1 s rest loop; the arc and the accessibility time derive from it.
     @State private var now = Date.now
+    /// Bumped by the 1 s loop when a rest reaches 0 while this view watches; drives the success haptic.
+    @State private var restEndCount = 0
     @ScaledMetric(relativeTo: .body) private var arcSize: CGFloat = 22
 
     var body: some View {
@@ -70,6 +72,8 @@ struct RestRingItem: View {
         let remaining = max(0, endsAt.timeIntervalSince(now))
         let fraction = min(1, remaining / Double(max(1, total)))
         let time = ElapsedFormat.string(seconds: Int(remaining.rounded(.up)))
+        // An over rest stays in the engine for ``RestTimer/expiredGraceSeconds``: the arc is ok-coloured meanwhile.
+        let tint: Color? = remaining <= 0 ? .ok : nil
         return Button {
             isRunningPresented = true
         } label: {
@@ -77,7 +81,7 @@ struct RestRingItem: View {
             Label {
                 Text("Rest timer")
             } icon: {
-                arcImage(fraction: fraction)
+                arcImage(fraction: fraction, tint: tint)
             }
         }
         // The strip drops accessibilityValue, so the remaining time rides in the label.
@@ -89,17 +93,24 @@ struct RestRingItem: View {
                 .presentationDetents([.medium])
         }
         // The engine keeps an over rest for a few seconds (the flash); nothing else forgets it afterwards.
+        .sensoryFeedback(.success, trigger: restEndCount)
         .task(id: endsAt) {
             now = .now
+            // A rest already over when this view appears (relaunch) must not buzz.
+            var hasEnded = endsAt <= now
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(1))
                 now = .now
+                if !hasEnded, endsAt <= now {
+                    hasEnded = true
+                    restEndCount += 1
+                }
                 if (try? engine.tickRest()) == true { break }
             }
         }
     }
 
-    private func arcImage(fraction: Double) -> Image {
-        RestArc.image(fraction: fraction, size: arcSize, label: Text("Rest timer"))
+    private func arcImage(fraction: Double, tint: Color?) -> Image {
+        RestArc.image(fraction: fraction, size: arcSize, label: Text("Rest timer"), tint: tint)
     }
 }

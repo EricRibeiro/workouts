@@ -26,7 +26,7 @@ extension ActiveWorkoutEngine {
             row.supersetGroup = entry.group
             row.updatedAt = stamp
         }
-        try commit(workout, nil)
+        try commitRollingBack(workout, nil)
     }
 
     /// Add Warm-up Sets: replaces the row's warm-up sets with the ``WarmupRamp`` for its first non-warm-up set that has
@@ -57,6 +57,6 @@ extension ActiveWorkoutEngine {
         for (index, set) in existing.filter({ $0.kind != .warmup }).enumerated() {
             set.position = ramp.count + index
         }
-        try commit(workout, row)
+        try commitRollingBack(workout, row)
     }
 }

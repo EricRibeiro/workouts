@@ -57,7 +57,7 @@ struct RestRunningSheet: View {
             } currentValueLabel: {
                 VStack(spacing: 4) {
                     Text(timerInterval: min(now, endsAt)...endsAt, countsDown: true)
-                        .font(.system(size: 48, weight: .semibold).monospacedDigit())
+                        .font(.largeTitle.weight(.semibold).monospacedDigit())
                         .minimumScaleFactor(0.5)
                         .lineLimit(1)
                     Text("of \(ElapsedFormat.string(seconds: total))")

@@ -41,8 +41,18 @@ final class SetTableUITests: XCTestCase {
         .element(boundBy: 0)
         XCTAssertTrue(addSet.exists)
         XCTAssertEqual(addSet.label, "Add set")
+        let knownChecks = checks.allElementsBoundByIndex.map(\.identifier)
         addSet.tap()
-        XCTAssertEqual(checks.count, initialCount + 1)
+        XCTAssertTrue(waitForCount(checks, initialCount + 1), "Add Set did not add a row")
+
+        // Checking the new, empty row is refused: nothing to record, so it stays "Not done".
+        let newCheck = checks.allElementsBoundByIndex.first { !knownChecks.contains($0.identifier) }
+        XCTAssertNotNil(newCheck, "could not find the new row")
+        if let newCheck {
+            XCTAssertEqual(newCheck.value as? String, "Not done")
+            newCheck.tap()
+            XCTAssertEqual(newCheck.value as? String, "Not done", "an empty set must not be checkable")
+        }
 
         // Swipe the last of the first exercise's rows to the left: Delete removes it.
         let rows = app.descendants(matching: .any).matching(

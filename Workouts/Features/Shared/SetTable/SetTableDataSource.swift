@@ -57,8 +57,10 @@ protocol SetTableDataSource {
     func commitWeight(_ weight: Double?, for setID: UUID)
     /// Reps, or seconds when the row's measure is `.duration`.
     func commitReps(_ value: Int?, for setID: UUID)
-    /// Checks or unchecks (active only).
-    func toggleCheck(of setID: UUID)
+    /// Checks or unchecks (active only). Returns `false` when the engine refused (a set with nothing to record); the row then
+    /// shows the refusal. Template and past sources do nothing and return `true`.
+    @discardableResult
+    func toggleCheck(of setID: UUID) -> Bool
     func addSet(to sectionID: UUID)
     func deleteSet(_ setID: UUID)
     /// Rewrites the exercise order; `order` holds every section id exactly once.

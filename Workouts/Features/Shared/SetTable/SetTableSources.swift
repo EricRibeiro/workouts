@@ -10,8 +10,8 @@ import WorkoutsKit
 // MARK: - Active
 
 /// The active workout (`ActiveWorkoutEngine`) as a set table: Previous and plan from the engine, check and rest through it.
-/// Engine errors are swallowed here: a refused check (`emptySet`) just leaves the set unchecked; the shake and ring that
-/// explain it belong to the logging screen (2.4).
+/// Engine errors are swallowed here, except that a refused check (`emptySet`) leaves the set unchecked and
+/// `toggleCheck` reports it so the row can show the refusal.
 struct EngineSetTableSource: SetTableDataSource {
     let engine: ActiveWorkoutEngine
     let store: ExerciseStore
@@ -106,12 +106,18 @@ struct EngineSetTableSource: SetTableDataSource {
         )
     }
 
-    func toggleCheck(of setID: UUID) {
-        guard let set = set(setID) else { return }
-        if set.completed {
-            try? engine.uncheck(set)
-        } else {
-            try? engine.check(set)
+    @discardableResult
+    func toggleCheck(of setID: UUID) -> Bool {
+        guard let set = set(setID) else { return true }
+        do {
+            if set.completed {
+                try engine.uncheck(set)
+            } else {
+                try engine.check(set)
+            }
+            return true
+        } catch {
+            return false
         }
     }
 
@@ -215,7 +221,8 @@ struct TemplateSetTableSource: SetTableDataSource {
         touch(set.templateExercise)
     }
 
-    func toggleCheck(of setID: UUID) {}
+    @discardableResult
+    func toggleCheck(of setID: UUID) -> Bool { true }
 
     func addSet(to sectionID: UUID) {
         guard let row = exercises.first(where: { $0.id == sectionID }) else { return }
@@ -305,7 +312,8 @@ struct PastSetTableSource: SetTableDataSource {
     func applyPrevious(to setID: UUID) {}
     func commitWeight(_ weight: Double?, for setID: UUID) {}
     func commitReps(_ value: Int?, for setID: UUID) {}
-    func toggleCheck(of setID: UUID) {}
+    @discardableResult
+    func toggleCheck(of setID: UUID) -> Bool { true }
     func addSet(to sectionID: UUID) {}
     func deleteSet(_ setID: UUID) {}
     func reorder(_ order: [UUID]) {}

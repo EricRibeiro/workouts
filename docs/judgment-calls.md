@@ -58,3 +58,9 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
     exercise session with its first record (e1RM first); card heights not equalised (LazyVGrid can't).
 25. **Phase 2 review accepted in full** (docs/reviews/phase-2.md). R-13 taste: ring keeps last place in the strip, in its own
     glass group via `ToolbarSpacer(.fixed)`. R-11 (Time Sensitive entitlement) goes to the TestFlight checklist; R-15/R-19 later.
+26. **Save-failure rollback scope** (R-05): structural mutations (finish, discard, start, add/remove/replace/reorder, superset,
+    warm-ups) roll the context back on a failed save; single-value edits (check, values, kind, rename, rest) keep the typed
+    value in memory, since they delete nothing. After a successful finish save the engine always lets go of the workout.
+27. **Set row colours** (R-02/R-09): checked-row tint is a new `okRow` asset (lighter than okFill so the solid okFill check
+    still stands out), check glyph a dark `onOkFill` asset (white on okFill is ~2:1). Placeholder prompt is `Color.secondary`.
+    A rest that already ended before the ring appeared (relaunch) does not buzz (R-01).
