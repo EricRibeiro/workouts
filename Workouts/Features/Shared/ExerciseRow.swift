@@ -86,17 +86,23 @@ private struct ExerciseTag: View {
     }
 }
 
-/// The bundled start-frame thumbnail, loaded lazily by `AsyncImage`; a symbol stands in when there is none (custom).
+/// The bundled thumbnail: the start frame, cross-fading to the end frame and back on a loop like the web app's list
+/// (`ThumbnailCrossfade` holds the timing). A symbol stands in when there is no media (custom exercises).
+///
+/// Performance with 1,038 rows: the `List` only builds rows near the screen, so only those load images (`AsyncImage`,
+/// the end frame only when it will animate) and only those run a clock. There is no timer per row: each visible
+/// `TimelineView(.animation)` is driven by the display link, which stops while the row is off screen, and every row
+/// derives its opacity from the same absolute clock (`ThumbnailCrossfade.endOpacity(at:)`), so rows stay in step
+/// however they scrolled in. Reduce Motion shows the start frame alone and never loads the end frame.
 struct ExerciseThumbnail: View {
     /// A library exercise id, or nil for a custom exercise.
     let id: UUID?
-    let phase: MediaPhase
     let baseHeight: CGFloat
     @ScaledMetric(relativeTo: .body) private var scale: CGFloat = 1
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    init(id: UUID?, phase: MediaPhase = .start, height: CGFloat = 36) {
+    init(id: UUID?, height: CGFloat = 36) {
         self.id = id
-        self.phase = phase
         baseHeight = height
     }
 
@@ -105,12 +111,8 @@ struct ExerciseThumbnail: View {
 
     var body: some View {
         Group {
-            if let id, let url = Self.media.thumbnailURL(for: id, phase: phase) {
-                AsyncImage(url: url) { image in
-                    image.resizable().scaledToFill()
-                } placeholder: {
-                    Color.secondary.opacity(0.12)
-                }
+            if let id, let startURL = Self.media.thumbnailURL(for: id, phase: .start) {
+                frames(start: startURL, end: reduceMotion ? nil : Self.media.thumbnailURL(for: id, phase: .end))
             } else {
                 Image(systemName: "figure.strengthtraining.traditional")
                     .foregroundStyle(.secondary)
@@ -121,6 +123,29 @@ struct ExerciseThumbnail: View {
         .frame(width: height * 16 / 9, height: height)
         .clipShape(.rect(cornerRadius: 6))
         .accessibilityHidden(true)
+    }
+
+    @ViewBuilder
+    private func frames(start: URL, end: URL?) -> some View {
+        ZStack {
+            image(start)
+            if let end {
+                // 30 fps is plenty for a 64 pt opacity fade and halves the per-frame work of the visible rows.
+                TimelineView(.animation(minimumInterval: 1.0 / 30)) { context in
+                    image(end, placeholder: .clear)
+                        .opacity(ThumbnailCrossfade.endOpacity(at: context.date.timeIntervalSinceReferenceDate))
+                }
+            }
+        }
+    }
+
+    /// The end frame's placeholder is clear so a still-loading frame never tints the start frame while it fades in.
+    private func image(_ url: URL, placeholder: Color = .secondary.opacity(0.12)) -> some View {
+        AsyncImage(url: url) { image in
+            image.resizable().scaledToFill()
+        } placeholder: {
+            placeholder
+        }
     }
 
     /// Only the bundled thumbnails are read, so the base URL and cache folder are never used here.

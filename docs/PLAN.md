@@ -291,7 +291,8 @@ Live Activity → notifications → logging, then templates, exercises, history.
 - [ ] **6.2 Pose and scenario pass** of every screen with `verify-ui`: closed portrait and landscape (title collapse, ~2 rows
   above the keyboard, strip), open tall and wide, book and laptop half-open (arrangement and split divider vs the fold; the laptop
   pose's lower half is where the keyboard lands), Split View (safe areas flip sides; PiP), fold mid-flow with a sheet, menu,
-  dialog or cell focus up, keyboard in each pose, AX Dynamic Type and VoiceOver order across the strip and the fold. Proof:
+  dialog or cell focus up (incl. folding into and out of 6.1 bench mode while typing a weight: the value, focus and scroll must
+  survive, since `BenchArrangementStyle` switches layouts on the division region), keyboard in each pose, AX Dynamic Type and VoiceOver order across the strip and the fold. Proof:
   pass/fail table, every screen × pose/scenario, no breaks.
 - [ ] **6.3 Accessibility audits**: VoiceOver, Dynamic Type, contrast skills. Proof: audits report clean.
 - [ ] **6.4 Performance**: full-library scrolling, 600-workout chart (sample data scaled up). Proof: `xctrace`, no hitches.
