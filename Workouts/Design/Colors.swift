@@ -14,6 +14,8 @@ import WorkoutsKit
 //   Color.okRow           soft green row tint behind a checked set
 //   Color.onOkFill        dark glyph or text on okFill
 //   Color.danger          destructive text and icons
+//   Color.stickyNote      sticky note band: pale yellow in light, dark warm amber in dark (not a yellow tint at
+//                         opacity, which goes olive on black); primary text reads on it in both
 //   Color.warmup          warm-up set kind
 //   Color.setKindDrop     drop set kind
 //   Color.setKindFailure  failure set kind

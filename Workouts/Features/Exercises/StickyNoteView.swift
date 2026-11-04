@@ -52,7 +52,7 @@ struct StickyNoteView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background {
             if text != nil {
-                RoundedRectangle(cornerRadius: 12).fill(Color.yellow.opacity(0.22))
+                RoundedRectangle(cornerRadius: 12).fill(Color.stickyNote)
             }
         }
         .accessibilityElement(children: .contain)
@@ -73,6 +73,7 @@ struct StickyNoteEditor: View {
     @Environment(\.modelContext) private var context
     @State private var draft: String
     @State private var saveError: String?
+    @State private var removals = 0
 
     init(exerciseID: UUID, initialText: String) {
         self.exerciseID = exerciseID
@@ -97,6 +98,7 @@ struct StickyNoteEditor: View {
                 if !initialText.isEmpty {
                     Section {
                         Button("Remove Sticky Note", systemImage: "trash", role: .destructive) {
+                            removals += 1
                             perform { try StickyNotes.clear(exerciseID, in: context) }
                         }
                         .accessibilityIdentifier("stickyNote.remove")
@@ -126,6 +128,8 @@ struct StickyNoteEditor: View {
                 Text(saveError ?? "")
             }
         }
+        .interactiveDismissDisabled(draft != initialText)
+        .sensoryFeedback(.warning, trigger: removals)
         .accessibilityIdentifier("stickyNote.editor")
     }
 

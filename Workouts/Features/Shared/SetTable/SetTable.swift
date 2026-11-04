@@ -156,7 +156,7 @@ struct SetTable: View {
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color.yellow.opacity(0.22), in: .rect(cornerRadius: 8))
+                    .background(Color.stickyNote, in: .rect(cornerRadius: 8))
                     .accessibilityLabel("Sticky note: \(sticky)")
                     .accessibilityIdentifier("settable.sticky.\(section.id.uuidString)")
             }
