@@ -53,3 +53,6 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
 23. **Mistake, fixed forward**: b20b73e (2.10) was committed with `LoggingUITests` red — my filter showed only the `check: ok`
     line. `check` does not run UI tests. From here on every feature commit is preceded by a full `./dev ui-test` read in full.
     A worker is fixing the red suites (ExerciseList from 4.1b, Logging) on main.
+24. **Dashboard cards** (5.3): even column count from the grid's own width (1 closed, 2 open; adaptive gave 3 and the middle
+    card straddled the fold); chevron only on Last Workout (the only card that opens something); Recent PRs = one row per
+    exercise session with its first record (e1RM first); card heights not equalised (LazyVGrid can't).

@@ -40,9 +40,7 @@ struct WeeklyGoalChart: View {
             header
             chart
         }
-        .padding()
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 20))
+        .dashboardCardStyle()
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(summary)
         .accessibilityIdentifier("history.weeklyChart")

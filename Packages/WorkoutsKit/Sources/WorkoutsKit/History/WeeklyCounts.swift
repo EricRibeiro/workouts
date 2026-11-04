@@ -13,7 +13,7 @@ public nonisolated struct WeekCount: Hashable, Sendable {
 }
 
 /// `calendar` with Monday as the first weekday, so `.weekOfYear` boundaries are Monday to Sunday whatever the locale.
-private nonisolated func mondayFirst(_ calendar: Calendar) -> Calendar {
+nonisolated func mondayFirst(_ calendar: Calendar) -> Calendar {
     var calendar = calendar
     calendar.firstWeekday = 2
     calendar.minimumDaysInFirstWeek = 4

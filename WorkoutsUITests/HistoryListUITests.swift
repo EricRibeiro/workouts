@@ -13,6 +13,17 @@ final class HistoryListUITests: XCTestCase {
         )
     }
 
+    /// The first row, scrolling past the dashboard cards (the list is lazy, so rows below them do not exist yet).
+    @MainActor
+    private func firstRow(_ app: XCUIApplication) -> XCUIElement {
+        let first = rows(app).element(boundBy: 0)
+        for _ in 0..<8 {
+            if first.waitForExistence(timeout: 2) && first.isHittable { break }
+            app.swipeUp()
+        }
+        return first
+    }
+
     @MainActor
     private func launch() -> XCUIApplication {
         let app = XCUIApplication()
@@ -28,7 +39,7 @@ final class HistoryListUITests: XCTestCase {
         XCTAssertTrue(any["screen.history"].waitForExistence(timeout: 10))
 
         let rows = rows(app)
-        XCTAssertTrue(rows.element(boundBy: 0).waitForExistence(timeout: 10), "no history rows")
+        XCTAssertTrue(firstRow(app).exists, "no history rows")
 
         let header = app.staticTexts.matching(
             NSPredicate(format: "label MATCHES '[A-Z][a-z]+ 20[0-9]{2}'")
@@ -56,11 +67,28 @@ final class HistoryListUITests: XCTestCase {
     }
 
     @MainActor
+    func testDashboardCardsAndLastWorkoutPush() throws {
+        let app = launch()
+        let any = app.descendants(matching: .any)
+        for id in ["history.card.thisWeek", "history.card.recentPRs", "history.card.lastWorkout"] {
+            let card = any[id]
+            for _ in 0..<6 where !(card.exists && card.isHittable) { app.swipeUp() }
+            XCTAssertTrue(card.waitForExistence(timeout: 5), "no card \(id)")
+            XCTAssertFalse(card.label.isEmpty, "card \(id) has no sentence")
+        }
+        let last = any["history.card.lastWorkout"]
+        XCTAssertTrue(last.label.hasPrefix("Last workout, "), last.label)
+        XCTAssertTrue(any["history.card.recentPRs"].label.hasPrefix("Recent PRs, "))
+        last.tap()
+        XCTAssertTrue(any["history.detail"].waitForExistence(timeout: 5), "the Last Workout card did not push")
+    }
+
+    @MainActor
     func testSwipeDeleteAsksFirstThenRemovesTheRow() throws {
         let app = launch()
         let rows = rows(app)
-        let first = rows.element(boundBy: 0)
-        XCTAssertTrue(first.waitForExistence(timeout: 10), "no history rows")
+        let first = firstRow(app)
+        XCTAssertTrue(first.exists, "no history rows")
         let id = first.identifier
         let label = first.label
 
@@ -89,7 +117,10 @@ final class HistoryListUITests: XCTestCase {
     func testPRsScopeNarrowsTheList() throws {
         let app = launch()
         let rows = rows(app)
-        XCTAssertTrue(rows.element(boundBy: 0).waitForExistence(timeout: 10), "no history rows")
+        XCTAssertTrue(
+            app.descendants(matching: .any)["screen.history"].waitForExistence(timeout: 10),
+            "no history screen"
+        )
 
         // On the closed Duo the system folds search into a button in the trailing strip; tap it to get the field.
         let search = app.searchFields.firstMatch

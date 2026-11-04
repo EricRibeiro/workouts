@@ -26,6 +26,7 @@ struct HistoryView: View {
     @AppStorage(SettingsKey.e1rmFormula.rawValue) private var formulaRaw = ""
 
     @State private var entries: [HistoryEntry] = []
+    @State private var recentPRs: [RecentPR] = []
     @State private var query = ""
     @State private var scope: HistoryScope = .all
     @State private var pendingDelete: HistoryEntry?
@@ -49,10 +50,16 @@ struct HistoryView: View {
         }
         .task(id: Inputs(finished, unit: unitRaw, formula: formulaRaw)) {
             let settings = SettingsStore()
+            let options = RecordsOptions(formula: settings.e1rmFormula, displayUnit: settings.defaultUnit)
             entries = HistoryList.entries(
                 from: finished,
                 weightType: { store.exercise(id: $0)?.weightType },
-                options: RecordsOptions(formula: settings.e1rmFormula, displayUnit: settings.defaultUnit)
+                options: options
+            )
+            recentPRs = HistoryDashboard.recentPRs(
+                from: finished,
+                weightType: { store.exercise(id: $0)?.weightType },
+                options: options
             )
         }
         .accessibilityIdentifier("screen.history")
@@ -75,6 +82,9 @@ struct HistoryView: View {
                 if query.isEmpty && scope == .all {
                     Section {
                         WeeklyGoalSection(starts: finished.map(\.startedAt))
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
+                        DashboardSection(entries: entries, recentPRs: recentPRs) { path.append(.workout($0)) }
                             .listRowSeparator(.hidden)
                             .listRowBackground(Color.clear)
                     }
