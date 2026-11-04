@@ -9,3 +9,4 @@ Builds uploaded with `./dev testflight --upload` (cadence: AGENTS.md "TestFlight
 | 202611041841 | 4b7d514 | No app sidebar: tabs in the strip, two-pane Exercises with search; destructive haptics |
 | 202611041908 | c82506c | Animated list thumbnails (start/end cross-fade) |
 | 202611041935 | 1ad820d | Half-open bench mode (pane + rest above the hinge, table below) |
+| 202611042033 | d2cffc0 | iCloud + Time Sensitive entitlements (data still local); no overlapping empty states on the open Duo |
