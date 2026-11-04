@@ -56,3 +56,5 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
 24. **Dashboard cards** (5.3): even column count from the grid's own width (1 closed, 2 open; adaptive gave 3 and the middle
     card straddled the fold); chevron only on Last Workout (the only card that opens something); Recent PRs = one row per
     exercise session with its first record (e1RM first); card heights not equalised (LazyVGrid can't).
+25. **Phase 2 review accepted in full** (docs/reviews/phase-2.md). R-13 taste: ring keeps last place in the strip, in its own
+    glass group via `ToolbarSpacer(.fixed)`. R-11 (Time Sensitive entitlement) goes to the TestFlight checklist; R-15/R-19 later.

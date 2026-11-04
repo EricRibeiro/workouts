@@ -196,7 +196,7 @@ Live Activity → notifications → logging, then templates, exercises, history.
   (`DECISIONS.md`), `.split`; the pane never straddles a `.division` region. `ExercisePane` ships as a `ContentUnavailableView`
   placeholder; 4.5 swaps in the real pane and re-proves. Needs: 2.4, 0.5. Proof: open-tall / open-wide screenshots; fold
   mid-workout keeps draft, focus, scroll.
-- [ ] **2.11 Design review: logging** (skill `design-review`, read-only): picker, SetTable in all three modes, logging screen,
+- [x] **2.11 Design review: logging** (skill `design-review`, read-only): picker, SetTable in all three modes, logging screen,
   rest sheets, finish summary; seeded with the known findings: the set fields' placeholder digits are too faint (a Previous
   value is content, `SetFieldCell` prompts it `.tertiary`), spacing literals differ between views, dark mode unreviewed. Needs:
   2.10. Proof: the findings table with scores; P0–P2 rows become tasks before Phase 3 starts.
@@ -212,6 +212,8 @@ Live Activity → notifications → logging, then templates, exercises, history.
   optional drag via `reorderContainer`; New Template in the Add menu. Needs: 3.1, 0.10, 3.2a. Proof: flow.
 - [ ] **3.3 Template preview** (medium-detent sheet on compact, zoom push on regular) laid out per section 3, Start Workout from
   the engine. Needs: 3.2, 1.1, 0.9, 0.10. Proof: preview + flow on both widths.
+  Also (Phase 2 review R-07, R-12): the "Workout in progress" dialog (Resume / Discard and Start New) for Start Workout and
+  Empty Workout, and the "Update Template?" finish dialog (kit: diff template vs finished workout).
 - [ ] **3.4 Template editor shell**: pushed in both widths, `ArrangementView` on regular as in 2.10 (placeholder pane until 4.5),
   no width cap; SetTable template mode, name via `toolbarTitleMenu`, Save and unsaved-changes guard (dirty = differs from what
   opened). Needs: 2.1, 2.3, 2.10, 3.3, 0.10. Proof: flow.
