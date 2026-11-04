@@ -162,7 +162,7 @@ Live Activity → notifications → logging, then templates, exercises, history.
   the Close slot. Needs: 0.3, 0.9, 0.10. Proof: preview.
 - [ ] **2.1b Exercise picker multi-select**: multi-select Add (N) (`plus`) and Superset (`rectangle.stack`) toolbar items, "?"
   peek. Needs: 0.3, 0.9, 0.10, 2.1a. Proof: flow.
-- [ ] **2.2a Set row**: one row (set · previous · weight · reps · ✓), kind cycling normal → W → D → F, Previous tap copies,
+- [x] **2.2a Set row**: one row (set · previous · weight · reps · ✓), kind cycling normal → W → D → F, Previous tap copies,
   per-cell `@FocusState`, `.decimalPad`, `ViewThatFits` two-line row at AX sizes. Needs: 0.7, 0.9, 0.10. Proof: previews at
   `.large` and `.accessibility3`, both widths.
 - [ ] **2.2b Keyboard group and haptics**: keyboard group (−step, +step, Previous, Done, Next), `.sensoryFeedback` on engine

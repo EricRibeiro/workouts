@@ -19,6 +19,7 @@
         case activeWorkoutCover = "ActiveWorkoutCover"
         case swatches = "Swatches"
         case exercisePicker = "ExercisePicker"
+        case setRow = "SetRow"
 
         var id: String { rawValue }
 
@@ -37,6 +38,7 @@
             case .activeWorkoutCover: ActiveWorkoutCover(minimise: {})
             case .swatches: SwatchesView()
             case .exercisePicker: ExercisePickerView(title: "Add Exercise") { _ in }
+            case .setRow: SetRowDemo()
             }
         }
     }
