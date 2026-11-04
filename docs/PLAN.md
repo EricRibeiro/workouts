@@ -150,7 +150,7 @@ Live Activity → notifications → logging, then templates, exercises, history.
   test Activity` + a Lock Screen tap on the sim.
 - [ ] **1.6 Notifications**: permission on first workout, `.timeSensitive` rest-end request with next-set copy, Skip/+30 s
   actions, `willPresent` returns `[]`. Needs: 1.2. Proof: simulator flow (shown backgrounded, absent in the foreground).
-- [ ] **1.7 WorkoutsJSON codec + importer + export script** (kit `WorkoutsJSON/`): one `Codable` document (folders, templates,
+- [x] **1.7 WorkoutsJSON codec + importer + export script** (kit `WorkoutsJSON/`): one `Codable` document (folders, templates,
   custom exercises, sticky notes, workouts), `Importer.apply(to: ModelContext)` idempotent by id, exercise ids via `LibraryID`;
   `scripts/export-web` (Postgres → JSON, run on this Mac); add `docs/port/fixtures/` to `.gitignore`. Needs: 0.1, 0.2. Proof:
   `./dev kit Import` (round-trip + idempotence); Eric's real export imports.

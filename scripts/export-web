@@ -1,0 +1,138 @@
+#!/usr/bin/env bash
+# Export the web app's Postgres database (Go + React, ../mac-os-compose-collection/workouts) as a
+# WorkoutsJSON document (Packages/WorkoutsKit/Sources/WorkoutsKit/WorkoutsJSON/WorkoutsJSON.swift).
+#
+#   scripts/export-web [output.json]      default: docs/port/fixtures/web-export.json (gitignored)
+#
+# Read-only: one `BEGIN READ ONLY` transaction of SELECTs, run through `docker exec` into the compose
+# project's `workouts-db` container, which authenticates over its local socket, so no password is read,
+# needed or printed. Requires docker (the stack must already be up; this never starts it) and jq.
+# Web-only data is dropped: Workout.source, folder `collapsed`, exercise overrides (except the
+# unit/bar/rest defaults of *custom* exercises, which the native model keeps on the exercise itself).
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+out="${1:-$root/docs/port/fixtures/web-export.json}"
+container="${WORKOUTS_DB_CONTAINER:-workouts-db}"
+db_user="${WORKOUTS_DB_USER:-workouts}"
+db_name="${WORKOUTS_DB_NAME:-workouts}"
+
+command -v jq >/dev/null || { echo "export-web: jq is required (brew install jq)" >&2; exit 1; }
+command -v docker >/dev/null || { echo "export-web: docker is required" >&2; exit 1; }
+if [ "$(docker inspect -f '{{.State.Running}}' "$container" 2>/dev/null || true)" != "true" ]; then
+  echo "export-web: container '$container' is not running; start the web stack first (this script never does)" >&2
+  exit 1
+fi
+
+# One JSON value per line, in this order: folders, templates, customExercises, stickyNotes, workouts.
+# TS(col): ISO 8601 UTC with milliseconds. REF(e): library exercise -> {source, sourceId}, custom -> {id}.
+# Both are expanded textually below (a read-only transaction cannot even CREATE a temp function).
+read -r -d '' sql <<'SQL' || true
+BEGIN READ ONLY;
+
+-- folders
+SELECT coalesce(json_agg(json_build_object(
+  'id', f.id, 'name', f.name, 'position', f.position,
+  'createdAt', TS(f.created_at), 'updatedAt', TS(f.updated_at))
+  ORDER BY f.position, f.name, f.id), '[]'::json)
+FROM template_folders f;
+
+-- templates, with exercises and sets
+SELECT coalesce(json_agg(json_build_object(
+  'id', t.id, 'name', t.name, 'note', t.note, 'position', t.position, 'folderId', t.folder_id,
+  'createdAt', TS(t.created_at), 'updatedAt', TS(t.updated_at),
+  'exercises', coalesce((
+    SELECT json_agg(json_build_object(
+      'id', te.id, 'exercise', REF(e), 'exerciseName', coalesce(o.name, e.name),
+      'position', te.position, 'supersetGroup', te.superset_group, 'note', te.note,
+      'restSeconds', te.rest_seconds, 'unit', te.unit, 'barType', te.bar_type,
+      'barWeight', te.bar_weight, 'updatedAt', TS(te.updated_at),
+      'sets', coalesce((
+        SELECT json_agg(json_build_object(
+          'id', ts.id, 'position', ts.position, 'kind', ts.kind, 'weight', ts.weight,
+          'reps', ts.reps, 'durationSeconds', ts.duration_s, 'distanceMeters', ts.distance_m)
+          ORDER BY ts.position, ts.id)
+        FROM template_sets ts WHERE ts.template_exercise_id = te.id), '[]'::json))
+      ORDER BY te.position, te.id)
+    FROM template_exercises te
+    JOIN exercises e ON e.id = te.exercise_id
+    LEFT JOIN exercise_overrides o ON o.exercise_id = e.id AND NOT e.custom
+    WHERE te.template_id = t.id), '[]'::json))
+  ORDER BY t.folder_id, t.position, t.name, t.id), '[]'::json)
+FROM templates t;
+
+-- custom exercises (unit / bar / rest defaults live in the web's override row)
+SELECT coalesce(json_agg(json_build_object(
+  'id', e.id, 'name', e.name, 'aliases', to_json(e.aliases), 'equipment', to_json(e.equipment),
+  'bodyPart', e.body_part, 'weightType', e.weight_type, 'instructions', to_json(e.instructions),
+  'unit', o.unit, 'barType', coalesce(o.bar_type, 'olympic'), 'barWeight', o.bar_weight,
+  'restSeconds', o.rest_seconds, 'retired', e.retired,
+  'createdAt', TS(e.created_at), 'updatedAt', TS(e.updated_at))
+  ORDER BY e.name, e.id), '[]'::json)
+FROM exercises e
+LEFT JOIN exercise_overrides o ON o.exercise_id = e.id
+WHERE e.custom;
+
+-- sticky notes (the web keys them by exercise; the document wants a row id, so derive a stable one)
+SELECT coalesce(json_agg(json_build_object(
+  'id', md5('sticky:' || n.exercise_id::text)::uuid, 'exercise', REF(e), 'text', n.text,
+  'updatedAt', TS(n.updated_at))
+  ORDER BY n.updated_at, e.id), '[]'::json)
+FROM exercise_sticky_notes n
+JOIN exercises e ON e.id = n.exercise_id;
+
+-- workouts, with exercises and sets
+SELECT coalesce(json_agg(json_build_object(
+  'id', w.id, 'name', w.name, 'note', w.note,
+  'startedAt', TS(w.started_at), 'finishedAt', TS(w.finished_at),
+  'templateId', w.template_id,
+  'createdAt', TS(w.created_at), 'updatedAt', TS(w.updated_at),
+  'restEndsAt', NULL, 'restSeconds', NULL, 'restSetId', NULL,
+  'exercises', coalesce((
+    SELECT json_agg(json_build_object(
+      'id', we.id, 'exercise', REF(e),
+      'exerciseName', coalesce(nullif(btrim(we.exercise_name), ''), o.name, e.name),
+      'position', we.position, 'supersetGroup', we.superset_group, 'note', we.note,
+      'restSeconds', we.rest_seconds, 'unit', we.unit, 'barType', we.bar_type,
+      'barWeight', we.bar_weight, 'updatedAt', TS(we.updated_at),
+      'sets', coalesce((
+        SELECT json_agg(json_build_object(
+          'id', s.id, 'position', s.position, 'kind', s.kind, 'weight', s.weight,
+          'reps', s.reps, 'durationSeconds', s.duration_s, 'distanceMeters', s.distance_m,
+          'completed', s.completed, 'completedAt', TS(s.completed_at), 'rpe', s.rpe)
+          ORDER BY s.position, s.id)
+        FROM workout_sets s WHERE s.workout_exercise_id = we.id), '[]'::json))
+      ORDER BY we.position, we.id)
+    FROM workout_exercises we
+    JOIN exercises e ON e.id = we.exercise_id
+    LEFT JOIN exercise_overrides o ON o.exercise_id = e.id AND NOT e.custom
+    WHERE we.workout_id = w.id), '[]'::json))
+  ORDER BY w.started_at, w.id), '[]'::json)
+FROM workouts w;
+
+COMMIT;
+SQL
+
+sql="$(printf '%s\n' "$sql" | sed -E \
+  -e "s/TS\(([a-z_.]+)\)/to_char(\1 AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"')/g" \
+  -e "s/REF\(e\)/CASE WHEN e.custom THEN json_build_object('id', e.id) ELSE json_build_object('source', e.source, 'sourceId', e.source_id) END/g")"
+
+mkdir -p "$(dirname "$out")"
+tmp="$(mktemp)"
+trap 'rm -f "$tmp"' EXIT
+
+# -q hides command tags, -At gives bare rows (one JSON value per line).
+printf '%s\n' "$sql" | docker exec -i "$container" psql -X -q -At -U "$db_user" -d "$db_name" -v ON_ERROR_STOP=1 \
+  | jq -s --arg exportedAt "$(date -u +%Y-%m-%dT%H:%M:%S.000Z)" '
+    if length != 5 then error("expected 5 result rows, got \(length)") else . end
+    | {version: 1, exportedAt: $exportedAt,
+       folders: .[0], templates: .[1], customExercises: .[2], stickyNotes: .[3], workouts: .[4]}' >"$tmp"
+
+mv "$tmp" "$out"
+trap - EXIT
+
+jq -r --arg out "$out" '
+  "export-web: \(.folders|length) folders, \(.templates|length) templates (\([.templates[].exercises[]]|length) exercises, \([.templates[].exercises[].sets[]]|length) sets), "
+  + "\(.customExercises|length) custom exercises, \(.stickyNotes|length) sticky notes, "
+  + "\(.workouts|length) workouts (\([.workouts[].exercises[]]|length) exercises, \([.workouts[].exercises[].sets[]]|length) sets) -> \($out)"
+' "$out"
