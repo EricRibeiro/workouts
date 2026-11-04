@@ -7,7 +7,7 @@ import SwiftData
 /// The in-progress workout is an ordinary `Workout` with `finishedAt == nil` (`data-model.md` section 5), saved on
 /// every change, so a new engine on the same store resumes it after relaunch. At most one exists. Every mutation sets
 /// `updatedAt` and saves; save errors are thrown and the in-memory change stays (nothing is discarded on error).
-/// The rest timer is task 1.2 and not part of this type.
+/// The rest timer is an engine extension in `RestTimer.swift`; its fields persist on the workout.
 @Observable
 public final class ActiveWorkoutEngine {
     /// Name of a workout started empty.
@@ -51,6 +51,13 @@ public final class ActiveWorkoutEngine {
             try loadPrevious(for: Set(sortedExercises(of: running).map(\.exerciseID)))
         }
         workout = running
+        if let running {
+            var timer = RestTimer(workout: running, now: now)
+            if timer.clearIfExpired() {
+                timer.write(to: running)
+                try commit(running, nil)
+            }
+        }
         return running
     }
 
@@ -112,6 +119,7 @@ public final class ActiveWorkoutEngine {
         set.durationSeconds = filled.duration
         set.completed = true
         set.completedAt = now()
+        try startRest(afterChecking: set, in: row, workout: workout)
         try commit(workout, row)
     }
 
@@ -121,6 +129,7 @@ public final class ActiveWorkoutEngine {
         guard set.completed else { return }
         set.completed = false
         set.completedAt = nil
+        cancelRest(ownedBy: [set.id], workout: workout)
         try commit(workout, row)
     }
 
@@ -163,6 +172,7 @@ public final class ActiveWorkoutEngine {
     /// Deletes `set` and renumbers the rest of the exercise's sets.
     public func removeSet(_ set: WorkoutSet) throws {
         let (workout, row) = try owner(of: set)
+        cancelRest(ownedBy: [set.id], workout: workout)
         context.delete(set)
         for (position, remaining) in sortedSets(of: row).filter({ $0 !== set }).enumerated() {
             remaining.position = position
@@ -262,6 +272,7 @@ public final class ActiveWorkoutEngine {
     /// Removes `row` with its sets, renumbers positions and dissolves a superset left with one member.
     public func removeExercise(_ row: WorkoutExercise) throws {
         let workout = try owned(row)
+        cancelRest(ownedBy: Set(sortedSets(of: row).map(\.id)), workout: workout)
         context.delete(row)
         let remaining = sortedExercises(of: workout).filter { $0 !== row }
         renumber(remaining)
@@ -311,7 +322,7 @@ public final class ActiveWorkoutEngine {
 
     /// Finishes the workout: `finishedAt` is set (clamped to >= `startedAt`), unchecked sets are checked or dropped per
     /// `unfinished`, unchecked sets without values and exercises with no checked set are dropped, positions are
-    /// renumbered. Rest fields are untouched (task 1.2). Returns the summary for the finish sheet; the engine then has
+    /// renumbered. A running rest is cleared.Returns the summary for the finish sheet; the engine then has
     /// no workout.
     /// - Throws: ``ActiveWorkoutError/nothingLogged`` when no set is checked; nothing changes.
     @discardableResult
@@ -343,6 +354,7 @@ public final class ActiveWorkoutEngine {
         }
         renumber(keptRows)
         workout.finishedAt = end
+        RestTimer().write(to: workout)
         try commit(workout, nil)
         let summary = try makeSummary(
             workout: workout,
