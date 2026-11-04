@@ -234,7 +234,7 @@ Live Activity → notifications → logging, then templates, exercises, history.
   field, sort control or A-Z rail), thumbnail rows with best set and tags. Needs: 0.3, 0.9, 0.10. Proof: sample-data preview.
 - [x] **4.1b Exercise list filters and toolbar**: body-part and category `Menu` pills, New Exercise + Show Retired toolbar items,
   `tabBarMinimizeBehavior(.onScrollDown)`. Needs: 0.3, 0.9, 0.10, 4.1a. Proof: preview + flow.
-- [ ] **4.2 Exercise detail shell**: `ExerciseDetailView` with an `embedded` mode (for the logging pane), About and Records
+- [x] **4.2 Exercise detail shell**: `ExerciseDetailView` with an `embedded` mode (for the logging pane), About and Records
   segments, `MediaStore` video header with `.backgroundExtensionEffect()`, `records(...)`, Edit (custom only), zoom from the row;
   also links 2.9's PR rows to Records. Needs: 4.1, 0.8, 2.9, 0.9, 0.10. Proof: preview per segment.
 - [ ] **4.3 Exercise detail History and Charts**: History segment, Swift Charts from `chartSeries`. Needs: 4.2, 0.9, 0.10. Proof: preview per

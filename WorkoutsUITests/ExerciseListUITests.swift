@@ -59,7 +59,7 @@ final class ExerciseListUITests: XCTestCase {
 
         // Opening a row shows its detail: beside the list on regular width, pushed on compact.
         first.tap()
-        XCTAssertTrue(any["exercises.detail"].waitForExistence(timeout: 5), "tapping a row did not open a detail")
+        XCTAssertTrue(any["screen.exerciseDetail"].waitForExistence(timeout: 5), "tapping a row did not open a detail")
     }
 
     @MainActor

@@ -12,12 +12,18 @@ struct FinishSummaryItem: Identifiable {
     let summary: FinishSummary
 }
 
+/// Pushes an exercise's detail on the Records segment from a PR row.
+struct ExerciseRecordsRoute: Hashable {
+    let exerciseID: UUID
+}
+
 /// The centred summary sheet shown after Finish (`active-workout.md` section 3): a check, "Workout complete", the
 /// workout's ordinal, and Fitness-style coloured values. Done sits in the Close slot; nothing is bottom-anchored.
 struct FinishSummaryView: View {
     let summary: FinishSummary
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(ExerciseStore.self) private var store: ExerciseStore?
     /// Flips once on appear when the workout set a record; `levelChange` plays then.
     @State private var celebrated = false
 
@@ -59,14 +65,16 @@ struct FinishSummaryView: View {
 
                 ForEach(summary.prs, id: \.exerciseID) { exercise in
                     Section {
-                        // TODO(4.2): link to Records
                         ForEach(Array(exercise.records.enumerated()), id: \.offset) { _, record in
-                            recordRow(record)
+                            recordRow(record, exerciseID: exercise.exerciseID)
                         }
                     } header: {
                         Text(exercise.exerciseName)
                     }
                 }
+            }
+            .navigationDestination(for: ExerciseRecordsRoute.self) { route in
+                ExerciseDetailView(exerciseID: route.exerciseID, initialSegment: .records)
             }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -119,16 +127,26 @@ struct FinishSummaryView: View {
         .accessibilityLabel("\(title), \(spoken)")
     }
 
-    private func recordRow(_ record: PersonalRecord) -> some View {
+    /// A record row; it opens the exercise's Records segment when the exercise is known to the store.
+    @ViewBuilder
+    private func recordRow(_ record: PersonalRecord, exerciseID: UUID) -> some View {
         let text = Self.recordText(record, unit: summary.volumeUnit)
-        return Label {
+        let label = Label {
             Text(text)
         } icon: {
             Image(systemName: "trophy.fill")
                 .foregroundStyle(.yellow)
         }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Personal record, \(text)")
+        if store?.exercise(id: exerciseID) != nil {
+            NavigationLink(value: ExerciseRecordsRoute(exerciseID: exerciseID)) { label }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Personal record, \(text). Opens records")
+                .accessibilityIdentifier("summary.pr.\(exerciseID.uuidString)")
+        } else {
+            label
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Personal record, \(text)")
+        }
     }
 
     // MARK: Text

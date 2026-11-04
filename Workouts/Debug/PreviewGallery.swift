@@ -24,6 +24,7 @@
         case exercisePickerMulti = "ExercisePickerMulti"
         case setTable = "SetTable"
         case finishSummary = "FinishSummary"
+        case exerciseDetail = "ExerciseDetail"
 
         var id: String { rawValue }
 
@@ -46,6 +47,7 @@
             case .setRow: SetRowDemo()
             case .setTable: SetTableDemo()
             case .finishSummary: FinishSummaryView(summary: .sample)
+            case .exerciseDetail: ExerciseDetailDemo()
             case .exercisePickerMulti:
                 ExercisePickerView(title: "Add Exercises", mode: .multiple(add: { _ in }, superset: { _ in }))
             }

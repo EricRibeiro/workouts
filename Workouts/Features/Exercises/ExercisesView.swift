@@ -8,7 +8,7 @@ import SwiftUI
 import WorkoutsKit
 
 /// The Exercises tab (task 4.1a): a `NavigationSplitView` with the exercise list in the content column and the exercise
-/// detail in the detail column (a placeholder until 4.2). Compact width pushes the detail; regular width shows it beside
+/// detail in the detail column (`ExerciseDetailView`, 4.2). Compact width pushes the detail; regular width shows it beside
 /// the list. Search is `.searchable` only, over name and aliases. Two `Menu` pills (body part, category) lead the list; the
 /// toolbar has New Exercise (a stub sheet until 4.4) and a Show Retired toggle.
 struct ExercisesView: View {
@@ -21,6 +21,7 @@ struct ExercisesView: View {
     @State private var category: String?
     @State private var showRetired = false
     @State private var isCreating = false
+    @Namespace private var zoomNamespace
 
     var body: some View {
         NavigationSplitView {
@@ -47,6 +48,7 @@ struct ExercisesView: View {
                 let best = bestSets[info.id] ?? ""
                 ExerciseRow(info: info, subtitle: subtitle, trailing: best)
                     .tag(ExercisesRoute.exercise(info.id))
+                    .matchedTransitionSource(id: info.id, in: zoomNamespace)
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel(
                         [info.name, ExerciseRow.tagText(for: info), subtitle, best].filter { !$0.isEmpty }.joined(
@@ -119,15 +121,9 @@ struct ExercisesView: View {
     @ViewBuilder
     private var detail: some View {
         if case .exercise(let id) = selection, let info = store.exercise(id: id) {
-            // Placeholder until the real detail (4.2).
-            ContentUnavailableView(
-                info.name,
-                systemImage: "figure.strengthtraining.traditional",
-                description: Text("Exercise details are coming soon.")
-            )
-            .navigationTitle(info.name)
-            .navigationBarTitleDisplayMode(.inline)
-            .accessibilityIdentifier("exercises.detail")
+            ExerciseDetailView(exerciseID: info.id)
+                .id(info.id)
+                .navigationTransition(.zoom(sourceID: info.id, in: zoomNamespace))
         } else {
             ContentUnavailableView(
                 "Select an Exercise",
