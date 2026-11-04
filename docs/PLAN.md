@@ -86,6 +86,9 @@ Workouts.xcodeproj
 - **Every UI phase ends with a design review** (skill `design-review`; tasks 2.11, 3.8, 4.7, 5.8): one read-only worker
   scores the phase's screens from light/dark/AX screenshots and source, files P0–P3 findings, and the orchestrator turns
   P0–P2 rows into bite-sized tasks and batches the taste rows into one question for Eric. Reviews never edit code.
+- **Every phase ends with a Fable review** (Eric, 2026-11-03): once a phase's tasks are ticked, one `model: fable` agent reviews
+  the whole phase (code against AGENTS.md/DECISIONS, correctness, tests; the UI half is that phase's design-review task). Its
+  findings become worker tasks before the next phase starts.
 
 ## 6. Phases and tasks
 
