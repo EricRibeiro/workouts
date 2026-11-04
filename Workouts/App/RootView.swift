@@ -41,6 +41,16 @@ struct RootView: View {
             SettingsView()
                 .presentationPlacement(.center)
         }
+        .fullScreenCover(isPresented: $navigation.isWorkoutCoverPresented) {
+            ActiveWorkoutCover(minimise: { navigation.minimiseWorkout() })
+        }
+        #if DEBUG
+            .onAppear {
+                if ProcessInfo.processInfo.arguments.contains("-openWorkoutCover") {
+                    navigation.presentWorkout()
+                }
+            }
+        #endif
     }
 }
 
