@@ -48,6 +48,7 @@ struct ExercisesView: View {
             }
         }
         .navigationTitle("Exercises")
+        .resumeControl()
         .searchable(text: $query, prompt: "Search exercises")
         .task(id: Fingerprint(finished)) {
             bestSets = ExerciseBestSets.texts(

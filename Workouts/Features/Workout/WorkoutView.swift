@@ -21,6 +21,7 @@ struct WorkoutView: View {
                 description: Text("Your workout templates will appear here.")
             )
             .navigationTitle("Workout")
+            .resumeControl()
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Menu("Add", systemImage: "plus") {

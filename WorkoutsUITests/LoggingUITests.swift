@@ -19,6 +19,9 @@ final class LoggingUITests: XCTestCase {
         XCTAssertTrue(settings.waitForExistence(timeout: 10))
         settings.tap()
         let load = app.buttons["settings.loadSampleData"].firstMatch
+        // The debug row is the last section of the Settings form, below the fold on the closed Duo.
+        XCTAssertTrue(any["screen.settings"].waitForExistence(timeout: 5))
+        for _ in 0..<5 where !load.isHittable { app.swipeUp() }
         XCTAssertTrue(load.waitForExistence(timeout: 5))
         load.tap()
         let ok = app.alerts.buttons["OK"].firstMatch

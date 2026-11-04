@@ -36,3 +36,7 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
 17. **UI tests clear the app's UserDefaults at launch** (`-uiTesting`), so settings tapped in one test never leak into another.
 18. **Settings** (5.7a): one combined footer under unit + formula (a Section has one footer); "Download all videos" only persists
     until MediaStore gets a bulk-download hook; iCloud row reads "Not set up yet" (no entitlement, no CloudKit call).
+19. **Resume control** (2.7): strip item = the rest arc while resting, else `figure.strengthtraining.traditional`; time in the
+    accessibility label. It is appended after each screen's own items (Add, Settings, ring), so it is last in the strip;
+    filed for the Phase 2 review (may need `visibilityPriority` so it never overflows). Relaunch restores the cover from a
+    per-device `@AppStorage` flag (ignored under `-uiTesting`).

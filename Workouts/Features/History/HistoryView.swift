@@ -36,6 +36,7 @@ struct HistoryView: View {
         NavigationStack(path: $path) {
             content
                 .navigationTitle("History")
+                .resumeControl()
                 .searchable(text: $query, prompt: "Search workouts")
                 .searchScopes($scope, activation: .onSearchPresentation) {
                     ForEach(HistoryScope.allCases, id: \.self) { scope in

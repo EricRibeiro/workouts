@@ -185,7 +185,7 @@ Live Activity → notifications → logging, then templates, exercises, history.
   create a custom).
 - [x] **2.6 Rest toolbar group and minimise**: Skip / +30 s group while a rest runs, countdown + Skip + +30 s in the keyboard
   group, Minimise in the Close slot. Needs: 2.5, 0.10. Proof: flow (check a set → ring counts down, Skip ends it, Minimise returns).
-- [ ] **2.7 Resume control**: the ring `ToolbarItem` (elapsed when no rest runs) from a shared `ViewModifier` on every screen's
+- [x] **2.7 Resume control**: the ring `ToolbarItem` (elapsed when no rest runs) from a shared `ViewModifier` on every screen's
   root; additive `tabViewSidebarBottomBar` card while the sidebar is visible; tap restores the cover; relaunch restores the cover
   if it was open (else only the ring). Needs: 2.6, 0.10. Proof: flow on both widths, the ring visible from History and Exercises.
 - [x] **2.8 Finish and Discard**: finish dialogs, Discard confirmation, `.warning` haptic. Needs: 2.4, 0.10. Proof: flow.

@@ -14,6 +14,10 @@ struct RootView: View {
     /// The summary sheet's item; presented from here (not the cover) once the cover is gone.
     @State private var finishSummary: FinishSummaryItem?
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(ActiveWorkoutEngine.self) private var engine: ActiveWorkoutEngine?
+    /// Whether the cover was open when the app last changed it: per device, so a relaunch can reopen it (task 2.7). A
+    /// minimised workout relaunches as only the resume ring.
+    @AppStorage("workoutCoverWasOpen") private var coverWasOpen = false
 
     var body: some View {
         TabView(selection: Binding(get: { navigation.selectedTab }, set: { navigation.select($0) })) {
@@ -36,10 +40,12 @@ struct RootView: View {
             .accessibilityIdentifier("tab.exercises")
         }
         .tabViewStyle(.sidebarAdaptable)
+        .environment(navigation)
         .defaultAdaptableTabBarPlacement(.sidebar)
         // The scrolling lists (History, Exercises) let the tab bar collapse; the Workout tab keeps it (DECISIONS).
         .tabBarMinimizeBehavior(navigation.selectedTab == .workout ? .never : .onScrollDown)
         .tabViewSidebarBottomBar {
+            ResumeCard(engine: engine, navigation: navigation)
             if horizontalSizeClass == .regular {
                 Button("Settings", systemImage: "gearshape") { navigation.openSettings() }
                     .accessibilityLabel("Settings")
@@ -70,13 +76,29 @@ struct RootView: View {
                 onDiscarded: { navigation.endWorkout() }
             )
         }
+        .onChange(of: navigation.isWorkoutCoverPresented) { _, isPresented in
+            coverWasOpen = isPresented
+        }
+        .onAppear(perform: restoreCover)
+    }
+}
+
+extension RootView {
+    /// Launch: reopen the cover if it was open when the app quit and a workout survived; a minimised workout comes back as
+    /// only the resume ring. Debug: `-openWorkoutCover` opens it; UI tests (`-uiTesting`, an in-memory store) ignore the
+    /// stored flag so one run never leaks into the next.
+    private func restoreCover() {
+        var reopen = coverWasOpen && engine?.workout != nil
         #if DEBUG
-            .onAppear {
-                if ProcessInfo.processInfo.arguments.contains("-openWorkoutCover") {
-                    navigation.presentWorkout()
-                }
-            }
+            let arguments = ProcessInfo.processInfo.arguments
+            if arguments.contains("-uiTesting") { reopen = false }
+            if arguments.contains("-openWorkoutCover") { reopen = true }
         #endif
+        if reopen {
+            navigation.presentWorkout()
+        } else if coverWasOpen {
+            coverWasOpen = false
+        }
     }
 }
 
