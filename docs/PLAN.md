@@ -285,7 +285,7 @@ Live Activity → notifications → logging, then templates, exercises, history.
 
 ### Phase 6 — Duo and accessibility pass
 
-- [ ] **6.1 Half-open bench mode**: the arrangement view puts the SetTable on the lower half and the exercise pane + rest
+- [x] **6.1 Half-open bench mode**: the arrangement view puts the SetTable on the lower half and the exercise pane + rest
   countdown on the upper; `reservedRegions(kind: .division)` only if the system split is wrong (`onHingeChange` is for effects).
   Needs: 4.5. Proof: Device Hub screenshots at two angles.
 - [ ] **6.2 Pose and scenario pass** of every screen with `verify-ui`: closed portrait and landscape (title collapse, ~2 rows

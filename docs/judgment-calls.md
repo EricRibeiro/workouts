@@ -151,3 +151,10 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
     strip in every pose (`.defaultTabBarPlacement(.tabBar)` or no placement override), the 3.7 sidebar template sections go
     away (templates live on the Workout grid), and Exercises on regular width is a permanent two-pane list + detail. Settings
     moves from the sidebar bottom bar to the toolbar everywhere.
+53. **Half-open bench mode (6.1)**: SwiftUI's `.split` style has no placement control (UIKit's `setViewProperties(forPlacement:)`
+    has no SwiftUI twin), and the system stacks the primary on the upper half, so `ActiveWorkoutCover` uses
+    `BenchArrangementStyle` (`ArrangementViewStyle`, documented). Outside bench mode it renders `ArrangementView(configuration)`
+    with `.split.axes(...)` unchanged; with an active `.division` region wider than tall (read via `reservedRegions`) it lays the
+    configuration's `secondary` (pane, `RestCountdownHeader` while a rest runs) above the division and `primary` (table) below.
+    Both branches use the style's placeholders, so the content stays hosted by the `ArrangementView`. Draft/focus/scroll across
+    a live fold into bench mode is unverified (the sim fold is not scriptable from XCUITest).

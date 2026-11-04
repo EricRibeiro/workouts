@@ -190,8 +190,11 @@ struct ActiveWorkoutCover: View {
                 ExercisePane(exerciseName: focused?.name, exerciseID: focused?.exerciseID)
             }
         }
+        // The system split everywhere but the half-open laptop pose, where the table drops to the lower half (6.1).
         .arrangementViewStyle(
-            .split.axes(horizontalSizeClass == .regular ? Axis.Set([.horizontal, .vertical]) : Axis.Set())
+            BenchArrangementStyle(
+                axes: horizontalSizeClass == .regular ? Axis.Set([.horizontal, .vertical]) : Axis.Set()
+            )
         )
     }
 
