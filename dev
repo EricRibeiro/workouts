@@ -88,7 +88,8 @@ run_tests() { # run_tests <name> <target> [filter]
   [[ -n "$filter" ]] && only="$target/$filter"
   mkdir -p "$RESULTS"
   find "$RESULTS" -maxdepth 1 -name '*.xcresult' -mmin +240 -exec rm -rf {} + 2>/dev/null || true
-  run_logged "$name" xcb test -only-testing:"$only" -resultBundlePath "$bundle" || rc=$?
+  # No parallel testing: it boots a fresh "Clone N of iPhone Duo" per run, and a fresh clone crashed PosterBoard.
+  run_logged "$name" xcb test -parallel-testing-enabled NO -only-testing:"$only" -resultBundlePath "$bundle" || rc=$?
   if ((rc != 0)); then
     report_failures "$bundle"
     return "$rc"
@@ -191,19 +192,63 @@ cmd_screenshot() {
   echo "$path"
 }
 
-# Fail when the simulator's SpringBoard crashed while a simulator command ran. A SpringBoard crash loop
-# (seen 2026-11-03 after `simctl io screenConfig --display=N power off`) floods the Mac with "quit
-# unexpectedly" dialogs while tests can still pass; this makes it a hard failure instead.
+# Simulator commands hold one machine-wide lock, so parallel agents (worktrees included) take turns on the simulator
+# instead of racing it, and fail when any simulator process crashed while they ran. Seen 2026-11-03: a SpringBoard
+# crash loop after `simctl io screenConfig --display=N power off` (now forbidden) and a PosterBoard crash while
+# xcodebuild booted a parallel-testing clone. Each crash raises a "quit unexpectedly" dialog on Eric's Mac.
 CRASH_DIR="$HOME/Library/Logs/DiagnosticReports"
+SIM_LOCK="$HOME/Library/Caches/workouts-dev-sim.lock"
+sim_lock() {
+  local waited=0 owner
+  until mkdir "$SIM_LOCK" 2>/dev/null; do
+    owner=$(cat "$SIM_LOCK/pid" 2>/dev/null || true)
+    if [[ -n "$owner" ]] && ! kill -0 "$owner" 2>/dev/null; then rm -rf "$SIM_LOCK"; continue; fi
+    ((waited % 30 == 0)) && echo "dev: waiting for the simulator (held by pid ${owner:-?})" >&2
+    sleep 2; waited=$((waited + 2))
+    ((waited < 1800)) || die "simulator lock held for 30 min by pid ${owner:-?}; remove $SIM_LOCK if it is stale"
+  done
+  echo $$ >"$SIM_LOCK/pid"
+  trap 'rm -rf "$SIM_LOCK"' EXIT
+}
+sim_crashes() { # sim_crashes <since-epoch>: simulator-process crash reports captured after <since-epoch>
+  # Reads each report's own captureTime (files are sometimes re-touched long after the crash) and skips daemons killed
+  # while a simulator shuts down (SIGTERM timeout), which are shutdown noise, not crashes.
+  /usr/bin/python3 -I - "$CRASH_DIR" "$1" <<'PY'
+import datetime, json, os, sys
+root, since = sys.argv[1], float(sys.argv[2])
+for name in sorted(os.listdir(root)):
+    path = os.path.join(root, name)
+    if not name.endswith(".ips") or os.path.getmtime(path) < since:
+        continue
+    try:
+        text = open(path, encoding="utf-8", errors="replace").read()
+        body = json.loads(text[text.index("\n") + 1:])
+        captured = datetime.datetime.strptime(body["captureTime"][:19], "%Y-%m-%d %H:%M:%S").timestamp()
+    except Exception:
+        continue
+    if captured < since - 1 or "CoreSimulator.SimDevice" not in body.get("coalitionName", ""):
+        continue
+    if "SIGTERM_TIMEOUT" in json.dumps(body.get("termination", {})):
+        continue
+    proc = body.get("procName", name.split("-")[0])
+    # Fatal: our own processes (a real bug) and the processes whose crash loops flood the Mac with dialogs.
+    fatal = proc in {"Workouts", "WorkoutsLiveActivity", "SpringBoard", "PosterBoard", "backboardd"}
+    print(("fatal " if fatal else "warn ") + name)
+PY
+}
 sim_guarded() { # sim_guarded <cmd> [args...]
-  local marker rc=0 crashes
-  mkdir -p .build && marker=$(mktemp .build/sim-guard.XXXXXX)
+  local rc=0 crashes
+  sim_lock
+  local since; since=$(date +%s)
   "$@" || rc=$?
-  crashes=$(find "$CRASH_DIR" -maxdepth 1 -name 'SpringBoard-*.ips' -newer "$marker" 2>/dev/null | wc -l | tr -d ' ')
-  rm -f "$marker"
-  if [[ "$crashes" != 0 ]]; then
-    echo "dev: SpringBoard crashed $crashes time(s) on the simulator during this command." >&2
-    echo "dev: stop, run 'xcrun simctl shutdown all', and report it; do not keep testing. Reports: $CRASH_DIR/SpringBoard-*.ips" >&2
+  crashes=$(sim_crashes "$since")
+  # Other simulator daemons (assetsd, intelligencetasksd, ...) crash on their own now and then: report, do not fail.
+  grep '^warn ' <<<"$crashes" | sed 's/^warn /dev: warning: simulator daemon crashed (not ours): /' >&2 || true
+  crashes=$(grep '^fatal ' <<<"$crashes" | sed 's/^fatal //' || true)
+  if [[ -n "$crashes" ]]; then
+    echo "dev: a simulator process crashed during this command:" >&2
+    echo "$crashes" | sed 's/^/dev:   /' >&2
+    echo "dev: stop, run 'xcrun simctl shutdown all', and report it; do not keep testing. Reports: $CRASH_DIR" >&2
     exit 1
   fi
   return "$rc"
