@@ -192,18 +192,20 @@ private struct Editor: View {
     // MARK: Table
 
     /// One ArrangementView in both widths so folding never swaps the table's identity (draft, focus and scroll stay); the
-    /// pane is simply absent, and the split disabled, on compact width (as in the logging screen).
+    /// pane is simply absent, and the split disabled, on compact width (as in the logging screen) and while the workout has
+    /// no exercise (nothing for the pane to show).
     private func arrangement(source: any SetTableDataSource, sections: [SetTableSection]) -> some View {
-        ArrangementView {
+        let showsPane = horizontalSizeClass == .regular && !sections.isEmpty
+        return ArrangementView {
             SetTable(source: source, focusedSection: $focusedSectionID)
         } secondary: {
-            if horizontalSizeClass == .regular {
+            if showsPane {
                 let focused = focusedSection(in: sections)
                 ExercisePane(exerciseName: focused?.name, exerciseID: focused?.exerciseID)
             }
         }
         .arrangementViewStyle(
-            .split.axes(horizontalSizeClass == .regular ? Axis.Set([.horizontal, .vertical]) : Axis.Set())
+            .split.axes(showsPane ? Axis.Set([.horizontal, .vertical]) : Axis.Set())
         )
     }
 

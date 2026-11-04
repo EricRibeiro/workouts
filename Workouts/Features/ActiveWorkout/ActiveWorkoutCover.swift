@@ -176,25 +176,24 @@ struct ActiveWorkoutCover: View {
     }
 
     /// One ArrangementView in both widths, so folding never swaps the table's identity (draft, focus and scroll stay);
-    /// the pane is simply absent on compact width.
+    /// the pane is simply absent on compact width and while the workout has no exercise (nothing for it to show).
     private func arrangement(
         source: any SetTableDataSource,
         sections: [SetTableSection],
         blockActions: SetTableBlockActions? = nil
     ) -> some View {
-        ArrangementView {
+        let showsPane = horizontalSizeClass == .regular && !sections.isEmpty
+        return ArrangementView {
             SetTable(source: source, focusedSection: $focusedSectionID, blockActions: blockActions)
         } secondary: {
-            if horizontalSizeClass == .regular {
+            if showsPane {
                 let focused = focusedSection(in: sections)
                 ExercisePane(exerciseName: focused?.name, exerciseID: focused?.exerciseID)
             }
         }
         // The system split everywhere but the half-open laptop pose, where the table drops to the lower half (6.1).
         .arrangementViewStyle(
-            BenchArrangementStyle(
-                axes: horizontalSizeClass == .regular ? Axis.Set([.horizontal, .vertical]) : Axis.Set()
-            )
+            BenchArrangementStyle(axes: showsPane ? Axis.Set([.horizontal, .vertical]) : Axis.Set())
         )
     }
 

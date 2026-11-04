@@ -78,6 +78,15 @@ struct WorkoutView: View {
                 .navigationDestination(isPresented: $isCreatingTemplate) {
                     TemplateEditor(newIn: FolderOperations.ordered(folders).first)
                 }
+                #if DEBUG
+                    // `-openNewTemplate` / `-editFirstTemplate`: push the empty new-template editor or the first template's
+                    // editor at launch (screenshots, where nothing can tap).
+                    .task {
+                        let arguments = ProcessInfo.processInfo.arguments
+                        if arguments.contains("-openNewTemplate") { isCreatingTemplate = true }
+                        if arguments.contains("-editFirstTemplate") { editing = templates.first }
+                    }
+                #endif
                 .sheet(
                     item: $previewSheet,
                     onDismiss: {

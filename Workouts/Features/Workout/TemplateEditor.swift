@@ -62,16 +62,6 @@ struct TemplateEditor: View {
         let source = TemplateSetTableSource(draft: $draft, store: store)
         let sections = source.sections
         arrangement(source: source, sections: sections)
-            .overlay {
-                if sections.isEmpty {
-                    ContentUnavailableView(
-                        "No Exercises Yet",
-                        systemImage: "figure.strengthtraining.traditional",
-                        description: Text("Add one to start building the template.")
-                    )
-                    .accessibilityIdentifier("templateEditor.empty")
-                }
-            }
             .navigationTitle(draft.name)
             .navigationBarTitleDisplayMode(.inline)
             .navigationBarBackButtonHidden()
@@ -189,18 +179,31 @@ struct TemplateEditor: View {
     // MARK: Table
 
     /// One ArrangementView in both widths so folding never swaps the table's identity (draft, focus and scroll stay); the
-    /// pane is simply absent, and the split disabled, on compact width (as in the logging screen).
+    /// pane is simply absent, and the split disabled, on compact width (as in the logging screen) and while the template has
+    /// no exercise, so the empty state (inside the primary region) has the whole width to itself instead of sharing it
+    /// with a pane that has nothing to show.
     private func arrangement(source: any SetTableDataSource, sections: [SetTableSection]) -> some View {
-        ArrangementView {
+        let showsPane = horizontalSizeClass == .regular && !sections.isEmpty
+        return ArrangementView {
             SetTable(source: source, focusedSection: $focusedSectionID, blockActions: blockActions)
+                .overlay {
+                    if sections.isEmpty {
+                        ContentUnavailableView(
+                            "No Exercises Yet",
+                            systemImage: "figure.strengthtraining.traditional",
+                            description: Text("Add one to start building the template.")
+                        )
+                        .accessibilityIdentifier("templateEditor.empty")
+                    }
+                }
         } secondary: {
-            if horizontalSizeClass == .regular {
+            if showsPane {
                 let focused = focusedSection(in: sections)
                 ExercisePane(exerciseName: focused?.name, exerciseID: focused?.exerciseID)
             }
         }
         .arrangementViewStyle(
-            .split.axes(horizontalSizeClass == .regular ? Axis.Set([.horizontal, .vertical]) : Axis.Set())
+            .split.axes(showsPane ? Axis.Set([.horizontal, .vertical]) : Axis.Set())
         )
     }
 
