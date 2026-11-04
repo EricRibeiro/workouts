@@ -90,6 +90,13 @@ run_tests() { # run_tests <name> <target> [filter]
   find "$RESULTS" -maxdepth 1 -name '*.xcresult' -mmin +240 -exec rm -rf {} + 2>/dev/null || true
   # No parallel testing: it boots a fresh "Clone N of iPhone Duo" per run, and a fresh clone crashed PosterBoard.
   run_logged "$name" xcb test -parallel-testing-enabled NO -only-testing:"$only" -resultBundlePath "$bundle" || rc=$?
+  # Xcode infrastructure flake (no test ran): retry once, never for a real test failure.
+  if ((rc != 0)) && xcrun xcresulttool get test-results summary --path "$bundle" --compact 2>/dev/null |
+    grep -q 'hung before establishing connection'; then
+    echo "dev: test runner hung before connecting; retrying once" >&2
+    rm -rf "$bundle"; rc=0
+    run_logged "$name" xcb test -parallel-testing-enabled NO -only-testing:"$only" -resultBundlePath "$bundle" || rc=$?
+  fi
   if ((rc != 0)); then
     report_failures "$bundle"
     return "$rc"
