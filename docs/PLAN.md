@@ -135,7 +135,7 @@ Live Activity → notifications → logging, then templates, exercises, history.
   discard. Needs: 0.1, 0.3. Proof: `./dev kit Engine` (~20 tests incl. relaunch).
 - [x] **1.2 Rest timer in the engine**: `RestTimer` over the persisted rest fields, presets, one `adjust(by:)` op (−10 s, +10 s,
   +30 s), skip, superset rest on every check, counters, relaunch restore. Needs: 1.1. Proof: `./dev kit Rest`.
-- [ ] **1.3a Live Activity state**: `WorkoutActivityState` in `WorkoutsKit/Activity` with the
+- [x] **1.3a Live Activity state**: `WorkoutActivityState` in `WorkoutsKit/Activity` with the
   `ActiveWorkoutEngine.activityState` mapping. Needs: 1.1. Proof: `./dev kit Activity`.
 - [ ] **1.3b Live Activity extension target**: the `WorkoutActivityAttributes: ActivityAttributes` wrapper (also in the extension
   target) and the `WorkoutsLiveActivity` target in the app (`xcode-project` skill; the first non-trivial project change: extension
