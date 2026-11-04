@@ -153,6 +153,14 @@ orchestrator after review. Workers do not commit.
 - Apple's bundled skills (`swiftui-specialist`, `app-resizability`, `device-interaction`,
   `modernize-tests`, accessibility auditors, …) come with the Xcode plugin; invoke them by name.
 
+## TestFlight cadence
+
+After the orchestrator pushes a milestone to `main` (a PLAN task or a review's fix batch, with the full `./dev ui-test` and
+`./dev check` green), it runs `./dev testflight --upload` in the background from the main checkout, at most once every
+two hours and only when the app changed since the last upload. Never from a worktree, never with uncommitted changes,
+never by workers. It takes no simulator lock (own DerivedData under `.build/testflight/`). Log each upload's build number
+and commit in `docs/testflight.md`. A failed upload is reported, not retried in a loop.
+
 ## Secrets (App Store Connect key)
 
 The App Store Connect API key lives only in 1Password (`op://Homelab/App Store Connect API/…`). The **only** code that
