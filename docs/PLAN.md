@@ -160,7 +160,7 @@ Live Activity → notifications → logging, then templates, exercises, history.
 - [x] **2.1a Exercise picker list** (moved from Phase 3: Empty Workout cannot log without it): single select,
   `.searchable`, body-part and category `Menu` pills, a reusable sheet for Add / Replace (inline create is wired by 4.4), Cancel in
   the Close slot. Needs: 0.3, 0.9, 0.10. Proof: preview.
-- [ ] **2.1b Exercise picker multi-select**: multi-select Add (N) (`plus`) and Superset (`rectangle.stack`) toolbar items, "?"
+- [x] **2.1b Exercise picker multi-select**: multi-select Add (N) (`plus`) and Superset (`rectangle.stack`) toolbar items, "?"
   peek. Needs: 0.3, 0.9, 0.10, 2.1a. Proof: flow.
 - [x] **2.2a Set row**: one row (set · previous · weight · reps · ✓), kind cycling normal → W → D → F, Previous tap copies,
   per-cell `@FocusState`, `.decimalPad`, `ViewThatFits` two-line row at AX sizes. Needs: 0.7, 0.9, 0.10. Proof: previews at

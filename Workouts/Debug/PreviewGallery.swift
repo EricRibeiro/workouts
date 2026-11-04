@@ -20,6 +20,7 @@
         case swatches = "Swatches"
         case exercisePicker = "ExercisePicker"
         case setRow = "SetRow"
+        case exercisePickerMulti = "ExercisePickerMulti"
 
         var id: String { rawValue }
 
@@ -39,6 +40,8 @@
             case .swatches: SwatchesView()
             case .exercisePicker: ExercisePickerView(title: "Add Exercise") { _ in }
             case .setRow: SetRowDemo()
+            case .exercisePickerMulti:
+                ExercisePickerView(title: "Add Exercises", mode: .multiple(add: { _ in }, superset: { _ in }))
             }
         }
     }
