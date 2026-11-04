@@ -30,6 +30,7 @@
         case customExerciseForm = "CustomExerciseForm"
         case customExerciseFormEdit = "CustomExerciseFormEdit"
         case templatePreview = "TemplatePreview"
+        case templateEditor = "TemplateEditor"
         case exercisePane = "ExercisePane"
 
         var id: String { rawValue }
@@ -59,6 +60,7 @@
             case .customExerciseForm: CustomExerciseFormView(prefill: "Zz Sled Drag")
             case .customExerciseFormEdit: CustomExerciseFormEditDemo()
             case .templatePreview: TemplatePreviewDemo()
+            case .templateEditor: TemplateEditorDemo()
             case .exercisePane: ExercisePaneDemo()
             case .exercisePickerMulti:
                 ExercisePickerView(title: "Add Exercises", mode: .multiple(add: { _ in }, superset: { _ in }))

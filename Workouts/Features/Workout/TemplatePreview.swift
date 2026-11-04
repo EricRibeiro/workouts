@@ -12,10 +12,12 @@ import WorkoutsKit
 /// an `info.circle` that opens the exercise's detail). Nothing is bottom-anchored.
 ///
 /// Shown as a medium-detent sheet at compact width (``TemplatePreviewSheet``) and pushed with a zoom at regular width.
-/// `started` runs once a workout is behind the cover; the caller dismisses the preview and presents the cover.
+/// `started` runs once a workout is behind the cover; the caller dismisses the preview and presents the cover. `edit` runs
+/// from the **Edit** item; the caller closes the preview if it is a sheet and pushes the editor (task 3.4).
 struct TemplatePreview: View {
     let template: Template
     let started: () -> Void
+    let edit: (Template) -> Void
 
     @Environment(ActiveWorkoutEngine.self) private var engine: ActiveWorkoutEngine?
     @Environment(SaveErrors.self) private var errors: SaveErrors?
@@ -46,6 +48,13 @@ struct TemplatePreview: View {
             .padding(.bottom)
         }
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button("Edit", systemImage: "pencil") { edit(template) }
+                    .accessibilityLabel("Edit")
+                    .accessibilityIdentifier("template.edit")
+            }
+        }
         .navigationDestination(for: ExerciseAboutRoute.self) { route in
             ExerciseDetailView(exerciseID: route.id)
         }
@@ -166,11 +175,12 @@ struct ExerciseAboutRoute: Hashable {
 struct TemplatePreviewSheet: View {
     let template: Template
     let started: () -> Void
+    let edit: (Template) -> Void
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         NavigationStack {
-            TemplatePreview(template: template, started: started)
+            TemplatePreview(template: template, started: started, edit: edit)
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
                         Button("Close", systemImage: "xmark") { dismiss() }
@@ -193,7 +203,7 @@ struct TemplatePreviewSheet: View {
 
         var body: some View {
             WorkoutView()
-                .sheet(item: $shown) { TemplatePreviewSheet(template: $0, started: {}) }
+                .sheet(item: $shown) { TemplatePreviewSheet(template: $0, started: {}, edit: { _ in }) }
                 .onChange(of: templates.first?.id, initial: true) { shown = templates.first }
         }
     }

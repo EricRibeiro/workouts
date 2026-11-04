@@ -214,7 +214,7 @@ Live Activity → notifications → logging, then templates, exercises, history.
   the engine. Needs: 3.2, 1.1, 0.9, 0.10. Proof: preview + flow on both widths.
   Also (Phase 2 review R-07, R-12): the "Workout in progress" dialog (Resume / Discard and Start New) for Start Workout and
   Empty Workout, and the "Update Template?" finish dialog (kit: diff template vs finished workout).
-- [ ] **3.4 Template editor shell**: pushed in both widths, `ArrangementView` on regular as in 2.10 (placeholder pane until 4.5),
+- [x] **3.4 Template editor shell**: pushed in both widths, `ArrangementView` on regular as in 2.10 (placeholder pane until 4.5),
   no width cap; SetTable template mode, name via `toolbarTitleMenu`, Save and unsaved-changes guard (dirty = differs from what
   opened). Needs: 2.1, 2.3, 2.10, 3.3, 0.10. Proof: flow.
 - [x] **3.5 Supersets and warm-up ramp**: `WorkoutsKit/Session` helpers (ramp, renumbering) and superset colours. Needs: 0.1, 0.9, 0.10.
@@ -241,7 +241,7 @@ Live Activity → notifications → logging, then templates, exercises, history.
   segment.
 - [x] **4.4 Custom exercise form** (create/edit/archive/delete-if-unused) + picker inline create. Needs: 4.1, 2.1, 0.10. Proof: flow
   (create → in list → archive).
-- [ ] **4.5 Sticky note** editor in the detail, shared with the logging pane; swaps `ExerciseDetailView(embedded)` into
+- [x] **4.5 Sticky note** editor in the detail, shared with the logging pane; swaps `ExerciseDetailView(embedded)` into
   `ExercisePane` (2.10, 3.4), adds 3.6's Sticky Note entry and re-proves the 2.10 fold flow. Needs: 4.2, 2.10, 3.6, 0.9, 0.10. Proof: preview
   + flow.
 - [x] **4.6 Natural-language exercise search** (kit + app; `DECISIONS.md` "Native layer"): kit `ExerciseQuery` (Codable, Sendable:

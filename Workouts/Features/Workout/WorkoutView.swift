@@ -35,6 +35,10 @@ struct WorkoutView: View {
     @State private var previewPush: Template?
     /// A workout was started from the sheet: the cover opens once the sheet has gone (a sheet and a cover cannot overlap).
     @State private var presentAfterSheet = false
+    /// The template whose editor is pushed on this stack (task 3.4), from the preview's Edit item.
+    @State private var editing: Template?
+    /// Edit was tapped in the sheet: the editor is pushed once the sheet has gone.
+    @State private var editAfterSheet: Template?
     @State private var startFlow = StartWorkoutFlow()
     @Namespace private var cardZoom
 
@@ -62,9 +66,10 @@ struct WorkoutView: View {
             content
                 .navigationTitle("Workout")
                 .navigationDestination(item: $previewPush) { template in
-                    TemplatePreview(template: template, started: workoutStarted)
+                    TemplatePreview(template: template, started: workoutStarted, edit: edit)
                         .navigationTransition(.zoom(sourceID: template.id, in: cardZoom))
                 }
+                .navigationDestination(item: $editing) { TemplateEditor(template: $0) }
                 .sheet(
                     item: $previewSheet,
                     onDismiss: {
@@ -72,8 +77,12 @@ struct WorkoutView: View {
                             presentAfterSheet = false
                             presentWorkout()
                         }
+                        if let template = editAfterSheet {
+                            editAfterSheet = nil
+                            editing = template
+                        }
                     }
-                ) { TemplatePreviewSheet(template: $0, started: workoutStarted) }
+                ) { TemplatePreviewSheet(template: $0, started: workoutStarted, edit: edit) }
                 .startWorkoutFlow(startFlow)
                 .resumeControl()
                 .toolbar {
@@ -260,6 +269,17 @@ struct WorkoutView: View {
         } else {
             previewPush = nil
             presentWorkout()
+        }
+    }
+
+    /// Edit from the preview: the sheet closes first (then the editor is pushed on this stack); the pushed preview stays
+    /// under the editor, so Save and Cancel return to it.
+    private func edit(_ template: Template) {
+        if previewSheet != nil {
+            editAfterSheet = template
+            previewSheet = nil
+        } else {
+            editing = template
         }
     }
 

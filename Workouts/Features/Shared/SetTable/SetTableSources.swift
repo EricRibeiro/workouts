@@ -172,43 +172,35 @@ struct EngineSetTableSource: SetTableDataSource {
 
 // MARK: - Template
 
-/// A template as a set table: planned weights and reps are the values, there is no Previous and no check. Edits save to
-/// the template's own context.
+/// A template in the editor (task 3.4): the editor's `TemplateDraft` as a set table. Planned weights and reps are the
+/// values; there is no Previous and no check. Every edit goes to the draft, which the editor's Save writes to the model in
+/// one go.
 struct TemplateSetTableSource: SetTableDataSource {
-    let template: Template
-    let context: ModelContext
+    @Binding var draft: TemplateDraft
     let store: ExerciseStore
-    /// Where a failed save is reported; `nil` (previews, the gallery) drops it.
-    var errors: SaveErrors?
 
     var mode: SetTableMode { .template }
 
-    private var exercises: [TemplateExercise] {
-        (template.exercises ?? []).sorted { $0.position < $1.position }
-    }
-
     var sections: [SetTableSection] {
-        exercises.map { row in
-            let sets = sorted(row.sets)
+        draft.exercises.map { row in
             let weightType = store.exercise(id: row.exerciseID)?.weightType ?? .weighted
-            let timed = sets.contains { $0.durationSeconds != nil }
             return SetTableSection(
                 id: row.id,
                 exerciseID: row.exerciseID,
-                name: row.exerciseName,
+                name: row.name,
                 supersetGroup: row.supersetGroup,
                 note: row.note,
                 restSeconds: row.restSeconds,
-                rows: sets.enumerated().map { index, set in
+                rows: row.sets.enumerated().map { index, set in
                     SetRowModel(
                         id: set.id,
                         number: index + 1,
                         kind: set.kind,
                         weightText: SetInputFormat.weightText(set.weight),
-                        repsText: SetInputFormat.countText(timed ? set.durationSeconds : set.reps),
+                        repsText: SetInputFormat.countText(row.isTimed ? set.durationSeconds : set.reps),
                         unit: row.unit,
                         weightType: weightType,
-                        measure: timed ? .duration : .reps,
+                        measure: row.isTimed ? .duration : .reps,
                         showsPrevious: false,
                         showsCheck: false
                     )
@@ -217,79 +209,15 @@ struct TemplateSetTableSource: SetTableDataSource {
         }
     }
 
-    func cycleKind(of setID: UUID) {
-        guard let set = set(setID) else { return }
-        set.kind = SetInputFormat.nextKind(after: set.kind)
-        touch(set.templateExercise)
-    }
-
+    func cycleKind(of setID: UUID) { draft.cycleKind(of: setID) }
     func applyPrevious(to setID: UUID) {}
-
-    func commitWeight(_ weight: Double?, for setID: UUID) {
-        guard let set = set(setID) else { return }
-        set.weight = weight
-        touch(set.templateExercise)
-    }
-
-    func commitReps(_ value: Int?, for setID: UUID) {
-        guard let set = set(setID) else { return }
-        if set.durationSeconds != nil {
-            set.durationSeconds = value
-        } else {
-            set.reps = value
-        }
-        touch(set.templateExercise)
-    }
-
+    func commitWeight(_ weight: Double?, for setID: UUID) { draft.setWeight(weight, for: setID) }
+    func commitReps(_ value: Int?, for setID: UUID) { draft.setCount(value, for: setID) }
     @discardableResult
     func toggleCheck(of setID: UUID) -> Bool { true }
-
-    func addSet(to sectionID: UUID) {
-        guard let row = exercises.first(where: { $0.id == sectionID }) else { return }
-        let last = sorted(row.sets).last
-        let added = TemplateSet(
-            position: (last?.position ?? -1) + 1,
-            kind: last.map { $0.kind == .warmup ? .normal : $0.kind } ?? .normal,
-            weight: last?.weight,
-            reps: last?.reps,
-            durationSeconds: last?.durationSeconds,
-            distanceMeters: last?.distanceMeters,
-            templateExercise: row
-        )
-        context.insert(added)
-        touch(row)
-    }
-
-    func deleteSet(_ setID: UUID) {
-        guard let set = set(setID), let row = set.templateExercise else { return }
-        context.delete(set)
-        for (position, remaining) in sorted(row.sets).filter({ $0 !== set }).enumerated() {
-            remaining.position = position
-        }
-        touch(row)
-    }
-
-    func reorder(_ order: [UUID]) {
-        let byID = Dictionary(uniqueKeysWithValues: exercises.map { ($0.id, $0) })
-        guard order.count == byID.count else { return }
-        for (position, id) in order.enumerated() { byID[id]?.position = position }
-        touch(nil)
-    }
-
-    private func set(_ id: UUID) -> TemplateSet? {
-        exercises.lazy.flatMap { $0.sets ?? [] }.first { $0.id == id }
-    }
-
-    private func touch(_ row: TemplateExercise?) {
-        let now = Date()
-        row?.updatedAt = now
-        template.updatedAt = now
-        do {
-            try context.save()
-        } catch {
-            errors?.report(error)
-        }
-    }
+    func addSet(to sectionID: UUID) { draft.addSet(to: sectionID) }
+    func deleteSet(_ setID: UUID) { draft.deleteSet(setID) }
+    func reorder(_ order: [UUID]) { draft.reorder(order) }
 }
 
 // MARK: - Past
@@ -344,10 +272,6 @@ struct PastSetTableSource: SetTableDataSource {
 // MARK: - Shared helpers
 
 private func sorted(_ sets: [WorkoutSet]?) -> [WorkoutSet] {
-    (sets ?? []).sorted { $0.position < $1.position }
-}
-
-private func sorted(_ sets: [TemplateSet]?) -> [TemplateSet] {
     (sets ?? []).sorted { $0.position < $1.position }
 }
 

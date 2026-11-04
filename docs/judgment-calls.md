@@ -98,3 +98,11 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
 39. **Template preview and dialogs** (3.3): preview has Close only (Edit comes with 3.4); "Workout in progress" and "Update
     Template?" are confirmationDialogs (popover form drops the cancel-role button; tapping outside = keep). Structure = exercise
     order, set count, kinds, superset grouping; values = weight/reps/duration/distance. DEBUG `-seedSampleData` for UI tests.
+40. **Template editor** (3.4): edits go to a kit `TemplateDraft`; Save writes it in one go, Cancel drops it (same model as the
+    past-workout editor, JC32), so the back button is hidden. Save stays enabled with no changes; the title menu has Rename
+    only until 3.6 adds block actions. Edit lives in the template preview's toolbar (`pencil`).
+41. **Sticky note** (4.5): edited in the exercise detail (and so in the logging/editor pane, which is now the embedded detail);
+    shown read-only as a yellow band under the exercise name in every set table, so on the open Duo it appears twice (table
+    and pane) — kept, each surface stands alone when the other is folded away. Notes trim and cap at 2000 characters; blank =
+    removed. The 3.6 header menu will reuse `StickyNoteEditor`. A SetTable UI test now waits for the new row's id instead of
+    a row count (the band shifts the lazy layout).
