@@ -54,10 +54,12 @@ struct SetRow: View {
     private var oneLine: some View {
         HStack(spacing: 8) {
             kindButton
-            previousButton
-                .frame(maxWidth: .infinity, alignment: .center)
+            if model.showsPrevious {
+                previousButton
+                    .frame(maxWidth: .infinity, alignment: .center)
+            }
             fields
-            checkButton
+            if model.showsCheck { checkButton }
         }
     }
 
@@ -65,12 +67,14 @@ struct SetRow: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 12) {
                 kindButton
-                previousButton
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                if model.showsPrevious {
+                    previousButton
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
             }
             HStack(spacing: 8) {
                 fields
-                checkButton
+                if model.showsCheck { checkButton }
             }
         }
     }

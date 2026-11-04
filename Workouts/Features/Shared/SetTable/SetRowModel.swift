@@ -28,6 +28,10 @@ struct SetRowModel: Identifiable, Hashable {
     var measure: SetInputFormat.Measure = .reps
     /// False for exercises that have no weight column.
     var showsWeight: Bool = true
+    /// False in template mode (no history to copy from) and in a past workout.
+    var showsPrevious: Bool = true
+    /// False in template mode and in a past workout; only the active workout checks sets off.
+    var showsCheck: Bool = true
 }
 
 /// One focusable cell of a set row. The set table owns a single `@FocusState<SetRowField?>` so the keyboard's Next can move
