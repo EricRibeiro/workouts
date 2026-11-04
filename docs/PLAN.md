@@ -126,7 +126,7 @@ Live Activity → notifications → logging, then templates, exercises, history.
 
 ### Phase 1 — Engine and native layer
 
-- [ ] **1.1 ActiveWorkoutEngine core** (WorkoutsKit/Session): start from template/Empty Workout, resume, check/uncheck (empty sets
+- [x] **1.1 ActiveWorkoutEngine core** (WorkoutsKit/Session): start from template/Empty Workout, resume, check/uncheck (empty sets
   refused), Previous autofill (cross-unit: convert, round to 0.5), add/replace/remove/reorder, finish (dialog data, PR count),
   discard. Needs: 0.1, 0.3. Proof: `./dev kit Engine` (~20 tests incl. relaunch).
 - [ ] **1.2 Rest timer in the engine**: `RestTimer` over the persisted rest fields, presets, one `adjust(by:)` op (−10 s, +10 s,
