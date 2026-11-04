@@ -112,9 +112,9 @@ Live Activity → notifications → logging, then templates, exercises, history.
 - [ ] **0.5b ArrangementView cover spike**: empty root `fullScreenCover` holding an empty `ArrangementView` (spike for 2.10).
   Needs: 0.5a. Proof: `./dev run` + both open-pose screenshots (record how the cover's arrangement behaves).
 - [x] **0.6 AppNavigation** (kit): selected tab, typed routes, cover and minimise state. Proof: `./dev kit Navigation`.
-- [ ] **0.7 Design colours**: asset-catalog semantic colours, light/dark. Proof: `./dev build` + a swatch `#Preview` (shown in the
+- [x] **0.7 Design colours**: asset-catalog semantic colours, light/dark. Proof: `./dev build` + a swatch `#Preview` (shown in the
   gallery once 0.10 lands).
-- [ ] **0.8 MediaStore** per `docs/port/media.md`, fake `URLProtocol`. Proof: `./dev kit Media`.
+- [x] **0.8 MediaStore** per `docs/port/media.md`, fake `URLProtocol`. Proof: `./dev kit Media`.
 - [ ] **0.9 Sample data + preview container** (kit `Sample/`): `ModelContainer.preview` seeded by `SampleData` (takes a
   `LibraryCatalog`; 3 templates, 50 workouts with PRs) and a `#if DEBUG` "Load sample data" row in the Settings sheet; every
   `#Preview` and gallery entry uses it. Needs: 0.1, 0.3, 0.5. Proof: `./dev kit Sample`.
