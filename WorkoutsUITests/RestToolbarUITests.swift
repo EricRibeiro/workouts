@@ -15,6 +15,11 @@ final class RestToolbarUITests: XCTestCase {
         return parts.reduce(0) { $0 * 60 + $1 }
     }
 
+    /// The ring's remaining time: its label reads "Rest timer, 4:57" (the strip drops accessibility values).
+    private func ringTime(_ ring: XCUIElement) -> String? {
+        ring.label.components(separatedBy: ", ").dropFirst().first
+    }
+
     @MainActor
     func testSkipPlus30CheckAndMinimise() throws {
         let app = XCUIApplication()
@@ -33,11 +38,11 @@ final class RestToolbarUITests: XCTestCase {
         XCTAssertTrue(skip.exists, "Skip item missing while a rest runs")
 
         // +30 s raises the ring's remaining time.
-        let before = try XCTUnwrap(seconds(from: ring.value as? String), "ring value \(String(describing: ring.value))")
+        let before = try XCTUnwrap(seconds(from: ringTime(ring)), "ring label \(ring.label)")
         plus30.tap()
         expectation(
             for: NSPredicate { _, _ in
-                guard let now = self.seconds(from: ring.value as? String) else { return false }
+                guard let now = self.seconds(from: self.ringTime(ring)) else { return false }
                 return now >= before + 25
             },
             evaluatedWith: nil

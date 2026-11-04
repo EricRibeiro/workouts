@@ -15,6 +15,11 @@ final class RestRingUITests: XCTestCase {
         return parts.reduce(0) { $0 * 60 + $1 }
     }
 
+    /// The running ring's label is "Rest timer, 4:57" (the strip drops accessibilityValue): the part after ", ".
+    private func ringTime(_ ring: XCUIElement) -> String? {
+        ring.label.components(separatedBy: ", ").dropFirst().first
+    }
+
     @MainActor
     func testPresetAdjustSkipAndCustom() throws {
         let app = XCUIApplication()
@@ -45,11 +50,11 @@ final class RestRingUITests: XCTestCase {
         XCTAssertTrue(app.buttons["rest.preset.180"].exists)
         XCTAssertTrue(app.buttons["rest.custom"].exists)
         preset60.tap()
-        expectation(for: NSPredicate(format: "value != nil AND value != ''"), evaluatedWith: ring)
+        expectation(for: NSPredicate(format: "label CONTAINS ', '"), evaluatedWith: ring)
         waitForExpectations(timeout: 5)
         let started = try XCTUnwrap(
-            seconds(from: ring.value as? String),
-            "ring value \(String(describing: ring.value))"
+            seconds(from: ringTime(ring)),
+            "ring label \(ring.label)"
         )
         XCTAssertLessThanOrEqual(started, 60)
         XCTAssertGreaterThan(started, 40)
@@ -88,9 +93,9 @@ final class RestRingUITests: XCTestCase {
         wheels.element(boundBy: 1).adjust(toPickerWheelValue: "45 sec")
         start.tap()
         XCTAssertTrue(start.waitForNonExistence(timeout: 5), "custom sheet did not close")
-        expectation(for: NSPredicate(format: "value != nil AND value != ''"), evaluatedWith: ring)
+        expectation(for: NSPredicate(format: "label CONTAINS ', '"), evaluatedWith: ring)
         waitForExpectations(timeout: 5)
-        let custom45 = try XCTUnwrap(seconds(from: ring.value as? String))
+        let custom45 = try XCTUnwrap(seconds(from: ringTime(ring)))
         XCTAssertLessThanOrEqual(custom45, 45)
         XCTAssertGreaterThan(custom45, 25)
 

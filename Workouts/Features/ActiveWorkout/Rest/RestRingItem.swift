@@ -15,6 +15,9 @@ struct RestRingItem: View {
     @Environment(ActiveWorkoutEngine.self) private var engine: ActiveWorkoutEngine?
     @State private var isCustomPresented = false
     @State private var isRunningPresented = false
+    /// Updated by the 1 s rest loop; the arc and the accessibility time derive from it.
+    @State private var now = Date.now
+    @ScaledMetric(relativeTo: .body) private var arcSize: CGFloat = 22
 
     var body: some View {
         Group {
@@ -64,27 +67,21 @@ struct RestRingItem: View {
     }
 
     private func runningButton(engine: ActiveWorkoutEngine, endsAt: Date, total: Int) -> some View {
-        Button {
+        let remaining = max(0, endsAt.timeIntervalSince(now))
+        let fraction = min(1, remaining / Double(max(1, total)))
+        let time = ElapsedFormat.string(seconds: Int(remaining.rounded(.up)))
+        return Button {
             isRunningPresented = true
         } label: {
-            TimelineView(.periodic(from: .now, by: 0.5)) { context in
-                let now = context.date
-                let remaining = max(0, endsAt.timeIntervalSince(now))
-                ProgressView(value: remaining, total: Double(max(1, total))) {
-                    EmptyView()
-                } currentValueLabel: {
-                    Text(timerInterval: min(now, endsAt)...endsAt, countsDown: true)
-                        .font(.system(size: 9, weight: .semibold).monospacedDigit())
-                        .minimumScaleFactor(0.6)
-                        .lineLimit(1)
-                        .padding(.horizontal, 3)
-                }
-                .progressViewStyle(RingProgressStyle(lineWidth: 2.5))
-                .accessibilityValue(ElapsedFormat.string(seconds: Int(remaining.rounded(.up))))
+            // A Label with an Image icon is what the closed Duo moves into the trailing strip; a custom view is not.
+            Label {
+                Text("Rest timer")
+            } icon: {
+                arcImage(fraction: fraction)
             }
-            .frame(width: 34, height: 34)
         }
-        .accessibilityLabel("Rest timer")
+        // The strip drops accessibilityValue, so the remaining time rides in the label.
+        .accessibilityLabel("Rest timer, \(time)")
         .accessibilityIdentifier("rest.ring")
         .sheet(isPresented: $isRunningPresented) {
             RestRunningSheet()
@@ -93,10 +90,35 @@ struct RestRingItem: View {
         }
         // The engine keeps an over rest for a few seconds (the flash); nothing else forgets it afterwards.
         .task(id: endsAt) {
+            now = .now
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(1))
+                now = .now
                 if (try? engine.tickRest()) == true { break }
             }
+        }
+    }
+
+    /// A thin circular progress arc without digits: a faint track and the remaining fraction from 12 o'clock, clockwise.
+    private func arcImage(fraction: Double) -> Image {
+        let lineWidth: CGFloat = 2
+        return Image(size: CGSize(width: arcSize, height: arcSize), label: Text("Rest timer")) { context in
+            let rect = CGRect(origin: .zero, size: context.clipBoundingRect.size)
+                .insetBy(dx: lineWidth / 2, dy: lineWidth / 2)
+            let style = StrokeStyle(lineWidth: lineWidth, lineCap: .round)
+            var track = context
+            track.opacity = 0.25
+            track.stroke(Path(ellipseIn: rect), with: .foreground, style: style)
+            guard fraction > 0 else { return }
+            var arc = Path()
+            arc.addArc(
+                center: CGPoint(x: rect.midX, y: rect.midY),
+                radius: rect.width / 2,
+                startAngle: .degrees(-90),
+                endAngle: .degrees(-90 + 360 * fraction),
+                clockwise: false
+            )
+            context.stroke(arc, with: .foreground, style: style)
         }
     }
 }

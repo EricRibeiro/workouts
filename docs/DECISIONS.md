@@ -71,10 +71,10 @@ Eric deferred the technical choices to Claude. These close every item in `docs/p
   Flighty's trailing strip is the model). One `ToolbarItem` carries it in every width: a ring (custom `ProgressViewStyle`,
   `Circle().trim` fed by `TimelineView`; `ProgressView(timerInterval:)` `.circular` is a spinner on iOS) with
   `Text(timerInterval:)` inside (elapsed time when no rest runs), placed by the system. **Measured 2026-11-03 (27.2):** the
-  system stacks only symbol `Label` items in the trailing strip; a custom-view item (the live ring) stays in the horizontal top
-  bar beside the title in every pose, and no public API moves it (`toolbarVerticalBehavior` is only an opt-out). We keep the
-  live ring in the top bar rather than swap it for a variable SF Symbol (reads as a loading spinner, no visible time) or render
-  it to an image (a hack; Eric: Apple's behaviour over the plan). It is the resume control (tap restores) and the logging screen's own timer item; no
+  system stacks only symbol/`Image` `Label` items in the trailing strip (a custom-view item stays in the top bar; no public API
+  moves it). So the running ring item is a `Label` whose icon is a thin draining arc drawn with `Image(size:renderer:)` (Eric:
+  like Claude's context indicator), no digits; the countdown is in its accessibility label ("Rest timer, 4:57"), the rest
+  sheet, the keyboard group and the Live Activity. The strip renders it as a template (foreground colour, no tinted track). It is the resume control (tap restores) and the logging screen's own timer item; no
   `.glassEffect()`. Toolbar items do not inherit on push, so a shared `ViewModifier` applies it on every screen's root. Additive:
   a `tabViewSidebarBottomBar` card (name · elapsed · countdown · Skip) while the sidebar is visible. No `.tabViewBottomAccessory`.
   History and Exercises lists set `tabBarMinimizeBehavior(.onScrollDown)`.
