@@ -10,7 +10,7 @@ import WorkoutsKit
 /// The Exercises tab (task 4.1a): a `NavigationSplitView` with the exercise list in the content column and the exercise
 /// detail in the detail column (`ExerciseDetailView`, 4.2). Compact width pushes the detail; regular width shows it beside
 /// the list. Search is `.searchable` only, over name and aliases. Two `Menu` pills (body part, category) lead the list; the
-/// toolbar has New Exercise (a stub sheet until 4.4) and a Show Retired toggle.
+/// toolbar has New Exercise (the custom exercise form) and a Show Retired toggle.
 struct ExercisesView: View {
     @Environment(ExerciseStore.self) private var store
     @Query(filter: #Predicate<Workout> { $0.finishedAt != nil }) private var finished: [Workout]
@@ -30,6 +30,15 @@ struct ExercisesView: View {
             detail
         }
         .accessibilityIdentifier("screen.exercises")
+        // Deleting the selected custom exercise empties the selection, which also pops the pushed detail on compact width.
+        .onChange(of: selectionExists) { _, exists in
+            if !exists { selection = nil }
+        }
+    }
+
+    private var selectionExists: Bool {
+        guard case .exercise(let id) = selection else { return true }
+        return store.exercise(id: id) != nil
     }
 
     private var list: some View {
@@ -82,7 +91,8 @@ struct ExercisesView: View {
             }
         }
         .sheet(isPresented: $isCreating) {
-            NewExerciseStubSheet()
+            CustomExerciseFormView()
+                .presentationPlacement(.center)
         }
         .searchable(text: $query, prompt: "Search exercises")
         .task(id: Fingerprint(finished)) {
@@ -136,31 +146,6 @@ struct ExercisesView: View {
     private var recordsOptions: RecordsOptions {
         let settings = SettingsStore()
         return RecordsOptions(formula: settings.e1rmFormula, displayUnit: settings.defaultUnit)
-    }
-}
-
-/// Stands in for the custom exercise form until task 4.4.
-private struct NewExerciseStubSheet: View {
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        NavigationStack {
-            ContentUnavailableView(
-                "New Exercise",
-                systemImage: "plus.circle",
-                description: Text("The custom exercise form arrives with task 4.4.")
-            )
-            .navigationTitle("New Exercise")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel", systemImage: "xmark") { dismiss() }
-                        .accessibilityLabel("Cancel")
-                        .accessibilityIdentifier("exercises.new.cancel")
-                }
-            }
-        }
-        .accessibilityIdentifier("screen.newExercise")
     }
 }
 

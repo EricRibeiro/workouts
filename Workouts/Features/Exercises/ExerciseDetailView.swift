@@ -102,7 +102,8 @@ struct ExerciseDetailView: View {
             }
         }
         .sheet(isPresented: $isEditing) {
-            EditExerciseStubSheet()
+            CustomExerciseFormView(editing: exerciseID)
+                .presentationPlacement(.center)
         }
         .task(id: Fingerprint(finished, unit: unit, formula: options.formula)) {
             let found =
@@ -147,31 +148,6 @@ private struct Fingerprint: Hashable {
         newestEdit = workouts.map(\.updatedAt).max()
         self.unit = unit
         self.formula = formula
-    }
-}
-
-/// Stands in for the custom exercise form until task 4.4.
-private struct EditExerciseStubSheet: View {
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        NavigationStack {
-            ContentUnavailableView(
-                "Edit Exercise",
-                systemImage: "pencil.circle",
-                description: Text("Custom exercise editing arrives with 4.4")
-            )
-            .navigationTitle("Edit Exercise")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel", systemImage: "xmark") { dismiss() }
-                        .accessibilityLabel("Cancel")
-                        .accessibilityIdentifier("exerciseDetail.edit.cancel")
-                }
-            }
-        }
-        .accessibilityIdentifier("screen.editExercise")
     }
 }
 

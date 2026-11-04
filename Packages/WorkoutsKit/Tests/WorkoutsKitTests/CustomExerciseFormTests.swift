@@ -1,0 +1,174 @@
+import Foundation
+import SwiftData
+import Testing
+
+@testable import WorkoutsKit
+
+@Suite struct CustomExerciseFormTests {
+    struct Rig {
+        let container: ModelContainer
+        let store: ExerciseStore
+        var context: ModelContext { container.mainContext }
+
+        init() throws {
+            container = try ModelContainer.workouts(inMemory: true, cloudKit: false)
+            store = ExerciseStore(catalog: try LibraryFixture.catalog())
+        }
+    }
+
+    // MARK: validation
+
+    @Test func nameIsRequiredAndTrimmed() throws {
+        let rig = try Rig()
+        #expect(CustomExerciseForm.validate(.init(name: ""), in: rig.store) == [.nameMissing])
+        #expect(CustomExerciseForm.validate(.init(name: "  \n "), in: rig.store) == [.nameMissing])
+        #expect(CustomExerciseForm.validate(.init(name: "  Sled Push "), in: rig.store).isEmpty)
+        #expect(CustomExerciseForm.Draft(name: "  Sled Push ").trimmedName == "Sled Push")
+    }
+
+    @Test func nameLengthLimit() throws {
+        let rig = try Rig()
+        let ok = String(repeating: "a", count: 120)
+        #expect(CustomExerciseForm.validate(.init(name: ok), in: rig.store).isEmpty)
+        #expect(CustomExerciseForm.validate(.init(name: ok + "a"), in: rig.store) == [.nameTooLong])
+    }
+
+    @Test func nameMustBeUniqueAgainstLibraryAndCustom() throws {
+        let rig = try Rig()
+        #expect(CustomExerciseForm.validate(.init(name: "back squat"), in: rig.store) == [.nameTaken])
+        #expect(CustomExerciseForm.validate(.init(name: " BACK SQUAT "), in: rig.store) == [.nameTaken])
+        let created = try CustomExerciseForm.create(.init(name: "Sled Push"), in: rig.context, store: rig.store)
+        #expect(CustomExerciseForm.validate(.init(name: "sled push"), in: rig.store) == [.nameTaken])
+        // The exercise being edited may keep its own name.
+        #expect(CustomExerciseForm.validate(.init(name: "Sled Push"), editing: created.id, in: rig.store).isEmpty)
+        // Archived exercises still hold their name.
+        try CustomExerciseForm.archive(created, in: rig.context, store: rig.store)
+        #expect(CustomExerciseForm.validate(.init(name: "Sled Push"), in: rig.store) == [.nameTaken])
+    }
+
+    @Test func restParsing() {
+        #expect(CustomExerciseForm.parseRest("90") == 90)
+        #expect(CustomExerciseForm.parseRest(" 0 ") == 0)
+        #expect(CustomExerciseForm.parseRest("3600") == 3600)
+        #expect(CustomExerciseForm.parseRest("3601") == nil)
+        #expect(CustomExerciseForm.parseRest("") == nil)
+        #expect(CustomExerciseForm.parseRest("-5") == nil)
+        #expect(CustomExerciseForm.parseRest("1.5") == nil)
+        #expect(CustomExerciseForm.parseRest("abc") == nil)
+    }
+
+    @Test func restAndBarWeightIssues() throws {
+        let rig = try Rig()
+        var draft = CustomExerciseForm.Draft(name: "Sled Push", restText: "x")
+        #expect(CustomExerciseForm.validate(draft, in: rig.store) == [.restInvalid])
+        draft.restText = ""
+        #expect(CustomExerciseForm.validate(draft, in: rig.store).isEmpty)
+        draft.barType = .custom
+        #expect(CustomExerciseForm.validate(draft, in: rig.store) == [.barWeightInvalid])
+        draft.barWeightText = "17,5"
+        #expect(CustomExerciseForm.validate(draft, in: rig.store).isEmpty)
+        #expect(draft.barWeight == 17.5)
+        draft.barWeightText = "1001"
+        #expect(CustomExerciseForm.validate(draft, in: rig.store) == [.barWeightInvalid])
+        // A stale bar weight is ignored unless the bar is custom.
+        draft.barType = .ez
+        #expect(CustomExerciseForm.validate(draft, in: rig.store).isEmpty)
+    }
+
+    // MARK: create / update
+
+    @Test func createInsertsAndRefreshesStore() throws {
+        let rig = try Rig()
+        let draft = CustomExerciseForm.Draft(
+            name: " Sled Push ",
+            bodyPart: "legs",
+            equipment: ["machine"],
+            weightType: .machine,
+            instructions: "Brace\n\n  Drive \n",
+            unit: .kg,
+            barType: .custom,
+            barWeightText: "15",
+            restText: "75"
+        )
+        let created = try CustomExerciseForm.create(draft, in: rig.context, store: rig.store)
+        let rows = try rig.context.fetch(FetchDescriptor<Exercise>())
+        #expect(rows.count == 1)
+        #expect(created.name == "Sled Push")
+        #expect(created.instructions == ["Brace", "Drive"])
+        #expect(created.unit == .kg && created.barType == .custom && created.barWeight == 15)
+        #expect(created.restSeconds == 75)
+        let info = try #require(rig.store.exercise(id: created.id))
+        #expect(info.isCustom && info.name == "Sled Push" && info.bodyPart == "legs")
+        #expect(rig.store.search("sled").map(\.id) == [created.id])
+    }
+
+    @Test func updateRewritesFieldsAndKeepsId() throws {
+        let rig = try Rig()
+        let created = try CustomExerciseForm.create(
+            .init(name: "Sled Push", barType: .custom, barWeightText: "15"),
+            in: rig.context,
+            store: rig.store
+        )
+        var draft = CustomExerciseForm.Draft(created)
+        #expect(draft.barWeightText == "15")
+        draft.name = "Sled Pull"
+        draft.barType = .none
+        draft.restText = "60"
+        try CustomExerciseForm.update(created, from: draft, in: rig.context, store: rig.store)
+        #expect(created.name == "Sled Pull" && created.barType == BarType.none)
+        #expect(created.barWeight == nil && created.restSeconds == 60)
+        #expect(rig.store.exercise(id: created.id)?.name == "Sled Pull")
+        #expect(try rig.context.fetch(FetchDescriptor<Exercise>()).count == 1)
+    }
+
+    // MARK: references, archive, delete
+
+    @Test func unusedExerciseIsNotReferencedAndDeletes() throws {
+        let rig = try Rig()
+        let created = try CustomExerciseForm.create(.init(name: "Sled Push"), in: rig.context, store: rig.store)
+        let id = created.id
+        rig.context.insert(StickyNote(exerciseID: id, text: "heavy"))
+        try rig.context.save()
+        #expect(!CustomExerciseForm.isReferenced(exerciseID: id, in: rig.context))
+        let deleted = try CustomExerciseForm.delete(created, in: rig.context, store: rig.store)
+        #expect(deleted)
+        #expect(rig.store.exercise(id: id) == nil)
+        #expect(try rig.context.fetch(FetchDescriptor<Exercise>()).isEmpty)
+        #expect(try rig.context.fetch(FetchDescriptor<StickyNote>()).isEmpty)
+    }
+
+    @Test func templateRowReferencesAndBlocksDelete() throws {
+        let rig = try Rig()
+        let created = try CustomExerciseForm.create(.init(name: "Sled Push"), in: rig.context, store: rig.store)
+        let template = Template(name: "Legs")
+        rig.context.insert(template)
+        rig.context.insert(TemplateExercise(exerciseID: created.id, exerciseName: "Sled Push", template: template))
+        try rig.context.save()
+        #expect(CustomExerciseForm.isReferenced(exerciseID: created.id, in: rig.context))
+        let deleted = try CustomExerciseForm.delete(created, in: rig.context, store: rig.store)
+        #expect(!deleted)
+        #expect(rig.store.exercise(id: created.id) != nil)
+    }
+
+    @Test func workoutRowReferences() throws {
+        let rig = try Rig()
+        let created = try CustomExerciseForm.create(.init(name: "Sled Push"), in: rig.context, store: rig.store)
+        let workout = Workout(name: "Legs")
+        rig.context.insert(workout)
+        rig.context.insert(WorkoutExercise(exerciseID: created.id, exerciseName: "Sled Push", workout: workout))
+        try rig.context.save()
+        #expect(CustomExerciseForm.isReferenced(exerciseID: created.id, in: rig.context))
+        #expect(!CustomExerciseForm.isReferenced(exerciseID: UUID(), in: rig.context))
+    }
+
+    @Test func archiveRetiresButKeepsRowAndLookup() throws {
+        let rig = try Rig()
+        let created = try CustomExerciseForm.create(.init(name: "Sled Push"), in: rig.context, store: rig.store)
+        try CustomExerciseForm.archive(created, in: rig.context, store: rig.store)
+        #expect(created.retired)
+        #expect(rig.store.exercise(id: created.id)?.isRetired == true)
+        #expect(!rig.store.all().contains { $0.id == created.id })
+        #expect(rig.store.all(includeRetired: true).contains { $0.id == created.id })
+        #expect(CustomExerciseForm.exercise(id: created.id, in: rig.context) === created)
+    }
+}

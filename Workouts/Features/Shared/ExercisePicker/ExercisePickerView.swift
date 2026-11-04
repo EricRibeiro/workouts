@@ -32,6 +32,7 @@ struct ExercisePickerView: View {
     @State private var category: String?
     @State private var selection = ExerciseSelection()
     @State private var peeked: ExerciseInfo?
+    @State private var isCreating = false
 
     init(title: String = "Add Exercise", mode: ExercisePickerMode) {
         self.title = title
@@ -53,6 +54,9 @@ struct ExercisePickerView: View {
         NavigationStack {
             List {
                 filterRow
+                if results.isEmpty, !trimmedQuery.isEmpty {
+                    createRow
+                }
                 ForEach(results) { info in
                     ExercisePickerRow(
                         info: info,
@@ -68,6 +72,7 @@ struct ExercisePickerView: View {
             .overlay {
                 if results.isEmpty {
                     ContentUnavailableView.search(text: query)
+                        .allowsHitTesting(false)
                 }
             }
             .navigationTitle(title)
@@ -100,6 +105,18 @@ struct ExercisePickerView: View {
                     }
                 }
             }
+            .sheet(isPresented: $isCreating) {
+                CustomExerciseFormView(prefill: trimmedQuery) { created in
+                    switch mode {
+                    case .single(let onPick):
+                        onPick(created)
+                        dismiss()
+                    case .multiple:
+                        selection.select(created.id)
+                    }
+                }
+                .presentationPlacement(.center)
+            }
             .sheet(item: $peeked) { info in
                 ExerciseAboutView(info: info)
                     .presentationDetents([.medium, .large])
@@ -107,6 +124,15 @@ struct ExercisePickerView: View {
             }
         }
         .accessibilityIdentifier("screen.exercisePicker")
+    }
+
+    private var trimmedQuery: String { query.trimmingCharacters(in: .whitespacesAndNewlines) }
+
+    /// Shown when the search finds nothing: opens the custom exercise form with the search text as the name.
+    private var createRow: some View {
+        Button("Create “\(trimmedQuery)”", systemImage: "plus.circle") { isCreating = true }
+            .accessibilityLabel("Create “\(trimmedQuery)”")
+            .accessibilityIdentifier("picker.createCustom")
     }
 
     private func tap(_ info: ExerciseInfo) {

@@ -27,6 +27,8 @@
         case exerciseDetail = "ExerciseDetail"
         case workoutDetail = "WorkoutDetail"
         case pastEditor = "PastEditor"
+        case customExerciseForm = "CustomExerciseForm"
+        case customExerciseFormEdit = "CustomExerciseFormEdit"
 
         var id: String { rawValue }
 
@@ -52,6 +54,8 @@
             case .exerciseDetail: ExerciseDetailDemo()
             case .workoutDetail: WorkoutDetailDemo()
             case .pastEditor: PastEditorDemo()
+            case .customExerciseForm: CustomExerciseFormView(prefill: "Zz Sled Drag")
+            case .customExerciseFormEdit: CustomExerciseFormEditDemo()
             case .exercisePickerMulti:
                 ExercisePickerView(title: "Add Exercises", mode: .multiple(add: { _ in }, superset: { _ in }))
             }
