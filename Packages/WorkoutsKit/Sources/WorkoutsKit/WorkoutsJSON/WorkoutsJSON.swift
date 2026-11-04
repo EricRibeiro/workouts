@@ -129,6 +129,12 @@ extension WorkoutsJSON {
         try decoder.decode(WorkoutsJSON.self, from: data)
     }
 
+    /// The file name Export… offers: `workouts-export-YYYY-MM-DD.json`, the day read in `timeZone` (the device's by default).
+    public nonisolated static func exportFileName(for date: Date, timeZone: TimeZone = .current) -> String {
+        let style = Date.ISO8601FormatStyle(dateSeparator: .dash, timeZone: timeZone).year().month().day()
+        return "workouts-export-\(date.formatted(style)).json"
+    }
+
     private nonisolated static var fractionalStyle: Date.ISO8601FormatStyle {
         Date.ISO8601FormatStyle(includingFractionalSeconds: true)
     }

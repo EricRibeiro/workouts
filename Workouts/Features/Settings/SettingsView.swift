@@ -5,6 +5,7 @@
 
 import SwiftData
 import SwiftUI
+import UniformTypeIdentifiers
 import WorkoutsKit
 
 struct SettingsView: View {
@@ -12,6 +13,19 @@ struct SettingsView: View {
     /// The app's one `SettingsStore` (injected by `WorkoutsApp`): every change writes straight back through it, and the
     /// rest of the app sees it at once. `@Observable`, so the controls bind to it directly.
     @Environment(SettingsStore.self) private var settings
+    @Environment(\.modelContext) private var modelContext
+    /// Optional so the screen still builds where no store is injected; Import then skips the library check.
+    @Environment(ExerciseStore.self) private var exerciseStore: ExerciseStore?
+
+    @State private var isPickingFile = false
+    @State private var isImporting = false
+    @State private var outcome: TransferOutcome?
+
+    /// What the result alert shows after an import.
+    private struct TransferOutcome {
+        let title: String
+        let message: String
+    }
 
     private var bound: Bindable<SettingsStore> { Bindable(settings) }
 
@@ -25,6 +39,7 @@ struct SettingsView: View {
                 workout
                 media
                 iCloud
+                data
                 #if DEBUG
                     DebugSection()
                 #endif
@@ -40,6 +55,64 @@ struct SettingsView: View {
             }
         }
         .accessibilityIdentifier("screen.settings")
+        .fileImporter(isPresented: $isPickingFile, allowedContentTypes: [.json]) { result in
+            switch result {
+            case .success(let url): runImport(url)
+            case .failure(let error):
+                outcome = TransferOutcome(title: "Could Not Import", message: DataTransfer.message(for: error))
+            }
+        }
+        .alert(
+            outcome?.title ?? "",
+            isPresented: Binding(get: { outcome != nil }, set: { if !$0 { outcome = nil } }),
+            presenting: outcome
+        ) { _ in
+            Button("OK", role: .cancel) {}
+                .accessibilityIdentifier("settings.transferOK")
+        } message: { outcome in
+            Text(outcome.message)
+        }
+    }
+
+    private var data: some View {
+        Section {
+            Button("Import…", systemImage: "square.and.arrow.down") { isPickingFile = true }
+                .disabled(isImporting)
+                .accessibilityLabel("Import")
+                .accessibilityIdentifier("settings.import")
+            ShareLink(
+                item: ExportArchive(container: modelContext.container, catalog: exerciseStore?.catalog),
+                preview: SharePreview(WorkoutsJSON.exportFileName(for: Date()))
+            ) {
+                Label("Export…", systemImage: "square.and.arrow.up")
+            }
+            .accessibilityLabel("Export")
+            .accessibilityIdentifier("settings.export")
+        } header: {
+            Text("Data")
+        } footer: {
+            Text(
+                "Export saves your workouts, templates and custom exercises as one JSON file. Import reads such a file; rows already here are left alone unless the file's copy is newer."
+            )
+        }
+    }
+
+    private func runImport(_ url: URL) {
+        isImporting = true
+        let context = modelContext
+        let catalog = exerciseStore?.catalog
+        Task {
+            defer { isImporting = false }
+            do {
+                let document = try await DataTransfer.readDocument(at: url)
+                let report = try DataTransfer.apply(document, to: context, catalog: catalog)
+                // Imported custom exercises must reach the pickers and detail screens.
+                exerciseStore?.setCustom(try modelContext.fetch(FetchDescriptor<Exercise>()))
+                outcome = TransferOutcome(title: report.headline, message: report.summary)
+            } catch {
+                outcome = TransferOutcome(title: "Could Not Import", message: DataTransfer.message(for: error))
+            }
+        }
     }
 
     private var unitsAndRecords: some View {

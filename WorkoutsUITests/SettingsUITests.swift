@@ -63,4 +63,30 @@ final class SettingsUITests: XCTestCase {
         for _ in 0..<4 where !icloud.exists { app.swipeUp() }
         XCTAssertTrue(icloud.exists, "iCloudStatus")
     }
+
+    /// The file pickers cannot be driven reliably, so this only proves the rows exist and Export opens the share sheet
+    /// (import, export and re-import are proven by the kit's `ImportExportFlowTests`).
+    @MainActor
+    func testDataRowsExistAndExportOpensTheShareSheet() throws {
+        let app = launch()
+        let any = app.descendants(matching: .any)
+        XCTAssertTrue(any["screen.settings"].waitForExistence(timeout: 10))
+        let export = app.buttons["settings.export"].firstMatch
+        for _ in 0..<5 where !export.isHittable { app.swipeUp() }
+        XCTAssertTrue(export.exists, "no Export row")
+        XCTAssertTrue(app.buttons["settings.import"].firstMatch.exists, "no Import row")
+
+        export.tap()
+        let sheet = app.otherElements["ActivityListView"]
+        XCTAssertTrue(sheet.waitForExistence(timeout: 10), "no share sheet")
+        // Dismiss it with its close button when it exposes one, else by tapping the dimmed area above the sheet.
+        let close = app.buttons.matching(NSPredicate(format: "label ==[c] 'close'")).firstMatch
+        if close.waitForExistence(timeout: 3) {
+            close.tap()
+        } else {
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.04)).tap()
+        }
+        XCTAssertTrue(sheet.waitForNonExistence(timeout: 10), "share sheet still showing")
+        XCTAssertTrue(any["screen.settings"].exists)
+    }
 }
