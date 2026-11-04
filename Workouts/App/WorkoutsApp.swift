@@ -26,6 +26,13 @@ struct WorkoutsApp: App {
 
     @MainActor
     init() {
+        #if DEBUG
+            // UI tests start from default settings too (the store is in-memory, see makeContainer): earlier runs' taps
+            // otherwise persist in UserDefaults. Launch arguments still override through the argument domain.
+            if ProcessInfo.processInfo.arguments.contains("-uiTesting"), let domain = Bundle.main.bundleIdentifier {
+                UserDefaults.standard.removePersistentDomain(forName: domain)
+            }
+        #endif
         let notifier = RestNotifier()
         notifier.activate()
         restNotifier = notifier

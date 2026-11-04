@@ -258,7 +258,7 @@ Live Activity → notifications → logging, then templates, exercises, history.
 - [x] **5.1 History list**: `NavigationStack` in both widths (`DECISIONS.md`), month `Section`s of workout rows (section 3), lazy rows,
   zoom push to the detail, `.searchable` + `searchScopes` (All · PRs), `contextMenu` + `swipeActions`,
   `tabBarMinimizeBehavior(.onScrollDown)`. Needs: 0.9, 0.10. Proof: preview with the 50 sample workouts.
-- [ ] **5.2 Weekly goal chart** as the hero card (Swift Charts, goal line; plain header) over a kit function
+- [x] **5.2 Weekly goal chart** as the hero card (Swift Charts, goal line; plain header) over a kit function
   `weeklyCounts(workouts:calendar:weeks:)` (ISO weeks, Monday, injected `Calendar`/`TimeZone`). Needs: 5.1, 0.9, 0.10. Proof: `./dev kit
   Weekly` (incl. a DST boundary, America/Toronto, 2026-11-01) + preview.
 - [ ] **5.3 Dashboard cards**: This Week, Recent PRs, Last Workout, even columns from the grid's width, Fitness's card shape.

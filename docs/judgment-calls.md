@@ -31,3 +31,6 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
 14. **Warm-up ramp with no bar** has no empty-bar step; a custom bar without a weight counts as no bar (3.5).
 15. **"Discard workout?" anchors on the Finish item** (2.8): the confirmation lives with the Finish dialogs, so on regular width
     its popover points at Finish rather than the title menu. Rename errors get their own small alert.
+16. **Weekly chart** (5.2): device time zone (not the web's server TZ), labels unpadded `11/2`, hidden under search and the PRs
+    scope, card on `secondarySystemBackground` (the grouped colour was white on white). Goal stays in Settings only.
+17. **UI tests clear the app's UserDefaults at launch** (`-uiTesting`), so settings tapped in one test never leak into another.

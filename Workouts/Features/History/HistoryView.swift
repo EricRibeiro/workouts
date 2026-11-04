@@ -71,6 +71,13 @@ struct HistoryView: View {
         } else {
             let sections = HistoryList.sections(HistoryList.filter(entries, query: query, scope: scope))
             List {
+                if query.isEmpty && scope == .all {
+                    Section {
+                        WeeklyGoalSection(starts: finished.map(\.startedAt))
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
+                    }
+                }
                 ForEach(sections) { section in
                     Section(section.title) {
                         ForEach(section.entries) { entry in

@@ -90,7 +90,6 @@ final class HistoryListUITests: XCTestCase {
         let app = launch()
         let rows = rows(app)
         XCTAssertTrue(rows.element(boundBy: 0).waitForExistence(timeout: 10), "no history rows")
-        let allCount = rows.count
 
         // On the closed Duo the system folds search into a button in the trailing strip; tap it to get the field.
         let search = app.searchFields.firstMatch
@@ -110,8 +109,8 @@ final class HistoryListUITests: XCTestCase {
         let narrowed = (0..<min(rows.count, 8)).map { rows.element(boundBy: $0).label }
         XCTAssertFalse(narrowed.isEmpty)
         // Every sample workout sets records (steady progression), so the scope keeps all of them; the narrowing
-        // itself is covered by the kit's HistoryList filter tests.
-        XCTAssertLessThanOrEqual(rows.count, allCount + 1)
+        // itself is covered by the kit's HistoryList filter tests. (Row counts are not compared: the list is lazy and
+        // the weekly chart above All changes how many rows are loaded.)
         for label in narrowed {
             XCTAssertTrue(label.contains(" PR"), "row without PRs in the PRs scope: \(label)")
         }
