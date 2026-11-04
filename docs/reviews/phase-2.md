@@ -12,7 +12,7 @@ Evidence PNGs were in the session scratchpad (`review2/`).
 | R-05 | P2 | Finish/discard save failure leaves the context dirty; Retry walks deleted models | `context.rollback()` on throw in finish/discard/begin; kit test with a throwing context | fixed |
 | R-06 | P2 | `try?` swallows save errors across the cover, rest, sources | Shared `@Observable SaveErrors` + one alert on cover root and RootView | fixed |
 | R-07 | P2 | Empty Workout while one runs: no "Workout in progress" dialog; failed start presents a dead-end cover | Don't present on failure now; dialog joins 3.3 | fixed |
-| R-08 | P2 | `SettingsStore()` created ad hoc; keep-screen-on read once | One injected store in the environment; `.onChange` for keepScreenOn | open |
+| R-08 | P2 | `SettingsStore()` created ad hoc; keep-screen-on read once | One injected store in the environment; `.onChange` for keepScreenOn | fixed |
 | R-09 | P2 | Checked rows read as disabled; glyph hard-codes black | Checked cells clear fill; `okFill` asset; glyph asset colour | fixed |
 | R-10 | P2 | Every keystroke → Live Activity update + notification reschedule | Coalesce ~300 ms in both `track`s | fixed |
 | R-11 | P2 | `.timeSensitive` needs the Time Sensitive entitlement on device | Add to the TestFlight checklist (7.x) | plan |
@@ -20,9 +20,9 @@ Evidence PNGs were in the session scratchpad (`review2/`).
 | R-13 | P3 | Resume ring reads as a third action | `ToolbarSpacer(.fixed)` before it: own glass group, still last | fixed |
 | R-14 | P3 | `.system(size: 48/56)` don't scale | Text styles + minimumScaleFactor | fixed |
 | R-15 | P3 | Spacing/radius literals differ per view | `Design/Spacing.swift`; sweep in 5.8 | later |
-| R-16 | P3 | Elapsed subtitle via TimelineView preference | `Text(startedAt, style: .timer)` | open |
+| R-16 | P3 | Elapsed subtitle via TimelineView preference | `Text(startedAt, style: .timer)` | fixed |
 | R-17 | P3 | `finishSummary()` scans history twice for the dialog | `finishDialog()` with counts only | fixed |
-| R-18 | P3 | Cover flashes "No workout in progress" while dismissing | Keep last content while dismissing | open |
+| R-18 | P3 | Cover flashes "No workout in progress" while dismissing | Keep last content while dismissing | fixed |
 | R-19 | P3 | Extension accent is `Color.blue` | Shared asset catalog in `Shared/` | later |
 
 Open, unverified: open-tall pose; draft/focus across a live fold (re-prove in 6.2). Keyboard group at AX overflows into the

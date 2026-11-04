@@ -17,6 +17,8 @@ struct WorkoutsApp: App {
     private let containerError: String?
     /// The one engine for the in-progress workout; resumes a running workout from the store at launch.
     private let engine: ActiveWorkoutEngine?
+    /// The one settings store: the engine reads it, and every view reads or edits it through the environment.
+    private let settings: SettingsStore
     /// The library plus custom exercises, shared by the engine and the pickers.
     private let store: ExerciseStore?
     /// Owns the rest-end notification; the center holds its delegate weakly, so the app keeps it.
@@ -36,6 +38,8 @@ struct WorkoutsApp: App {
                 UserDefaults.standard.removePersistentDomain(forName: domain)
             }
         #endif
+        let settings = SettingsStore()
+        self.settings = settings
         let notifier = RestNotifier()
         notifier.activate()
         restNotifier = notifier
@@ -48,7 +52,7 @@ struct WorkoutsApp: App {
                 catalog: try LibraryCatalog.bundled(in: .main),
                 custom: try context.fetch(FetchDescriptor<Exercise>())
             )
-            let engine = try ActiveWorkoutEngine(context: context, store: store, settings: SettingsStore())
+            let engine = try ActiveWorkoutEngine(context: context, store: store, settings: settings)
             #if DEBUG
                 try Self.startSampleWorkoutIfRequested(engine: engine, context: context)
             #endif
@@ -94,6 +98,7 @@ struct WorkoutsApp: App {
                 // `-preview <Name>` shows a PreviewGallery entry instead of the app (see Debug/PreviewGallery.swift).
                 if let name = PreviewGallery.requestedName() {
                     PreviewGallery.host(name)
+                        .environment(settings)
                 } else {
                     appRoot
                 }
@@ -110,6 +115,7 @@ struct WorkoutsApp: App {
                 .modelContainer(container)
                 .environment(engine)
                 .environment(store)
+                .environment(settings)
                 .environment(saveErrors)
         } else {
             ContentUnavailableView(

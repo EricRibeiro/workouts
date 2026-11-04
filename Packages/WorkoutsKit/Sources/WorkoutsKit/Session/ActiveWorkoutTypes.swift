@@ -16,6 +16,20 @@ public nonisolated enum ActiveWorkoutError: Error, Equatable, Sendable {
     case invalidOrder
 }
 
+extension ActiveWorkoutError: LocalizedError {
+    /// Short English sentences for the save-error alert.
+    public var errorDescription: String? {
+        switch self {
+        case .workoutInProgress(let name): "A workout is already in progress (\(name))."
+        case .noActiveWorkout: "There is no workout in progress."
+        case .emptySet: "There is nothing to record in this set."
+        case .nothingLogged: "Nothing has been logged yet."
+        case .notInActiveWorkout: "That item is not part of the workout in progress."
+        case .invalidOrder: "The exercise order is not valid."
+        }
+    }
+}
+
 /// What to do with unchecked sets that have values when finishing ("Complete Unfinished Sets" / "Discard Unfinished
 /// Sets").
 public nonisolated enum UnfinishedSets: Sendable, Hashable {

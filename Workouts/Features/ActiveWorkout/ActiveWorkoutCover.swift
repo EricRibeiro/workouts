@@ -21,6 +21,7 @@ struct ActiveWorkoutCover: View {
     @Environment(ActiveWorkoutEngine.self) private var engine: ActiveWorkoutEngine?
     @Environment(ExerciseStore.self) private var store: ExerciseStore?
     @Environment(SaveErrors.self) private var errors: SaveErrors?
+    @Environment(SettingsStore.self) private var settings: SettingsStore?
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var isPickerPresented = false
     @State private var minimiseCount = 0
@@ -29,12 +30,17 @@ struct ActiveWorkoutCover: View {
     @State private var renameText = ""
     @State private var renameError: String?
     @State private var focusedSectionID: UUID?
+    /// The last content shown for a running workout, as plain values (never the model, which Finish and Discard delete),
+    /// so the cover keeps drawing it while it animates away instead of flashing the empty state.
+    @State private var lastShown: LastShown?
 
     var body: some View {
         NavigationStack {
             Group {
                 if let engine, let store, let workout = engine.workout {
                     content(engine: engine, store: store, workout: workout)
+                } else if let lastShown {
+                    dismissing(lastShown)
                 } else {
                     ContentUnavailableView(
                         "No workout in progress",
@@ -95,7 +101,8 @@ struct ActiveWorkoutCover: View {
             .presentationPlacement(.center)
         }
         // UIKit: SwiftUI has no idle-timer API.
-        .onAppear { UIApplication.shared.isIdleTimerDisabled = SettingsStore().keepScreenOn }
+        .onAppear { applyKeepScreenOn() }
+        .onChange(of: settings?.keepScreenOn) { applyKeepScreenOn() }
         .onDisappear { UIApplication.shared.isIdleTimerDisabled = false }
         .sensoryFeedback(.selection, trigger: minimiseCount)
         // The cover is a presentation of its own, so it hosts its own save-error alert.
@@ -103,60 +110,74 @@ struct ActiveWorkoutCover: View {
         .accessibilityIdentifier("screen.activeWorkout")
     }
 
+    private func applyKeepScreenOn() {
+        UIApplication.shared.isIdleTimerDisabled = settings?.keepScreenOn ?? SettingsStore.keepScreenOnDefault
+    }
+
     @ViewBuilder
     private func content(engine: ActiveWorkoutEngine, store: ExerciseStore, workout: Workout) -> some View {
-        let sections = EngineSetTableSource(engine: engine, store: store, errors: errors).sections
-        let focused = focusedSection(in: sections)
-        // One ArrangementView in both widths, so folding never swaps the table's identity (draft, focus and scroll stay);
-        // the pane is simply absent on compact width.
+        let source = EngineSetTableSource(engine: engine, store: store, errors: errors)
+        let sections = source.sections
+        arrangement(source: source, sections: sections)
+            .navigationTitle(workout.name)
+            .onChange(
+                of: LastShown(name: workout.name, startedAt: workout.startedAt, sections: sections),
+                initial: true
+            ) {
+                _,
+                new in lastShown = new
+            }
+            .toolbarTitleMenu {
+                Button("Rename…", systemImage: "pencil") {
+                    renameText = workout.name
+                    isRenaming = true
+                }
+                .accessibilityIdentifier("cover.titleMenu.rename")
+                Button("Discard Workout", systemImage: "trash", role: .destructive) {
+                    finishFlow.requestDiscard(engine: engine, onDiscarded: onDiscarded)
+                }
+                .accessibilityIdentifier("cover.titleMenu.discard")
+            }
+            .alert("Rename Workout", isPresented: $isRenaming) {
+                TextField("Name", text: $renameText)
+                    .accessibilityIdentifier("rename.field")
+                Button("Save") { rename(engine, to: renameText) }
+                    .accessibilityIdentifier("rename.save")
+                Button("Cancel", role: .cancel) {}
+                    .accessibilityIdentifier("rename.cancel")
+            }
+            .alert(
+                "Could Not Rename",
+                isPresented: Binding(get: { renameError != nil }, set: { if !$0 { renameError = nil } })
+            ) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(renameError ?? "")
+            }
+            .navigationSubtitle(subtitle(startedAt: workout.startedAt))
+    }
+
+    /// What the cover shows between Finish or Discard and the end of its dismissal: the last content, read-only.
+    private func dismissing(_ last: LastShown) -> some View {
+        arrangement(source: FrozenSetTableSource(sections: last.sections), sections: last.sections)
+            .allowsHitTesting(false)
+            .navigationTitle(last.name)
+            .navigationSubtitle(subtitle(startedAt: last.startedAt))
+    }
+
+    /// One ArrangementView in both widths, so folding never swaps the table's identity (draft, focus and scroll stay);
+    /// the pane is simply absent on compact width.
+    private func arrangement(source: any SetTableDataSource, sections: [SetTableSection]) -> some View {
         ArrangementView {
-            SetTable(
-                source: EngineSetTableSource(engine: engine, store: store, errors: errors),
-                focusedSection: $focusedSectionID
-            )
+            SetTable(source: source, focusedSection: $focusedSectionID)
         } secondary: {
             if horizontalSizeClass == .regular {
-                ExercisePane(exerciseName: focused?.name)
+                ExercisePane(exerciseName: focusedSection(in: sections)?.name)
             }
         }
         .arrangementViewStyle(
             .split.axes(horizontalSizeClass == .regular ? Axis.Set([.horizontal, .vertical]) : Axis.Set())
         )
-        .navigationTitle(workout.name)
-        .toolbarTitleMenu {
-            Button("Rename…", systemImage: "pencil") {
-                renameText = workout.name
-                isRenaming = true
-            }
-            .accessibilityIdentifier("cover.titleMenu.rename")
-            Button("Discard Workout", systemImage: "trash", role: .destructive) {
-                finishFlow.requestDiscard(engine: engine, onDiscarded: onDiscarded)
-            }
-            .accessibilityIdentifier("cover.titleMenu.discard")
-        }
-        .alert("Rename Workout", isPresented: $isRenaming) {
-            TextField("Name", text: $renameText)
-                .accessibilityIdentifier("rename.field")
-            Button("Save") { rename(engine, to: renameText) }
-                .accessibilityIdentifier("rename.save")
-            Button("Cancel", role: .cancel) {}
-                .accessibilityIdentifier("rename.cancel")
-        }
-        .alert(
-            "Could Not Rename",
-            isPresented: Binding(get: { renameError != nil }, set: { if !$0 { renameError = nil } })
-        ) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(renameError ?? "")
-        }
-        // The subtitle ticks every second from a background view, so the set table is not re-evaluated with it.
-        .background {
-            TimelineView(.periodic(from: .now, by: 1)) { context in
-                Color.clear
-                    .navigationSubtitle(subtitle(for: workout, at: context.date))
-            }
-        }
     }
 
     /// The block the exercise pane shows: the last focused or tapped one while it still exists, else the first with an
@@ -170,10 +191,10 @@ struct ActiveWorkoutCover: View {
         return sections.first { $0.id == id }
     }
 
-    private func subtitle(for workout: Workout, at date: Date) -> String {
-        let started = workout.startedAt.formatted(.dateTime.month(.abbreviated).day())
-        let elapsed = ElapsedFormat.string(seconds: Int(date.timeIntervalSince(workout.startedAt)))
-        return "\(started) · \(elapsed)"
+    /// "Nov 4 · 12:34", the elapsed time counting up by itself (a `.timer` Text), so nothing re-evaluates each second.
+    private func subtitle(startedAt: Date) -> Text {
+        let started = startedAt.formatted(.dateTime.month(.abbreviated).day())
+        return Text("\(started) · ") + Text(startedAt, style: .timer)
     }
 
     /// Saves a new name; blank or whitespace-only input is ignored, anything else is trimmed.
@@ -209,4 +230,25 @@ struct ActiveWorkoutCover: View {
 
 #Preview {
     ActiveWorkoutCover(minimise: {}, onFinished: { _ in }, onDiscarded: {})
+}
+
+/// Plain values of the running workout's logging screen, kept after the model is gone.
+private struct LastShown: Equatable {
+    let name: String
+    let startedAt: Date
+    let sections: [SetTableSection]
+}
+
+/// A read-only table over cached sections: the cover's last frame while Finish or Discard dismisses it.
+private struct FrozenSetTableSource: SetTableDataSource {
+    let sections: [SetTableSection]
+    var mode: SetTableMode { .active }
+    func cycleKind(of setID: UUID) {}
+    func applyPrevious(to setID: UUID) {}
+    func commitWeight(_ weight: Double?, for setID: UUID) {}
+    func commitReps(_ value: Int?, for setID: UUID) {}
+    func toggleCheck(of setID: UUID) -> Bool { false }
+    func addSet(to sectionID: UUID) {}
+    func deleteSet(_ setID: UUID) {}
+    func reorder(_ order: [UUID]) {}
 }

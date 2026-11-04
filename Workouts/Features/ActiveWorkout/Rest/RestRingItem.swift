@@ -14,6 +14,7 @@ import WorkoutsKit
 struct RestRingItem: View {
     @Environment(ActiveWorkoutEngine.self) private var engine: ActiveWorkoutEngine?
     @Environment(SaveErrors.self) private var errors: SaveErrors?
+    @Environment(SettingsStore.self) private var settings: SettingsStore?
     @State private var isCustomPresented = false
     @State private var isRunningPresented = false
     /// Updated by the 1 s rest loop; the arc and the accessibility time derive from it.
@@ -40,7 +41,7 @@ struct RestRingItem: View {
             ForEach(RestTimer.defaultPresets, id: \.self) { seconds in
                 presetButton(seconds, engine: engine)
             }
-            let customs = SettingsStore().restPresets
+            let customs = settings?.restPresets ?? SettingsStore.restPresetsDefault
             if !customs.isEmpty {
                 Divider()
                 ForEach(customs, id: \.self) { seconds in

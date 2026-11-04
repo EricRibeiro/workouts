@@ -9,9 +9,11 @@ import WorkoutsKit
 
 struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
-    /// Reads the stored values once and writes each change straight back through `SettingsStore`; `@Observable`, so the
-    /// controls bind to it directly.
-    @State private var settings = SettingsStore()
+    /// The app's one `SettingsStore` (injected by `WorkoutsApp`): every change writes straight back through it, and the
+    /// rest of the app sees it at once. `@Observable`, so the controls bind to it directly.
+    @Environment(SettingsStore.self) private var settings
+
+    private var bound: Bindable<SettingsStore> { Bindable(settings) }
 
     /// Seconds offered by the rest menu (`history.md` section 8); 0 is shown as "Off".
     private static let restOptions = [0, 30, 45, 60, 90, 120, 150, 180, 240, 300]
@@ -44,7 +46,7 @@ struct SettingsView: View {
         Section {
             VStack(alignment: .leading) {
                 Text("Weight unit")
-                Picker("Weight unit", selection: $settings.defaultUnit) {
+                Picker("Weight unit", selection: bound.defaultUnit) {
                     ForEach(WeightUnit.allCases, id: \.self) { Text($0.rawValue).tag($0) }
                 }
                 .pickerStyle(.segmented)
@@ -54,7 +56,7 @@ struct SettingsView: View {
             }
             VStack(alignment: .leading) {
                 Text("Estimated 1RM formula")
-                Picker("Estimated 1RM formula", selection: $settings.e1rmFormula) {
+                Picker("Estimated 1RM formula", selection: bound.e1rmFormula) {
                     Text("Epley").tag(E1RMFormula.epley)
                     Text("Brzycki").tag(E1RMFormula.brzycki)
                 }
@@ -73,7 +75,7 @@ struct SettingsView: View {
 
     private var workout: some View {
         Section("Workout") {
-            Picker("Default rest timer", selection: $settings.defaultRestSeconds) {
+            Picker("Default rest timer", selection: bound.defaultRestSeconds) {
                 ForEach(restChoices, id: \.self) { seconds in
                     Text(seconds == 0 ? "Off" : ElapsedFormat.string(seconds: seconds)).tag(seconds)
                 }
@@ -81,7 +83,7 @@ struct SettingsView: View {
             .pickerStyle(.menu)
             .accessibilityIdentifier("settings.defaultRestSeconds")
 
-            Stepper(value: $settings.weeklyGoal, in: 1...14) {
+            Stepper(value: bound.weeklyGoal, in: 1...14) {
                 LabeledContent("Weekly goal", value: "\(settings.weeklyGoal)")
             }
             .accessibilityElement(children: .combine)
@@ -89,7 +91,7 @@ struct SettingsView: View {
             .accessibilityValue("\(settings.weeklyGoal) workouts per week")
             .accessibilityIdentifier("settings.weeklyGoal")
 
-            Toggle("Keep screen on during a workout", isOn: $settings.keepScreenOn)
+            Toggle("Keep screen on during a workout", isOn: bound.keepScreenOn)
                 .accessibilityLabel("Keep screen on during a workout")
                 .accessibilityIdentifier("settings.keepScreenOn")
         }
@@ -105,7 +107,7 @@ struct SettingsView: View {
         Section {
             // TODO(media): MediaStore has no start/stop hook for a bulk download yet (only `prefetch(sourceIDs:scheme:)`,
             // which needs a catalog-wide id list and a Wi-Fi-only session); for now the choice is only persisted.
-            Toggle("Download all videos", isOn: $settings.downloadAllVideos)
+            Toggle("Download all videos", isOn: bound.downloadAllVideos)
                 .accessibilityLabel("Download all videos")
                 .accessibilityIdentifier("settings.downloadAllVideos")
         } header: {
@@ -168,9 +170,9 @@ struct SettingsView: View {
 private struct SettingsPreview: View {
     var body: some View {
         if let container = try? ModelContainer.preview(catalog: LibraryCatalog.bundled(in: .main)) {
-            SettingsView().modelContainer(container)
+            SettingsView().modelContainer(container).environment(SettingsStore())
         } else {
-            SettingsView()
+            SettingsView().environment(SettingsStore())
         }
     }
 }
