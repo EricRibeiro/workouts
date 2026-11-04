@@ -158,3 +158,6 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
     configuration's `secondary` (pane, `RestCountdownHeader` while a rest runs) above the division and `primary` (table) below.
     Both branches use the style's placeholders, so the content stays hosted by the `ArrangementView`. Draft/focus/scroll across
     a live fold into bench mode is unverified (the sim fold is not scriptable from XCUITest).
+54. **Eric's call (2026-11-04): exercise videos in CloudKit's public database** (single-user app, so the licensing reason
+    for keeping them off Apple no longer applies). Plan in docs/port/media.md; needs 7.1's container first. SwiftData stays
+    local (`cloudKitDatabase: .none`) until 7.2 even once the iCloud entitlement exists.

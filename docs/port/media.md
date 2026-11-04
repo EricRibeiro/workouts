@@ -26,5 +26,9 @@ Decided 2026-11-03 from measurements of the snapshot at
   to CloudKit's public database (`xcrun cktool`) and swap the base URL. The client never
   changes shape.
 
-Media is scraped third-party content; it stays on Eric's host and is never bundled or uploaded to
-Apple, which is also why the videos aren't in the binary.
+**Changed 2026-11-04 (Eric): videos go to CloudKit's public database.** The app is single-user forever, so the
+licensing concern that kept them off Apple's servers no longer applies. Plan: container `iCloud.com.ericribeiro.Workouts`
+(task 7.1); record type `ExerciseMedia` (`sourceId`, `videoLight`, `videoDark` assets); a one-time upload script on this Mac
+using a CloudKit **server-to-server key** (public database, Web Services) into Development, then the schema deployed and the
+same upload run against Production (TestFlight builds read Production); `MediaStore` fetches the record by `sourceId` and
+caches the asset as today. Thumbnails stay bundled. The web app's `/media/` URL remains the interim source until then.
