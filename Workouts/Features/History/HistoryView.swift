@@ -9,7 +9,7 @@ import WorkoutsKit
 
 /// The History tab (task 5.1): a `NavigationStack` in both widths, a `List` with a `Section` per month of finished
 /// workouts (newest first), search over workout and exercise names with an All / PRs scope, and Delete behind a
-/// confirmation. A row pushes the workout detail (a placeholder until 5.5) with the zoom transition. The stack's path
+/// confirmation. A row pushes the workout detail (5.5) with the zoom transition. The stack's path
 /// is `AppNavigation.historyPath`, so folding the Duo keeps it.
 struct HistoryView: View {
     @Binding var path: [HistoryRoute]
@@ -195,8 +195,7 @@ struct HistoryView: View {
     private func destination(_ route: HistoryRoute) -> some View {
         switch route {
         case .workout(let id):
-            // Placeholder until the real detail (5.5).
-            placeholder(id: id, description: "Workout details are coming soon.")
+            WorkoutDetailView(workoutID: id)
                 .navigationTransition(.zoom(sourceID: id, in: zoom))
         case .editWorkout(let id):
             placeholder(id: id, description: "Editing is coming soon.")
@@ -272,9 +271,11 @@ private struct Inputs: Hashable {
     /// Hosts `HistoryView` with its own path for the gallery and the previews.
     struct HistoryDemo: View {
         @State private var path: [HistoryRoute] = []
+        @State private var settings = SettingsStore()
 
         var body: some View {
             HistoryView(path: $path)
+                .environment(settings)
         }
     }
 

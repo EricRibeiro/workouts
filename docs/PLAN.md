@@ -267,7 +267,7 @@ Live Activity → notifications → logging, then templates, exercises, history.
   Needs: 5.2, 0.9, 0.10. Proof: preview, both widths.
 - [x] **5.4 Calendar sheet** from the Calendar toolbar item: month grid (Monday first), workout days marked, tap opens the
   workout. Needs: 5.1, 0.9, 0.10. Proof: preview.
-- [ ] **5.5 Workout detail**: PR lines, trophies, the per-exercise Exercise | Best Set table, toolbar items Edit, Save as Template
+- [x] **5.5 Workout detail**: PR lines, trophies, the per-exercise Exercise | Best Set table, toolbar items Edit, Save as Template
   (success = `sensoryFeedback(.success)` + dismiss, no banner), Delete. Needs: 5.1, 0.9, 0.10. Proof: preview + flow.
 - [ ] **5.6 Past-workout editor** (SetTable past mode, start time, duration), pushed from the detail, `ArrangementView` on regular
   as in 3.4. Needs: 5.5, 3.4, 0.10. Proof: flow; later workouts' PR counts update.

@@ -196,10 +196,9 @@ struct SetTable: View {
         return result
     }
 
-    /// Six colours by group number, wrapping (`workout.md` "Supersets"). None of them is a set-kind or check colour.
+    /// The palette is shared with the History detail (`Color.superset(_:)`).
     private static func supersetColor(_ number: Int) -> Color {
-        let palette: [Color] = [.blue, .purple, .pink, .teal, .indigo, .brown]
-        return palette[(number - 1) % palette.count]
+        Color.superset(number)
     }
 
     // MARK: Reorder

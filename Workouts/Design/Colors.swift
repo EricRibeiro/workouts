@@ -31,3 +31,12 @@ extension SetKind {
         }
     }
 }
+
+extension Color {
+    /// Six colours by superset number, wrapping (`workout.md` "Supersets"). None of them is a set-kind or check colour.
+    /// Shared by the set table's bar and the History detail's.
+    static func superset(_ number: Int) -> Color {
+        let palette: [Color] = [.blue, .purple, .pink, .teal, .indigo, .brown]
+        return palette[((number - 1) % palette.count + palette.count) % palette.count]
+    }
+}

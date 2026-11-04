@@ -69,3 +69,6 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
 29. **Exercise detail** (4.2): segments About and Records only until 4.3 adds History/Charts; empty navigation title (the large
     in-content name would duplicate it); video stays off until `WorkoutsMediaBaseURL` is set in Info.plist (thumbnails cross-fade
     meanwhile; Reduce Motion stops it); finish-summary PR rows now push the exercise's Records.
+30. **Workout detail** (5.5): Save as Template is one sheet (name prefilled, folder list, "No Folder", or a new "Templates"
+    folder when none exist) instead of the web's two steps; it copies completed sets only. Set labels number by position among
+    completed sets. Shared `Color.superset(_:)` palette for SetTable and the detail.
