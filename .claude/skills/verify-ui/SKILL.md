@@ -72,5 +72,11 @@ unexpectedly" dialog on Eric's Mac every few seconds. Do not use `screenConfig`,
 undocumented simctl/defaults change to the device. `simctl io enumerate` and `screenshot --display=N`
 (read-only) are fine. Use `./dev fold` for poses, never anything else.
 
+**Preview renders are not guarded by `./dev`.** `RenderPreview` runs the view in PreviewShell; a layout bug there
+(seen 2026-11-03: `LayoutSubview.place` assertion from `fixedSize`/`layoutPriority`/`maxWidth: .infinity` around a
+linear `ProgressView(timerInterval:)` in a Live Activity) crashes PreviewShell and pops a dialog on Eric's Mac. Run
+`command ls -t ~/Library/Logs/DiagnosticReports | head -3` before and after every render; on a new `PreviewShell-*.ips`,
+stop rendering and fix the view (it would crash on device too). Never re-render the same code hoping it passes.
+
 `./dev run|test|ui-test|screenshot|check` fail when a new `SpringBoard-*.ips` crash report appears while
 they run. If that happens: stop, `xcrun simctl shutdown all`, and report it. Never retry past it.
