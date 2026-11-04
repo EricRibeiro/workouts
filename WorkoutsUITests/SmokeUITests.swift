@@ -6,24 +6,31 @@ final class SmokeUITests: XCTestCase {
         continueAfterFailure = false
     }
 
+    /// Every UI test launches with `-uiTesting`: an in-memory store, so no state is left over from earlier runs.
+    @MainActor
+    private func makeApp(_ extraArguments: [String] = []) -> XCUIApplication {
+        let app = XCUIApplication()
+        app.launchArguments += ["-uiTesting"] + extraArguments
+        return app
+    }
+
     @MainActor
     func testAppLaunches() throws {
-        let app = XCUIApplication()
+        let app = makeApp()
         app.launch()
         XCTAssertTrue(app.wait(for: .runningForeground, timeout: 10))
     }
 
     @MainActor
     func testGallerySwatches() throws {
-        let app = XCUIApplication()
-        app.launchArguments += ["-preview", "Swatches"]
+        let app = makeApp(["-preview", "Swatches"])
         app.launch()
         XCTAssertTrue(app.descendants(matching: .any)["Accent"].waitForExistence(timeout: 10))
     }
 
     @MainActor
     func testTabsAndSettings() throws {
-        let app = XCUIApplication()
+        let app = makeApp()
         app.launch()
 
         XCTAssertTrue(app.descendants(matching: .any)["screen.workout"].waitForExistence(timeout: 10))

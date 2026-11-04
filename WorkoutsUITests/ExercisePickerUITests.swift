@@ -9,7 +9,7 @@ final class ExercisePickerUITests: XCTestCase {
     @MainActor
     func testMultiSelectAddSupersetAndPeek() throws {
         let app = XCUIApplication()
-        app.launchArguments += ["-preview", "ExercisePickerMulti"]
+        app.launchArguments += ["-uiTesting", "-preview", "ExercisePickerMulti"]
         app.launch()
 
         let any = app.descendants(matching: .any)

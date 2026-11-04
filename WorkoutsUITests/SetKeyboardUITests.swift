@@ -18,7 +18,7 @@ final class SetKeyboardUITests: XCTestCase {
     @MainActor
     func testStepNextAndDone() throws {
         let app = XCUIApplication()
-        app.launchArguments += ["-preview", "SetRow"]
+        app.launchArguments += ["-uiTesting", "-preview", "SetRow"]
         app.launch()
 
         XCTAssertTrue(app.descendants(matching: .any)["screen.setRowDemo"].waitForExistence(timeout: 10))

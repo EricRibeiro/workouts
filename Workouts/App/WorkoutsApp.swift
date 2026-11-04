@@ -32,7 +32,7 @@ struct WorkoutsApp: App {
         let activityController = LiveActivityController()
         self.activityController = activityController
         do {
-            let container = try ModelContainer.workouts(cloudKit: false)
+            let container = try Self.makeContainer()
             let context = container.mainContext
             let store = ExerciseStore(
                 catalog: try LibraryCatalog.bundled(in: .main),
@@ -58,6 +58,20 @@ struct WorkoutsApp: App {
             intentHandler = nil
             containerError = error.localizedDescription
         }
+    }
+
+    /// Debug builds use a throwaway in-memory store for UI tests (`-uiTesting`) and the `-preview <Name>` gallery, so a
+    /// workout left in progress by an earlier run is never resumed (with its Live Activity and rest notifications).
+    /// Release builds always open the persistent store.
+    @MainActor
+    private static func makeContainer() throws -> ModelContainer {
+        #if DEBUG
+            let arguments = ProcessInfo.processInfo.arguments
+            let inMemory = arguments.contains("-uiTesting") || PreviewGallery.requestedName() != nil
+            return try ModelContainer.workouts(inMemory: inMemory, cloudKit: false)
+        #else
+            return try ModelContainer.workouts(cloudKit: false)
+        #endif
     }
 
     var body: some Scene {

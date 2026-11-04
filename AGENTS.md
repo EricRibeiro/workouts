@@ -72,6 +72,7 @@ Rules for the loop:
   not `./dev check`. `check` is for the end of a task.
 - **Flows need the harness.** `WorkoutsUITests/SmokeUITests` is the one XCUITest to copy from; PLAN task 0.10 extends it
   with the `-preview` gallery, and every task whose proof is a preview or a flow lists 0.10 in its `Needs`.
+  UI tests launch with `-uiTesting` (in-memory store, no leftover state).
 - **The UI proof of record is the fallback, not the MCP.** A screen is proven by `./dev run -- -preview <Name>` (PLAN
   task 0.10; until it lands, plain `./dev run`; a `#if DEBUG` `PreviewGallery` hosting the same views as the `#Preview`s, fed by the sample container; set Dynamic Type and
   dark with `xcrun simctl ui booted ...`) followed by `./dev screenshot`; a flow is proven by an XCUITest in `WorkoutsUITests`
