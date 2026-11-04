@@ -130,3 +130,11 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
     the workout in History except inside the logging pane (it would switch tabs behind the cover); the sticky note has a
     `stickyNote` asset (#FFF1B0 / #4A370E). Unverified until a device: the `.warning` haptics on Archive/Delete/Remove fire
     as their sheet dismisses and may be cut off — move the trigger to the presenting view if you don't feel them.
+48. **TestFlight signing** (dev testflight): the archive is built unsigned (`CODE_SIGNING_ALLOWED=NO`) and the export applies
+    cloud-managed distribution signing, because automatic signing archives with a development profile and Apple won't make
+    one for a team with no registered devices (you don't want to pair the Duo). Needs an **Admin** API key (App Manager
+    can't use cloud-managed certificates). Caveat for later: entitlements (iCloud, Time Sensitive) must then come from the
+    export's profile — re-check when 7.x adds them.
+49. **Finish/Done fold into "More" on the closed Duo** (found by the FinishUITests fix): with the number pad up and a rest
+    running, the trailing strip is too short, so the system overflows Finish and the keyboard accessory's Done into a More
+    menu. Tests now dismiss via the accessory; the UX itself goes to the Phase 3 review (visibilityPriority / fewer items).

@@ -179,5 +179,6 @@ publication (the private server domain in the docs).
 
 - CI (no macOS runner decision made).
 - Code signing / device builds — simulator only for now. Distribution will be TestFlight (no
-  direct-to-device installs); blocked on Apple Developer Program approval, then `./dev testflight`.
+  direct-to-device installs); `./dev testflight [--upload]` archives and exports a signed App Store build to
+  `.build/testflight/export` (key read from 1Password with `op`; build number is the UTC timestamp; export only unless `--upload`).
 - App data model and screens — see `docs/port/` and the phases in `docs/PLAN.md`.

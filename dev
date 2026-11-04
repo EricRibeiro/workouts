@@ -452,6 +452,96 @@ cmd_sims() { # create any missing pool clone, then list the pool; idempotent
   done < <(sim_pool_names)
 }
 
+# Signed App Store Connect export (TestFlight). Needs the App Store Connect API key in 1Password (read with `op`, which
+# works headless through the service account). The key is streamed from `op read` straight into a 0600 file in a private
+# temp directory under $TMPDIR: never into a shell variable, an environment variable, a command-line argument or a log.
+# Only the file PATH reaches xcodebuild. A trap deletes the directory on EXIT, INT, TERM and HUP. Does not use the
+# simulator, so no sim_guarded.
+TF_DIR=".build/testflight"
+TF_TEAM="S8Y5FT7937"
+TF_TMP=""
+tf_cleanup() { [[ -z "$TF_TMP" ]] || rm -rf "$TF_TMP"; TF_TMP=""; }
+
+cmd_testflight() {
+  { set +x; } 2>/dev/null # never trace this function: a traced command line could carry key material
+  local upload=0
+  case "${1:-}" in
+    "") ;;
+    --upload) upload=1 ;;
+    *) die "testflight: unknown argument '$1' (usage: testflight [--upload])" ;;
+  esac
+  command -v op >/dev/null 2>&1 || die "testflight: the 1Password CLI (op) is not installed"
+
+  local key_id issuer_id build
+  key_id=$(op read "op://Homelab/App Store Connect API/key id" 2>/dev/null) || die "testflight: could not read the key id from 1Password"
+  issuer_id=$(op read "op://Homelab/App Store Connect API/issuer id" 2>/dev/null) || die "testflight: could not read the issuer id from 1Password"
+  [[ -n "$key_id" && -n "$issuer_id" ]] || die "testflight: an App Store Connect API id is empty"
+
+  trap tf_cleanup EXIT
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+  trap 'exit 129' HUP
+  umask 077
+  TF_TMP=$(mktemp -d "${TMPDIR:-/tmp}/workouts-testflight.XXXXXX") || die "testflight: mktemp failed"
+  local key_file="$TF_TMP/AuthKey_${key_id}.p8"
+  # The vault stores the PEM on one line, spaces where the newlines were. Keep the BEGIN/END markers, strip every space
+  # from the body and re-wrap it at 64 columns. The key only ever flows through this pipe into the file.
+  if ! op read "op://Homelab/App Store Connect API/auth key" 2>/dev/null | awk '
+      { s = s $0 }
+      END {
+        gsub(/-----BEGIN PRIVATE KEY-----/, "", s); gsub(/-----END PRIVATE KEY-----/, "", s); gsub(/[ \t\r]/, "", s)
+        if (s == "") exit 1
+        print "-----BEGIN PRIVATE KEY-----"
+        for (i = 1; i <= length(s); i += 64) print substr(s, i, 64)
+        print "-----END PRIVATE KEY-----"
+      }' >"$key_file"; then
+    die "testflight: could not read the auth key from 1Password"
+  fi
+  chmod 600 "$key_file"
+  openssl pkey -in "$key_file" -noout >/dev/null 2>&1 || die "testflight: the auth key from 1Password is not a valid PEM"
+
+  build=$(date -u +%Y%m%d%H%M)
+  local archive="$TF_DIR/Workouts.xcarchive" plist="$TF_DIR/ExportOptions.plist" export_dir="$TF_DIR/export"
+  local auth=(-allowProvisioningUpdates -authenticationKeyPath "$key_file" -authenticationKeyID "$key_id"
+    -authenticationKeyIssuerID "$issuer_id")
+  rm -rf "$archive" "$export_dir"
+  mkdir -p "$TF_DIR"
+
+  run_logged testflight-archive xcodebuild archive -scheme "$SCHEME" -destination 'generic/platform=iOS' \
+    -archivePath "$archive" -derivedDataPath "$TF_DIR/DerivedData" -quiet "${auth[@]}" CURRENT_PROJECT_VERSION="$build" \
+    CODE_SIGNING_ALLOWED=NO || return
+
+  local destination=export
+  ((upload == 0)) || destination=upload
+  cat >"$plist" <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>method</key>
+	<string>app-store-connect</string>
+	<key>teamID</key>
+	<string>$TF_TEAM</string>
+	<key>signingStyle</key>
+	<string>automatic</string>
+	<key>destination</key>
+	<string>$destination</string>
+</dict>
+</plist>
+PLIST
+
+  run_logged testflight-export xcodebuild -exportArchive -archivePath "$archive" -exportOptionsPlist "$plist" \
+    -exportPath "$export_dir" "${auth[@]}" || return
+
+  if ((upload == 1)); then
+    echo "testflight: uploaded build $build"
+  else
+    local ipa; ipa=$(find "$export_dir" -maxdepth 1 -name '*.ipa' | head -n 1)
+    [[ -n "$ipa" ]] || die "testflight: export produced no .ipa in $export_dir"
+    echo "testflight: build $build $ipa"
+  fi
+}
+
 cmd_clean() { rm -rf .build; }
 
 cmd_check() {
@@ -482,6 +572,8 @@ screenshot [path]  simulator screenshot (default .build/screenshots/<timestamp>.
 home               send the app to the background (Home screen); agent-device session closed after
 fold <pose> [png]  Duo hinge: closed|half-open|open (agent-device); png = capture of the lit panel
 orient <o> [png]   portrait|landscape-left|landscape-right|portrait-upside-down; png as for fold
+testflight [--upload]  signed App Store archive + export to .build/testflight/export (no upload unless --upload);
+                   key from 1Password via op, build number = UTC yyyymmddHHMM; no simulator lock
 clean              rm -rf .build
 check              lint, kit, build, test; stops at first failure; on success touches .build/check.stamp
 help               this list
@@ -505,6 +597,7 @@ case "$sub" in
   fold) sim_guarded cmd_fold "$@" ;;
   orient) sim_guarded cmd_orient "$@" ;;
   sims) cmd_sims ;;
+  testflight) cmd_testflight "$@" ;;
   clean) cmd_clean ;;
   check) sim_guarded cmd_check ;;
   help | -h | --help) cmd_help ;;

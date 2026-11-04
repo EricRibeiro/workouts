@@ -12,6 +12,10 @@ xcuserdata/
 *.ipa
 *.dSYM.zip
 
+# App Store Connect API keys must never be committed
+*.p8
+AuthKey_*
+
 # macOS
 .DS_Store
 
