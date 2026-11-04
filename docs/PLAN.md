@@ -102,7 +102,7 @@ Live Activity → notifications → logging, then templates, exercises, history.
   (exercises, `retired`, alternatives as ids, labels) and `thumbs/<id>-start.png`/`-end.png`; ids = UUIDv5(namespace,
   "source:sourceId"), namespace pinned in `WorkoutsKit/Library/LibraryID.swift` with one test value. Proof: the script runs (≈ 25
   MB), `./dev build` sees the folder, `./dev kit Library`.
-- [ ] **0.3 ExerciseStore** (kit): `LibraryCatalog` decode, custom merge (`exercise(id:)` = catalog ∪ custom), name sort,
+- [x] **0.3 ExerciseStore** (kit): `LibraryCatalog` decode, custom merge (`exercise(id:)` = catalog ∪ custom), name sort,
   all-words accent-insensitive search over name and aliases, archive rule. Needs: 0.1, 0.2. Proof: `./dev kit Library`.
 - [x] **0.4 Settings store** `WorkoutsKit/Settings/SettingsStore`: `@Observable`, `UserDefaults` backend behind a protocol,
   `DECISIONS.md` defaults, one key list. Proof: `./dev kit Settings`.
