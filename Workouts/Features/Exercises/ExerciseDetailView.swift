@@ -22,9 +22,12 @@ struct ExerciseDetailView: View {
 
     let exerciseID: UUID
     var embedded = false
+    /// The detail column of a split view (the Exercises tab) is already one side of the fold and too narrow to split again.
+    var inSplitColumn = false
 
     @Environment(ExerciseStore.self) private var store
     @Environment(SettingsStore.self) private var settings: SettingsStore?
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Query private var customs: [Exercise]
     @Query(filter: #Predicate<Workout> { $0.finishedAt != nil }) private var finished: [Workout]
     @State private var segment: Segment
@@ -34,9 +37,10 @@ struct ExerciseDetailView: View {
     @State private var isEditing = false
     @State private var removals = 0
 
-    init(exerciseID: UUID, embedded: Bool = false, initialSegment: Segment = .about) {
+    init(exerciseID: UUID, embedded: Bool = false, inSplitColumn: Bool = false, initialSegment: Segment = .about) {
         self.exerciseID = exerciseID
         self.embedded = embedded
+        self.inSplitColumn = inSplitColumn
         _segment = State(initialValue: initialSegment)
         _customs = Query(filter: #Predicate<Exercise> { $0.id == exerciseID })
     }
@@ -64,59 +68,103 @@ struct ExerciseDetailView: View {
 
     private func content(_ info: ExerciseInfo) -> some View {
         let library = info.isCustom ? nil : store.catalog.exercise(id: info.id)
-        return ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                ExerciseMediaHeader(info: info, library: library, embedded: embedded)
+        return layout(info, library: library)
+            .modifier(DetailChrome(showsEdit: info.isCustom && !embedded, embedded: embedded) { isEditing = true })
+            .sheet(isPresented: $isEditing) {
+                CustomExerciseFormView(editing: exerciseID, onRemoved: { removals += 1 })
+                    .presentationPlacement(.center)
+            }
+            .task(id: Fingerprint(finished, unit: unit, formula: options.formula)) {
+                let found =
+                    ExerciseBestSets.sessions(from: finished) { id in
+                        id == info.id ? info.weightType : nil
+                    }[info.id] ?? []
+                sessions = found
+                records = WorkoutsKit.records(found, weightType: info.weightType, options: options)
+                let names = Dictionary(finished.map { ($0.id, $0.name) }, uniquingKeysWith: { first, _ in first })
+                history = ExerciseHistory.sessions(found, names: names, weightType: info.weightType, options: options)
+            }
+            .accessibilityIdentifier("screen.exerciseDetail")
+    }
+
+    /// The embedded pane (already one side of the logging screen's arrangement) and the compact pushed detail are one
+    /// scrolling column. The pushed detail at regular width is an `ArrangementView` (one view tree in every pose, so folding
+    /// never rebuilds the segment content): the hero, name, sticky note and segmented control are the primary and the
+    /// selected segment's content is the secondary, so book pose puts them either side of the fold (hero left, content
+    /// right) and the system split stacks them on the laptop pose (hero above, content below, nothing in the fold band).
+    /// Wide, with no fold, it is the same split: side by side when the area is wider than tall, stacked otherwise.
+    @ViewBuilder
+    private func layout(_ info: ExerciseInfo, library: LibraryExercise?) -> some View {
+        if embedded {
+            ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    header(info)
-                    StickyNoteView(exerciseID: info.id)
-                    Picker("Section", selection: $segment) {
-                        ForEach(Segment.allCases) { Text($0.rawValue).tag($0) }
+                    ExerciseMediaHeader(info: info, library: library, embedded: embedded)
+                    summary(info)
+                    sections(info, library: library)
+                        .padding(.horizontal)
+                }
+                .padding(.bottom, 24)
+            }
+        } else {
+            let splits = horizontalSizeClass == .regular && !inSplitColumn
+            ArrangementView {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        ExerciseMediaHeader(info: info, library: library, embedded: false)
+                        summary(info)
+                        if !splits {
+                            sections(info, library: library)
+                                .padding(.horizontal)
+                        }
                     }
-                    .pickerStyle(.segmented)
-                    .accessibilityLabel("Section")
-                    .accessibilityIdentifier("exerciseDetail.segment")
-                    switch segment {
-                    case .about:
-                        ExerciseAboutSection(
-                            info: info,
-                            library: library,
-                            labels: store.catalog.labels,
-                            customInstructions: customs.first?.instructions ?? []
-                        )
-                    case .history:
-                        ExerciseHistoryView(sessions: history, embedded: embedded)
-                    case .charts:
-                        ExerciseChartsView(sessions: sessions, weightType: info.weightType, options: options)
-                    case .records:
-                        ExerciseRecordsView(
-                            records: records,
-                            weightType: info.weightType,
-                            unit: unit,
-                            embedded: embedded
-                        )
+                    .padding(.bottom, 24)
+                }
+            } secondary: {
+                if splits {
+                    ScrollView {
+                        sections(info, library: library)
+                            .padding([.horizontal, .top])
+                            .padding(.bottom, 24)
                     }
                 }
-                .padding(.horizontal)
             }
-            .padding(.bottom, 24)
+            .arrangementViewStyle(.split.axes(splits ? Axis.Set([.horizontal, .vertical]) : Axis.Set()))
         }
-        .modifier(DetailChrome(showsEdit: info.isCustom && !embedded, embedded: embedded) { isEditing = true })
-        .sheet(isPresented: $isEditing) {
-            CustomExerciseFormView(editing: exerciseID, onRemoved: { removals += 1 })
-                .presentationPlacement(.center)
+    }
+
+    /// Name, tags, sticky note and the segmented control: everything above the selected segment's content.
+    private func summary(_ info: ExerciseInfo) -> some View {
+        VStack(alignment: .leading, spacing: 16) {
+            header(info)
+            StickyNoteView(exerciseID: info.id)
+            Picker("Section", selection: $segment) {
+                ForEach(Segment.allCases) { Text($0.rawValue).tag($0) }
+            }
+            .pickerStyle(.segmented)
+            .accessibilityLabel("Section")
+            .accessibilityIdentifier("exerciseDetail.segment")
         }
-        .task(id: Fingerprint(finished, unit: unit, formula: options.formula)) {
-            let found =
-                ExerciseBestSets.sessions(from: finished) { id in
-                    id == info.id ? info.weightType : nil
-                }[info.id] ?? []
-            sessions = found
-            records = WorkoutsKit.records(found, weightType: info.weightType, options: options)
-            let names = Dictionary(finished.map { ($0.id, $0.name) }, uniquingKeysWith: { first, _ in first })
-            history = ExerciseHistory.sessions(found, names: names, weightType: info.weightType, options: options)
+        .padding(.horizontal)
+    }
+
+    /// The selected segment's content.
+    @ViewBuilder
+    private func sections(_ info: ExerciseInfo, library: LibraryExercise?) -> some View {
+        switch segment {
+        case .about:
+            ExerciseAboutSection(
+                info: info,
+                library: library,
+                labels: store.catalog.labels,
+                customInstructions: customs.first?.instructions ?? []
+            )
+        case .history:
+            ExerciseHistoryView(sessions: history, embedded: embedded)
+        case .charts:
+            ExerciseChartsView(sessions: sessions, weightType: info.weightType, options: options)
+        case .records:
+            ExerciseRecordsView(records: records, weightType: info.weightType, unit: unit, embedded: embedded)
         }
-        .accessibilityIdentifier("screen.exerciseDetail")
     }
 
     private func header(_ info: ExerciseInfo) -> some View {

@@ -199,3 +199,8 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
     A UI test taps it (compact only; XCUITest cannot fold).
 61b. **Past-workout editor at AX sizes**: Start and Duration stack label above control and drop their `.fixedSize()`, which
     had kept them wider than the screen so the whole editor was centred and clipped on both edges.
+62. **6.3 contrast scope**: plain `.secondary` text on system backgrounds stays as Apple ships it (3.3–3.5:1 in light mode
+    by WCAG, but it is the system semantic colour every Apple app uses; swapping 62 call sites for a custom grey would
+    fight Increase Contrast and the HIG). Same for the system's `.borderedProminent` white-on-accent in dark mode. Fixed
+    instead: every custom colour that fails (finish-summary stat tints, set-kind letters on the checked row, tags, filter
+    chips, calendar day, below-goal bars, sticky-note button, the Previous value/placeholder in set cells).

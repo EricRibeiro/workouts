@@ -142,7 +142,7 @@ struct ExercisesView: View {
     @ViewBuilder
     private var detail: some View {
         if case .exercise(let id) = selection, let info = store.exercise(id: id) {
-            ExerciseDetailView(exerciseID: info.id)
+            ExerciseDetailView(exerciseID: info.id, inSplitColumn: true)
                 .id(info.id)
                 .navigationTransition(.zoom(sourceID: info.id, in: zoomNamespace))
         } else {
