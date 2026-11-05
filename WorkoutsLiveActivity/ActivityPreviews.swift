@@ -25,6 +25,28 @@
             )
         }
 
+        /// The rest ended a moment ago and the app is not running to say so: the views derive "rest over" from the
+        /// end date (in the app the same happens through `context.isStale`, which previews cannot set).
+        static var sampleRestOver: WorkoutActivityState {
+            WorkoutActivityState(
+                workoutName: "Push Day",
+                startedAt: .now.addingTimeInterval(-1_620),
+                restEndsAt: .now.addingTimeInterval(-6),
+                restTotal: 120,
+                setsDone: 5,
+                setsTotal: 14,
+                current: WorkoutActivitySet(
+                    setID: UUID(),
+                    exerciseName: "Bench Press (Barbell)",
+                    number: 3,
+                    count: 5,
+                    weight: 27.5,
+                    unit: .kg,
+                    reps: 8
+                )
+            )
+        }
+
         static var sampleLogging: WorkoutActivityState {
             WorkoutActivityState(
                 workoutName: "Push Day",
@@ -81,15 +103,19 @@
         WorkoutLiveActivity()
     } contentStates: {
         WorkoutActivityState.sampleResting
+        WorkoutActivityState.sampleRestOver
         WorkoutActivityState.sampleLogging
         WorkoutActivityState.sampleAllDone
         WorkoutActivityState.sampleLongNames
     }
 
+    // `isDynamicIslandLimitedInWidth` is read-only, so the closed Duo's narrow Island cannot be previewed; it is
+    // proven on the Duo with a Live Activity running.
     #Preview("Compact", as: .dynamicIsland(.compact), using: previewAttributes) {
         WorkoutLiveActivity()
     } contentStates: {
         WorkoutActivityState.sampleResting
+        WorkoutActivityState.sampleRestOver
         WorkoutActivityState.sampleLogging
     }
 
@@ -97,6 +123,7 @@
         WorkoutLiveActivity()
     } contentStates: {
         WorkoutActivityState.sampleResting
+        WorkoutActivityState.sampleRestOver
         WorkoutActivityState.sampleLogging
     }
 #endif

@@ -13,7 +13,7 @@ private struct ExerciseInfoItem: Identifiable {
     var id: UUID { exerciseID }
 }
 
-/// The exercise detail (About, History, Charts, Records and the media) in a sheet with a Done button.
+/// The exercise detail (About, History, Charts, Records and the media) in a sheet with the system Close button.
 private struct ExerciseInfoSheet: View {
     let exerciseID: UUID
     @Environment(\.dismiss) private var dismiss
@@ -21,15 +21,14 @@ private struct ExerciseInfoSheet: View {
     var body: some View {
         NavigationStack {
             ExerciseDetailView(exerciseID: exerciseID)
+                .environment(\.exerciseHeroCapped, false)
                 .toolbar {
-                    ToolbarItem(placement: .confirmationAction) {
-                        Button {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button(role: .close) {
                             dismiss()
-                        } label: {
-                            Label("Done", systemImage: "checkmark")
                         }
-                        .accessibilityLabel("Done")
-                        .accessibilityIdentifier("exerciseInfo.done")
+                        .accessibilityLabel("Close")
+                        .accessibilityIdentifier("exerciseInfo.close")
                     }
                 }
         }
@@ -164,6 +163,16 @@ struct ActiveWorkoutCover: View {
             blockActions: blockSheets.actions(host: blockHost(engine: engine, workout: workout))
         )
         .blockActionSheets(blockSheets, host: blockHost(engine: engine, workout: workout))
+        #if DEBUG
+            .onAppear {
+                // `-openExerciseInfo`: opens the first exercise's info sheet, for screenshots of its detents.
+                if ProcessInfo.processInfo.arguments.contains("-openExerciseInfo"), infoExercise == nil,
+                    let first = sections.first
+                {
+                    infoExercise = ExerciseInfoItem(exerciseID: first.exerciseID)
+                }
+            }
+        #endif
         .navigationTitle(workout.name)
         .onChange(
             of: LastShown(name: workout.name, startedAt: workout.startedAt, sections: sections),

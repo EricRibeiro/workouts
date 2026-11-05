@@ -130,6 +130,28 @@ struct SetTable: View {
         .accessibilityIdentifier("settable.section.\(section.id.uuidString)")
     }
 
+    /// The exercise name. In the active workout it is one line with a tail ellipsis (the full name is in the info sheet; two lines at
+    /// accessibility sizes); the template and past editors wrap. When it opens the exercise, a trailing chevron stays visible after
+    /// truncation. The Button gives the whole thing one accessibility element labelled with the full name.
+    private func nameLabel(_ section: SetTableSection) -> some View {
+        let active = source.mode == .active
+        let lines: Int? = active ? (dynamicTypeSize.isAccessibilitySize ? 2 : 1) : nil
+        return HStack(alignment: .firstTextBaseline, spacing: 4) {
+            Text(section.name)
+                .lineLimit(lines)
+                .truncationMode(.tail)
+                .layoutPriority(0)
+            if onSelectExercise != nil {
+                Image(systemName: "chevron.forward")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+                    .fixedSize()
+                    .layoutPriority(1)
+                    .accessibilityHidden(true)
+            }
+        }
+    }
+
     private func header(_ section: SetTableSection, supersetNumber: Int?) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             if let supersetNumber {
@@ -143,7 +165,7 @@ struct SetTable: View {
                     focusedSection.wrappedValue = section.id
                     onSelectExercise?(section)
                 } label: {
-                    Text(section.name)
+                    nameLabel(section)
                         .font(.title3.bold())
                         .foregroundStyle(.primary)
                         .multilineTextAlignment(.leading)
@@ -151,6 +173,7 @@ struct SetTable: View {
                         .contentShape(.rect)
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel(section.name)
                 .accessibilityAddTraits(.isHeader)
                 .accessibilityHint(onSelectExercise == nil ? "" : "Opens the exercise")
                 .accessibilityIdentifier("settable.name.\(section.id.uuidString)")

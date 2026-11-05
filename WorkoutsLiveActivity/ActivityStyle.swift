@@ -4,6 +4,8 @@ import SwiftUI
 /// these are system colours; the accent matches the app's blue.
 enum ActivityStyle {
     static let accent = Color.blue
+    /// "Rest over": the rest finished and the next set is due.
+    static let ok = Color.green
     static let glyph = "dumbbell.fill"
     /// The Lock Screen banner uses the system secondary background so text styles adapt to light and dark.
     static let backgroundTint = Color(.secondarySystemBackground).opacity(0.85)

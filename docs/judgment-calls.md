@@ -247,3 +247,5 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
     there, and pushed details lose theirs the same way). On the open display `.inlineLarge` on Workout and History keeps
     the large title consistent across pose changes. The stacked exercise detail now sizes its top pane to its content
     (`splitArrangementFixedLayoutSize`), which also makes the tall hero image smaller (35 % of a shorter container).
+
+74. **Resume control is a ring with `dumbbell.fill` in every state** (Eric chose option A over a ring with a dot, 2026-11-05): `RestArc` takes an optional centred glyph; idle is the bare accent track, resting drains the accent arc, an over rest turns ok-coloured with a `checkmark`. `stopwatch` now only means "start a rest" (the idle `RestRingItem` menu).

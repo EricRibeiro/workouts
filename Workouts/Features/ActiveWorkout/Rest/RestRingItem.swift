@@ -90,7 +90,7 @@ struct RestRingItem: View {
                 Label {
                     Text("Rest timer")
                 } icon: {
-                    arcImage(fraction: fraction, tint: tint)
+                    arcImage(fraction: fraction, tint: tint, isOver: remaining <= 0)
                 }
             }
             // The strip drops accessibilityValue, so the remaining time rides in the label.
@@ -110,8 +110,15 @@ struct RestRingItem: View {
         }
     }
 
-    private func arcImage(fraction: Double, tint: Color?) -> Image {
-        RestArc.image(fraction: fraction, size: arcSize, label: Text("Rest timer"), tint: tint)
+    /// A bare draining arc while the rest runs (it sits next to other logging controls); a checkmark once it is over.
+    private func arcImage(fraction: Double, tint: Color?, isOver: Bool) -> Image {
+        RestArc.image(
+            fraction: fraction,
+            size: arcSize,
+            label: Text("Rest timer"),
+            tint: tint,
+            glyph: isOver ? "checkmark" : nil
+        )
     }
 }
 

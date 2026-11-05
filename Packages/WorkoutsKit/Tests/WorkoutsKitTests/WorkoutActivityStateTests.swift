@@ -318,3 +318,17 @@ import Testing
         #expect(failure.nextSetText == "Set 3 (failure) · 27.5 lb × 8")
     }
 }
+
+@Suite struct ActivityRestOverTests {
+    private let now = Date(timeIntervalSinceReferenceDate: 1_000_000)
+
+    @Test func restOverOnlyWhenARestEndedAtOrBeforeTheDate() {
+        let none = WorkoutActivityState(workoutName: "Push", startedAt: now)
+        #expect(!none.isRestOver(at: now))
+        var state = none
+        state.restEndsAt = now.addingTimeInterval(30)
+        #expect(!state.isRestOver(at: now))
+        #expect(state.isRestOver(at: now.addingTimeInterval(30)))
+        #expect(state.isRestOver(at: now.addingTimeInterval(31)))
+    }
+}

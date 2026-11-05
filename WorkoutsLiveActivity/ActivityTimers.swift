@@ -20,15 +20,26 @@ extension WorkoutActivityState {
 }
 
 extension WorkoutActivityState {
+    /// Whether the views show "rest over": the activity went stale at ``restEndsAt`` (the system re-renders then, with
+    /// the app suspended) or the end has already passed at render time. False when no rest exists.
+    func isRestOver(stale: Bool) -> Bool {
+        restEndsAt != nil && (stale || isRestOver(at: .now))
+    }
+
+    /// A rest is counting down: one exists and it is not over.
+    func isRestRunning(restOver: Bool) -> Bool { isResting && !restOver }
+
     /// Plain-string accessibility label for the timer: what it measures.
-    var timerAccessibilityLabel: String { isResting ? "Rest remaining" : "Workout time" }
+    func timerAccessibilityLabel(restOver: Bool) -> String {
+        isRestRunning(restOver: restOver) ? "Rest remaining" : "Workout time"
+    }
 
     /// Plain-string accessibility value for the timer, computed from the state at render time ("ends at 8:42 PM",
     /// "started at 7:58 PM"). Never a `Text(timerInterval:)` or `.timer`/`.relative` style: SwiftUI encodes accessibility
     /// text for the system, and a resolvable (live-updating) segment in it crashes the extension with an
     /// uncaught NSException in `CodableAttributedString.encode`.
-    var timerAccessibilityValue: String {
-        if let end = restEndsAt {
+    func timerAccessibilityValue(restOver: Bool) -> String {
+        if isRestRunning(restOver: restOver), let end = restEndsAt {
             return "ends at \(end.formatted(date: .omitted, time: .shortened))"
         }
         return "started at \(startedAt.formatted(date: .omitted, time: .shortened))"
@@ -38,22 +49,24 @@ extension WorkoutActivityState {
 extension View {
     /// Collapses a view that draws a live timer or progress into one accessibility element with static strings. The
     /// visual children (resolvable text, timer-driven `ProgressView`) are ignored, so none of it is ever encoded.
-    func activityTimerAccessibility(for state: WorkoutActivityState) -> some View {
+    func activityTimerAccessibility(for state: WorkoutActivityState, restOver: Bool = false) -> some View {
         accessibilityElement(children: .ignore)
-            .accessibilityLabel(state.timerAccessibilityLabel)
-            .accessibilityValue(state.timerAccessibilityValue)
+            .accessibilityLabel(state.timerAccessibilityLabel(restOver: restOver))
+            .accessibilityValue(state.timerAccessibilityValue(restOver: restOver))
     }
 }
 
-/// The rest countdown, or the elapsed workout time when no rest runs. One accessibility element with static
-/// strings; the drawn timer itself is invisible to accessibility.
+/// The rest countdown while one runs, else the elapsed workout time (also once the rest is over, which the rest of
+/// the view says in words). One accessibility element with static strings; the drawn timer itself is invisible to
+/// accessibility.
 struct ActivityTimerText: View {
     let state: WorkoutActivityState
+    var restOver = false
     var alignment: TextAlignment = .trailing
 
     var body: some View {
         Group {
-            if let range = state.countdownRange() {
+            if state.isRestRunning(restOver: restOver), let range = state.countdownRange() {
                 Text(timerInterval: range, countsDown: true)
             } else {
                 Text(state.startedAt, style: .timer)
@@ -61,16 +74,17 @@ struct ActivityTimerText: View {
         }
         .monospacedDigit()
         .multilineTextAlignment(alignment)
-        .activityTimerAccessibility(for: state)
+        .activityTimerAccessibility(for: state, restOver: restOver)
     }
 }
 
 /// Caption under the timer: what the number means.
 struct ActivityTimerCaption: View {
     let state: WorkoutActivityState
+    var restOver = false
 
     var body: some View {
-        Text(state.isResting ? "Rest" : "Elapsed")
+        Text(state.isRestRunning(restOver: restOver) ? "Rest" : "Elapsed")
             .font(.caption)
             .foregroundStyle(.secondary)
             .accessibilityHidden(true)  // the timer element's label already says it

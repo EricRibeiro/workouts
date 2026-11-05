@@ -94,6 +94,12 @@ private struct PlayerLayerView: UIViewRepresentable {
     }
 }
 
+extension EnvironmentValues {
+    /// Whether the exercise hero is limited to 35 % of its container's height (the default). The info sheet turns it off:
+    /// a medium-detent sheet is short, and the cap would shrink the 16:9 media into a narrow letterboxed box.
+    @Entry var exerciseHeroCapped = true
+}
+
 /// The hero of the exercise detail: the exercise video when the cache has (or can fetch) one, else the bundled start
 /// frame, cross-fading to the end frame unless Reduce Motion is on. A muted caption when there is no media at all.
 struct ExerciseMediaHeader: View {
@@ -110,6 +116,7 @@ struct ExerciseMediaHeader: View {
     /// Reduce Motion only: whether the person has started the video (it never autoplays then).
     @State private var userPlaying = false
     @State private var heroCap: CGFloat = .infinity
+    @Environment(\.exerciseHeroCapped) private var heroCapped
 
     private var startURL: URL? { info.isCustom ? nil : ExerciseMedia.store.thumbnailURL(for: info.id, phase: .start) }
     private var endURL: URL? { info.isCustom ? nil : ExerciseMedia.store.thumbnailURL(for: info.id, phase: .end) }
@@ -159,7 +166,7 @@ struct ExerciseMediaHeader: View {
         }
         .aspectRatio(16 / 9, contentMode: .fit)
         .frame(maxWidth: .infinity)
-        .frame(maxHeight: heroCap)
+        .frame(maxHeight: heroCapped ? heroCap : .infinity)
         .background {
             // `containerRelativeFrame` only sets an exact size, so a probe measures the cap (35 % of the container's
             // height) and the hero takes it as a maximum. One rule in every pose; the closed Duo stays under it.

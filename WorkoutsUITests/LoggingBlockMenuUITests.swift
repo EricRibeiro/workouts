@@ -100,16 +100,16 @@ final class LoggingBlockMenuUITests: XCTestCase {
         XCTAssertTrue(name.waitForExistence(timeout: 5))
         name.tap()
         XCTAssertTrue(any["screen.exerciseDetail"].waitForExistence(timeout: 10), "tapping the name opened no detail")
-        let done = app.buttons["exerciseInfo.done"]
-        XCTAssertTrue(done.waitForExistence(timeout: 5))
-        done.tap()
-        waitUntilGone(any["screen.exerciseDetail"], "Done did not close the exercise sheet")
+        let close = app.buttons["exerciseInfo.close"]
+        XCTAssertTrue(close.waitForExistence(timeout: 5))
+        close.tap()
+        waitUntilGone(any["screen.exerciseDetail"], "Close did not close the exercise sheet")
 
         // The block menu's Exercise Info entry opens the same sheet.
         let (menu, _) = firstMenu(app)
         openMenuEntry(app, menu: menu, entry: "settable.menu.info")
         XCTAssertTrue(any["screen.exerciseDetail"].waitForExistence(timeout: 10), "Exercise Info opened no detail")
-        app.buttons["exerciseInfo.done"].tap()
-        waitUntilGone(any["screen.exerciseDetail"], "Done did not close the exercise sheet")
+        app.buttons["exerciseInfo.close"].tap()
+        waitUntilGone(any["screen.exerciseDetail"], "Close did not close the exercise sheet")
     }
 }

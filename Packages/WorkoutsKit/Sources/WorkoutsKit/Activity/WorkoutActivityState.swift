@@ -111,6 +111,13 @@ public nonisolated struct WorkoutActivityState: Codable, Hashable, Sendable {
 
     /// True while a rest is on the clock (an over rest inside its grace still counts).
     public var isResting: Bool { restEndsAt != nil }
+
+    /// True when a rest exists and its end is at or before `date`. The views pair it with `context.isStale` (the
+    /// activity goes stale at ``restEndsAt``) so "Rest over" shows without the app running.
+    public func isRestOver(at date: Date) -> Bool {
+        guard let restEndsAt else { return false }
+        return restEndsAt <= date
+    }
 }
 
 // MARK: - Engine mapping
