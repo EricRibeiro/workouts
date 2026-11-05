@@ -9,8 +9,8 @@ import Testing
     }
 
     @Test func finishCountsDependOnRecord() {
-        #expect(StarField(hasRecord: false, seed: 1).particles.count == 35)
-        #expect(StarField(hasRecord: true, seed: 1).particles.count == 60)
+        #expect(StarField(hasRecord: false, seed: 1).particles.count == StarField.plainCount)
+        #expect(StarField(hasRecord: true, seed: 1).particles.count == StarField.recordCount)
         #expect(StarField(count: -3, seed: 1).particles.isEmpty)
     }
 
@@ -66,7 +66,7 @@ import Testing
                 #expect(field.state(of: particle, at: time, width: 400, height: 800).opacity == 0)
             }
         }
-        #expect(field.particles.allSatisfy { $0.delay + $0.duration < 3.5 })
+        #expect(field.particles.allSatisfy { $0.delay + $0.duration < StarField.totalDuration })
     }
 
     @Test func starsAreFullyOpaqueBeforeTheFadeStarts() {

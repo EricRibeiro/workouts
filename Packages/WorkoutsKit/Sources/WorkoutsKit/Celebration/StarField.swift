@@ -56,12 +56,12 @@ public nonisolated struct StarState: Sendable, Equatable {
 /// draw time, so the same `(count, seed)` always plays the same animation and the maths is testable on macOS.
 public nonisolated struct StarField: Sendable, Equatable {
     /// The last moment anything is visible; at or after this every star has opacity 0.
-    public static let totalDuration: TimeInterval = 3.4
+    public static let totalDuration: TimeInterval = 4.5
     /// Seconds over which the whole field fades out, ending at `totalDuration`.
     public static let fadeDuration: TimeInterval = 0.5
     /// Star counts used by the finish summary.
-    public static let plainCount = 35
-    public static let recordCount = 60
+    public static let plainCount = 140
+    public static let recordCount = 200
 
     public let particles: [StarParticle]
 
@@ -76,9 +76,9 @@ public nonisolated struct StarField: Sendable, Equatable {
             } else {
                 tone = Double.random(in: 0..<1, using: &rng) < 2.0 / 3.0 ? .accent : .grey
             }
-            let delay = Double.random(in: 0...1.0, using: &rng)
+            let delay = Double.random(in: 0...1.6, using: &rng)
             // delay + duration stays inside the window where the field has not yet fully faded.
-            let duration = Double.random(in: 1.6...(Self.totalDuration - delay - 0.4), using: &rng)
+            let duration = Double.random(in: 2.0...(Self.totalDuration - delay - 0.4), using: &rng)
             let spin = Double.random(in: 60...220, using: &rng)
             return StarParticle(
                 startX: Double.random(in: 0...1, using: &rng),
