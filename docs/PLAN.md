@@ -328,7 +328,7 @@ Live Activity → notifications → logging, then templates, exercises, history.
     workout leaving Health. Request every relevant read type up front (incl. workout route and effort types), since new
     types re-prompt. Proof: kit tests with the fake; the d. integration test seeds effort, zones and weather
     (shaped like a real export when Eric provides one).
-  - [ ] **f. UI**: Fitness card on the workout detail (calories, avg/max HR, small HR chart), calories in History rows and
+  - [x] **f. UI**: Fitness card on the workout detail (calories, avg/max HR, small HR chart), calories in History rows and
     the dashboard. Proof: `-preview` screenshots light/dark, closed/open.
   - [ ] **g. Backfill**: enrich imported history once (and after 8.3's import). Proof: kit test over a fixture year.
 - [x] **7.5 TestFlight**: archive, export, upload. Needs: 7.1. Proof: `./dev testflight`; the build installs on the Duo.

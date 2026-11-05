@@ -100,7 +100,10 @@ struct HistoryView: View {
             .accessibilityIdentifier("history.empty")
         } else {
             let sections = HistoryList.sections(HistoryList.filter(entries, query: query, scope: scope))
-            let fitnessIDs = fitnessProofIDs
+            // Read from the models here, not from the cached entries: Fitness data lands after the workout was saved and
+            // does not touch `updatedAt`, so the rows and the week's total follow the model.
+            let activeKcal = activeKcalByWorkout
+            let weekKcal = HistoryDashboard.weekActiveCalories(workouts: finished)
             List {
                 if query.isEmpty && scope == .all {
                     Section {
@@ -109,7 +112,8 @@ struct HistoryView: View {
                             DashboardColumns(
                                 starts: finished.map(\.startedAt),
                                 entries: entries,
-                                recentPRs: recentPRs
+                                recentPRs: recentPRs,
+                                weekActiveKcal: weekKcal
                             ) { path.append(.workout($0)) }
                             .listRowSeparator(.hidden)
                             .listRowBackground(Color.clear)
@@ -117,16 +121,18 @@ struct HistoryView: View {
                             WeeklyGoalSection(starts: finished.map(\.startedAt))
                                 .listRowSeparator(.hidden)
                                 .listRowBackground(Color.clear)
-                            DashboardSection(entries: entries, recentPRs: recentPRs) { path.append(.workout($0)) }
-                                .listRowSeparator(.hidden)
-                                .listRowBackground(Color.clear)
+                            DashboardSection(entries: entries, recentPRs: recentPRs, weekActiveKcal: weekKcal) {
+                                path.append(.workout($0))
+                            }
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
                         }
                     }
                 }
                 ForEach(sections) { section in
                     Section(section.title) {
                         ForEach(section.entries) { entry in
-                            row(entry, fitnessIDs: fitnessIDs)
+                            row(entry, activeKcal: activeKcal[entry.id])
                         }
                     }
                 }
@@ -165,25 +171,22 @@ struct HistoryView: View {
         }
     }
 
-    /// The workouts that carry Fitness data, for the UI tests' proof signal (`fitnessProof`); empty in release builds.
-    private var fitnessProofIDs: Set<UUID> {
-        #if DEBUG
-            Set(finished.filter { $0.healthWorkoutID != nil }.map(\.id))
-        #else
-            []
-        #endif
+    /// Active calories from Apple Fitness per workout, for the workouts that have them.
+    private var activeKcalByWorkout: [UUID: Double] {
+        finished.reduce(into: [:]) { result, workout in
+            if let kcal = workout.activeEnergyKcal { result[workout.id] = kcal }
+        }
     }
 
-    private func row(_ entry: HistoryEntry, fitnessIDs: Set<UUID>) -> some View {
+    private func row(_ entry: HistoryEntry, activeKcal: Double?) -> some View {
         NavigationLink(value: HistoryRoute.workout(entry.id)) {
-            HistoryRow(entry: entry)
+            HistoryRow(entry: entry, activeKcal: activeKcal)
         }
         .matchedTransitionSource(id: entry.id, in: zoom)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(HistoryList.accessibilityLabel(for: entry))
+        .accessibilityLabel(HistoryList.accessibilityLabel(for: entry, activeKcal: activeKcal))
         .accessibilityAddTraits(.isButton)
         .accessibilityIdentifier("history.row.\(entry.id.uuidString)")
-        .fitnessProof(hasFitness: fitnessIDs.contains(entry.id))
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
             deleteButton(entry)
         }
@@ -263,22 +266,21 @@ struct HistoryView: View {
     }
 }
 
-extension View {
-    /// DEBUG only: marks a History row whose workout has Apple Fitness data with the accessibility value "Fitness", so a UI
-    /// test can prove the enrichment end to end before the row shows the numbers. Release builds add nothing.
-    @ViewBuilder
-    fileprivate func fitnessProof(hasFitness: Bool) -> some View {
-        #if DEBUG
-            accessibilityValue(hasFitness ? "Fitness" : "")
-        #else
-            self
-        #endif
-    }
-}
-
-/// One History row: name, date, then duration, volume and the PR count with a trophy.
+/// One History row: name, date, then duration, volume and (from Apple Fitness) active calories, and the PR count with a
+/// trophy.
 private struct HistoryRow: View {
     let entry: HistoryEntry
+    var activeKcal: Double?
+
+    /// `45min · 15,421 lb · 266 kcal`.
+    private var statsText: String {
+        var parts = [
+            HistoryList.durationText(seconds: entry.durationSeconds),
+            HistoryList.volumeText(entry.volume, unit: entry.unit),
+        ]
+        if let activeKcal { parts.append(FitnessFormat.kcalText(activeKcal)) }
+        return parts.joined(separator: " · ")
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
@@ -287,11 +289,9 @@ private struct HistoryRow: View {
             Text(HistoryList.dateText(entry.startedAt))
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
-            Text(
-                "\(HistoryList.durationText(seconds: entry.durationSeconds)) · \(HistoryList.volumeText(entry.volume, unit: entry.unit))"
-            )
-            .font(.subheadline)
-            .foregroundStyle(.secondary)
+            Text(statsText)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
             if entry.prCount > 0 {
                 HStack(spacing: 4) {
                     Image(systemName: "trophy.fill")

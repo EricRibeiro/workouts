@@ -182,9 +182,12 @@ public nonisolated enum HistoryList {
     }
 
     /// The row's one VoiceOver label: `name, date, duration, volume, N PRs` (the PR part only when there is one).
-    public static func accessibilityLabel(for entry: HistoryEntry, now: Date = .now, calendar: Calendar = .current)
-        -> String
-    {
+    public static func accessibilityLabel(
+        for entry: HistoryEntry,
+        activeKcal: Double? = nil,
+        now: Date = .now,
+        calendar: Calendar = .current
+    ) -> String {
         var parts = [
             entry.name,
             dateText(entry.startedAt, now: now, calendar: calendar),
@@ -192,6 +195,7 @@ public nonisolated enum HistoryList {
             volumeText(entry.volume, unit: entry.unit),
         ]
         if entry.prCount > 0 { parts.append(prText(count: entry.prCount)) }
+        if let activeKcal { parts.append("\(FitnessFormat.wholeNumber(activeKcal)) active calories") }
         return parts.joined(separator: ", ")
     }
 

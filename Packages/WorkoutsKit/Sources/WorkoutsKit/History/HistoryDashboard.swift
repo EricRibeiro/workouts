@@ -94,6 +94,25 @@ public nonisolated enum HistoryDashboard {
         )
     }
 
+    /// Active calories (from Apple Fitness) summed over the finished `workouts` started in the Monday-first week containing
+    /// `now`; nil when none of them has any, so the dashboard can hide the figure.
+    @MainActor
+    public static func weekActiveCalories(
+        workouts: [Workout],
+        calendar: Calendar = .current,
+        now: Date = .now
+    ) -> Double? {
+        let calendar = mondayFirst(calendar)
+        guard let week = calendar.dateInterval(of: .weekOfYear, for: now) else { return nil }
+        let values = workouts.compactMap { workout -> Double? in
+            guard workout.finishedAt != nil, workout.startedAt >= week.start, workout.startedAt < week.end else {
+                return nil
+            }
+            return workout.activeEnergyKcal
+        }
+        return values.isEmpty ? nil : values.reduce(0, +)
+    }
+
     /// The newest entry by start date.
     public static func lastWorkout(entries: [HistoryEntry]) -> HistoryEntry? {
         entries.max { $0.startedAt < $1.startedAt }

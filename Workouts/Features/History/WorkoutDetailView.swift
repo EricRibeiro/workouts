@@ -82,6 +82,12 @@ struct WorkoutDetailView: View {
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
+                // After the sets, which are what this screen is for. Read from the model here, not from `detail`:
+                // Fitness data lands after the workout was saved and does not touch `updatedAt`, so the section appears
+                // (and goes) as the model changes.
+                if let health = workout?.healthSummary {
+                    FitnessSection(summary: health)
+                }
             }
             .padding(.horizontal)
             .padding(.bottom)
@@ -211,6 +217,24 @@ private struct DetailHeader: View {
                 .foregroundStyle(.secondary)
             Text(value)
                 .font(.headline)
+        }
+    }
+}
+
+// MARK: - Apple Fitness
+
+/// The "Apple Fitness" section: its heading over the `FitnessCard` in the same rounded container as the other blocks.
+private struct FitnessSection: View {
+    let summary: HealthWorkoutSummary
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Apple Fitness")
+                .font(.headline)
+                .accessibilityAddTraits(.isHeader)
+                .accessibilityIdentifier("workoutDetail.fitness.title")
+            FitnessCard(summary: summary)
+                .dashboardCardStyle()
         }
     }
 }
@@ -443,12 +467,22 @@ struct SaveTemplateSheet: View {
             NavigationStack {
                 if let first = finished.first {
                     WorkoutDetailView(workoutID: first.id)
+                        .task(id: first.id) { await enrich(first) }
                 } else {
                     ProgressView()
                 }
             }
             .environment(settings)
             .accessibilityIdentifier("screen.workoutDetail")
+        }
+
+        /// With `-healthFixture <name>` (as in `-preview WorkoutDetail -healthFixture full`) the sample workout is
+        /// enriched from that fixture the way the app does it, so the Apple Fitness section appears live.
+        private func enrich(_ workout: Workout) async {
+            guard let fixture = HealthFixture.requested() else { return }
+            let summary = try? await HealthEnrichment(source: fixture.anyWorkoutSource)
+                .enrich(workoutStart: workout.startedAt, workoutEnd: workout.finishedAt ?? workout.startedAt)
+            workout.applyHealth(summary, checkedAt: .now)
         }
     }
 

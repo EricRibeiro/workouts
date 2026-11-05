@@ -1,8 +1,9 @@
 import XCTest
 
 /// The opt-in Fitness enrichment wired into the app (PLAN 7.1b e3b): off by default; the Settings toggle turns it on, a
-/// finished workout then picks up the canned Fitness workout from `-healthFixture full` (History marks the row with the
-/// accessibility value "Fitness", DEBUG only); turning it off can remove what was added. Nothing here touches the real
+/// finished workout then picks up the canned Fitness workout from `-healthFixture full` (its History row then shows the
+/// active calories: the row's label says "N active calories", the text on screen "N kcal"); turning it off can remove what
+/// was added. Nothing here touches the real
 /// Health store: plain `-uiTesting` has no source at all.
 final class HealthEnrichmentUITests: XCTestCase {
     override func setUpWithError() throws {
@@ -108,7 +109,7 @@ final class HealthEnrichmentUITests: XCTestCase {
 
     @MainActor
     private func fitnessRow(_ app: XCUIApplication, timeout: TimeInterval = 10) -> XCUIElement {
-        historyRow(app, "identifier BEGINSWITH 'history.row.' AND value == 'Fitness'", timeout: timeout)
+        historyRow(app, "identifier BEGINSWITH 'history.row.' AND label CONTAINS 'active calories'", timeout: timeout)
     }
 
     @MainActor

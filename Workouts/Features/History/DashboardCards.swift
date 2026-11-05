@@ -69,6 +69,8 @@ private struct CardValue: View {
 struct DashboardSection: View {
     let entries: [HistoryEntry]
     let recentPRs: [RecentPR]
+    /// Active calories this week from Apple Fitness; nil hides the figure.
+    var weekActiveKcal: Double?
     let openWorkout: (UUID) -> Void
 
     @AppStorage(SettingsKey.weeklyGoal.rawValue) private var storedGoal = SettingsStore.weeklyGoalDefault
@@ -78,6 +80,7 @@ struct DashboardSection: View {
             entries: entries,
             recentPRs: recentPRs,
             goal: min(max(storedGoal, 1), 14),
+            weekActiveKcal: weekActiveKcal,
             openWorkout: openWorkout
         )
     }
@@ -90,6 +93,8 @@ struct DashboardCards: View {
     let entries: [HistoryEntry]
     let recentPRs: [RecentPR]
     let goal: Int
+    /// Active calories this week from Apple Fitness; nil hides the figure.
+    var weekActiveKcal: Double?
     let openWorkout: (UUID) -> Void
     var calendar: Calendar = .current
     var now: Date = .now
@@ -109,11 +114,13 @@ struct DashboardCards: View {
         let week = HistoryDashboard.thisWeek(entries: entries, calendar: calendar, now: now)
         let duration = HistoryList.durationText(seconds: week.durationSeconds)
         let volume = HistoryList.volumeText(week.volume, unit: week.unit)
+        let calories = weekActiveKcal.map(FitnessFormat.kcalText)
+        let calorieLabel = weekActiveKcal.map { ", \(FitnessFormat.wholeNumber($0)) active calories" } ?? ""
         return DashboardCard(
             title: "This Week",
             systemImage: "calendar",
             label:
-                "This week, \(week.workouts) of \(goal) workouts, \(duration), \(volume)",
+                "This week, \(week.workouts) of \(goal) workouts, \(duration), \(volume)\(calorieLabel)",
             identifier: "history.card.thisWeek"
         ) {
             CardValue(text: "\(week.workouts) / \(goal)")
@@ -123,6 +130,11 @@ struct DashboardCards: View {
             Text("\(duration) · \(volume)")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
+            if let calories {
+                Label(calories + " active", systemImage: "flame.fill")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 
@@ -206,6 +218,8 @@ struct DashboardColumns: View {
     let starts: [Date]
     let entries: [HistoryEntry]
     let recentPRs: [RecentPR]
+    /// Active calories this week from Apple Fitness; nil hides the figure.
+    var weekActiveKcal: Double?
     let openWorkout: (UUID) -> Void
 
     @AppStorage(SettingsKey.weeklyGoal.rawValue) private var storedGoal = SettingsStore.weeklyGoalDefault
@@ -217,6 +231,7 @@ struct DashboardColumns: View {
             entries: entries,
             recentPRs: recentPRs,
             goal: min(max(storedGoal, 1), 14),
+            weekActiveKcal: weekActiveKcal,
             openWorkout: openWorkout
         )
         TwoColumnLayout(division: division) {
