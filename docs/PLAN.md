@@ -320,12 +320,11 @@ Live Activity → notifications → logging, then templates, exercises, history.
     moment), enrichment after finish and on foreground for unmatched recent workouts. Proof: kit + the d. test.
   - [ ] **e4. More Fitness details** (Eric, 2026-11-04): effort (HKWorkoutEffortRelationshipQuery; the rated score, else
     the estimated one; absent on older workouts), time in heart-rate zones (`HKWorkout.zoneGroup(for: heartRate)`, iOS 27),
-    weather temperature and humidity (workout metadata), and location best effort (the workout route's first point,
-    reverse-geocoded to a locality; needs the workout-route read type; empty for indoor workouts without a route, then
-    dropped). Optional `Workout` fields, kept/removed with the toggle like the rest. **Capture everything** (Eric: "get all
+    weather temperature and humidity and the time zone (workout metadata). **No location**: Apple DTS, 2025: "no public API
+    for 3rd party developers to access the location of an indoor workout" (developer.apple.com/forums/thread/773408). Optional `Workout` fields, kept/removed with the toggle like the rest. **Capture everything** (Eric: "get all
     the info we can"): besides the typed fields, a versioned Codable snapshot `healthDetailsData` holds every statistic
     (sum/avg/min/max per quantity type in `allStatistics`), all metadata keys, workout events and activities, source and
-    device, effort, zones, and the route's points + place name, so later features need no schema change and survive the
+    device, effort, zones, and any route points, so later features need no schema change and survive the
     workout leaving Health. Request every relevant read type up front (incl. workout route and effort types), since new
     types re-prompt. Proof: kit tests with the fake; the d. integration test seeds effort and zones; Eric checks location
     on device.

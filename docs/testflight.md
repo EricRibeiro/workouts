@@ -20,3 +20,4 @@ Builds uploaded with `./dev testflight --upload` (cadence: AGENTS.md "TestFlight
 | 202611050152 | d70f097 | New app icon; confirmations no longer float with a stray arrow; video without player controls (flicker fix v2); contrast and VoiceOver fixes |
 | 202611050200 | 77333d0 | Fitness fields on workouts (store migration); resume button shows a stopwatch, not a second figure |
 | 202611050207 | dc0baa5 | HealthKit capability (read-only reader, no UI yet) |
+| 202611050247 | 4bfd921 | Exercise chips no longer overlap the next section |

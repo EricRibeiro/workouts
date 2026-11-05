@@ -222,5 +222,5 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
 67. **Store a full Fitness snapshot, not only what is shown** (Eric, 2026-11-04: "get all the info we can"): the matched
     HealthKit id makes re-reading possible, but not if the workout leaves Health, and every new read type re-prompts. So
     all relevant read types are requested up front and each enriched workout keeps a versioned JSON snapshot of everything
-    HealthKit returns (statistics, metadata, events, source/device, effort, zones, route + place), beside typed fields for
+    HealthKit returns (statistics, metadata, events, source/device, effort, zones, time zone, any route), beside typed fields for
     what the UI uses.
