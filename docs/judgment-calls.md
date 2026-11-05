@@ -208,3 +208,6 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
     infrastructure first: research what the simulator supports, a kit `HealthSource` boundary with a fake, launch-arg
     fixtures for UI tests and the gallery, and a real-store integration check, before the reader and the UI. Lands before
     7.2 so the new optional `Workout` fields are in the first Production schema.
+64. **Resume control icon is a stopwatch** (Eric, 2026-11-04, spotted the duplicate): the idle resume button reused the
+    Exercises tab's `figure.strengthtraining.traditional`, so the closed Duo's strip showed the same figure twice. It is now
+    `stopwatch` (a running workout clock); the draining rest ring is unchanged.

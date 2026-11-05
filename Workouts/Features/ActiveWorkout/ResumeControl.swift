@@ -11,7 +11,7 @@ import WorkoutsKit
 /// this modifier.
 ///
 /// A `Label` with an `Image` icon, because that is what the closed Duo moves into the trailing strip. The icon is the
-/// draining rest arc while a rest runs and a workout symbol otherwise; the elapsed time or the countdown rides in the
+/// draining rest arc while a rest runs and a stopwatch otherwise (not the Exercises tab's figure, which sits in the same strip); the elapsed time or the countdown rides in the
 /// accessibility label (the strip drops values).
 private struct ResumeControl: ViewModifier {
     @Environment(ActiveWorkoutEngine.self) private var engine: ActiveWorkoutEngine?
@@ -69,7 +69,7 @@ private struct ResumeRingButton: View {
                         tint: remaining <= 0 ? .ok : nil
                     )
                 } else {
-                    Image(systemName: "figure.strengthtraining.traditional")
+                    Image(systemName: "stopwatch")
                 }
             }
         }
