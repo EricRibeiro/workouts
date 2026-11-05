@@ -217,12 +217,23 @@ public nonisolated enum CustomExerciseForm {
     @MainActor public static func delete(_ exercise: Exercise, in context: ModelContext, store: ExerciseStore) throws
         -> Bool
     {
+        try delete(exercise, in: context, store: store, saveHook: nil)
+    }
+
+    /// ``delete(_:in:store:)`` with a test seam: `saveHook` runs just before the save, so a test can fail it.
+    @discardableResult
+    @MainActor static func delete(
+        _ exercise: Exercise,
+        in context: ModelContext,
+        store: ExerciseStore,
+        saveHook: (() throws -> Void)?
+    ) throws -> Bool {
         let id = exercise.id
         guard !isReferenced(exerciseID: id, in: context) else { return false }
         let notes = try context.fetch(FetchDescriptor<StickyNote>(predicate: #Predicate { $0.exerciseID == id }))
         for note in notes { context.delete(note) }
         context.delete(exercise)
-        try commit(context, store: store)
+        try commit(context, store: store, saveHook: saveHook)
         return true
     }
 
@@ -246,8 +257,20 @@ public nonisolated enum CustomExerciseForm {
         exercise.updatedAt = Date()
     }
 
-    @MainActor private static func commit(_ context: ModelContext, store: ExerciseStore) throws {
-        try context.save()
+    /// Saves and refreshes `store`. A failed save rolls the context back, so a half-applied edit or delete is not
+    /// committed by the next unrelated save.
+    @MainActor private static func commit(
+        _ context: ModelContext,
+        store: ExerciseStore,
+        saveHook: (() throws -> Void)? = nil
+    ) throws {
+        do {
+            try saveHook?()
+            try context.save()
+        } catch {
+            context.rollback()
+            throw error
+        }
         store.setCustom(try context.fetch(FetchDescriptor<Exercise>()))
     }
 }

@@ -24,6 +24,8 @@ protocol LiveActivityHandle: AnyObject {
 protocol LiveActivityProviding {
     /// Activities that already exist (from an earlier launch of the process).
     var existing: [any LiveActivityHandle] { get }
+    /// Whether the person allows Live Activities (Settings, per app); requesting while off only throws.
+    var areActivitiesEnabled: Bool { get }
     func request(
         workoutID: UUID,
         content: ActivityContent<WorkoutActivityState>
@@ -35,6 +37,8 @@ struct SystemLiveActivityProvider: LiveActivityProviding {
     var existing: [any LiveActivityHandle] {
         Activity<WorkoutActivityAttributes>.activities.map(SystemLiveActivity.init)
     }
+
+    var areActivitiesEnabled: Bool { ActivityAuthorizationInfo().areActivitiesEnabled }
 
     func request(
         workoutID: UUID,
@@ -90,6 +94,8 @@ final class LiveActivityController {
     private var lastContent: ActivityContent<WorkoutActivityState>?
     private var isReconciling = false
     private var isDirty = false
+    /// The workout whose unavailable Live Activity was already logged, so the log is one line per workout.
+    private var loggedUnavailableFor: UUID?
     private let debounce: Duration
     private var pendingReconcile: Task<Void, Never>?
 
@@ -176,13 +182,25 @@ final class LiveActivityController {
             await adopted.update(content)
             return
         }
+        // Off in Settings: skip the request (it would only throw) and look again on the next change.
+        guard provider.areActivitiesEnabled else {
+            logUnavailable(for: info.workoutID, "Live Activities are turned off")
+            return
+        }
         do {
             current = try provider.request(workoutID: info.workoutID, content: content)
             lastContent = content
         } catch {
-            // Disabled in Settings, or too many activities: the app works without it; try again on the next change.
-            logger.error("Live Activity request failed: \(error.localizedDescription)")
+            // Too many activities, or a refusal: the app works without it; try again on the next change.
+            logUnavailable(for: info.workoutID, "request failed: \(error.localizedDescription)")
         }
+    }
+
+    /// Logs why there is no Live Activity, once per workout rather than on every change.
+    private func logUnavailable(for workoutID: UUID, _ reason: String) {
+        guard loggedUnavailableFor != workoutID else { return }
+        loggedUnavailableFor = workoutID
+        logger.error("No Live Activity for this workout: \(reason)")
     }
 
     /// Ends every activity except one for `keep`, which becomes ``current`` (adopted) when it exists.

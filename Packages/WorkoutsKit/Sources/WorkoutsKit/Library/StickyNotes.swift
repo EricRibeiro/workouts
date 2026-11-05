@@ -15,8 +15,18 @@ public nonisolated enum StickyNotes {
     /// Saves `text` (trimmed, capped at `maxLength`) as the exercise's note. Blank text clears it. Duplicates left by a
     /// CloudKit merge collapse into one row.
     @MainActor public static func set(_ text: String, for exerciseID: UUID, in context: ModelContext) throws {
+        try set(text, for: exerciseID, in: context, saveHook: nil)
+    }
+
+    /// ``set(_:for:in:)`` with a test seam: `saveHook` runs just before the save, so a test can fail it.
+    @MainActor static func set(
+        _ text: String,
+        for exerciseID: UUID,
+        in context: ModelContext,
+        saveHook: (() throws -> Void)?
+    ) throws {
         let trimmed = String(text.trimmingCharacters(in: .whitespacesAndNewlines).prefix(maxLength))
-        guard !trimmed.isEmpty else { return try clear(exerciseID, in: context) }
+        guard !trimmed.isEmpty else { return try clear(exerciseID, in: context, saveHook: saveHook) }
         let existing = notes(for: exerciseID, in: context)
         if let keep = existing.first {
             keep.text = trimmed
@@ -25,15 +35,35 @@ public nonisolated enum StickyNotes {
         } else {
             context.insert(StickyNote(exerciseID: exerciseID, text: trimmed))
         }
-        try context.save()
+        try save(context, saveHook)
     }
 
     /// Deletes the exercise's note, if any.
     @MainActor public static func clear(_ exerciseID: UUID, in context: ModelContext) throws {
+        try clear(exerciseID, in: context, saveHook: nil)
+    }
+
+    /// ``clear(_:in:)`` with the same test seam as ``set(_:for:in:saveHook:)``.
+    @MainActor static func clear(
+        _ exerciseID: UUID,
+        in context: ModelContext,
+        saveHook: (() throws -> Void)?
+    ) throws {
         let existing = notes(for: exerciseID, in: context)
         guard !existing.isEmpty else { return }
         for note in existing { context.delete(note) }
-        try context.save()
+        try save(context, saveHook)
+    }
+
+    /// Saves, and on failure rolls the context back so the change is not committed by the next unrelated save.
+    @MainActor private static func save(_ context: ModelContext, _ saveHook: (() throws -> Void)?) throws {
+        do {
+            try saveHook?()
+            try context.save()
+        } catch {
+            context.rollback()
+            throw error
+        }
     }
 
     @MainActor private static func notes(for exerciseID: UUID, in context: ModelContext) -> [StickyNote] {

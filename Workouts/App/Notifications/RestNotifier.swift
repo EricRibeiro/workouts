@@ -217,7 +217,15 @@ final class RestNotifier: NSObject {
     private func syncNow(_ engine: ActiveWorkoutEngine) {
         sync(plan: engine.restNotificationPlan)
         if engine.workout != nil, !didRequestAuthorization {
-            Task { await requestAuthorizationIfNeeded() }
+            // The center refuses a request while status is undetermined, so a rest started before the answer would
+            // be lost: once the grant lands, schedule whatever the plan is by then.
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                // Only a prompt that was actually shown needs the re-sync; already-allowed needs none.
+                let wasUndetermined = await center.authorizationStatus() == .notDetermined
+                guard await requestAuthorizationIfNeeded(), wasUndetermined else { return }
+                sync(plan: engine.restNotificationPlan)
+            }
         }
     }
 

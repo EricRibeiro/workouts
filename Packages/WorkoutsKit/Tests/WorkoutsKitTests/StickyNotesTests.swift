@@ -58,4 +58,41 @@ import Testing
         try StickyNotes.set(String(repeating: "x", count: 2500), for: id, in: context)
         #expect(StickyNotes.text(for: id, in: context)?.count == StickyNotes.maxLength)
     }
+
+    struct SaveFailed: Error {}
+
+    @Test func failedSetRollsBack() throws {
+        try StickyNotes.set("Keep", for: id, in: context)
+        #expect(throws: SaveFailed.self) {
+            try StickyNotes.set("Lost", for: id, in: context, saveHook: { throw SaveFailed() })
+        }
+        #expect(!context.hasChanges)
+        try context.save()
+        #expect(StickyNotes.text(for: id, in: context) == "Keep")
+
+        // A first-ever note that fails to save leaves no row behind.
+        let fresh = UUID()
+        #expect(throws: SaveFailed.self) {
+            try StickyNotes.set("Lost", for: fresh, in: context, saveHook: { throw SaveFailed() })
+        }
+        #expect(!context.hasChanges)
+        #expect(StickyNotes.text(for: fresh, in: context) == nil)
+    }
+
+    @Test func failedClearRollsBack() throws {
+        try StickyNotes.set("Keep", for: id, in: context)
+        #expect(throws: SaveFailed.self) {
+            try StickyNotes.clear(id, in: context, saveHook: { throw SaveFailed() })
+        }
+        #expect(!context.hasChanges)
+        try context.save()
+        #expect(StickyNotes.text(for: id, in: context) == "Keep")
+
+        // A blank set routes through clear and rolls back the same way.
+        #expect(throws: SaveFailed.self) {
+            try StickyNotes.set("  ", for: id, in: context, saveHook: { throw SaveFailed() })
+        }
+        try context.save()
+        #expect(StickyNotes.text(for: id, in: context) == "Keep")
+    }
 }

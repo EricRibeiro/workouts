@@ -30,6 +30,10 @@ final class FakeLiveActivityProvider: LiveActivityProviding {
     var activities: [FakeLiveActivity] = []
     var requested: [FakeLiveActivity] = []
     var failure: (any Error)?
+    var areActivitiesEnabled = true
+    var requestAttempts = 0
+
+    struct Unexpected: Error {}
 
     var existing: [any LiveActivityHandle] { activities.filter { !$0.isEnded } }
 
@@ -37,6 +41,7 @@ final class FakeLiveActivityProvider: LiveActivityProviding {
         workoutID: UUID,
         content: ActivityContent<WorkoutActivityState>
     ) throws -> any LiveActivityHandle {
+        requestAttempts += 1
         if let failure { throw failure }
         let activity = FakeLiveActivity(workoutID: workoutID, content: content)
         activities.append(activity)
@@ -182,6 +187,21 @@ final class FakeLiveActivityProvider: LiveActivityProviding {
         await controller.reconcile()
         #expect(provider.requested.isEmpty)
 
+        provider.failure = nil
+        await controller.reconcile()
+        #expect(provider.requested.count == 1)
+    }
+
+    @Test func nothingIsRequestedWhileActivitiesAreOffAndItStartsWhenTheyTurnOn() async throws {
+        provider.areActivitiesEnabled = false
+        provider.failure = FakeLiveActivityProvider.Unexpected()  // a request while off would throw
+        try engine.startEmpty()
+        await controller.reconcile()
+        await controller.reconcile()
+        #expect(provider.requested.isEmpty)
+        #expect(provider.requestAttempts == 0)
+
+        provider.areActivitiesEnabled = true
         provider.failure = nil
         await controller.reconcile()
         #expect(provider.requested.count == 1)

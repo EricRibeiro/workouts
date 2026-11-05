@@ -211,4 +211,27 @@ import Testing
         #expect(rig.store.all(includeRetired: true).contains { $0.id == created.id })
         #expect(CustomExerciseForm.exercise(id: created.id, in: rig.context) === created)
     }
+
+    @Test func failedDeleteRollsBackSoNothingIsCommittedLater() throws {
+        struct SaveFailed: Error {}
+        let rig = try Rig()
+        let created = try CustomExerciseForm.create(.init(name: "Sled Push"), in: rig.context, store: rig.store)
+        rig.context.insert(StickyNote(exerciseID: created.id, text: "heavy"))
+        try rig.context.save()
+
+        #expect(throws: SaveFailed.self) {
+            try CustomExerciseForm.delete(
+                created,
+                in: rig.context,
+                store: rig.store,
+                saveHook: { throw SaveFailed() }
+            )
+        }
+        #expect(try !rig.context.hasChanges)
+        // An unrelated save afterwards must not delete the exercise or its note.
+        try rig.context.save()
+        #expect(try rig.context.fetch(FetchDescriptor<Exercise>()).count == 1)
+        #expect(try rig.context.fetch(FetchDescriptor<StickyNote>()).count == 1)
+        #expect(rig.store.exercise(id: created.id) != nil)
+    }
 }

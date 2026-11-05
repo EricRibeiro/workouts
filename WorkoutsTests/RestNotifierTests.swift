@@ -15,19 +15,36 @@ final class FakeNotificationCenter: NotificationCenterProviding {
     var pending: [String: UNNotificationRequest] = [:]
     var delivered: Set<String> = []
     var log: [String] = []
+    /// When true, `requestAuthorization()` waits for ``answerAuthorization()``, like the system alert waiting on a tap.
+    var holdAuthorization = false
+    /// When true, `schedule` is refused until status is authorized, as the real center does.
+    var refusesUntilAuthorized = false
+    private var answer: CheckedContinuation<Void, Never>?
     weak var delegate: (any UNUserNotificationCenterDelegate)?
 
     func authorizationStatus() async -> UNAuthorizationStatus { status }
 
     func requestAuthorization() async throws -> Bool {
         authorizationRequests += 1
+        if holdAuthorization { await withCheckedContinuation { answer = $0 } }
         status = grants ? .authorized : .denied
         return grants
     }
 
     func setCategories(_ categories: Set<UNNotificationCategory>) { self.categories = categories }
 
+    /// Taps the alert's button: the held `requestAuthorization()` returns.
+    func answerAuthorization() {
+        answer?.resume()
+        answer = nil
+    }
+
     func schedule(_ request: UNNotificationRequest) {
+        // The real center refuses `add` while status is undetermined or denied.
+        guard status == .authorized || !refusesUntilAuthorized else {
+            log.append("refused")
+            return
+        }
         log.append("add")
         pending[request.identifier] = request
     }
@@ -247,12 +264,35 @@ final class FakeNotificationCenter: NotificationCenterProviding {
         #expect(center.pending.isEmpty)
     }
 
+    /// C-03: a rest started before the person answers the alert is refused by the center, so the grant must
+    /// re-sync the plan; otherwise the first rest ever ends with no notification.
     @Test func firstWorkoutAsksForPermission() async throws {
+        center.holdAuthorization = true
+        center.refusesUntilAuthorized = true
         let engine = try engine()
         let notifier = notifier()
         notifier.observe(engine)
-        for _ in 0..<5 { await Task.yield() }
+        try engine.startRest(seconds: 60)
+        for _ in 0..<10 { await Task.yield() }
         #expect(center.authorizationRequests == 1)
+        #expect(center.log.contains("refused"))
+        #expect(center.pending.isEmpty)
+
+        center.answerAuthorization()
+        for _ in 0..<10 { await Task.yield() }
+        let request = try #require(center.pending[RestNotificationPlan.identifier])
+        #expect((request.trigger as? UNTimeIntervalNotificationTrigger)?.timeInterval == 60)
+    }
+
+    @Test func aDeniedGrantSchedulesNothing() async throws {
+        center.grants = false
+        center.refusesUntilAuthorized = true
+        let engine = try engine()
+        let notifier = notifier()
+        notifier.observe(engine)
+        try engine.startRest(seconds: 60)
+        for _ in 0..<10 { await Task.yield() }
+        #expect(center.pending.isEmpty)
     }
 
     // MARK: Coalescing
@@ -262,6 +302,8 @@ final class FakeNotificationCenter: NotificationCenterProviding {
     }
 
     @Test func aBurstOfChangesSchedulesOnceWithTheFinalPlan() async throws {
+        // Already allowed: the first-grant re-sync (C-03) is not part of what this test counts.
+        center.status = .authorized
         let engine = try engine()
         let notifier = notifier(debounce: .milliseconds(80))
         notifier.observe(engine)
