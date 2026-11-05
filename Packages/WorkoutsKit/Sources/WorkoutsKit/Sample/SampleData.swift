@@ -131,7 +131,7 @@ private let dayPlans: [DayPlan] = [
                 restSeconds: 150
             ),
             LiftPlan(
-                name: "Barbell Overhead Press",
+                name: "Lever Seated Hammer Grip Shoulder Press",
                 startWeight: 35,
                 increment: 1.25,
                 sets: 3,
@@ -198,7 +198,7 @@ private let dayPlans: [DayPlan] = [
                 restSeconds: 120
             ),
             LiftPlan(
-                name: "Barbell Bent Over Row",
+                name: "Seated Cable Low Row Neutral Grip",
                 startWeight: 50,
                 increment: 2.5,
                 sets: 4,
