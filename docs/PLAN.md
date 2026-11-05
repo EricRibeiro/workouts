@@ -338,6 +338,17 @@ Live Activity → notifications → logging, then templates, exercises, history.
   workout count matches the export.
 - [x] **7.5 TestFlight**: archive, export, upload. Needs: 7.1. Proof: `./dev testflight`; the build installs on the Duo.
 
+### Phase 8 — Final review (Eric, 2026-11-04)
+
+- [ ] **8.1 Whole-app review by Fable** (after everything else, incl. 7.2/7.4): one `model: fable` pass over the entire app,
+  code and running screens, reporting P0–P3 findings in five areas: (1) **bugs** (correctness, data loss, sync/import edge
+  cases, concurrency); (2) **framework fit**: native SwiftUI/SwiftData/HealthKit/ActivityKit APIs used as Apple documents
+  them, no workarounds or private behaviour that would break on the next iOS; (3) **iPhone Duo UX**: closed, open, book
+  and laptop poses, fold transitions, sidebar and split columns feel fluid and intentional; (4) **iOS 27 design
+  guidelines** (HIG, Liquid Glass, toolbars, sheets, dialogs, typography, SF Symbols); (5) **visual polish** (spacing,
+  hierarchy, motion, light/dark, Dynamic Type). Findings become worker tasks; Eric decides taste calls. Proof: the report
+  in `docs/reviews/`, fixes landed, the full `./dev ui-test` green.
+
 ## 7. Risks and unknowns
 
 - **Hinge APIs are real**: SwiftUI `onHingeChange(isEnabled:_:)` (iOS 27.1) and UIKit `UIHinge`. The simulator's fold is not
