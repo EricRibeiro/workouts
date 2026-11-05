@@ -109,7 +109,6 @@ struct ExerciseMediaHeader: View {
     @State private var videoReady = false
     /// Reduce Motion only: whether the person has started the video (it never autoplays then).
     @State private var userPlaying = false
-    @State private var showsEnd = false
     @State private var heroCap: CGFloat = .infinity
 
     private var startURL: URL? { info.isCustom ? nil : ExerciseMedia.store.thumbnailURL(for: info.id, phase: .start) }
@@ -126,7 +125,6 @@ struct ExerciseMediaHeader: View {
         } else {
             hero
                 .task(id: colorScheme) { await loadVideo() }
-                .task(id: animatesStills) { await crossfade() }
                 .onAppear { if !reduceMotion { video?.player.play() } }
                 .onDisappear {
                     video?.player.pause()
@@ -135,8 +133,10 @@ struct ExerciseMediaHeader: View {
         }
     }
 
-    /// The stills trade places only while they are what the person sees.
-    private var animatesStills: Bool { !reduceMotion && !videoReady }
+    /// The stills trade places only while they are what the person sees (and never in UI tests, which need still frames).
+    private var animatesStills: Bool {
+        !reduceMotion && !videoReady && endURL != nil && !ProcessInfo.processInfo.arguments.contains("-uiTesting")
+    }
 
     @ViewBuilder
     private var hero: some View {
@@ -202,7 +202,22 @@ struct ExerciseMediaHeader: View {
         .accessibilityIdentifier("exerciseDetail.playPause")
     }
 
+    /// The start and end frames. While they are what the person sees, a `PhaseAnimator` trades them every 1.5 s (a 1.5 s
+    /// hold, then a 0.6 s fade); it lives only while this view is in the hierarchy, so nothing ticks off screen.
+    @ViewBuilder
     private var frames: some View {
+        if animatesStills {
+            PhaseAnimator([false, true]) { showsEnd in
+                frames(showsEnd: showsEnd)
+            } animation: { _ in
+                .easeInOut(duration: 0.6).delay(1.5)
+            }
+        } else {
+            frames(showsEnd: false)
+        }
+    }
+
+    private func frames(showsEnd: Bool) -> some View {
         ZStack {
             Color.secondary.opacity(0.12)
             if let startURL {
@@ -236,17 +251,6 @@ struct ExerciseMediaHeader: View {
         let looping = LoopingPlayer(url: url)
         video = looping
         if !reduceMotion { looping.player.play() }
-    }
-
-    /// The poor-man's animation while no video is playing: start and end frames trade places every 1.5 s.
-    private func crossfade() async {
-        if !videoReady { showsEnd = false }
-        guard animatesStills, endURL != nil, !ProcessInfo.processInfo.arguments.contains("-uiTesting") else { return }
-        while !Task.isCancelled {
-            try? await Task.sleep(for: .seconds(1.5))
-            if Task.isCancelled { return }
-            withAnimation(.easeInOut(duration: 0.6)) { showsEnd.toggle() }
-        }
     }
 }
 

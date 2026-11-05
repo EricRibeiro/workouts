@@ -47,52 +47,40 @@ private struct ResumeRingButton: View {
     let engine: ActiveWorkoutEngine
     let startedAt: Date
     let restore: () -> Void
-    /// Updated by a 1 s loop; the arc and the accessibility text derive from it.
-    @State private var now = Date.now
-    /// Bumped by the 1 s loop when the rest reaches 0 while the cover is closed; drives the success haptic.
+    /// Bumped once when the rest reaches 0 while the cover is closed; drives the success haptic.
     @State private var restEndCount = 0
     @ScaledMetric(relativeTo: .body) private var arcSize: CGFloat = 22
 
     var body: some View {
         let timer = engine.restTimer
-        let state = Self.state(startedAt: startedAt, endsAt: timer.endsAt, now: now)
-        Button(action: restore) {
-            Label {
-                Text("Resume workout")
-            } icon: {
-                if let endsAt = timer.endsAt, let total = timer.total {
-                    let remaining = max(0, endsAt.timeIntervalSince(now))
-                    RestArc.image(
-                        fraction: min(1, remaining / Double(max(1, total))),
-                        size: arcSize,
-                        label: Text("Resume workout"),
-                        tint: remaining <= 0 ? .ok : nil
-                    )
-                } else {
-                    Image(systemName: "stopwatch")
+        TimelineView(.periodic(from: .now, by: 1)) { context in
+            let now = context.date
+            let state = Self.state(startedAt: startedAt, endsAt: timer.endsAt, now: now)
+            Button(action: restore) {
+                Label {
+                    Text("Resume workout")
+                } icon: {
+                    if let endsAt = timer.endsAt, let total = timer.total {
+                        let remaining = max(0, endsAt.timeIntervalSince(now))
+                        RestArc.image(
+                            fraction: min(1, remaining / Double(max(1, total))),
+                            size: arcSize,
+                            label: Text("Resume workout"),
+                            tint: remaining <= 0 ? .ok : nil
+                        )
+                    } else {
+                        Image(systemName: "stopwatch")
+                    }
                 }
             }
+            .accessibilityLabel("Resume workout, \(state)")
+            .accessibilityIdentifier("resume.ring")
         }
-        .accessibilityLabel("Resume workout, \(state)")
-        .accessibilityIdentifier("resume.ring")
         // The engine keeps an over rest for a few seconds (the flash); with the cover closed nothing else forgets it.
         .sensoryFeedback(.success, trigger: restEndCount)
         .task(id: timer.endsAt) {
-            now = .now
-            // A rest already over when this view appears must not buzz.
-            var hasEnded = timer.endsAt.map { $0 <= now } ?? true
-            while !Task.isCancelled {
-                // Cancellation ends the loop through `Task.isCancelled`; there is nothing to report.
-                try? await Task.sleep(for: .seconds(1))
-                now = .now
-                if !hasEnded, let endsAt = engine.restTimer.endsAt, endsAt <= now {
-                    hasEnded = true
-                    restEndCount += 1
-                }
-                // A failed save while forgetting an over rest is harmless: the next tick retries it, so no alert
-                // (it would repeat every second).
-                if engine.restTimer.endsAt != nil, (try? engine.tickRest()) == true { break }
-            }
+            guard let endsAt = timer.endsAt else { return }
+            await engine.awaitRestExpiry(endsAt: endsAt) { restEndCount += 1 }
         }
     }
 

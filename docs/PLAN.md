@@ -332,7 +332,7 @@ Live Activity → notifications → logging, then templates, exercises, history.
     the dashboard. Proof: `-preview` screenshots light/dark, closed/open.
   - [x] **g. Backfill**: enrich imported history once (and after 8.3's import). Proof: kit test over a fixture year.
 - [x] **7.5 TestFlight**: archive, export, upload. Needs: 7.1. Proof: `./dev testflight`; the build installs on the Duo.
-- [ ] **7.6 Whole-app review by Fable** (after everything except Phase 8, which follows it; Eric, 2026-11-04): one `model: fable` pass over the entire app,
+- [x] **7.6 Whole-app review by Fable** (after everything except Phase 8, which follows it; Eric, 2026-11-04): one `model: fable` pass over the entire app,
   code and running screens, reporting P0–P3 findings in five areas: (1) **bugs** (correctness, data loss, sync/import edge
   cases, concurrency); (2) **framework fit**: native SwiftUI/SwiftData/HealthKit/ActivityKit APIs used as Apple documents
   them, no workarounds or private behaviour that would break on the next iOS; (3) **iPhone Duo UX**: closed, open, book
