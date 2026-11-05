@@ -85,7 +85,7 @@
         "INFOPLIST_KEY_CFBundleDisplayName": "Workouts",
         "INFOPLIST_KEY_ITSAppUsesNonExemptEncryption": "NO",
         "INFOPLIST_KEY_NSHealthShareUsageDescription": "Workouts Duo reads the Apple Fitness strength workout you record alongside each session to add its calories and heart rate to your history.",
-        "INFOPLIST_KEY_NSHealthUpdateUsageDescription[config=Debug]": "Debug builds write sample Fitness workouts for testing.",
+        "INFOPLIST_KEY_NSHealthUpdateUsageDescription": "Workouts Duo only reads from Health and never writes to it.",
         "INFOPLIST_KEY_NSSupportsLiveActivities": "YES",
         "INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]": "YES",
         "INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]": "YES",

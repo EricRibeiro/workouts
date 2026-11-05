@@ -211,3 +211,6 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
 64. **Resume control icon is a stopwatch** (Eric, 2026-11-04, spotted the duplicate): the idle resume button reused the
     Exercises tab's `figure.strengthtraining.traditional`, so the closed Duo's strip showed the same figure twice. It is now
     `stopwatch` (a running workout clock); the draining rest ring is unchanged.
+65. **`NSHealthUpdateUsageDescription` in every configuration** (2026-11-04): App Store export refuses a HealthKit
+    entitlement without it even when the app only reads. Release says "Workouts Duo only reads from Health and never
+    writes to it."; Release never requests share access, so the string is never shown there.
