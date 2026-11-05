@@ -15,3 +15,4 @@ Builds uploaded with `./dev testflight --upload` (cadence: AGENTS.md "TestFlight
 | 202611050004 | 5d3ff27 | Info button on the open Duo, past-workout editor at AX sizes, focused set clears the keyboard toolbar, "Update Template?" as an alert |
 | 202611050007 | d94003a | Stars behind the finish summary, success haptic on every finish |
 | 202611050017 | 55bac68 | Stars actually fall (dense field, 4.5 s) |
+| 202611050026 | 28affbc | Exercise video starts without a dark frame |
