@@ -288,3 +288,5 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
     passed") and the template preview's translucent sheet fails contrast. Both are filtered with a TODO rather than
     re-coloured. Single-line truncation by design is filtered at the default size. Empty states were not wrapped: each
     `ContentUnavailableView` is already the native component, and only "Workout Not Found" repeats (two sites).
+83. **Default rest is 1:00** (Eric, 2026-11-05): `SettingsStore.defaultRestSecondsDefault` 90 → 60. A rest already chosen in
+    Settings is stored and kept; only devices that never set it change. Engine rest tests pin their own 90 s default.

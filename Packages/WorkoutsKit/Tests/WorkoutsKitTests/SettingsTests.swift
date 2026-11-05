@@ -7,7 +7,7 @@ import Testing
     @Test func defaultsOnEmptyBackend() {
         let store = SettingsStore(backend: InMemoryBackend())
         #expect(store.defaultUnit == .lb)
-        #expect(store.defaultRestSeconds == 90)
+        #expect(store.defaultRestSeconds == 60)
         #expect(store.weeklyGoal == 3)
         #expect(store.e1rmFormula == .epley)
         #expect(store.restPresets.isEmpty)
@@ -73,7 +73,7 @@ import Testing
         let store = SettingsStore(backend: backend)
         #expect(store.defaultUnit == .lb)
         #expect(store.e1rmFormula == .epley)
-        #expect(store.defaultRestSeconds == 90)
+        #expect(store.defaultRestSeconds == 60)
         #expect(store.weeklyGoal == 3)
         #expect(store.keepScreenOn)
         #expect(!store.downloadAllVideos)

@@ -18,7 +18,7 @@ public nonisolated enum SettingsKey: String, CaseIterable, Sendable {
 @Observable
 public final class SettingsStore {
     public static let defaultUnitDefault: WeightUnit = .lb
-    public static let defaultRestSecondsDefault = 90
+    public static let defaultRestSecondsDefault = 60
     public static let weeklyGoalDefault = 3
     public static let e1rmFormulaDefault: E1RMFormula = .epley
     public static let restPresetsDefault: [Int] = []

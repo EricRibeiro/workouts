@@ -12,10 +12,12 @@ import Testing
     }
 
     /// An engine with a running empty workout holding squat (rest 90 s default) and curl (rest 60 s), sets filled
-    /// with 50 x 5 so they can be checked.
+    /// with 50 x 5 so they can be checked. The default is pinned to 90 s here, apart from the app's shipped default, so
+    /// the two rests stay distinguishable.
     private func running(_ rig: Rig) throws -> (
         engine: ActiveWorkoutEngine, squat: WorkoutExercise, curl: WorkoutExercise
     ) {
+        rig.settings.defaultRestSeconds = 90
         let engine = try rig.makeEngine()
         try engine.startEmpty()
         let squat = try engine.addExercise(try rig.info(LibraryFixture.squat))
