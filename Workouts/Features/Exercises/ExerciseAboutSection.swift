@@ -178,31 +178,42 @@ struct ExerciseAboutSection: View {
 }
 
 /// Wraps its subviews onto as many lines as the width needs (chips).
+///
+/// Placement reuses the arrangement measured for the proposed width. Re-arranging in `bounds.width` instead wrapped an
+/// extra row whenever pixel rounding made the bounds a fraction narrower than the measured row, and the extra row drew
+/// over the next section (Eric, 2026-11-04: the "Forearm extensors" chip over "Equipment").
 struct FlowLayout: Layout {
     var spacing: CGFloat = 8
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        arrange(in: proposal.width ?? .infinity, subviews: subviews).size
+        Self.arrange(sizes: sizes(subviews, width: proposal.width), in: proposal.width ?? .infinity, spacing: spacing)
+            .size
     }
 
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        let result = arrange(in: bounds.width, subviews: subviews)
-        for (subview, origin) in zip(subviews, result.origins) {
+        let width = proposal.width ?? bounds.width
+        let sizes = sizes(subviews, width: width)
+        let result = Self.arrange(sizes: sizes, in: width, spacing: spacing)
+        for ((subview, origin), size) in zip(zip(subviews, result.origins), sizes) {
             subview.place(
                 at: CGPoint(x: bounds.minX + origin.x, y: bounds.minY + origin.y),
-                proposal: ProposedViewSize(width: bounds.width, height: nil)
+                proposal: ProposedViewSize(size)
             )
         }
     }
 
-    private func arrange(in width: CGFloat, subviews: Subviews) -> (size: CGSize, origins: [CGPoint]) {
+    private func sizes(_ subviews: Subviews, width: CGFloat?) -> [CGSize] {
+        subviews.map { $0.sizeThatFits(ProposedViewSize(width: width, height: nil)) }
+    }
+
+    /// Row-wraps `sizes` into `width`; a chip wider than the width gets a row of its own.
+    static func arrange(sizes: [CGSize], in width: CGFloat, spacing: CGFloat) -> (size: CGSize, origins: [CGPoint]) {
         var origins: [CGPoint] = []
         var x: CGFloat = 0
         var y: CGFloat = 0
         var rowHeight: CGFloat = 0
         var widest: CGFloat = 0
-        for subview in subviews {
-            let size = subview.sizeThatFits(ProposedViewSize(width: width, height: nil))
+        for size in sizes {
             if x > 0, x + size.width > width {
                 x = 0
                 y += rowHeight + spacing
