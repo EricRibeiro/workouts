@@ -234,3 +234,7 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
 70. **Phase 6 review folded into 7.6** (2026-11-05): Eric asked for a whole-app Fable review before Phase 8, covering
     bugs, framework fit, Duo UX, iOS 27 guidelines and polish, which is a superset of the Phase 6 (Duo and accessibility)
     review. One Fable pass after 6.4 and 7.1b land, instead of two back to back; it also covers Phase 7's HealthKit work.
+71. **6.4 closed with one known cost left** (2026-11-05): after the fixes, scrolling stays under 16.7 ms per commit and
+    tab/detail opening dropped from ~1 s to ~0.28 s (the rest is SwiftUI list build). The exercise thumbnails' 30 fps
+    cross-fade `TimelineView` still costs ~0.5 s of CPU over a long scroll; it is Eric's approved look, so it stays, and
+    the 7.6 review weighs it (pausing off-screen rows would be the native fix).

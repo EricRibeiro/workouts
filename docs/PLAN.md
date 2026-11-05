@@ -295,7 +295,7 @@ Live Activity → notifications → logging, then templates, exercises, history.
   survive, since `BenchArrangementStyle` switches layouts on the division region), keyboard in each pose, AX Dynamic Type and VoiceOver order across the strip and the fold. Proof:
   pass/fail table, every screen × pose/scenario, no breaks.
 - [x] **6.3 Accessibility audits**: VoiceOver, Dynamic Type, contrast skills. Proof: audits report clean.
-- [ ] **6.4 Performance**: full-library scrolling, 600-workout chart (sample data scaled up). Proof: `xctrace`, no hitches.
+- [x] **6.4 Performance**: full-library scrolling, 600-workout chart (sample data scaled up). Proof: `xctrace`, no hitches.
 
 ### Phase 7 — Sync, distribution (needs the Developer Program)
 
