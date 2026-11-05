@@ -25,6 +25,11 @@ protocol NotificationCenterProviding: AnyObject {
 final class SystemNotificationCenter: NotificationCenterProviding {
     private nonisolated static let logger = Logger(subsystem: "com.ericribeiro.Workouts", category: "RestNotifier")
     private var center: UNUserNotificationCenter { .current() }
+    /// The center's remove/add/category calls are synchronous XPC round trips to the notification daemon. On the main
+    /// thread at launch (``RestNotifier/observe(_:)`` runs from `WorkoutsApp.init`) a slow daemon held the app past the
+    /// launch watchdog (0x8BADF00D). They run here instead: off the main thread, one at a time and in call order, so
+    /// "remove, then add" keeps its order.
+    private nonisolated static let queue = DispatchQueue(label: "com.ericribeiro.Workouts.notifications")
 
     func authorizationStatus() async -> UNAuthorizationStatus {
         await center.notificationSettings().authorizationStatus
@@ -35,26 +40,32 @@ final class SystemNotificationCenter: NotificationCenterProviding {
     }
 
     func setCategories(_ categories: Set<UNNotificationCategory>) {
-        center.setNotificationCategories(categories)
+        Self.queue.async { UNUserNotificationCenter.current().setNotificationCategories(categories) }
     }
 
     func schedule(_ request: UNNotificationRequest) {
         let identifier = request.identifier
-        center.add(request) { error in
-            if let error {
-                Self.logger.error("Scheduling \(identifier) failed: \(error.localizedDescription)")
-            } else {
-                Self.logger.info("Scheduled \(identifier)")
+        Self.queue.async {
+            UNUserNotificationCenter.current().add(request) { error in
+                if let error {
+                    Self.logger.error("Scheduling \(identifier) failed: \(error.localizedDescription)")
+                } else {
+                    Self.logger.info("Scheduled \(identifier)")
+                }
             }
         }
     }
 
     func removePending(identifiers: [String]) {
-        center.removePendingNotificationRequests(withIdentifiers: identifiers)
+        Self.queue.async {
+            UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: identifiers)
+        }
     }
 
     func removeDelivered(identifiers: [String]) {
-        center.removeDeliveredNotifications(withIdentifiers: identifiers)
+        Self.queue.async {
+            UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: identifiers)
+        }
     }
 
     func setDelegate(_ delegate: (any UNUserNotificationCenterDelegate)?) {

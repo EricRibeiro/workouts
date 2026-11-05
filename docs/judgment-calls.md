@@ -271,3 +271,9 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
     when it passes on a clean tree; `./dev testflight --upload` refuses otherwise (`DEV_SKIP_UI_GATE=1` overrides with a
     warning). The commit gate stays `./dev check`, because a full UI run per commit is too slow. App coverage is now
     recorded (`./dev coverage`, `./dev kit-coverage`).
+80. **Long Settings work runs to completion; notification calls leave the main thread** (2026-11-05): `SettingsFlow` owns
+    import, Health opt-in and opt-out, and lets them finish when the sheet closes (each is a confirmed change to stored
+    data that is only consistent once done); the post-import Fitness look-up is restartable, so it lives in the sheet's
+    `.task(id:)` and is cancelled with it. `SystemNotificationCenter` sends its remove/add/category calls on one serial
+    queue: they are synchronous XPC, and from `WorkoutsApp.init` a slow notification daemon got the app killed by the
+    launch watchdog (0x8BADF00D) in UI tests under load, which could happen on a device too.

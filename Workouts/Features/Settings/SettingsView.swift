@@ -25,15 +25,8 @@ struct SettingsView: View {
 
     private let download = BulkVideoDownload.shared
     @State private var isPickingFile = false
-    @State private var isImporting = false
-    @State private var outcome: TransferOutcome?
+    @State private var flow = SettingsFlow()
     @State private var isTurningOffFitness = false
-
-    /// What the result alert shows after an import.
-    private struct TransferOutcome {
-        let title: String
-        let message: String
-    }
 
     private var bound: Bindable<SettingsStore> { Bindable(settings) }
 
@@ -68,7 +61,10 @@ struct SettingsView: View {
             switch result {
             case .success(let url): runImport(url)
             case .failure(let error):
-                outcome = TransferOutcome(title: "Could Not Import", message: DataTransfer.message(for: error))
+                flow.outcome = SettingsFlow.TransferOutcome(
+                    title: "Could Not Import",
+                    message: DataTransfer.message(for: error)
+                )
             }
         }
         // An alert, not a dialog: it is raised from a toggle, and a dialog's popover arrow would point at nothing sensible.
@@ -84,10 +80,16 @@ struct SettingsView: View {
                 "Workouts stops reading Fitness workouts. Keep the calories and heart rate already added, or remove them?"
             )
         }
+        // Imported history never got Fitness data when it was recorded; look it up once (no-op while off). A task of the
+        // sheet, so closing Settings cancels it.
+        .task(id: flow.backfillRequest) {
+            guard flow.backfillRequest > 0, let health else { return }
+            await health.backfill(context: modelContext)
+        }
         .alert(
-            outcome?.title ?? "",
-            isPresented: Binding(get: { outcome != nil }, set: { if !$0 { outcome = nil } }),
-            presenting: outcome
+            flow.outcome?.title ?? "",
+            isPresented: Binding(get: { flow.outcome != nil }, set: { if !$0 { flow.outcome = nil } }),
+            presenting: flow.outcome
         ) { _ in
             Button("OK", role: .cancel) {}
                 .accessibilityIdentifier("settings.transferOK")
@@ -99,7 +101,7 @@ struct SettingsView: View {
     private var data: some View {
         Section {
             Button("Import…", systemImage: "square.and.arrow.down") { isPickingFile = true }
-                .disabled(isImporting)
+                .disabled(flow.isImporting)
                 .accessibilityLabel("Import")
                 .accessibilityIdentifier("settings.import")
             ShareLink(
@@ -120,26 +122,14 @@ struct SettingsView: View {
     }
 
     private func runImport(_ url: URL) {
-        isImporting = true
-        let context = modelContext
-        let catalog = exerciseStore?.catalog
-        Task {
-            defer { isImporting = false }
-            do {
-                let document = try await DataTransfer.readDocument(at: url)
-                let report = try DataTransfer.apply(document, to: context, catalog: catalog)
-                generation?.bump()
-                // Imported custom exercises must reach the pickers and detail screens.
-                exerciseStore?.setCustom(try modelContext.fetch(FetchDescriptor<Exercise>()))
-                // A legitimately imported unfinished workout (no other running) shows at once, not after relaunch.
-                if engine?.workout == nil { try engine?.resume() }
-                outcome = TransferOutcome(title: report.headline, message: report.summary)
-                // Imported history never got Fitness data when it was recorded; look it up once (no-op while off).
-                if let health { Task { await health.backfill(context: context) } }
-            } catch {
-                outcome = TransferOutcome(title: "Could Not Import", message: DataTransfer.message(for: error))
-            }
-        }
+        flow.runImport(
+            url,
+            context: modelContext,
+            catalog: exerciseStore?.catalog,
+            exerciseStore: exerciseStore,
+            engine: engine,
+            generation: generation
+        )
     }
 
     private var unitsAndRecords: some View {
@@ -267,7 +257,7 @@ struct SettingsView: View {
             set: { isOn in
                 if isOn {
                     settings.healthEnrichmentEnabled = true
-                    Task { await health.requestAuthorization(context: modelContext) }
+                    flow.requestAuthorization(health: health, context: modelContext)
                 } else {
                     isTurningOffFitness = true
                 }
@@ -277,16 +267,7 @@ struct SettingsView: View {
 
     private func turnOffFitness(removeData: Bool) {
         guard let health else { return }
-        Task {
-            do {
-                try await health.turnOff(remove: removeData, context: modelContext)
-            } catch {
-                outcome = TransferOutcome(
-                    title: "Could Not Remove Fitness Data",
-                    message: error.localizedDescription
-                )
-            }
-        }
+        flow.turnOffFitness(removeData: removeData, health: health, context: modelContext)
     }
 
     private var iCloud: some View {

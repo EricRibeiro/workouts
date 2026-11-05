@@ -108,9 +108,11 @@ struct ActiveWorkoutCover: View {
             .presentationPlacement(.center)
         }
         .exerciseInfoSheet(exerciseID: $infoExercise)
-        // UIKit: SwiftUI has no idle-timer API.
+        // UIKit: SwiftUI has no idle-timer API. Driven by "the cover is up, a workout is running and Settings asks", so
+        // Finish and Discard (workout gone) release the screen even before the cover has finished animating away.
         .onAppear { applyKeepScreenOn() }
         .onChange(of: settings?.keepScreenOn) { applyKeepScreenOn() }
+        .onChange(of: engine?.workout != nil) { applyKeepScreenOn() }
         .onDisappear { UIApplication.shared.isIdleTimerDisabled = false }
         .sensoryFeedback(.selection, trigger: minimiseCount)
         // The cover is a presentation of its own, so it hosts its own save-error alert.
@@ -119,7 +121,8 @@ struct ActiveWorkoutCover: View {
     }
 
     private func applyKeepScreenOn() {
-        UIApplication.shared.isIdleTimerDisabled = settings?.keepScreenOn ?? SettingsStore.keepScreenOnDefault
+        let wanted = settings?.keepScreenOn ?? SettingsStore.keepScreenOnDefault
+        UIApplication.shared.isIdleTimerDisabled = wanted && engine?.workout != nil
     }
 
     @ViewBuilder

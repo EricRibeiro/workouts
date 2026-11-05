@@ -54,6 +54,13 @@ struct SetRow: View {
                 .allowsHitTesting(false)
         )
         .sensoryFeedback(.error, trigger: refusedCount)
+        // Clears the red ring 400 ms after the latest refusal: each new refusal cancels and restarts this task, and the row
+        // going away cancels it too.
+        .task(id: refusedCount) {
+            guard showsRefusal else { return }
+            do { try await Task.sleep(for: .milliseconds(400)) } catch { return }
+            withAnimation(.easeOut(duration: 0.2)) { showsRefusal = false }
+        }
         .animation(.easeOut(duration: 0.2), value: model.isChecked)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(SetInputFormat.setAccessibilityLabel(number: model.number, kind: model.kind))
@@ -175,10 +182,6 @@ struct SetRow: View {
         refusedCount += 1
         showsRefusal = true
         AccessibilityNotification.Announcement("Enter weight and reps first").post()
-        Task {
-            try? await Task.sleep(for: .milliseconds(400))
-            withAnimation(.easeOut(duration: 0.2)) { showsRefusal = false }
-        }
     }
 
     /// Done: dark on the green fill. Not done: `.primary` when the set can be checked, `.secondary` when checking would be

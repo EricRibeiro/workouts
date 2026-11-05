@@ -279,13 +279,20 @@ final class BulkVideoDownload {
         guard task == nil, ExerciseMedia.canStreamVideo, !sourceIDs.isEmpty else { return }
         progress = (0, sourceIDs.count)
         task = Task { [weak self] in
-            await ExerciseMedia.store.prefetch(sourceIDs: sourceIDs, scheme: scheme, allowsCellular: false) {
-                done,
-                total in
-                Task { @MainActor in
-                    if let self, self.task != nil { self.progress = (done, total) }
+            // Progress arrives through a stream the task itself reads on the main actor, so no Task is spawned per tick.
+            let (ticks, tick) = AsyncStream.makeStream(of: (done: Int, total: Int).self)
+            async let prefetching: Void = {
+                await ExerciseMedia.store.prefetch(sourceIDs: sourceIDs, scheme: scheme, allowsCellular: false) {
+                    done,
+                    total in
+                    tick.yield((done, total))
                 }
+                tick.finish()
+            }()
+            for await (done, total) in ticks {
+                if let self, self.task != nil { self.progress = (done, total) }
             }
+            await prefetching
             guard !Task.isCancelled else { return }
             self?.task = nil
             self?.progress = nil
