@@ -318,6 +318,12 @@ Live Activity → notifications → logging, then templates, exercises, history.
     sample workouts; one integration test reads them back through the real `HealthKitSource`. Proof: that test.
   - [ ] **e. Reader + permission**: `HealthKitSource` (entitlement, usage string, read-only authorization at the right
     moment), enrichment after finish and on foreground for unmatched recent workouts. Proof: kit + the d. test.
+  - [ ] **e4. More Fitness details** (Eric, 2026-11-04): effort (HKWorkoutEffortRelationshipQuery; the rated score, else
+    the estimated one; absent on older workouts), time in heart-rate zones (`HKWorkout.zoneGroup(for: heartRate)`, iOS 27),
+    weather temperature and humidity (workout metadata), and location best effort (the workout route's first point,
+    reverse-geocoded to a locality; needs the workout-route read type; empty for indoor workouts without a route, then
+    dropped). Optional `Workout` fields, kept/removed with the toggle like the rest. Proof: kit tests with the fake; the
+    d. integration test seeds effort and zones; Eric checks location on device.
   - [ ] **f. UI**: Fitness card on the workout detail (calories, avg/max HR, small HR chart), calories in History rows and
     the dashboard. Proof: `-preview` screenshots light/dark, closed/open.
   - [ ] **g. Backfill**: enrich imported history once (and after 7.4's import). Proof: kit test over a fixture year.
