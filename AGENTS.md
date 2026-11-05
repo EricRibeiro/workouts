@@ -115,7 +115,7 @@ Rules for the loop:
   Exercise media (thumbnails + videos) is wanted; delivery mechanism decided in `docs/port/media.md`.
   No widgets, Shortcuts or Control Center. Eric starts his Apple Fitness workout in Apple's own app alongside this one;
   **HealthKit is read-only enrichment** (Eric, 2026-11-04): after both finish, the app reads the overlapping Fitness
-  workout (calories, heart rate) into the history. It never writes to Health and never starts a workout (PLAN 7.1b).
+  workout (calories, heart rate) into the history. Opt-in: a Settings toggle, off by default; turning it off offers to keep or remove the data. It never writes to Health and never starts a workout (PLAN 7.1b).
 
 ## Code conventions
 

@@ -214,8 +214,8 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
 65. **`NSHealthUpdateUsageDescription` in every configuration** (2026-11-04): App Store export refuses a HealthKit
     entitlement without it even when the app only reads. Release says "Workouts Duo only reads from Health and never
     writes to it."; Release never requests share access, so the string is never shown there.
-66. **When Fitness is read and when Health is asked** (2026-11-04): Health access is never requested at launch. It is asked
-    once, after the first finished workout's summary is dismissed (the moment the value is obvious), and on demand from a
-    Settings "Apple Fitness" section. Lookups run when the app becomes active and right after a finish, plus once more two
-    minutes later (the Watch workout usually ends just after ours). Unmatched workouts are re-checked at most every 15
+66. **When Fitness is read** (2026-11-04; opt-in per Eric): enrichment is a Settings toggle "Read Apple Fitness Workouts",
+    off by default; Health access is asked only when it is turned on. Turning it off asks whether to keep or remove the
+    Fitness data already added. While on, lookups run when the app becomes active and right after a finish, plus once more
+    two minutes later (the Watch workout usually ends just after ours). Unmatched workouts are re-checked at most every 15
     minutes and given up after 7 days; a denied or unavailable store stamps nothing, so a later grant still finds them.
