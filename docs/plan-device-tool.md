@@ -1,9 +1,27 @@
 # Plan: our own Duo device tool (replacing `agent-device`)
 
-Status: proposal, 2026-11-05. Read-only investigation of `agent-device@0.21.36` (Callstack, MIT) plus what Xcode 27.2 /
+Status: Phase A implemented in `Tools/duo` (2026-11-05) and wired into `./dev` (Phase B, B.4 is the orchestrator's commit). Original proposal: read-only investigation of `agent-device@0.21.36` (Callstack, MIT) plus what Xcode 27.2 /
 iOS 27.2 offer natively. Nothing in the repo changed besides this file. Source read from `npm pack` into the session
 scratchpad (`agent-device-src/package/…` paths below refer to that extraction; the same files are on GitHub at
 <https://github.com/callstack/agent-device>, e.g. `apple/fold-helper/Fold.m`).
+
+**Phase A findings (2026-11-05, `iPhone Duo 3`, iOS 27.2) that correct the sections below:**
+
+- **`devicectl device orientation set` does not rotate the Duo (A.3).** It exits 0 and echoes the requested `deviceOrientation` in its
+  own JSON, but `orientation get` stays `portrait`, `LCD` stays `rot0` and screenshots stay 1398x2034. Rotation therefore goes through the
+  vendor HID `orientation-picker-control` event (A.7), verified by the documented `orientation get` plus the lit panel's `currentOrientation`.
+- **Rotation table** (`currentOrientation` of the lit panel; `nativeOrientation` is `rot0` for both): cover `LCD` portrait `rot0`,
+  landscape-left `rot270`, landscape-right `rot90`; inner `LCD-1` portrait `rot90`, landscape-left `rot0`, landscape-right `rot180`. The
+  dark inner panel idles at `rot90`. `devicectl orientation get` normally follows within ~1 s, but once trailed the panel by a step for
+  4-5 s, so the verifier polls up to 12 s.
+- **Oriented sizes.** `nativeSize` ignores `currentOrientation`: a quarter-turned panel captures with width and height swapped (open inner
+  portrait = 2853x2007 px = 951x669 pt; cover landscape = 2034x1398 px = 678x466 pt). `duo screenshot` prints the oriented size; `duo panels`
+  prints the native one.
+- **The panel switch lags the hinge.** After a fold both panels read dark for several seconds (a closed fold takes ~6 s end to end), so
+  the panel check waits up to 20 s instead of failing on "no lit panel".
+- **Half-open settles at ~123 deg, not 130.** The commanded 130 deg preset ends at 123.3 deg and holds, so a named half-open is
+  verified by category plus two agreeing reads, not by the commanded angle.
+- Guest `panels` was dropped: the host's documented `devicectl` table is enough. `THIRD-PARTY-NOTICES.md` lives at the repo root.
 
 ## 1. Findings: how `agent-device` does the four things `./dev` uses
 
@@ -91,7 +109,7 @@ Checked on this machine (`xcrun simctl help`, `xcrun devicectl … --help`, SDK 
 | Read hinge angle | **none host-side**. App-side: `UIHinge.status` / `UIHingeInteraction` (UIKit, iOS 27.1+, public header `UIHinge.h`) | `CMAngleManager` (CoreMotion) | private for the angle; documented lit-panel read distinguishes closed vs not; app-side `UIHinge` as a "should" cross-check (§4 C.6) |
 | Which panel is lit (+ sizes, orientation) | `xcrun devicectl device info displays --device U --json-output -` works on the simulator (verified on `iPhone Duo 4`: outer `LCD` 1398×2034 @3x, inner `LCD-1` 2007×2853 @3x, `backlightState`, `active`, `currentOrientation`); `--stream` subscribes to changes | `CADisplay`/`BLSBacklight` (only needed for scoped device sets) | documented |
 | Screenshot of one panel | `xcrun simctl io U screenshot --display=<name|id|uuid> <png>` (`simctl io help`); or `xcrun devicectl device capture screenshot --display-unique-id` | — | documented (`simctl`, already in `dev`) |
-| Rotate | `xcrun devicectl device orientation set --device U portrait|landscapeLeft|landscapeRight|portraitUpsideDown|faceUp|faceDown` ("for devices that support it"; `get` verified working on the Duo, `set` **not yet tried on the Duo**); `XCUIDevice.shared.orientation` in a UI test; Xcode MCP `orientation landscapeLeft` | vendor HID `orientation-picker-control` (what agent-device uses on foldables) | documented first; HID only if `set` does not move the Duo (spike A.3) |
+| Rotate | `xcrun devicectl device orientation set --device U portrait|landscapeLeft|landscapeRight|portraitUpsideDown|faceUp|faceDown` ("for devices that support it"; `get` works on the Duo; `set` is acknowledged but does **not** rotate it, see the Phase A findings); `XCUIDevice.shared.orientation` in a UI test; Xcode MCP `orientation landscapeLeft` | vendor HID `orientation-picker-control` (what agent-device uses on foldables) | HID (A.3 showed `set` is a no-op on the Duo), verified by documented `get` + displays |
 | Home / background the app | `xcrun simctl launch U com.apple.springboard` (what agent-device's `open com.apple.springboard` reduces to); `XCUIDevice.shared.press(.home)` in a UI test | — | documented |
 | Run code inside the simulator | `xcrun simctl spawn U /abs/path args` | — | documented |
 | Accessibility tree | `XCUIApplication().debugDescription` / element queries in `WorkoutsUITests`; Xcode MCP `DeviceInteractionSynthesize` returns a hierarchy with `hitPoint`s | idb-style AX bridge (`apple/snapshot-bridge`, private `XCTAccessibilityFramework`) | documented only (later) |
@@ -139,8 +157,8 @@ Must = needed to replace `agent-device` today; should = clear agent value next; 
 
 | Command | Priority | Behaviour |
 |---|---|---|
-| `duo fold closed\|half-open\|open [--png P]` | must | guest `set`; verify by hinge reads (closed 0°, open 180°, half-open two agreeing reads in (0,180)) **and** by `devicectl` displays (closed ⇒ `LCD` lit, otherwise `LCD-1`); optional lit-panel PNG |
-| `duo orient portrait\|landscape-left\|landscape-right[\|portrait-upside-down] [--png P]` | must | documented `devicectl device orientation set`, verified with `orientation get` + displays `currentOrientation`; HID fallback only if the spike shows `set` ignores the Duo |
+| `duo fold closed\|half-open\|open [--png P]` | must | guest `set`; verify by hinge reads (closed 0°, open 180°, half-open = category plus two agreeing reads; it settles near 123°) **and** by `devicectl` displays (closed ⇒ `LCD` lit, otherwise `LCD-1`); optional lit-panel PNG |
+| `duo orient portrait\|landscape-left\|landscape-right [--png P]` | must | guest `rotate` (vendor HID, no upside-down), verified with `orientation get` + the lit panel's `currentOrientation` (rotation table above), polled up to 12 s |
 | `duo home` | must | `simctl launch U com.apple.springboard`; verify a screenshot was possible (no lease) |
 | `duo screenshot P [--display outer\|inner\|lit]` | must | lit panel by default (`devicectl` displays → `simctl io --display=`), explicit panel on request; prints the PNG size in px and pt |
 | `duo hinge` | must | JSON `{angleDegrees, angleValid, pose, litPanel}` |
@@ -180,31 +198,36 @@ A `Needs:` reference names a task here. Proof commands assume `U=$(cat .build/de
 
 ### Phase A — the tool, documented pieces first
 
-- [ ] **A.1 Package skeleton + display table**: `Tools/duo/Package.swift` (tools 6.0, macOS 15, executable `duo`, library `DuoKit`,
+- [x] **A.1 Package skeleton + display table**: `Tools/duo/Package.swift` (tools 6.0, macOS 15, executable `duo`, library `DuoKit`,
   tests), `DuoKit/Devicectl.swift` decoding `devicectl device info displays --json-output -` (`result.displays[]`: `name`, `displayId`,
   `uniqueId`, `active`, `backlightState`, `nativeSize`, `pointScale`, `currentOrientation`, `primary`, `type.integrated`),
   `Panels.swift` choosing the lit panel (`backlightState ∈ {activeOn, inactiveOn, activeDimmed}` ⇒ lit; exactly one lit ⇒ that one; else
   error naming the count), `duo panels --udid U`. Fixture: the Duo's JSON captured once into `Tests/DuoKitTests/Fixtures/`. Add
   `.build/` of the package to nothing (the repo `.gitignore` already ignores `.build/` everywhere). Proof: `swift test --package-path
   Tools/duo` (fixture: `LCD` lit, 466×678 pt; `LCD-1` dark) and `swift run --package-path Tools/duo duo panels --udid $U`.
-- [ ] **A.2 Screenshot of the lit panel**: `Commands/Screenshot.swift`: `--display lit|outer|inner` (default lit) → `xcrun simctl io U
+  **Outcome:** done. `swift test` green; `duo panels` prints `LCD lit 1398x2034 px 466x678 pt rot0` and `LCD-1 dark 2007x2853 px 669x951 pt rot90`; fixture `displays-closed.json`.
+- [x] **A.2 Screenshot of the lit panel**: `Commands/Screenshot.swift`: `--display lit|outer|inner` (default lit) → `xcrun simctl io U
   screenshot --display=<name> P`; prints `P 1398x2034 px (466x678 pt, LCD)`. Needs: A.1. Proof: `swift run --package-path Tools/duo duo
   screenshot /tmp/duo-closed.png --udid $U` then `sips -g pixelWidth -g pixelHeight /tmp/duo-closed.png` = 1398×2034 on a closed Duo.
-- [ ] **A.3 Orientation spike (documented path)**: `Commands/Orient.swift` using `xcrun devicectl device orientation set --device U
+  **Outcome:** done. `duo screenshot` of the closed Duo = 1398x2034; the printed size is the oriented one (see findings).
+- [x] **A.3 Orientation spike (documented path)**: `Commands/Orient.swift` using `xcrun devicectl device orientation set --device U
   <landscapeLeft|…>` and verifying with `orientation get` (`deviceOrientation`) plus displays `currentOrientation` (`rot0/rot90/rot270/rot180`)
   within 5 s. Record the outcome at the top of this file. Needs: A.1. Proof: `swift run … duo orient landscape-left --udid $U --png
   /tmp/duo-ll.png` → PNG 2034×1398 and `duo orient portrait` restores 1398×2034. If the Duo does not rotate, the task ends with that
   finding and A.7 becomes a must.
-- [ ] **A.4 Guest helper build + cache**: `Guest/DuoGuest.swift` with the verbs `set <closed|half-open|open|angle>`, `rotate <o>`, `hinge
-  [windowMs]`, `panels` (JSON on stdout, usage on exit 2); `DuoKit/GuestBuilder.swift` compiles it with `xcrun -sdk iphonesimulator swiftc
+  **Outcome:** done as a finding: `orientation set` does not rotate the Duo, so A.7 was required (see findings).
+- [x] **A.4 Guest helper build + cache**: `Guest/DuoGuest.swift` with the verbs `set <closed|half-open|open|angle>`, `rotate <o>`, `hinge
+  [windowMs]` (JSON on stdout, usage on exit 2); `DuoKit/GuestBuilder.swift` compiles it with `xcrun -sdk iphonesimulator swiftc
   -target arm64-apple-ios27.2-simulator -O -framework IOKit` into `.build/duo/guest/<sha256(source)+xcodebuild -version+sdk version>/duo-guest`
   under a mkdir lock; `duo guest-build` prints the path. Add `THIRD-PARTY-NOTICES.md` (§5). Proof: `swift run … duo guest-build` and
   `file` on the printed path says `Mach-O 64-bit executable arm64`; `swift test --package-path Tools/duo` covers the cache key.
-- [ ] **A.5 Hinge readback**: guest `hinge` = `CMAngleManager` first sample + optional window (port of `Fold.m` `readHinge`, exit 3 when the
+  **Outcome:** done. Guest compiles (`-target arm64-apple-ios<sdk>-simulator`, deployment target follows the SDK version) and runs under `simctl spawn`; cache key and mkdir lock unit-tested. The guest `panels` verb was dropped.
+- [x] **A.5 Hinge readback**: guest `hinge` = `CMAngleManager` first sample + optional window (port of `Fold.m` `readHinge`, exit 3 when the
   class is missing, 4 on no sample in 3 s); host `duo hinge --udid U` = `simctl spawn U <guest> hinge <ms>` → `{angleDegrees, angleValid,
   pose, litPanel}` (pose: 0 ⇒ closed, 180 ⇒ open, else half-open). Needs: A.1, A.4. Proof: `swift run … duo hinge --udid $U` prints
   `angleDegrees: 0, pose: closed, litPanel: LCD` on a closed Duo.
-- [ ] **A.6 Fold**: guest `set` sends the vendor HID event (`IOHIDEventCreateVendorDefinedEvent` page `0xff61` usage `0x5b`, payload
+  **Outcome:** done. `duo hinge` on a closed Duo = `angleDegrees: 0, angleValid: true, pose: closed, litPanel: LCD`; `CMAngleManager` is available in 27.2.
+- [x] **A.6 Fold**: guest `set` sends the vendor HID event (`IOHIDEventCreateVendorDefinedEvent` page `0xff61` usage `0x5b`, payload
   `{provider: com.apple.Virtualization.VirtualMachines, source: hinge-slider-control, type: range, value: angle}`); host `duo fold <pose>
   [--png P]` = dispatch, then `PoseVerifier`: up to 8 hinge reads (window 0 then 1000 ms) until the pose category matches (half-open: two
   consecutive reads within 0.5°), then the documented panel check (`closed` ⇒ `LCD` lit, else `LCD-1`), then the optional PNG. Failure
@@ -212,29 +235,35 @@ A `Needs:` reference names a task here. Proof commands assume `U=$(cat .build/de
   `swift run … duo fold open --udid $U --png /tmp/duo-open.png && swift run … duo fold closed --udid $U --png /tmp/duo-closed.png` →
   open PNG 2007×2853 (or 2853×2007), closed PNG 1398×2034, and `command ls -t ~/Library/Logs/DiagnosticReports | head -3` shows no new
   `SpringBoard-*.ips`.
-- [ ] **A.7 Orientation HID fallback** (only if A.3 failed): guest `rotate` = `orientation-picker-control` enum event (no upside-down);
+  **Outcome:** done. open 2853x2007 px (lit `LCD-1`), closed 1398x2034, half-open settles at ~123 deg; no SpringBoard/backboardd reports across all folds. The panel check waits up to 20 s.
+- [x] **A.7 Orientation HID fallback** (required: A.3 failed): guest `rotate` = `orientation-picker-control` enum event (no upside-down);
   host `orient` falls through to it and still verifies with `devicectl orientation get`. Needs: A.3, A.4. Proof: as A.3.
-- [ ] **A.8 Home**: `duo home --udid U` = `xcrun simctl launch U com.apple.springboard`, then confirms a lit-panel screenshot succeeds.
+  **Outcome:** done (now the primary path, not a fallback): `duo orient` verified by `orientation get` + the lit panel; landscape-left cover 2034x1398, open portrait 2853x2007, open landscape-left 2007x2853; restores 1398x2034.
+- [x] **A.8 Home**: `duo home --udid U` = `xcrun simctl launch U com.apple.springboard`, then confirms a lit-panel screenshot succeeds.
   Needs: A.2. Proof: `./dev run -- -startSampleWorkout`, `swift run … duo home --udid $U`, `duo screenshot /tmp/duo-home.png`; Read the PNG:
   Home screen, Workouts in the background.
+  **Outcome:** done. `duo home` launches SpringBoard, confirms with a lit-panel capture (temporary file when `--png` is omitted); the PNG showed the Home screen with Workouts installed.
 
 ### Phase B — cutover (orchestrator reviews; one commit)
 
-- [ ] **B.1 Wire `./dev`**: `duo_bin()` builds `Tools/duo` into `.build/duo/spm` on demand (`swift build -c release …`, lock-guarded,
+- [x] **B.1 Wire `./dev`**: `duo_bin()` builds `Tools/duo` into `.build/duo/spm` on demand (`swift build -c release …`, lock-guarded,
   skipped when up to date); `cmd_fold`, `cmd_orient`, `cmd_home` call `"$DUO" … --udid "$SIM_UDID" [--png]` inside `sim_guarded`;
   `agent_device_do`, `AGENT_DEVICE` and the `open`/`close` pairs are deleted; help text (dev lines 708–712) and the comment at line 450
   rewritten; `sim_require_booted` kept. Add `./dev duo <args>` as a pass-through for the new verbs (`panels`, `hinge`, `screenshot
   --display`). Needs: A.6, A.8 (A.7 if needed). Proof: `./dev fold open .build/screenshots/open.png && ./dev orient landscape-left
   .build/screenshots/tall.png && ./dev orient portrait && ./dev fold closed .build/screenshots/closed.png` → sizes 951×669 / 669×951 /
   466×678 pt as `verify-ui` documents, no crash report.
-- [ ] **B.2 Docs and skill**: `.claude/skills/verify-ui/SKILL.md` §4 and "Live Activity" steps 2 and 5 (drop the leaked-session warning
+  **Outcome:** done. `duo_bin()` builds release into `.build/duo/spm` only when a file under `Tools/duo` is newer than the binary (no extra lock; SwiftPM's scratch lock suffices; `dev: building Tools/duo…` on stderr before a rebuild). `fold`/`orient`/`home` call the tool inside `sim_guarded`; `./dev duo <verb>` injects `--udid` and rejects an explicit one (use `DEV_SIM_UDID`). Measured in review: `fold open` 2.1 s, `fold closed` 5.3 s. Sizes 951x669 / 669x951 / 466x678 pt, no crash reports.
+- [x] **B.2 Docs and skill**: `.claude/skills/verify-ui/SKILL.md` §4 and "Live Activity" steps 2 and 5 (drop the leaked-session warning
   and the `npx … close` line; `./dev home` is enough), `AGENTS.md` loop table (`fold`/`orient` lines), `docs/PLAN.md` 0.5b note and
   Phase 6 wording, `docs/DECISIONS.md` "Native layer" gets one heading "Duo poses are set by Tools/duo (private HID hinge event, verified
   by documented reads)". Needs: B.1. Proof: `grep -rn "agent-device\|npx" dev AGENTS.md .claude docs --exclude=plan-device-tool.md` is
   empty except history notes that say "formerly".
-- [ ] **B.3 Gate**: `./dev check` runs `swift test --package-path Tools/duo` after `kit` (sub-second); `./dev lint` covers `Tools/duo`
+  **Outcome:** done. verify-ui §4 and the Live Activity steps, AGENTS.md rows, PLAN 0.5b and Phase 6/risk wording and the DECISIONS "Native layer" entry updated; the grep is empty.
+- [x] **B.3 Gate**: `./dev check` runs `swift test --package-path Tools/duo` after `kit` (sub-second); `./dev lint` covers `Tools/duo`
   (`LINT_PATHS`). Needs: B.1. Proof: `./dev check`.
-- [ ] **B.4 Full proof before the commit** (orchestrator): `./dev check`, `./dev ui-test`, and the four-pose screenshot set from B.1 read
+  **Outcome:** done. `./dev check` runs `duo-test` after kit (`duo: Test run with 93 tests …`); `LINT_PATHS` includes `Tools/duo`; `./dev duo-test` added.
+- [ ] **B.4 Full proof before the commit** (orchestrator's commit, not a worker task): `./dev check`, `./dev ui-test`, and the four-pose screenshot set from B.1 read
   by a reviewer. Then commit and `./dev testflight --upload` is **not** needed (tooling only; no app change) — note that in
   `docs/testflight.md` only if the commit also touches the app.
 

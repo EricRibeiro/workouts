@@ -66,10 +66,16 @@ checkout hits that one simulator, so its fold pose and text size belong to your 
 portrait. Each simulator has its own lock; the crash guard stays global. Booting is headless (no Simulator.app window), and
 a cold boot settles 15 s before `shot` captures. `./dev sims` lists the pool.
 
-Change poses with `./dev fold closed|half-open|open [png]` and `./dev orient portrait|landscape-left|… [png]`
-(agent-device, pinned in `dev`; it sends the simulator's own HID hinge event and confirms the hinge angle). The optional
-png captures whichever panel is lit: 466x678 pt closed (outer), 951x669 open, 669x951 open rotated. Plain
-`./dev screenshot` may capture a dark panel once the Duo is open, so use the fold/orient capture there. Every
+Change poses with `./dev fold closed|half-open|open [png]` and `./dev orient portrait|landscape-left|landscape-right [png]`
+(`Tools/duo`, our own tool: it sends the same HID hinge and orientation events as Xcode's Device Hub from a helper inside the
+simulator, then proves the pose with documented reads, hinge angle, `devicectl` orientation and the lit panel, and fails with
+the observed state if the pose is not reached; formerly a third-party wrapper). Each command is stateless: no session to open or
+close, and `./dev`'s per-simulator lock is the only serialisation. The optional png captures whichever panel is lit:
+466x678 pt closed (outer), 951x669 open (PNG 2853x2007), 669x951 open rotated (PNG 2007x2853). Plain
+`./dev screenshot` may capture a dark panel once the Duo is open, so use the fold/orient capture there. A closed fold takes
+about 6 s because the panel switch trails the hinge; half-open settles near 123 deg, not the commanded 130. Other verbs are one
+`./dev duo <verb>` away: `panels` (which panel is lit, with pixel and point sizes), `hinge` (angle, pose, lit panel),
+`screenshot <png> --display lit|outer|inner`, `fold <degrees>` for an explicit angle, `home`. Every
 coordinate and accessibility ref is stale after a pose change. After `fold open`, `./dev orient portrait` gives the wide layout (951x669, sidebar expanded)
 and `./dev orient landscape-left` the tall one (669x951, sidebar collapsed behind its toggle); the names are the reverse of the
 PNG shape. Finish a run with `./dev orient portrait` and
@@ -94,15 +100,12 @@ they run. If that happens: stop, `xcrun simctl shutdown all`, and report it. Nev
 ## Live Activity on the simulator (proven 2026-11-03, task 1.5)
 
 1. `./dev run -- -startSampleWorkout` (DEBUG: seeds sample data, starts the first template, starts a 300 s rest).
-2. Background the app: `./dev home` (the MCP's `b h` / `b p` hardware buttons do nothing on this simulator). Never run
-   agent-device `open` by hand without a matching `close`: a leaked session holds the Duo and every later `./dev fold`
-   fails with DEVICE_IN_USE.
+2. Background the app: `./dev home` (the MCP's `b h` / `b p` hardware buttons do nothing on this simulator).
 3. Pull down the Lock Screen view with the MCP: `DeviceInteractionStartSession` on the Duo, then
    `DeviceInteractionSynthesize` `t 150 2 f 150 450 0.4` (closed pose, 466x678 pt). The Live Activity banner is there;
    the first time, the system asks "Allow Live Activities from Workouts?" inside the banner: tap Allow.
 4. Tap the banner's buttons by coordinates from the screenshot (`t <x> <y> w 3`), read the screenshot after each.
-   Dismiss with `t 233 670 f 233 200 0.3`, then `DeviceInteractionEndSession` (key `interactionSessionKey`) and
-   `npx --yes agent-device@0.21.36 close --udid <udid>`.
+   Dismiss with `t 233 670 f 233 200 0.3`, then `DeviceInteractionEndSession` (key `interactionSessionKey`).
 The Dynamic Island is not drawn in simulator screenshots of the closed Duo's strip; use the Lock Screen banner.
 
 - **Text size**: the `-UIPreferredContentSizeCategoryName` launch argument does **not** apply through `./dev shot` (Phase 3 review, 2026-11-04). Your checkout has its own pool simulator, so set it there: `xcrun simctl ui <udid> content_size accessibility-extra-large` (udid = the THIS-CHECKOUT row of `./dev sims`), shoot, then `xcrun simctl ui <udid> content_size medium`. Same for `appearance dark|light`.

@@ -117,7 +117,7 @@ Live Activity → notifications → logging, then templates, exercises, history.
   closed-pose screenshot (record where the bar lands).
 - [x] **0.5b ArrangementView cover spike**: empty root `fullScreenCover` holding an empty `ArrangementView` (spike for 2.10).
   Needs: 0.5a. Proof: `./dev run` + both open-pose screenshots (record how the cover's arrangement behaves).
-  Recorded 2026-11-03 (`./dev fold`): the cover stays presented across fold and unfold; its size class switches live, so
+  Recorded 2026-11-03 (`./dev fold`, formerly through a third-party wrapper, now `Tools/duo`): the cover stays presented across fold and unfold; its size class switches live, so
   the same cover goes compact ↔ `ArrangementView` without dismissal. Open wide (951x669): primary left, secondary right,
   bars in the trailing strip. Open rotated (669x951): primary on top, secondary below, bars across the top. Closing returns
   to the compact layout. `ArrangementView(primary:secondary:)` takes exactly two panes.
@@ -287,7 +287,7 @@ Live Activity → notifications → logging, then templates, exercises, history.
 
 - [x] **6.1 Half-open bench mode**: the arrangement view puts the SetTable on the lower half and the exercise pane + rest
   countdown on the upper; `reservedRegions(kind: .division)` only if the system split is wrong (`onHingeChange` is for effects).
-  Needs: 4.5. Proof: Device Hub screenshots at two angles.
+  Needs: 4.5. Proof: `./dev fold half-open` / Device Hub screenshots at two angles.
 - [x] **6.2 Pose and scenario pass** of every screen with `verify-ui`: closed portrait and landscape (title collapse, ~2 rows
   above the keyboard, strip), open tall and wide, book and laptop half-open (arrangement and split divider vs the fold; the laptop
   pose's lower half is where the keyboard lands), Split View (safe areas flip sides; PiP), fold mid-flow with a sheet, menu,
@@ -372,8 +372,9 @@ Live Activity → notifications → logging, then templates, exercises, history.
 
 ## 7. Risks and unknowns
 
-- **Hinge APIs are real**: SwiftUI `onHingeChange(isEnabled:_:)` (iOS 27.1) and UIKit `UIHinge`. The simulator's fold is not
-  scriptable (`verify-ui`), so 6.1 is verified by Device Hub screenshot. `ArrangementView` inside a `fullScreenCover` +
+- **Hinge APIs are real**: SwiftUI `onHingeChange(isEnabled:_:)` (iOS 27.1) and UIKit `UIHinge`. The simulator's fold is scriptable
+  with `./dev fold closed|half-open|open` (`Tools/duo`, verified by documented reads; half-open settles near 123 deg), so 6.1 is
+  verified from `./dev fold half-open` screenshots, with Device Hub as the manual cross-check. `ArrangementView` inside a `fullScreenCover` +
   `NavigationStack` is undocumented: 0.5 spikes it before 2.10 relies on it.
 - **Sidebar placement**: without `defaultTabBarPlacement(.sidebar)` the Duo shows only the trailing strip, never the sidebar, and template
   `Tab`s leak into the compact bar even with `.tabPlacement(.sidebarOnly)` in 27.2, so they are built only at regular width

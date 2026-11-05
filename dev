@@ -11,7 +11,9 @@ RESULTS=".build/results"
 LOGS=".build/logs"
 UI_STAMP=".build/ui-test.stamp"
 KIT="Packages/WorkoutsKit"
-LINT_PATHS=(Workouts WorkoutsLiveActivity Shared WorkoutsTests WorkoutsUITests Packages)
+LINT_PATHS=(Workouts WorkoutsLiveActivity Shared WorkoutsTests WorkoutsUITests Packages Tools/duo)
+DUO_SPM=".build/duo/spm"
+DUO_BIN="$DUO_SPM/release/duo"
 NOISE='IDERunDestination|IDESchemeActionDeviceRecord|IDETestOperationsObserverDebug'
 MAX_LINES=80
 
@@ -288,19 +290,20 @@ cmd_kit_coverage() {
 }
 
 # swift test exits 0 when --filter matches nothing; turn that into a failure, else print the totals line.
-kit_summary() { # kit_summary <filter>
+swift_test_summary() { # swift_test_summary <label> <filter>; not test_summary, which is the xcodebuild one above
   local log="$LAST_LOG" line
   if grep -q 'No matching test cases were run' "$log"; then
-    echo "FAILED: kit — no tests matched filter '$1' (check the suite/test name)" >&2
+    echo "FAILED: $1 — no tests matched filter '$2' (check the suite/test name)" >&2
     return 1
   fi
   line=$(grep -E 'Test run with .* passed' "$log" | tail -n 1 || true)
   if [[ -n "$line" ]]; then
-    echo "kit: Test run with ${line#*Test run with }"
+    echo "$1: Test run with ${line#*Test run with }"
   else
-    echo "kit: ok"
+    echo "$1: ok"
   fi
 }
+kit_summary() { swift_test_summary kit "$1"; } # kit_summary <filter>
 cmd_kit_build() {
   [[ -d "$KIT" ]] || die "$KIT does not exist"
   run_logged kit-build bash -c 'cd "$1" && swift build' _ "$KIT"
@@ -447,33 +450,54 @@ sim_guarded() { # sim_guarded <cmd> [args...]
   return "$rc"
 }
 
-# Fold / rotate the iPhone Duo simulator through agent-device (callstack, MIT), pinned. It dispatches the simulator's
-# own HID hinge event from a helper inside the simulator and reads the hinge angle back; verified 2026-11-03 with zero
-# SpringBoard crashes, unlike `simctl io screenConfig` display toggling (forbidden). Each call opens an agent-device
-# session on the running app, acts, captures the lit panel when a path is given, and closes the session.
-AGENT_DEVICE=(npx --yes agent-device@0.21.36)
+# Duo poses (hinge fold, rotation, Home) come from Tools/duo, our own SwiftPM tool: a vendor HID event, the same one Xcode's
+# Device Hub sends, moves the simulated hinge or orientation from a small helper inside the simulator, and every pose is
+# verified by documented reads (CoreMotion hinge angle, `devicectl` orientation and lit panel) before the command succeeds.
+# Verified with zero SpringBoard crashes, unlike `simctl io screenConfig` display toggling (forbidden). Stateless: no
+# daemon and no session to leak, so the per-simulator lock in sim_guarded is all the serialisation there is.
+# See docs/plan-device-tool.md. SwiftPM keeps its own scratch-path lock, so concurrent builds are safe.
 sim_require_booted() { [[ "$(xcrun simctl list devices booted)" == *"$SIM_UDID"* ]] || die "$SIM_NAME is not booted; ./dev run first"; }
-agent_device_do() { # agent_device_do <fold|orientation> <value> [screenshot.png]
-  local udid="$SIM_UDID" shot="${3:-}"
-  sim_require_booted
-  "${AGENT_DEVICE[@]}" open "$BUNDLE_ID" --udid "$udid" --timeout 120000 >/dev/null || die "agent-device open failed"
-  local rc=0
-  "${AGENT_DEVICE[@]}" "$1" "$2" --udid "$udid" || rc=$?
-  if [[ $rc == 0 && -n "$shot" ]]; then
-    mkdir -p "$(dirname "$shot")"; "${AGENT_DEVICE[@]}" screenshot "$shot" --udid "$udid" || rc=$?
+duo_bin() { # build Tools/duo in release mode unless the binary is newer than every source file under it
+  if [[ -x "$DUO_BIN" ]] && [[ -z "$(find Tools/duo -name .build -prune -o -type f -newer "$DUO_BIN" -print -quit)" ]]; then
+    return 0
   fi
-  "${AGENT_DEVICE[@]}" close --udid "$udid" >/dev/null 2>&1 || true
-  return "$rc"
+  echo "dev: building Tools/duo…" >&2
+  run_logged duo-build swift build -c release --package-path Tools/duo --scratch-path "$DUO_SPM" || die "duo build failed"
 }
-cmd_home() { # background the app (Home screen) so the Live Activity / notifications show; the session is always closed
-  local udid="$SIM_UDID"; sim_require_booted
-  local rc=0
-  "${AGENT_DEVICE[@]}" open com.apple.springboard --platform ios --udid "$udid" >/dev/null || rc=$?
-  "${AGENT_DEVICE[@]}" close --udid "$udid" >/dev/null 2>&1 || true
-  return "$rc"
+duo_png_ok() { [[ -z "${1:-}" || "$1" != -* ]]; } # an optional png path must not look like an option
+cmd_home() { # go to the Home screen so the Live Activity / notifications show; a png is a capture of it
+  duo_png_ok "${1:-}" || die "usage: home [screenshot.png]"
+  sim_require_booted; duo_bin
+  local extra=(); if [[ -n "${1:-}" ]]; then mkdir -p "$(dirname "$1")"; extra=(--png "$1"); fi
+  "$DUO_BIN" home --udid "$SIM_UDID" ${extra[@]+"${extra[@]}"}
 }
-cmd_fold() { [[ "${1:-}" =~ ^(closed|half-open|open)$ ]] || die "usage: fold closed|half-open|open [screenshot.png]"; agent_device_do fold "$1" "${2:-}"; }
-cmd_orient() { [[ "${1:-}" =~ ^(portrait|portrait-upside-down|landscape-left|landscape-right)$ ]] || die "usage: orient portrait|landscape-left|landscape-right|portrait-upside-down [screenshot.png]"; agent_device_do orientation "$1" "${2:-}"; }
+cmd_fold() {
+  [[ "${1:-}" =~ ^(closed|half-open|open)$ ]] && duo_png_ok "${2:-}" || die "usage: fold closed|half-open|open [screenshot.png]"
+  sim_require_booted; duo_bin
+  local extra=(); if [[ -n "${2:-}" ]]; then mkdir -p "$(dirname "$2")"; extra=(--png "$2"); fi
+  "$DUO_BIN" fold "$1" --udid "$SIM_UDID" ${extra[@]+"${extra[@]}"}
+}
+cmd_orient() {
+  [[ "${1:-}" =~ ^(portrait|landscape-left|landscape-right)$ ]] && duo_png_ok "${2:-}" || die "usage: orient portrait|landscape-left|landscape-right [screenshot.png]"
+  sim_require_booted; duo_bin
+  local extra=(); if [[ -n "${2:-}" ]]; then mkdir -p "$(dirname "$2")"; extra=(--png "$2"); fi
+  "$DUO_BIN" orient "$1" --udid "$SIM_UDID" ${extra[@]+"${extra[@]}"}
+}
+cmd_duo() { # pass-through to the tool; adds --udid for the verbs that act on a simulator
+  duo_bin
+  local args=("$@") verb="${1:-}" a has_udid=0
+  for a in "$@"; do [[ "$a" == --udid || "$a" == --udid=* ]] && has_udid=1; done
+  case "$verb" in
+    panels | screenshot | hinge | fold | orient | home)
+      ((has_udid == 0)) || die "pass the simulator as DEV_SIM_UDID=<udid> ./dev duo ..., not --udid (the lock and crash guard follow DEV_SIM/DEV_SIM_UDID)"
+      sim_require_booted; args+=(--udid "$SIM_UDID") ;;
+  esac
+  "$DUO_BIN" ${args[@]+"${args[@]}"}
+}
+cmd_duo_test() { # Tools/duo's own tests (host-only, sub-second); quiet on success with one totals line
+  run_logged duo-test swift test --package-path Tools/duo --scratch-path "$DUO_SPM" || return
+  swift_test_summary duo ""
+}
 
 cmd_sims() { # create any missing pool clone, then list the pool; idempotent
   sim_table_load
@@ -683,6 +707,7 @@ cmd_clean() { rm -rf .build; }
 cmd_check() {
   cmd_lint || return
   cmd_kit || return
+  cmd_duo_test || return
   cmd_build || return
   cmd_test || return
   # The PreToolUse hook that gates `git commit` compares this stamp's mtime against changed files.
@@ -707,9 +732,12 @@ format             swift-format in place
 run [-- args]      boot sim, build, install, launch; args go to the app (-- -preview <Name>); prints log command
 shot <png> [-- args]  run + wait + screenshot in one lock hold (use this for proofs; parallel-safe)
 screenshot [path]  simulator screenshot (default .build/screenshots/<timestamp>.png)
-home               send the app to the background (Home screen); agent-device session closed after
-fold <pose> [png]  Duo hinge: closed|half-open|open (agent-device); png = capture of the lit panel
-orient <o> [png]   portrait|landscape-left|landscape-right|portrait-upside-down; png as for fold
+home [png]         go to the Home screen (the app keeps running in the background); png = capture of it
+fold <pose> [png]  Duo hinge: closed|half-open|open, verified by hinge reads and the lit panel; png = capture of the lit panel
+orient <o> [png]   portrait|landscape-left|landscape-right, verified by devicectl orientation and the lit panel; png as for fold
+duo <verb> [args]  Tools/duo pass-through (panels, hinge, screenshot [--display lit|outer|inner], fold <degrees>, guest-build,
+                   --help); adds --udid for this checkout's simulator when the verb needs one; built into .build/duo/spm
+duo-test           swift test for Tools/duo (host-only, ~1s); also part of check
 testflight [--upload]  signed App Store archive + export to .build/testflight/export (no upload unless --upload;
                    --upload refuses unless a full ./dev ui-test passed on HEAD with a clean tree, DEV_SKIP_UI_GATE=1 skips);
                    key from 1Password via op, build number = UTC yyyymmddHHMM; no simulator lock
@@ -717,7 +745,7 @@ media-upload [--env development|production] [--limit N] [--only <sourceId>]
                    upload exercise videos to CloudKit's public database (Web Services, server-to-server key via op);
                    re-runs skip records that already hold both assets; no simulator lock
 clean              rm -rf .build
-check             lint, kit, build, test; stops at first failure; on success touches .build/check.stamp
+check             lint, kit, duo-test, build, test; stops at first failure; on success touches .build/check.stamp
 help               this list
 USAGE
 }
@@ -737,9 +765,11 @@ case "$sub" in
   run) sim_guarded cmd_run "$@" ;;
   screenshot) sim_guarded cmd_screenshot "$@" ;;
   shot) sim_guarded cmd_shot "$@" ;;
-  home) sim_guarded cmd_home ;;
+  home) sim_guarded cmd_home "$@" ;;
   fold) sim_guarded cmd_fold "$@" ;;
   orient) sim_guarded cmd_orient "$@" ;;
+  duo) case "${1:-}" in panels | screenshot | hinge | fold | orient | home) sim_guarded cmd_duo "$@" ;; *) cmd_duo "$@" ;; esac ;;
+  duo-test) cmd_duo_test ;;
   sims) cmd_sims ;;
   testflight) cmd_testflight "$@" ;;
   media-upload) cmd_media_upload "$@" ;;

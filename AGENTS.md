@@ -56,8 +56,11 @@ SNAPSHOT_RECORD=1 ./dev test SnapshotTests   re-record the visual references (Wo
 ./dev run [-- args]     boot sim, install, launch the app; args go to the app (`-- -preview <Name>` = the gallery)
 ./dev screenshot [p]    PNG of the booted simulator (Duo has two displays; DEV_DISPLAY=primary|…)
 ./dev shot <p> [-- args] run + settle + screenshot under one simulator lock: the parallel-safe screen proof
-./dev fold <pose> [p]   Duo hinge closed|half-open|open, p = PNG of the lit panel; ./dev orient <o> [p] rotates
-./dev check             lint → kit → build → test; the pre-commit gate (~30s warm)
+./dev fold <pose> [p]   Duo hinge closed|half-open|open, verified by hinge reads + lit panel; p = PNG of the lit panel
+./dev orient <o> [p]    rotate portrait|landscape-left|landscape-right, verified by devicectl + lit panel; p as for fold
+./dev home [p]          Home screen (the app keeps running); ./dev duo <verb> = Tools/duo pass-through (panels, hinge, screenshot)
+./dev duo-test          swift test for Tools/duo (~1s; part of check)
+./dev check             lint → kit → duo-test → build → test; the pre-commit gate (~30s warm)
 ./dev sims              create missing simulator clones and list the pool (who holds which lock, which is yours)
 ```
 
