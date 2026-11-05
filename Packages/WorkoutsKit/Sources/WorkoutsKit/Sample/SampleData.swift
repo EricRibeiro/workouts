@@ -19,13 +19,21 @@ public enum SampleData {
     ///   - catalog: Where exercises are picked from by name; a name the catalog lacks falls back to the first
     ///     unused strength exercise.
     ///   - now: Every workout ends before the start of this day.
+    ///   - workoutCount: How many finished workouts to insert (default `finishedWorkoutCount`); the performance runs
+    ///     scale it up.
+    ///   - spanDays: When set, the workouts are spread evenly over this many days back from `now` instead of every
+    ///     2 to 3 days.
     public static func seed(
         into context: ModelContext,
         catalog: LibraryCatalog,
         now: Date = .now,
-        seed: UInt64 = 1
+        seed: UInt64 = 1,
+        workoutCount: Int = finishedWorkoutCount,
+        spanDays: Int? = nil
     ) throws {
         var builder = SampleBuilder(catalog: catalog, now: now, random: SplitMix64(state: seed))
+        builder.workoutCount = max(workoutCount, 0)
+        builder.spanDays = spanDays
         builder.build(into: context)
         try context.save()
     }
@@ -333,6 +341,8 @@ private struct SampleBuilder {
     let now: Date
     var random: SplitMix64
     let calendar = Calendar.current
+    var workoutCount = SampleData.finishedWorkoutCount
+    var spanDays: Int?
 
     init(catalog: LibraryCatalog, now: Date, random: SplitMix64) {
         self.catalog = catalog
@@ -426,11 +436,16 @@ private struct SampleBuilder {
         let today = calendar.startOfDay(for: now)
         var daysBack = 1
         var newestFirst: [Date] = []
-        for _ in 0..<SampleData.finishedWorkoutCount {
+        for index in 0..<workoutCount {
+            if let spanDays {
+                daysBack = 1 + Int(Double(index) * Double(spanDays) / Double(max(workoutCount, 1)))
+            }
             let day = calendar.date(byAdding: .day, value: -daysBack, to: today) ?? today
             let minutes = (17 + random.below(3)) * 60 + random.below(46)
             newestFirst.append(calendar.date(byAdding: .minute, value: minutes, to: day) ?? day)
-            daysBack += random.chance(15) ? 7 + random.below(4) : 2 + random.below(2)
+            if spanDays == nil {
+                daysBack += random.chance(15) ? 7 + random.below(4) : 2 + random.below(2)
+            }
         }
         return newestFirst.reversed()
     }

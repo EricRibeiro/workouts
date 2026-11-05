@@ -218,4 +218,22 @@ import Testing
         let first = a.uuid()
         #expect(first != a.uuid())
     }
+
+    @Test func scalesTheWorkoutCountAcrossTheRequestedSpan() throws {
+        let container = try ModelContainer.workouts(inMemory: true, cloudKit: false)
+        try SampleData.seed(
+            into: container.mainContext,
+            catalog: Self.realCatalog(),
+            now: Self.now,
+            workoutCount: 120,
+            spanDays: 730
+        )
+        let all = try workouts(container.mainContext)
+        #expect(all.count == 120)
+        #expect(all.allSatisfy { $0.finishedAt != nil })
+        let spanDays = Self.now.timeIntervalSince(all[0].startedAt) / 86_400
+        #expect(spanDays > 700 && spanDays < 740)
+        #expect(all.last.map { Self.now.timeIntervalSince($0.startedAt) < 3 * 86_400 } == true)
+        withExtendedLifetime(container) {}
+    }
 }

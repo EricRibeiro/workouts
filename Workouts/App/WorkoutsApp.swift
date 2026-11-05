@@ -186,15 +186,25 @@ struct WorkoutsApp: App {
         }
 
         /// `-seedSampleData`: seeds the sample data when the store has no templates and stops there.
+        /// `-sampleWorkouts <n>`: seeds n finished workouts over ~2 years instead of the default 50 (and stops there).
         /// `-startSampleWorkout`: seeds the sample data when the store has no templates, then starts a workout from the
         /// first template (if none runs), then always starts a 5-minute rest, so the Live Activity can be shown without any UI.
         @MainActor
         private static func startSampleWorkoutIfRequested(engine: ActiveWorkoutEngine, context: ModelContext) throws {
             let arguments = ProcessInfo.processInfo.arguments
             let starts = arguments.contains("-startSampleWorkout")
-            guard starts || arguments.contains("-seedSampleData") else { return }
+            // `-sampleWorkouts <n>`: seeds n finished workouts spread over ~2 years (performance runs, PLAN 6.4).
+            let scaled = arguments.firstIndex(of: "-sampleWorkouts").flatMap { index in
+                arguments.indices.contains(index + 1) ? Int(arguments[index + 1]) : nil
+            }
+            guard starts || scaled != nil || arguments.contains("-seedSampleData") else { return }
             if try context.fetchCount(FetchDescriptor<Template>()) == 0 {
-                try SampleData.seed(into: context, catalog: LibraryCatalog.bundled(in: .main))
+                let catalog = try LibraryCatalog.bundled(in: .main)
+                if let scaled {
+                    try SampleData.seed(into: context, catalog: catalog, workoutCount: scaled, spanDays: 730)
+                } else {
+                    try SampleData.seed(into: context, catalog: catalog)
+                }
             }
             guard starts else { return }
             if engine.workout == nil {
