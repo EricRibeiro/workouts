@@ -231,7 +231,12 @@ test_summary() { # test_summary <name> <only> <bundle>
 }
 
 cmd_build() { sim_resolve; run_logged build xcb build; }
-cmd_test() { run_tests test WorkoutsTests "${1:-}"; }
+cmd_test() {
+  # Snapshot tests (WorkoutsTests/Snapshot) record their references when the runner sees SNAPSHOT_RECORD; xcodebuild only
+  # forwards TEST_RUNNER_-prefixed variables, so map it here. Recording makes the run fail once by design.
+  [[ -n "${SNAPSHOT_RECORD:-}" ]] && export TEST_RUNNER_SNAPSHOT_RECORD="$SNAPSHOT_RECORD"
+  run_tests test WorkoutsTests "${1:-}"
+}
 cmd_ui_test() {
   # HealthKitIntegrationUITests (real Health store, drives the permission sheet) skips itself unless this is set; xcodebuild
   # forwards TEST_RUNNER_-prefixed variables to the test runner. Naming the suite in the filter opts in; the full suite and

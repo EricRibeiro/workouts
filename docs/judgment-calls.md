@@ -277,3 +277,14 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
     `.task(id:)` and is cancelled with it. `SystemNotificationCenter` sends its remove/add/category calls on one serial
     queue: they are synchronous XPC, and from `WorkoutsApp.init` a slow notification daemon got the app killed by the
     launch watchdog (0x8BADF00D) in UI tests under load, which could happen on a device too.
+81. **Snapshot tests are home-grown, no package** (2026-11-05): `WorkoutsTests/Snapshot` renders with `ImageRenderer`, or
+    hosts in a real window for views ImageRenderer cannot draw (TextField, List), and compares per pixel with 0.05%
+    tolerance against PNGs in `WorkoutsTests/__Snapshots__`. `SNAPSHOT_RECORD=1 ./dev test SnapshotTests` re-records;
+    a mismatch writes `.actual.png` beside the reference. Remote packages need Eric's say, and the need is small.
+    Formatting goes through a pinned Toronto calendar so the references hold in any time zone.
+82. **Accessibility audits gate every main screen, with narrow, commented filters** (2026-11-05):
+    `AccessibilityAuditUITests` runs `performAccessibilityAudit` on nine screens at the default size and four at
+    accessibility XL. Open for Eric (taste): `.secondary` text measures 4.2–4.5:1 on grouped backgrounds ("nearly
+    passed") and the template preview's translucent sheet fails contrast. Both are filtered with a TODO rather than
+    re-coloured. Single-line truncation by design is filtered at the default size. Empty states were not wrapped: each
+    `ContentUnavailableView` is already the native component, and only "Workout Not Found" repeats (two sites).

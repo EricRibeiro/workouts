@@ -33,3 +33,6 @@ docs/port/screenshots/
 # Eric's real web export (task 1.7) is personal workout data
 docs/port/fixtures/
 .claude/worktrees/
+
+# Snapshot test output; the references (WorkoutsTests/__Snapshots__/**/*.png) are tracked
+*.actual.png

@@ -76,11 +76,7 @@ struct CustomExerciseFormView: View {
             .navigationTitle(isEditing ? "Edit Exercise" : "New Exercise")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel", systemImage: "xmark") { dismiss() }
-                        .accessibilityLabel("Cancel")
-                        .accessibilityIdentifier("customExercise.cancel")
-                }
+                CancelToolbarItem(id: "customExercise.cancel") { dismiss() }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save", systemImage: "checkmark") { save() }
                         .disabled(!issues.isEmpty)

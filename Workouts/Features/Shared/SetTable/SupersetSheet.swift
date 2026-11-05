@@ -68,11 +68,7 @@ struct SupersetSheet: View {
             .navigationTitle(isInSuperset ? "Edit Superset" : "Create Superset")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel", systemImage: "xmark") { dismiss() }
-                        .accessibilityLabel("Cancel")
-                        .accessibilityIdentifier("superset.cancel")
-                }
+                CancelToolbarItem(id: "superset.cancel") { dismiss() }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(saveTitle, systemImage: "checkmark") {
                         onSave(blocks.map(\.id).filter { picked.contains($0) && $0 != currentID })

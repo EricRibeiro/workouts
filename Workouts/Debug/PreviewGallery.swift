@@ -79,30 +79,21 @@
             return arguments[index + 1]
         }
 
-        /// The one sample container every entry shares.
-        private static let container = Result { try ModelContainer.preview(catalog: LibraryCatalog.bundled(in: .main)) }
-
-        /// The one exercise store (bundled catalog plus the sample container's custom exercises), shared like the container.
-        private static let store = Result { () throws -> ExerciseStore in
-            let context = try container.get().mainContext
-            return ExerciseStore(
-                catalog: try LibraryCatalog.bundled(in: .main),
-                custom: try context.fetch(FetchDescriptor<Exercise>())
-            )
-        }
+        /// The one sample environment every entry shares.
+        private static let environment = Result { try SampleEnvironment() }
 
         @ViewBuilder
         static func host(_ name: String) -> some View {
-            switch container {
+            switch environment {
             case .failure(let error):
                 ContentUnavailableView(
                     "Could not build the sample container",
                     systemImage: "exclamationmark.triangle",
                     description: Text(error.localizedDescription)
                 )
-            case .success(let container):
-                if let entry = GalleryEntry(rawValue: name), case .success(let store) = store {
-                    entry.view.modelContainer(container).environment(store)
+            case .success(let environment):
+                if let entry = GalleryEntry(rawValue: name) {
+                    entry.view.sampleEnvironment(environment)
                 } else {
                     ContentUnavailableView(
                         "Unknown preview \"\(name)\"",
@@ -114,6 +105,32 @@
                     .accessibilityIdentifier("gallery.unknown")
                 }
             }
+        }
+    }
+
+    /// The sample model container plus the exercise store built over it: what the `#Preview`s, the gallery and the
+    /// snapshot tests inject. `now` fixes the sample workouts' dates; the gallery passes the real clock, the snapshot
+    /// tests a fixed instant so the pixels never depend on the day they run.
+    struct SampleEnvironment {
+        let container: ModelContainer
+        let store: ExerciseStore
+
+        init(now: Date = .now) throws {
+            let catalog = try LibraryCatalog.bundled(in: .main)
+            let container = try ModelContainer.workouts(inMemory: true, cloudKit: false)
+            try SampleData.seed(into: container.mainContext, catalog: catalog, now: now)
+            self.container = container
+            store = ExerciseStore(
+                catalog: catalog,
+                custom: try container.mainContext.fetch(FetchDescriptor<Exercise>())
+            )
+        }
+    }
+
+    extension View {
+        /// Hosts the view on the sample container and exercise store.
+        func sampleEnvironment(_ environment: SampleEnvironment) -> some View {
+            modelContainer(environment.container).environment(environment.store)
         }
     }
 

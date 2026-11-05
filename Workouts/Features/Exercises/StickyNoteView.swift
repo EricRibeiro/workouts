@@ -46,6 +46,9 @@ struct StickyNoteView: View {
                 )
                 .font(.subheadline.weight(.medium))
                 .foregroundStyle(.primary)
+                // 44 pt minimum hit height (the audit measured 19.7 pt); the text stays leading-aligned.
+                .frame(minHeight: 44, alignment: .leading)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.borderless)
             .accessibilityIdentifier("exerciseDetail.stickyNote.edit")
@@ -114,10 +117,7 @@ struct StickyNoteEditor: View {
             .navigationTitle("Sticky Note")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel", systemImage: "xmark") { dismiss() }
-                        .accessibilityIdentifier("stickyNote.cancel")
-                }
+                CancelToolbarItem(id: "stickyNote.cancel") { dismiss() }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save", systemImage: "checkmark") {
                         perform { try StickyNotes.set(draft, for: exerciseID, in: context) }

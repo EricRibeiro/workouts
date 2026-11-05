@@ -93,11 +93,7 @@ struct ExercisePickerView: View {
             .naturalLanguageSearch(text: query, match: $naturalMatch)
             .accessibilityIdentifier("picker.search")
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel", systemImage: "xmark") { dismiss() }
-                        .accessibilityLabel("Cancel")
-                        .accessibilityIdentifier("picker.cancel")
-                }
+                CancelToolbarItem(id: "picker.cancel") { dismiss() }
                 if case .multiple(let add, let superset) = mode {
                     ToolbarItem(placement: .confirmationAction) {
                         let label = selection.canAdd ? "Add \(selection.count)" : "Add"

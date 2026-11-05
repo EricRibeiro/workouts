@@ -39,11 +39,7 @@ struct NoteSheet: View {
             .navigationTitle("Note")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel", systemImage: "xmark") { dismiss() }
-                        .accessibilityLabel("Cancel")
-                        .accessibilityIdentifier("\(idPrefix).cancel")
-                }
+                CancelToolbarItem(id: "\(idPrefix).cancel") { dismiss() }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save", systemImage: "checkmark") {
                         onSave(text)

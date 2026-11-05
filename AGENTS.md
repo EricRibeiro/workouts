@@ -48,6 +48,7 @@ Codable/Sendable state those types wrap and the logic behind them.
 ./dev kit [filter]      swift test for WorkoutsKit        — ~1s; use this first and most
 ./dev build             xcodebuild, iPhone Duo sim         — ~2s warm
 ./dev test [filter]     unit tests on the simulator        — ~25s; filter = Suite or Suite/test()
+SNAPSHOT_RECORD=1 ./dev test SnapshotTests   re-record the visual references (WorkoutsTests/__Snapshots__); fails once on purpose
 ./dev lint | format     swift-format lint --strict / format --in-place
 ./dev ui-test [filter]  XCUITest flows on the simulator    — Suite/test(); the flow proof of record
 ./dev coverage [kind]   per-target app coverage of the last passing test (default) or ui-test run (bundle kept in .build/results/latest-*)
@@ -74,6 +75,14 @@ Rules for the loop:
   `xcode-project`).
 - **Run the narrowest proof.** One failing test → `./dev kit 'Suite/test'` or `./dev test Suite/test()`,
   not `./dev check`. `check` is for the end of a task.
+- **Visual regressions are caught by snapshot tests.** `WorkoutsTests/Snapshot` renders components (default and
+  accessibility-3 Dynamic Type, light and dark) and pixel-compares them with the PNGs in
+  `WorkoutsTests/__Snapshots__/<File>/` (`./dev test SnapshotTests`, part of `./dev check`). A failure writes
+  `<name>.actual.png` beside the reference (git-ignored): view it. Re-record only for an *intended* visual change, after
+  viewing the `.actual.png`: `SNAPSHOT_RECORD=1 ./dev test SnapshotTests` (or one suite, `SnapshotTests/ExerciseRowSnapshots`),
+  which fails once by design, then re-run without it and commit the PNGs with the change. Add a component by copying a
+  `Snapshot*Tests.swift` file; views with `List`, `TextField` or `NavigationStack` pass `engine: .hostedFitting` or
+  `.hosted(height:)`. Dates in the PNGs use the simulator's time zone.
 - **Flows need the harness.** `WorkoutsUITests/SmokeUITests` is the one XCUITest to copy from; PLAN task 0.10 extends it
   with the `-preview` gallery, and every task whose proof is a preview or a flow lists 0.10 in its `Needs`.
   UI tests launch with `-uiTesting` (in-memory store, no leftover state).

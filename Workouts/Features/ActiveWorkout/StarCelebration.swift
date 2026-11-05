@@ -6,19 +6,28 @@
 import SwiftUI
 import WorkoutsKit
 
+extension EnvironmentValues {
+    /// Draws the celebration as its static scatter even when the system's Reduce Motion is off. `accessibilityReduceMotion`
+    /// is read-only, so the snapshot tests set this instead to get the same pixels on every run.
+    @Entry var staticCelebration = false
+}
+
 /// A short fall of stars behind the finish summary. The motion comes from `StarField` (WorkoutsKit); this view only
 /// draws it. It plays once for `StarField.totalDuration`, then removes its timeline so nothing keeps running.
 /// With Reduce Motion on, it draws a sparse static scatter across the top of its area instead.
 struct StarCelebration: View {
     let field: StarField
 
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
+    @Environment(\.staticCelebration) private var staticCelebration
     @State private var clock = StartClock()
     @State private var finished = false
 
     init(hasRecord: Bool, seed: UInt64) {
         field = StarField(hasRecord: hasRecord, seed: seed)
     }
+
+    private var reduceMotion: Bool { systemReduceMotion || staticCelebration }
 
     var body: some View {
         Group {

@@ -51,11 +51,7 @@ struct RestTimerPickerSheet: View {
             .navigationTitle("Rest Timer")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel", systemImage: "xmark") { dismiss() }
-                        .accessibilityLabel("Cancel")
-                        .accessibilityIdentifier("restTimer.cancel")
-                }
+                CancelToolbarItem(id: "restTimer.cancel") { dismiss() }
             }
         }
         .presentationDetents([.medium, .large])

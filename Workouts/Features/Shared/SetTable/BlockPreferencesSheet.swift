@@ -96,11 +96,7 @@ struct BlockPreferencesSheet: View {
             .navigationTitle("Preferences")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel", systemImage: "xmark") { dismiss() }
-                        .accessibilityLabel("Cancel")
-                        .accessibilityIdentifier("preferences.cancel")
-                }
+                CancelToolbarItem(id: "preferences.cancel") { dismiss() }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save", systemImage: "checkmark", action: save)
                         .disabled(!isValid)

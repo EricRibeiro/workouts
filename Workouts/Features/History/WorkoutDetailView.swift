@@ -235,7 +235,7 @@ private struct Inputs: Hashable {
 
 /// Date (with the weather, when Health had it), the stats and the note. Duration, volume and records are always
 /// there; Active, Avg HR and Effort join them only when the matched Health workout has the value.
-private struct DetailHeader: View {
+struct DetailHeader: View {
     let detail: WorkoutDetail
     let health: HealthWorkoutSummary?
 
@@ -548,11 +548,7 @@ struct SaveTemplateSheet: View {
             .navigationTitle("Save as Template")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel", systemImage: "xmark") { dismiss() }
-                        .accessibilityLabel("Cancel")
-                        .accessibilityIdentifier("workoutDetail.saveTemplate.cancel")
-                }
+                CancelToolbarItem(id: "workoutDetail.saveTemplate.cancel") { dismiss() }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save Template", systemImage: "checkmark", action: save)
                         .accessibilityLabel("Save Template")

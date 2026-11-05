@@ -37,11 +37,7 @@ struct RestCustomSheet: View {
             .navigationTitle("Custom Timer")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel", systemImage: "xmark") { dismiss() }
-                        .accessibilityLabel("Cancel")
-                        .accessibilityIdentifier("rest.custom.cancel")
-                }
+                CancelToolbarItem(id: "rest.custom.cancel") { dismiss() }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Start", systemImage: "checkmark", action: start)
                         .disabled(!RestTimer.durationRange.contains(total))
