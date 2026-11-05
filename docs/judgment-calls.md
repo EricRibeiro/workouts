@@ -290,3 +290,8 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
     `ContentUnavailableView` is already the native component, and only "Workout Not Found" repeats (two sites).
 83. **Default rest is 1:00** (Eric, 2026-11-05): `SettingsStore.defaultRestSecondsDefault` 90 → 60. A rest already chosen in
     Settings is stored and kept; only devices that never set it change. Engine rest tests pin their own 90 s default.
+84. **Appearance is a Settings choice: System (default), Light, Dark** (Eric, 2026-11-05): a segmented picker in a new
+    Display section; `.preferredColorScheme` once at the scene root, so sheets, the cover and the preview gallery follow.
+    Not part of the JSON export (no other UI setting is). Found on the way: launch-argument overrides reach the defaults
+    as text, and integer/boolean settings were read with `as?` only, so `-defaultRestSeconds 90` was silently ignored
+    (the Settings UI test passed only because 90 was the old default). They now parse their text.

@@ -102,19 +102,25 @@ struct WorkoutsApp: App {
 
     var body: some Scene {
         WindowGroup {
-            #if DEBUG
-                // `-preview <Name>` shows a PreviewGallery entry instead of the app (see Debug/PreviewGallery.swift).
-                if let name = PreviewGallery.requestedName() {
-                    PreviewGallery.host(name)
-                        .environment(settings)
-                        .environment(healthService)
-                } else {
-                    appRoot
-                }
-            #else
-                appRoot
-            #endif
+            // One call at the scene root (app and gallery alike): sheets and full-screen covers inherit it.
+            content.preferredColorScheme(settings.appearance.colorScheme)
         }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        #if DEBUG
+            // `-preview <Name>` shows a PreviewGallery entry instead of the app (see Debug/PreviewGallery.swift).
+            if let name = PreviewGallery.requestedName() {
+                PreviewGallery.host(name)
+                    .environment(settings)
+                    .environment(healthService)
+            } else {
+                appRoot
+            }
+        #else
+            appRoot
+        #endif
     }
 
     @ViewBuilder

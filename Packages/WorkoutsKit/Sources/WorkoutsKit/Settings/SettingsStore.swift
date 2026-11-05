@@ -11,6 +11,15 @@ public nonisolated enum SettingsKey: String, CaseIterable, Sendable {
     case keepScreenOn
     case downloadAllVideos
     case healthEnrichmentEnabled
+    case appearance
+}
+
+/// The app's color scheme choice: follow the system, or force light or dark. The kit holds the value; the app maps it
+/// to SwiftUI's `ColorScheme`.
+public nonisolated enum Appearance: String, CaseIterable, Sendable {
+    case system
+    case light
+    case dark
 }
 
 /// App settings, outside SwiftData. Loads from the backend on init; every property writes through on change. Stored
@@ -25,6 +34,7 @@ public final class SettingsStore {
     public static let keepScreenOnDefault = true
     public static let downloadAllVideosDefault = false
     public static let healthEnrichmentEnabledDefault = false
+    public static let appearanceDefault: Appearance = .system
 
     /// Most custom rest presets kept.
     public static let maxRestPresets = 6
@@ -70,6 +80,11 @@ public final class SettingsStore {
         }
     }
 
+    /// System (default), Light or Dark; applied app-wide by the root scene.
+    public var appearance: Appearance {
+        didSet { backend.set(appearance.rawValue, forKey: SettingsKey.appearance.rawValue) }
+    }
+
     public init(backend: any SettingsBackend = UserDefaultsBackend()) {
         self.backend = backend
 
@@ -77,11 +92,23 @@ public final class SettingsStore {
         where T.RawValue == String {
             (backend.object(forKey: key.rawValue) as? String).flatMap(T.init(rawValue:)) ?? fallback
         }
+        // A launch argument (`-defaultRestSeconds 90`, `-keepScreenOn NO`) reaches the defaults as a string, so numbers and
+        // flags are also read from their text; a stored value keeps its own type.
         func int(_ key: SettingsKey, in range: ClosedRange<Int>, default fallback: Int) -> Int {
-            guard let value = backend.object(forKey: key.rawValue) as? Int, range.contains(value) else {
+            let stored = backend.object(forKey: key.rawValue)
+            guard let value = stored as? Int ?? (stored as? String).flatMap({ Int($0) }), range.contains(value) else {
                 return fallback
             }
             return value
+        }
+        func bool(_ key: SettingsKey, default fallback: Bool) -> Bool {
+            let stored = backend.object(forKey: key.rawValue)
+            if let value = stored as? Bool { return value }
+            switch (stored as? String)?.lowercased() {
+            case "yes", "true", "1": return true
+            case "no", "false", "0": return false
+            default: return fallback
+            }
         }
 
         defaultUnit = raw(.defaultUnit, as: WeightUnit.self, default: Self.defaultUnitDefault)
@@ -89,12 +116,10 @@ public final class SettingsStore {
         weeklyGoal = int(.weeklyGoal, in: 1...14, default: Self.weeklyGoalDefault)
         e1rmFormula = raw(.e1rmFormula, as: E1RMFormula.self, default: Self.e1rmFormulaDefault)
         restPresets = Self.sanitizedPresets(backend.object(forKey: SettingsKey.restPresets.rawValue))
-        keepScreenOn = backend.object(forKey: SettingsKey.keepScreenOn.rawValue) as? Bool ?? Self.keepScreenOnDefault
-        downloadAllVideos =
-            backend.object(forKey: SettingsKey.downloadAllVideos.rawValue) as? Bool ?? Self.downloadAllVideosDefault
-        healthEnrichmentEnabled =
-            backend.object(forKey: SettingsKey.healthEnrichmentEnabled.rawValue) as? Bool
-            ?? Self.healthEnrichmentEnabledDefault
+        keepScreenOn = bool(.keepScreenOn, default: Self.keepScreenOnDefault)
+        downloadAllVideos = bool(.downloadAllVideos, default: Self.downloadAllVideosDefault)
+        healthEnrichmentEnabled = bool(.healthEnrichmentEnabled, default: Self.healthEnrichmentEnabledDefault)
+        appearance = raw(.appearance, as: Appearance.self, default: Self.appearanceDefault)
     }
 
     /// Keeps the valid (1-3600), distinct entries in order, at most 6; anything that is not `[Int]` becomes `[]`.
