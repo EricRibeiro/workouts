@@ -355,6 +355,14 @@ public enum Importer {
             row.maxHeartRate = dto.maxHeartRate
             row.heartRateSeriesData =
                 (dto.heartRateSeries?.isEmpty ?? true) ? nil : try? JSONEncoder().encode(dto.heartRateSeries)
+            row.effortScore = dto.effortScore
+            row.effortIsEstimated = dto.effortIsEstimated
+            row.heartRateZonesData =
+                (dto.heartRateZones?.isEmpty ?? true) ? nil : try? JSONEncoder().encode(dto.heartRateZones)
+            row.weatherTemperatureCelsius = dto.weatherTemperatureCelsius
+            row.weatherHumidityPercent = dto.weatherHumidityPercent
+            row.healthTimeZone = dto.healthTimeZone
+            row.healthDetailsData = dto.healthDetails.flatMap { try? JSONEncoder().encode($0) }
         }
 
         private mutating func syncExercises(of workout: Workout, with dtos: [WorkoutExerciseDTO]) {

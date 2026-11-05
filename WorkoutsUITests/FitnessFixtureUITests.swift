@@ -21,6 +21,8 @@ final class FitnessFixtureUITests: XCTestCase {
         XCTAssertTrue(card.waitForExistence(timeout: 10))
         XCTAssertTrue(card.label.contains("118"), "label was \(card.label)")
         XCTAssertTrue(card.label.contains("310"), "label was \(card.label)")
+        XCTAssertTrue(card.label.contains("effort 8"), "label was \(card.label)")
+        XCTAssertTrue(card.label.contains("5 zones"), "label was \(card.label)")
     }
 
     @MainActor

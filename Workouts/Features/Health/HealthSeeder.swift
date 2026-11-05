@@ -41,20 +41,27 @@
             let store = HKHealthStore()
             let heartRateType = HKQuantityType(.heartRate)
             let energyType = HKQuantityType(.activeEnergyBurned)
+            let effortType = HKQuantityType(.workoutEffortScore)
             let workoutType = HKObjectType.workoutType()
             try await store.requestAuthorization(
-                toShare: [workoutType, heartRateType, energyType],
+                toShare: [workoutType, heartRateType, energyType, effortType],
                 read: HealthKitSource.readTypes
             )
 
             let seeds = HKQuery.predicateForObjects(withMetadataKey: metadataKey)
-            for type in [workoutType, heartRateType, energyType] as [HKObjectType] {
+            for type in [workoutType, heartRateType, energyType, effortType] as [HKObjectType] {
                 _ = try await store.deleteObjects(of: type, predicate: seeds)
             }
 
             let end = Date.now
             let start = end.addingTimeInterval(-50 * 60)
-            let metadata: [String: Any] = [metadataKey: true]
+            let metadata: [String: Any] = [
+                metadataKey: true,
+                HKMetadataKeyIndoorWorkout: true,
+                HKMetadataKeyTimeZone: "America/Toronto",
+                HKMetadataKeyWeatherTemperature: HKQuantity(unit: .degreeCelsius(), doubleValue: 19),
+                HKMetadataKeyWeatherHumidity: HKQuantity(unit: .percent(), doubleValue: 0.65),
+            ]
             let bpm = HKUnit.count().unitDivided(by: .minute())
 
             let heartRate: [HKQuantitySample] = (0..<40).map { index in
@@ -91,8 +98,18 @@
             guard let workout = try await builder.finishWorkout() else {
                 throw HealthSourceError.failed("finishWorkout returned nil")
             }
+            // A rated effort of 8, related to the workout the way the Fitness app does it.
+            let effort = HKQuantitySample(
+                type: effortType,
+                quantity: HKQuantity(unit: .appleEffortScore(), doubleValue: 8),
+                start: start,
+                end: end,
+                metadata: [metadataKey: true]
+            )
+            try await store.save(effort)
+            try await store.relateWorkoutEffortSample(effort, with: workout, activity: nil)
             return
-                "workout \(workout.uuid.uuidString), \(Int(workout.duration)) s, \(heartRate.count) heart-rate samples, 300 kcal"
+                "workout \(workout.uuid.uuidString), \(Int(workout.duration)) s, \(heartRate.count) heart-rate samples, 300 kcal, effort 8"
         }
     }
 #endif

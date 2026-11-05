@@ -105,6 +105,8 @@ struct FitnessCard: View {
         if let calories = summary.activeEnergyKcal { parts.append("\(Self.rounded(calories)) active calories") }
         if let average = summary.avgHeartRate { parts.append("average heart rate \(Self.rounded(average))") }
         if let maximum = summary.maxHeartRate { parts.append("maximum \(Self.rounded(maximum))") }
+        if let effort = summary.effort { parts.append("effort \(Self.rounded(effort.score))") }
+        if !summary.zones.isEmpty { parts.append("\(summary.zones.count) zones") }
         return parts.isEmpty ? "Fitness" : "Fitness: " + parts.joined(separator: ", ")
     }
 

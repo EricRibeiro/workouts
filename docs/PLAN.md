@@ -318,7 +318,7 @@ Live Activity → notifications → logging, then templates, exercises, history.
     sample workouts; one integration test reads them back through the real `HealthKitSource`. Proof: that test.
   - [x] **e. Reader + permission**: `HealthKitSource` (entitlement, usage string, read-only authorization at the right
     moment), enrichment after finish and on foreground for unmatched recent workouts. Proof: kit + the d. test.
-  - [ ] **e4. More Fitness details** (Eric, 2026-11-04): effort (HKWorkoutEffortRelationshipQuery; the rated score, else
+  - [x] **e4. More Fitness details** (Eric, 2026-11-04): effort (HKWorkoutEffortRelationshipQuery; the rated score, else
     the estimated one; absent on older workouts), time in heart-rate zones (`HKWorkout.zoneGroup(for: heartRate)`, iOS 27),
     weather temperature and humidity and the time zone (workout metadata). **No location**: Apple DTS, 2025: "no public API
     for 3rd party developers to access the location of an indoor workout" (developer.apple.com/forums/thread/773408). Revisit after the first sync (Eric, 2026-11-04), e.g. from a real Health export. Optional `Workout` fields, kept/removed with the toggle like the rest. **Capture everything** (Eric: "get all

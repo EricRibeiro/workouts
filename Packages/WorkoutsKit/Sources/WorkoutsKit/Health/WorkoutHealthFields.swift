@@ -6,6 +6,7 @@ extension Workout {
     /// A series that fails to decode reads as empty.
     public var healthSummary: HealthWorkoutSummary? {
         guard let healthWorkoutID else { return nil }
+        let zones = heartRateZones ?? []
         let series = heartRateSeriesData.flatMap { try? JSONDecoder().decode([HeartRatePoint].self, from: $0) } ?? []
         return HealthWorkoutSummary(
             healthWorkoutID: healthWorkoutID,
@@ -15,7 +16,13 @@ extension Workout {
             totalEnergyKcal: totalEnergyKcal,
             avgHeartRate: avgHeartRate,
             maxHeartRate: maxHeartRate,
-            heartRateSeries: series
+            heartRateSeries: series,
+            effort: effortScore.map { HealthEffort(score: $0, isEstimated: effortIsEstimated ?? false) },
+            zones: zones,
+            weatherTemperatureCelsius: weatherTemperatureCelsius,
+            weatherHumidityPercent: weatherHumidityPercent,
+            timeZoneIdentifier: healthTimeZone,
+            details: healthDetails
         )
     }
 
@@ -31,6 +38,13 @@ extension Workout {
         avgHeartRate = summary.avgHeartRate
         maxHeartRate = summary.maxHeartRate
         heartRateSeriesData = summary.heartRateSeries.isEmpty ? nil : try? JSONEncoder().encode(summary.heartRateSeries)
+        effortScore = summary.effort?.score
+        effortIsEstimated = summary.effort?.isEstimated
+        heartRateZonesData = summary.zones.isEmpty ? nil : try? JSONEncoder().encode(summary.zones)
+        weatherTemperatureCelsius = summary.weatherTemperatureCelsius
+        weatherHumidityPercent = summary.weatherHumidityPercent
+        healthTimeZone = summary.timeZoneIdentifier
+        healthDetailsData = summary.details.flatMap { try? JSONEncoder().encode($0) }
     }
 
     /// Removes everything Fitness added: the matched workout, its numbers and series, and the lookup stamp, so a later
@@ -43,6 +57,13 @@ extension Workout {
         avgHeartRate = nil
         maxHeartRate = nil
         heartRateSeriesData = nil
+        effortScore = nil
+        effortIsEstimated = nil
+        heartRateZonesData = nil
+        weatherTemperatureCelsius = nil
+        weatherHumidityPercent = nil
+        healthTimeZone = nil
+        healthDetailsData = nil
     }
 
     /// True when the app should look for a Fitness match: the workout is finished, not matched yet, was never checked or
@@ -57,6 +78,16 @@ extension Workout {
         guard now.timeIntervalSince(finishedAt) < giveUpAfter else { return false }
         guard let healthCheckedAt else { return true }
         return now.timeIntervalSince(healthCheckedAt) > recheckAfter
+    }
+
+    /// The stored zones, for export (nil when none or unreadable).
+    var heartRateZones: [HeartRateZoneTime]? {
+        heartRateZonesData.flatMap { try? JSONDecoder().decode([HeartRateZoneTime].self, from: $0) }
+    }
+
+    /// The stored details snapshot, for export (nil when none or unreadable).
+    var healthDetails: HealthWorkoutDetails? {
+        healthDetailsData.flatMap { try? JSONDecoder().decode(HealthWorkoutDetails.self, from: $0) }
     }
 
     /// The stored series, for export (nil when none).

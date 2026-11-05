@@ -3,6 +3,7 @@
 //  Workouts
 //
 
+import CoreLocation
 import Foundation
 import HealthKit
 import WorkoutsKit
@@ -20,12 +21,16 @@ nonisolated final class HealthKitSource: HealthSource {
     /// False on devices without Health (iPad, Mac, restricted).
     static var isAvailable: Bool { HKHealthStore.isHealthDataAvailable() }
 
-    /// The types read: workouts, heart rate, active and resting energy.
+    /// The types read: workouts, heart rate, active and resting energy, the workout route and the effort scores. Every type
+    /// the enrichment may ever use is requested up front, because adding one later prompts the person again.
     static let readTypes: Set<HKObjectType> = [
         HKObjectType.workoutType(),
         HKQuantityType(.heartRate),
         HKQuantityType(.activeEnergyBurned),
         HKQuantityType(.basalEnergyBurned),
+        HKSeriesType.workoutRoute(),
+        HKQuantityType(.workoutEffortScore),
+        HKQuantityType(.estimatedWorkoutEffortScore),
     ]
 
     /// Shows the Health read sheet when the person has not answered yet; returns once it is dismissed. A denied read is not
@@ -89,10 +94,165 @@ nonisolated final class HealthKitSource: HealthSource {
                 totalEnergyKcal: total,
                 avgHeartRate: heartRate?.averageQuantity()?.doubleValue(for: bpm),
                 maxHeartRate: heartRate?.maximumQuantity()?.doubleValue(for: bpm),
-                heartRateSeries: series
+                heartRateSeries: series,
+                effort: await effort(for: workout),
+                zones: Self.zones(of: workout, bpm: bpm),
+                weatherTemperatureCelsius: Self.quantity(
+                    workout.metadata?[HKMetadataKeyWeatherTemperature],
+                    in: .degreeCelsius()
+                ),
+                weatherHumidityPercent: Self.quantity(workout.metadata?[HKMetadataKeyWeatherHumidity], in: .percent())
+                    .map { $0 * 100 },
+                timeZoneIdentifier: workout.metadata?[HKMetadataKeyTimeZone] as? String,
+                details: await details(for: workout)
             )
         } catch {
             throw Self.map(error)
+        }
+    }
+
+    // MARK: Best-effort extras (PLAN 7.1b e4). A failing sub-query leaves its field nil or empty and never fails the summary.
+
+    /// The workout's effort: a rated score wins over Apple's estimate.
+    private func effort(for workout: HKWorkout) async -> HealthEffort? {
+        let descriptor = HKWorkoutEffortRelationshipQueryDescriptor(
+            predicate: HKQuery.predicateForObject(with: workout.uuid),
+            anchor: nil,
+            option: .default
+        )
+        guard let result = try? await descriptor.result(for: store) else { return nil }
+        let samples = result.relationships.flatMap { $0.samples ?? [] }.compactMap { $0 as? HKQuantitySample }
+        let unit = HKUnit.appleEffortScore()
+        if let rated = samples.first(where: { $0.quantityType == HKQuantityType(.workoutEffortScore) }) {
+            return HealthEffort(score: rated.quantity.doubleValue(for: unit), isEstimated: false)
+        }
+        if let estimated = samples.first(where: { $0.quantityType == HKQuantityType(.estimatedWorkoutEffortScore) }) {
+            return HealthEffort(score: estimated.quantity.doubleValue(for: unit), isEstimated: true)
+        }
+        return nil
+    }
+
+    /// Time in each heart-rate zone, lowest effort first; empty when Health has no zones for the workout.
+    private static func zones(of workout: HKWorkout, bpm: HKUnit) -> [HeartRateZoneTime] {
+        guard let group = workout.zoneGroup(for: HKQuantityType(.heartRate)) else { return [] }
+        return group.zoneDurations.map { entry in
+            HeartRateZoneTime(
+                index: entry.zone.index,
+                lowerBPM: entry.zone.minimum?.doubleValue(for: bpm),
+                upperBPM: entry.zone.maximum?.doubleValue(for: bpm),
+                seconds: entry.duration
+            )
+        }
+    }
+
+    /// A metadata value that is an `HKQuantity`, in `unit`; nil when absent or of another kind or dimension.
+    private static func quantity(_ value: Any?, in unit: HKUnit) -> Double? {
+        guard let quantity = value as? HKQuantity, quantity.is(compatibleWith: unit) else { return nil }
+        return quantity.doubleValue(for: unit)
+    }
+
+    /// Everything else HealthKit holds for the workout, as the kit's snapshot.
+    private func details(for workout: HKWorkout) async -> HealthWorkoutDetails {
+        var statistics: [String: HealthStatistic] = [:]
+        for (type, value) in workout.allStatistics {
+            if let statistic = Self.statistic(type, value) { statistics[type.identifier] = statistic }
+        }
+        var metadata: [String: String] = [:]
+        for (key, value) in workout.metadata ?? [:] {
+            metadata[key] = Self.text(value)
+        }
+        let device = workout.device
+        return HealthWorkoutDetails(
+            statistics: statistics,
+            metadata: metadata,
+            events: (workout.workoutEvents ?? []).map {
+                HealthInterval(
+                    type: "event \($0.type.rawValue)",
+                    start: $0.dateInterval.start,
+                    end: $0.dateInterval.end
+                )
+            },
+            activities: workout.workoutActivities.map {
+                HealthInterval(
+                    type: "activity \($0.workoutConfiguration.activityType.rawValue)",
+                    start: $0.startDate,
+                    end: $0.endDate ?? workout.endDate
+                )
+            },
+            sourceName: workout.sourceRevision.source.name,
+            sourceBundleID: workout.sourceRevision.source.bundleIdentifier,
+            deviceName: device?.name,
+            deviceModel: device?.model,
+            deviceHardwareVersion: device?.hardwareVersion,
+            deviceSoftwareVersion: device?.softwareVersion,
+            route: await route(for: workout)
+        )
+    }
+
+    /// Points of every route associated with the workout, oldest first; empty when none or unreadable.
+    private func route(for workout: HKWorkout) async -> [HealthRoutePoint] {
+        let predicate = HKQuery.predicateForObjects(from: workout)
+        let query = HKSampleQueryDescriptor(
+            predicates: [.sample(type: HKSeriesType.workoutRoute(), predicate: predicate)],
+            sortDescriptors: [SortDescriptor(\.startDate)]
+        )
+        guard let samples = try? await query.result(for: store) else { return [] }
+        var points: [HealthRoutePoint] = []
+        for case let route as HKWorkoutRoute in samples {
+            do {
+                for try await location in HKWorkoutRouteQueryDescriptor(route).results(for: store) {
+                    points.append(
+                        HealthRoutePoint(
+                            latitude: location.coordinate.latitude,
+                            longitude: location.coordinate.longitude,
+                            altitude: location.verticalAccuracy >= 0 ? location.altitude : nil,
+                            timestamp: location.timestamp
+                        )
+                    )
+                }
+            } catch {
+                continue
+            }
+        }
+        return points
+    }
+
+    /// Units tried in order for a statistic; the first compatible with the type is used. Types none fits are skipped.
+    private static let statisticUnits: [(name: String, unit: HKUnit)] = [
+        ("kcal", .kilocalorie()),
+        ("count/min", .count().unitDivided(by: .minute())),
+        ("m", .meter()),
+        ("m/s", .meter().unitDivided(by: .second())),
+        ("W", .watt()),
+        ("count", .count()),
+        ("s", .second()),
+        ("degC", .degreeCelsius()),
+        ("%", .percent()),
+    ]
+
+    private static func statistic(_ type: HKQuantityType, _ statistics: HKStatistics) -> HealthStatistic? {
+        guard let match = statisticUnits.first(where: { type.is(compatibleWith: $0.unit) }) else { return nil }
+        let unit = match.unit
+        let result = HealthStatistic(
+            sum: statistics.sumQuantity()?.doubleValue(for: unit),
+            average: statistics.averageQuantity()?.doubleValue(for: unit),
+            minimum: statistics.minimumQuantity()?.doubleValue(for: unit),
+            maximum: statistics.maximumQuantity()?.doubleValue(for: unit),
+            mostRecent: statistics.mostRecentQuantity()?.doubleValue(for: unit),
+            unit: match.name
+        )
+        let values = [result.sum, result.average, result.minimum, result.maximum, result.mostRecent]
+        return values.contains { $0 != nil } ? result : nil
+    }
+
+    /// A metadata value as text: quantities by their description, dates as ISO 8601, numbers and strings as themselves.
+    private static func text(_ value: Any) -> String {
+        switch value {
+        case let quantity as HKQuantity: quantity.description
+        case let date as Date: date.formatted(.iso8601)
+        case let number as NSNumber: number.stringValue
+        case let string as String: string
+        default: String(describing: value)
         }
     }
 

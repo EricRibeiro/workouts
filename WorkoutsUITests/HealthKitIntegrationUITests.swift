@@ -31,6 +31,13 @@ final class HealthKitIntegrationUITests: XCTestCase {
         XCTAssertTrue(label.contains("300 active calories"), "label was \(label)")
         let average = try XCTUnwrap(averageHeartRate(in: label), "no average heart rate in \(label)")
         XCTAssertTrue((90...160).contains(average), "average heart rate \(average) in \(label)")
+        XCTAssertTrue(label.contains("effort 8"), "label was \(label)")
+        // Zones are not asserted here: HKWorkoutBuilder computes none from added heart-rate samples (probed on the iOS 27.2
+        // simulator: neither the builder, the saved workout, nor a custom zone configuration yields a zone group; Health
+        // fills zones only from live collection). If a zone group does come back, it must be well formed.
+        if let zones = zoneCount(in: label) {
+            XCTAssertGreaterThan(zones, 0, "label was \(label)")
+        }
     }
 
     /// Answers up to three Health Access pages (topics, then the iOS 27 data range, for the seeder's share request and the
@@ -70,6 +77,12 @@ final class HealthKitIntegrationUITests: XCTestCase {
             }
         }
         return answered
+    }
+
+    /// The number before "zones" in the card's label.
+    private func zoneCount(in label: String) -> Int? {
+        guard let range = label.range(of: #"(\d+) zones"#, options: .regularExpression) else { return nil }
+        return Int(label[range].filter(\.isNumber))
     }
 
     /// The number after "average heart rate" in the card's label.

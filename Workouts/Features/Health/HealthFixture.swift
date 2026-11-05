@@ -82,7 +82,39 @@
                 totalEnergyKcal: 420,
                 avgHeartRate: 118,
                 maxHeartRate: 161,
-                heartRateSeries: series
+                heartRateSeries: series,
+                effort: HealthEffort(score: 8, isEstimated: false),
+                zones: [
+                    HeartRateZoneTime(index: 1, lowerBPM: nil, upperBPM: 138, seconds: 39 * 60 + 53),
+                    HeartRateZoneTime(index: 2, lowerBPM: 139, upperBPM: 150, seconds: 2 * 60 + 30),
+                    HeartRateZoneTime(index: 3, lowerBPM: 151, upperBPM: 162, seconds: 1 * 60 + 10),
+                    HeartRateZoneTime(index: 4, lowerBPM: 163, upperBPM: 174, seconds: 0),
+                    HeartRateZoneTime(index: 5, lowerBPM: 175, upperBPM: nil, seconds: 0),
+                ],
+                weatherTemperatureCelsius: 19,
+                weatherHumidityPercent: 65,
+                timeZoneIdentifier: "America/Toronto",
+                details: HealthWorkoutDetails(
+                    statistics: [
+                        "HKQuantityTypeIdentifierActiveEnergyBurned": HealthStatistic(sum: 310, unit: "kcal"),
+                        "HKQuantityTypeIdentifierHeartRate": HealthStatistic(
+                            average: 118,
+                            minimum: 62,
+                            maximum: 161,
+                            mostRecent: 96,
+                            unit: "count/min"
+                        ),
+                    ],
+                    metadata: [
+                        "HKIndoorWorkout": "1",
+                        "HKTimeZone": "America/Toronto",
+                        "HKWeatherTemperature": "66.2 degF",
+                    ],
+                    sourceName: "Eric's Apple Watch",
+                    sourceBundleID: "com.apple.health.fixture",
+                    deviceName: "Apple Watch",
+                    deviceModel: "Watch"
+                )
             )
             return FakeHealthSource(candidates: [candidate], summaries: [summary])
         }

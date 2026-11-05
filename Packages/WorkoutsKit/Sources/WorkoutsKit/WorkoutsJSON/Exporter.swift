@@ -125,6 +125,13 @@ public enum Exporter {
                     maxHeartRate: workout.maxHeartRate,
                     heartRateSeries: workout.heartRateSeries,
                     healthCheckedAt: workout.healthCheckedAt,
+                    effortScore: workout.effortScore,
+                    effortIsEstimated: workout.effortIsEstimated,
+                    heartRateZones: workout.heartRateZones,
+                    weatherTemperatureCelsius: workout.weatherTemperatureCelsius,
+                    weatherHumidityPercent: workout.weatherHumidityPercent,
+                    healthTimeZone: workout.healthTimeZone,
+                    healthDetails: workout.healthDetails,
                     exercises: ordered(workout.exercises).map { exercise in
                         WorkoutExerciseDTO(
                             id: exercise.id,

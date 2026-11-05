@@ -281,6 +281,14 @@ public nonisolated struct WorkoutDTO: Codable, Hashable, Sendable {
     public var maxHeartRate: Double? = nil
     public var heartRateSeries: [HeartRatePoint]? = nil
     public var healthCheckedAt: Date? = nil
+    /// More Fitness details (PLAN 7.1b e4); all optional, absent in older files.
+    public var effortScore: Double? = nil
+    public var effortIsEstimated: Bool? = nil
+    public var heartRateZones: [HeartRateZoneTime]? = nil
+    public var weatherTemperatureCelsius: Double? = nil
+    public var weatherHumidityPercent: Double? = nil
+    public var healthTimeZone: String? = nil
+    public var healthDetails: HealthWorkoutDetails? = nil
     public var exercises: [WorkoutExerciseDTO]
 }
 
