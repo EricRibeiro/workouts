@@ -344,6 +344,8 @@ Live Activity → notifications → logging, then templates, exercises, history.
 ### Phase 8 — Sync and final import (the very last steps; Eric, 2026-11-04)
 
 - [ ] **8.1 CloudKit on**: flip the flag, promote the schema to production. Needs: 7.1. Proof: two simulators sync.
+  Before flipping: final code review C-11 (docs/reviews/2026-11-05-final-code.md): keep `.none` when `inMemory`, refresh
+  `ExerciseStore`/engine caches on remote changes, resolve two in-progress rows across devices.
 - [ ] **8.2 Settings on iCloud KVS** (only if a second device appears): `NSUbiquitousKeyValueStore` backend behind the
   `cloudKit` flag. Needs: 7.1. Proof: `./dev kit Settings` runs both backends.
 - [ ] **8.3 TestFlight-time migration run**: re-run `scripts/export-web`, Import the delta. Needs: 8.1. Proof: the device's
