@@ -238,3 +238,7 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
     tab/detail opening dropped from ~1 s to ~0.28 s (the rest is SwiftUI list build). The exercise thumbnails' 30 fps
     cross-fade `TimelineView` still costs ~0.5 s of CPU over a long scroll; it is Eric's approved look, so it stays, and
     the 7.6 review weighs it (pausing off-screen rows would be the native fix).
+72. **Design review "Exercises, open wide" closed, no change** (2026-11-05): verified on the simulator that in the book pose
+    the system moves the split divider onto the fold (list fills the left panel, detail entirely right). Flat open has no
+    division (duo-layout: "The division is active only when partially open"), so a detail crossing the middle there is
+    fine. The laptop pose with a horizontal division could not be produced on the simulator; Eric checks it on the Duo.
