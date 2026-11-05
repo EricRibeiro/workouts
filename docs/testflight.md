@@ -17,3 +17,4 @@ Builds uploaded with `./dev testflight --upload` (cadence: AGENTS.md "TestFlight
 | 202611050017 | 55bac68 | Stars actually fall (dense field, 4.5 s) |
 | 202611050026 | 28affbc | Exercise video starts without a dark frame |
 | 202611050043 | 5bde2fb | Exercise detail splits across the fold when shown full width |
+| 202611050152 | d70f097 | New app icon; confirmations no longer float with a stray arrow; video without player controls (flicker fix v2); contrast and VoiceOver fixes |

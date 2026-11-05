@@ -309,10 +309,10 @@ Live Activity → notifications → logging, then templates, exercises, history.
   - [x] **a. Research** (done: `docs/port/healthkit.md`): what the simulator supports (granting Health authorization without the prompt, e.g.
     `simctl privacy`; writing `HKWorkout` + heart-rate/energy samples from a DEBUG build; statistics queries behaving as on
     device; the HealthKit entitlement with development and cloud-managed signing). Proof: a findings doc in `docs/port/`.
-  - [ ] **b. Kit boundary**: `HealthSource` protocol, value types (`HealthWorkoutSummary`), matching (overlap with slack,
+  - [x] **b. Kit boundary**: `HealthSource` protocol, value types (`HealthWorkoutSummary`), matching (overlap with slack,
     pick the best candidate, ignore non-strength types) and summarising, all in WorkoutsKit with a fake source. Proof:
     `./dev kit Health`.
-  - [ ] **c. App fixtures**: a fixture `HealthSource` injected by launch argument for UI tests and the gallery, so no test
+  - [x] **c. App fixtures**: a fixture `HealthSource` injected by launch argument for UI tests and the gallery, so no test
     depends on real HealthKit or a permission prompt. Proof: a `-preview` entry renders fixture data.
   - [ ] **d. Real-store check** (if a. says it is possible): DEBUG `-seedHealth` writes HealthKit samples matching the
     sample workouts; one integration test reads them back through the real `HealthKitSource`. Proof: that test.
