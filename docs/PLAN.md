@@ -341,6 +341,25 @@ Live Activity → notifications → logging, then templates, exercises, history.
   hierarchy, motion, light/dark, Dynamic Type). Findings become worker tasks; Eric decides taste calls. Proof: the report
   in `docs/reviews/`, fixes landed, the full `./dev ui-test` green.
 
+- [x] **7.7 Device feedback round** (Eric on the Duo, 2026-11-05; builds 202611051256, …1341, …1529):
+  - [x] Rest arc accent-coloured while running (toolbar ring, resume control, bench header), green in the grace.
+  - [x] No rest caption under exercise names during a workout (template editor keeps it).
+  - [x] Exercise info during a workout: tap the name (chevron after it) or the block menu's Exercise Info → shared
+    `ExerciseInfoSheet` (medium/large, system close, full-width uncropped media); a segment tap grows it to large. The
+    template preview's ⓘ uses the same sheet.
+  - [x] One-line exercise names in the active workout and the template preview (two at accessibility sizes).
+  - [x] Resume control: ring + `dumbbell.fill` in every state (JC74).
+  - [x] Live Activity redesign (Fable spec): narrow Duo Island shows only the ring (`isDynamicIslandLimitedInWidth`),
+    rest over via `isStale`, expanded/Lock Screen set line and sets progress, system bordered buttons.
+  - [x] Apple Health first-party (Fable spec): health stats and weather in the workout header, Swift Charts heart-rate
+    card with exercise bands and set ticks, zone bar, "Data from Apple Health"; History rows and This Week show bpm.
+    Fixes: humidity ×100, zero-based zone index, heart-rate offsets re-based.
+  - [ ] **Device checks (Eric)**: narrow Island on the closed Duo during a rest; Live Activity buttons in StandBy night
+    mode; the new Fitness header and chart with a real Watch workout (zones, effort, set ticks lining up); laptop-pose
+    Exercises split; half-open keyboard accessory.
+  - [ ] **Taste calls still open (Eric)**: open-wide Workout grid widths; stars over the finish title; red "Update
+    Template and Values"; media watermark; a pre-permission line before the notification prompt.
+
 ### Phase 8 — Sync and final import (the very last steps; Eric, 2026-11-04)
 
 - [ ] **8.1 CloudKit on**: flip the flag, promote the schema to production. Needs: 7.1. Proof: two simulators sync.

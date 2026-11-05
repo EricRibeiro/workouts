@@ -249,3 +249,11 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
     (`splitArrangementFixedLayoutSize`), which also makes the tall hero image smaller (35 % of a shorter container).
 
 74. **Resume control is a ring with `dumbbell.fill` in every state** (Eric chose option A over a ring with a dot, 2026-11-05): `RestArc` takes an optional centred glyph; idle is the bare accent track, resting drains the accent arc, an over rest turns ok-coloured with a `checkmark`. `stopwatch` now only means "start a rest" (the idle `RestRingItem` menu).
+
+75. **Exercise info is a sheet, closed from the top** (2026-11-05): an informational, glanceable view over the current
+    task is a sheet per the HIG; its system close button stays in the top bar (Eric asked for a bottom button, then agreed:
+    every system sheet closes there, and a swipe down is the thumb gesture). The template preview presents the same sheet
+    over itself rather than pushing, so the two entry points look identical. A segment tap grows it to the large detent.
+76. **Health data has no section of its own** (2026-11-05, Fable spec): values sit in the workout header as peers of
+    Duration/Volume; the only branding is "Data from Apple Health" (HealthKit HIG naming). No Activity-ring visuals (Apple
+    reserves them for Move/Exercise/Stand). Zones collapse to one line when the workout never left zone 1.
