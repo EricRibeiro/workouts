@@ -9,10 +9,6 @@ import Testing
     private let row = UUID()
     private let squat = UUID()
 
-    private func makeContext() throws -> ModelContext {
-        ModelContext(try ModelContainer.workouts(inMemory: true, cloudKit: false))
-    }
-
     /// A template of Bench (3 sets, 100 x 5) and Row (2 sets, 60 x 8), and a finished workout that copies it exactly.
     private func makePair(_ context: ModelContext) -> (Template, Workout) {
         let template = Template(name: "Push")
@@ -58,13 +54,13 @@ import Testing
     // MARK: diff
 
     @Test func identicalWorkoutHasNothingToUpdate() throws {
-        let context = try makeContext()
+        let context = try makeTestContext()
         let (template, workout) = makePair(context)
         #expect(TemplateUpdate.diff(template: template, workout: workout) == .none)
     }
 
     @Test func changedWeightOrRepsIsValuesOnly() throws {
-        let context = try makeContext()
+        let context = try makeTestContext()
         let (template, workout) = makePair(context)
         workoutSets(workout, exercise: 0)[1].weight = 105
         #expect(TemplateUpdate.diff(template: template, workout: workout) == .valuesOnly)
@@ -74,7 +70,7 @@ import Testing
     }
 
     @Test func missingAndZeroValuesAreTheSame() throws {
-        let context = try makeContext()
+        let context = try makeTestContext()
         let (template, workout) = makePair(context)
         templateSets(templateRows(template)[1])[0].weight = nil
         workoutSets(workout, exercise: 1)[0].weight = 0
@@ -83,7 +79,7 @@ import Testing
     }
 
     @Test func sameWeightInAnotherUnitIsNoDifference() throws {
-        let context = try makeContext()
+        let context = try makeTestContext()
         let (template, workout) = makePair(context)
         let plan = templateRows(template)[0]
         plan.unit = .kg
@@ -95,7 +91,7 @@ import Testing
     }
 
     @Test func droppedSetAddedExerciseAndReorderAreStructure() throws {
-        let context = try makeContext()
+        let context = try makeTestContext()
         let (template, workout) = makePair(context)
         // A dropped set.
         let dropped = workoutSets(workout, exercise: 0)[2]
@@ -105,7 +101,7 @@ import Testing
     }
 
     @Test func addedExerciseIsStructure() throws {
-        let context = try makeContext()
+        let context = try makeTestContext()
         let (template, workout) = makePair(context)
         let extra = WorkoutExercise(exerciseID: squat, exerciseName: "Squat", position: 2, workout: workout)
         context.insert(extra)
@@ -113,14 +109,14 @@ import Testing
     }
 
     @Test func reorderedExercisesAreStructure() throws {
-        let context = try makeContext()
+        let context = try makeTestContext()
         let (template, workout) = makePair(context)
         for exercise in workout.exercises ?? [] { exercise.position = 1 - exercise.position }
         #expect(TemplateUpdate.diff(template: template, workout: workout) == .structure)
     }
 
     @Test func changedSetKindAndSupersetAreStructure() throws {
-        let context = try makeContext()
+        let context = try makeTestContext()
         let (template, workout) = makePair(context)
         workoutSets(workout, exercise: 0)[0].kind = .warmup
         #expect(TemplateUpdate.diff(template: template, workout: workout) == .structure)
@@ -135,7 +131,7 @@ import Testing
     // MARK: apply
 
     @Test func valuesOnlyCopiesValuesAndKeepsStructure() throws {
-        let context = try makeContext()
+        let context = try makeTestContext()
         let (template, workout) = makePair(context)
         workoutSets(workout, exercise: 0)[0].weight = 110
         context.delete(workoutSets(workout, exercise: 0)[2])
@@ -153,7 +149,7 @@ import Testing
     }
 
     @Test func templateAndValuesMirrorsTheWorkout() throws {
-        let context = try makeContext()
+        let context = try makeTestContext()
         let (template, workout) = makePair(context)
         // Drop the last bench set, swap the order, add a squat with two sets, change a value.
         context.delete(workoutSets(workout, exercise: 0)[2])
@@ -188,7 +184,7 @@ import Testing
     }
 
     @Test func templateAndValuesDeletesExercisesTheWorkoutDropped() throws {
-        let context = try makeContext()
+        let context = try makeTestContext()
         let (template, workout) = makePair(context)
         let dropped = (workout.exercises ?? []).first { $0.exerciseID == row }
         if let dropped { context.delete(dropped) }
@@ -199,7 +195,7 @@ import Testing
     }
 
     @Test func keepChangesNothing() throws {
-        let context = try makeContext()
+        let context = try makeTestContext()
         let (template, workout) = makePair(context)
         workoutSets(workout, exercise: 0)[0].weight = 110
         let before = template.updatedAt
@@ -211,7 +207,7 @@ import Testing
 
 @Suite struct TemplatePreviewRowTests {
     @Test func rowsCollapseIdenticalSetsAndNameKinds() throws {
-        let context = ModelContext(try ModelContainer.workouts(inMemory: true, cloudKit: false))
+        let context = try makeTestContext()
         let template = Template(name: "Push")
         context.insert(template)
         let plan = TemplateExercise(exerciseName: "Bench", position: 0, supersetGroup: 2, unit: .kg, template: template)

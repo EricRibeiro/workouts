@@ -5,16 +5,12 @@ import Testing
 @testable import WorkoutsKit
 
 @Suite struct SchemaTests {
-    private func makeContext() throws -> ModelContext {
-        ModelContext(try ModelContainer.workouts(inMemory: true, cloudKit: false))
-    }
-
     private func count<T: PersistentModel>(_ type: T.Type, in context: ModelContext) throws -> Int {
         try context.fetchCount(FetchDescriptor<T>())
     }
 
     @Test func containerBuildsWithAllNineModels() throws {
-        let container = try ModelContainer.workouts(inMemory: true, cloudKit: false)
+        let container = try makeTestContainer()
         #expect(container.schema.entities.count == 9)
         #expect(SchemaV1.models.count == 9)
         #expect(SchemaV1.versionIdentifier == Schema.Version(1, 0, 0))
@@ -25,7 +21,7 @@ import Testing
     // MARK: Insert and fetch each model
 
     @Test func exerciseRoundTrips() throws {
-        let context = try makeContext()
+        let context = try makeTestContext()
         let id = UUID()
         context.insert(
             Exercise(
@@ -65,7 +61,7 @@ import Testing
     }
 
     @Test func stickyNoteRoundTrips() throws {
-        let context = try makeContext()
+        let context = try makeTestContext()
         let exerciseID = UUID()
         context.insert(StickyNote(exerciseID: exerciseID, text: "Elbows in"))
         try context.save()
@@ -75,7 +71,7 @@ import Testing
     }
 
     @Test func folderTemplateExerciseSetRoundTrip() throws {
-        let context = try makeContext()
+        let context = try makeTestContext()
         let folder = TemplateFolder(name: "Push", position: 2)
         context.insert(folder)
         let template = Template(name: "Day A", note: "heavy", position: 1, folder: folder)
@@ -120,7 +116,7 @@ import Testing
     }
 
     @Test func workoutExerciseSetRoundTrip() throws {
-        let context = try makeContext()
+        let context = try makeTestContext()
         let restSetID = UUID()
         let ends = Date(timeIntervalSince1970: 1_000_000)
         let workout = Workout(name: "Morning", restEndsAt: ends, restSeconds: 90, restSetID: restSetID)
@@ -166,7 +162,7 @@ import Testing
     // MARK: Delete rules
 
     @Test func deletingWorkoutCascadesToExercisesAndSets() throws {
-        let context = try makeContext()
+        let context = try makeTestContext()
         let workout = Workout(name: "W")
         context.insert(workout)
         let exercise = WorkoutExercise(workout: workout)
@@ -184,7 +180,7 @@ import Testing
     }
 
     @Test func deletingWorkoutExerciseKeepsWorkoutAndDropsSets() throws {
-        let context = try makeContext()
+        let context = try makeTestContext()
         let workout = Workout()
         context.insert(workout)
         let exercise = WorkoutExercise(workout: workout)
@@ -199,7 +195,7 @@ import Testing
     }
 
     @Test func deletingTemplateCascadesButNullifiesWorkouts() throws {
-        let context = try makeContext()
+        let context = try makeTestContext()
         let folder = TemplateFolder(name: "F")
         context.insert(folder)
         let template = Template(name: "T", folder: folder)
@@ -227,7 +223,7 @@ import Testing
     }
 
     @Test func deletingFolderCascadesToTemplates() throws {
-        let context = try makeContext()
+        let context = try makeTestContext()
         let folder = TemplateFolder(name: "F")
         context.insert(folder)
         let template = Template(folder: folder)
@@ -250,7 +246,7 @@ import Testing
     }
 
     @Test func deletingChildDoesNotDeleteParent() throws {
-        let context = try makeContext()
+        let context = try makeTestContext()
         let template = Template(name: "T")
         context.insert(template)
         let exercise = TemplateExercise(template: template)

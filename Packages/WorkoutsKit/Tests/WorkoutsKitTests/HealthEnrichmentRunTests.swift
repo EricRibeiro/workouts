@@ -70,12 +70,8 @@ private nonisolated struct GatedSource: HealthSource {
 @Suite struct HealthEnrichmentRunTests {
     private typealias Outcome = HealthEnrichmentRun.Outcome
 
-    private static let t0 = Date(timeIntervalSince1970: 1_800_000_000)
+    private static let t0 = TestSupport.referenceDate
     private static let now = t0.addingTimeInterval(86400)
-
-    private func makeContext() throws -> ModelContext {
-        ModelContext(try ModelContainer.workouts(inMemory: true, cloudKit: false))
-    }
 
     /// A finished 50-minute workout starting `startOffset` seconds after t0.
     private static func workout(startOffset: TimeInterval = 0, name: String = "Push") -> Workout {
@@ -238,7 +234,7 @@ private nonisolated struct GatedSource: HealthSource {
     }
 
     @Test func clearAllWipesMatchedAndStampedWorkoutsOnly() throws {
-        let context = try makeContext()
+        let context = try makeTestContext()
         let matched = Self.workout(startOffset: 0)
         matched.applyHealth(Self.summary("HK-1"), checkedAt: Self.t0)
         let stamped = Self.workout(startOffset: 7200)
@@ -262,7 +258,7 @@ private nonisolated struct GatedSource: HealthSource {
     private func gatedPassFixture() throws -> (
         context: ModelContext, workouts: [Workout], source: GatedSource, gate: Gate
     ) {
-        let context = try makeContext()
+        let context = try makeTestContext()
         let workouts = [0.0, 7200, 14400].map { Self.workout(startOffset: $0) }
         for workout in workouts { context.insert(workout) }
         try context.save()
@@ -325,7 +321,7 @@ private nonisolated struct GatedSource: HealthSource {
     // MARK: Reset
 
     @Test func resetUnmatchedClearsOnlyTheStampsOfUnmatchedWorkouts() throws {
-        let context = try makeContext()
+        let context = try makeTestContext()
         let matched = Self.workout(startOffset: 0)
         matched.applyHealth(Self.summary("HK-1"), checkedAt: Self.t0)
         let stamped = Self.workout(startOffset: 7200)
@@ -345,7 +341,7 @@ private nonisolated struct GatedSource: HealthSource {
     }
 
     @Test func aResetWorkoutIsBackfilledAgainOnceHealthHasItsMatch() async throws {
-        let context = try makeContext()
+        let context = try makeTestContext()
         let workout = Self.workout()
         context.insert(workout)
         try context.save()
@@ -418,7 +414,7 @@ private nonisolated struct GatedSource: HealthSource {
     // MARK: Descriptor
 
     @Test func descriptorReturnsFinishedInWindowOldestFirst() throws {
-        let context = try makeContext()
+        let context = try makeTestContext()
         let now = Self.t0.addingTimeInterval(10 * 86400)
         func finished(daysAgo: Double, name: String) -> Workout {
             let end = now.addingTimeInterval(-daysAgo * 86400)
@@ -599,7 +595,7 @@ private nonisolated struct GatedSource: HealthSource {
     }
 
     @Test func allFinishedDescriptorReturnsEveryFinishedWorkoutOldestFirst() throws {
-        let context = try makeContext()
+        let context = try makeTestContext()
         let newest = Self.workout(startOffset: 7200, name: "newest")
         let oldest = Self.workout(startOffset: 0, name: "oldest")
         let active = Workout(name: "active", startedAt: Self.t0, updatedAt: Self.t0)

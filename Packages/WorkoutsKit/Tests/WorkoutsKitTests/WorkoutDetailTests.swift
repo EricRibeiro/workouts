@@ -5,11 +5,7 @@ import Testing
 @testable import WorkoutsKit
 
 @Suite @MainActor struct WorkoutDetailTests {
-    private static let toronto: Calendar = {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(identifier: "America/Toronto") ?? .gmt
-        return calendar
-    }()
+    private static let toronto = TestSupport.torontoCalendar
 
     private func date(_ month: Int, _ day: Int, _ hour: Int = 10, _ minute: Int = 5) -> Date {
         let parts = DateComponents(year: 2026, month: month, day: day, hour: hour, minute: minute)
@@ -73,14 +69,10 @@ import Testing
         )
     }
 
-    private func container() throws -> ModelContainer {
-        try ModelContainer.workouts(inMemory: true, cloudKit: false)
-    }
-
     // MARK: Header
 
     @Test func headerTextsAndSentence() throws {
-        let holder = try container()
+        let holder = try makeTestContainer()
         defer { withExtendedLifetime(holder) {} }
         let context = holder.mainContext
         let first = workout(
@@ -101,7 +93,7 @@ import Testing
     }
 
     @Test func headerSentenceAppendsOnlyTheHealthValuesThatExist() throws {
-        let holder = try container()
+        let holder = try makeTestContainer()
         defer { withExtendedLifetime(holder) {} }
         let first = workout(
             holder.mainContext,
@@ -160,7 +152,7 @@ import Testing
     }
 
     @Test func unknownAndUnfinishedWorkoutsGiveNoDetail() throws {
-        let holder = try container()
+        let holder = try makeTestContainer()
         defer { withExtendedLifetime(holder) {} }
         let context = holder.mainContext
         let running = workout(context, at: date(11, 1), finished: false, rows: [(bench, "Bench", nil, [])])
@@ -171,7 +163,7 @@ import Testing
     // MARK: Exercises and sets
 
     @Test func onlyCompletedSetsAreListedWithKindLettersAndExercisesWithoutOneAreLeftOut() throws {
-        let holder = try container()
+        let holder = try makeTestContainer()
         defer { withExtendedLifetime(holder) {} }
         let context = holder.mainContext
         let w = workout(
@@ -199,7 +191,7 @@ import Testing
     }
 
     @Test func supersetRowsShareANumber() throws {
-        let holder = try container()
+        let holder = try makeTestContainer()
         defer { withExtendedLifetime(holder) {} }
         let context = holder.mainContext
         let w = workout(
@@ -217,7 +209,7 @@ import Testing
     }
 
     @Test func weightsFollowTheDisplayUnit() throws {
-        let holder = try container()
+        let holder = try makeTestContainer()
         defer { withExtendedLifetime(holder) {} }
         let context = holder.mainContext
         let w = workout(
@@ -236,7 +228,7 @@ import Testing
     // MARK: Records
 
     @Test func recordsAreJudgedAgainstEarlierWorkoutsOnly() throws {
-        let holder = try container()
+        let holder = try makeTestContainer()
         defer { withExtendedLifetime(holder) {} }
         let context = holder.mainContext
         let early = workout(
@@ -282,7 +274,7 @@ import Testing
     }
 
     @Test func otherExercisesInTheHistoryDoNotChangeTheDetail() throws {
-        let holder = try container()
+        let holder = try makeTestContainer()
         defer { withExtendedLifetime(holder) {} }
         let context = holder.mainContext
         let early = workout(
@@ -352,7 +344,7 @@ import Testing
     }
 
     @Test func saveAsTemplateCopiesCompletedSetsAsPlannedValues() throws {
-        let holder = try container()
+        let holder = try makeTestContainer()
         defer { withExtendedLifetime(holder) {} }
         let context = holder.mainContext
         let w = workout(
@@ -394,7 +386,7 @@ import Testing
     }
 
     @Test func saveAsTemplateWithNoFolderOrANewFolder() throws {
-        let holder = try container()
+        let holder = try makeTestContainer()
         defer { withExtendedLifetime(holder) {} }
         let context = holder.mainContext
         let w = workout(

@@ -5,11 +5,7 @@ import Testing
 @testable import WorkoutsKit
 
 @Suite @MainActor struct PastWorkoutDraftTests {
-    private let start = Date(timeIntervalSince1970: 1_800_000_000)
-
-    private func container() throws -> ModelContainer {
-        try ModelContainer.workouts(inMemory: true, cloudKit: false)
-    }
+    private let start = TestSupport.referenceDate
 
     /// Two exercises: bench (2 sets) and rows (1 set), both in superset 1 with RPE 8 on every set, 50 minutes long.
     private func workout(_ context: ModelContext) -> Workout {
@@ -46,7 +42,7 @@ import Testing
     }
 
     @Test func freshDraftIsCleanAndReadsTheWorkout() throws {
-        let holder = try container()
+        let holder = try makeTestContainer()
         defer { withExtendedLifetime(holder) {} }
         let model = workout(holder.mainContext)
         let draft = PastWorkoutDraft(model)
@@ -58,7 +54,7 @@ import Testing
     }
 
     @Test func everyKindOfEditMarksTheDraftDirty() throws {
-        let holder = try container()
+        let holder = try makeTestContainer()
         defer { withExtendedLifetime(holder) {} }
         let original = PastWorkoutDraft(workout(holder.mainContext))
         let setID = original.exercises[0].sets[0].id
@@ -91,7 +87,7 @@ import Testing
     }
 
     @Test func durationNeverGoesNegativeAndRenameIgnoresBlank() throws {
-        let holder = try container()
+        let holder = try makeTestContainer()
         defer { withExtendedLifetime(holder) {} }
         var draft = PastWorkoutDraft(workout(holder.mainContext))
         draft.setDurationMinutes(-5)
@@ -104,7 +100,7 @@ import Testing
     }
 
     @Test func durationMinutesFloorLikeTheHistoryRows() throws {
-        let holder = try container()
+        let holder = try makeTestContainer()
         defer { withExtendedLifetime(holder) {} }
         let model = workout(holder.mainContext)
         model.finishedAt = start.addingTimeInterval(50 * 60 + 45)
@@ -114,7 +110,7 @@ import Testing
     }
 
     @Test func durationClampsToADay() throws {
-        let holder = try container()
+        let holder = try makeTestContainer()
         defer { withExtendedLifetime(holder) {} }
         var draft = PastWorkoutDraft(workout(holder.mainContext))
         draft.setDurationMinutes(5000)
@@ -124,7 +120,7 @@ import Testing
     }
 
     @Test func addSetCopiesTheLastAndWarmupBecomesNormal() throws {
-        let holder = try container()
+        let holder = try makeTestContainer()
         defer { withExtendedLifetime(holder) {} }
         var draft = PastWorkoutDraft(workout(holder.mainContext))
         let exercise = draft.exercises[0].id
@@ -140,7 +136,7 @@ import Testing
     }
 
     @Test func reorderNeedsEveryIDExactlyOnce() throws {
-        let holder = try container()
+        let holder = try makeTestContainer()
         defer { withExtendedLifetime(holder) {} }
         var draft = PastWorkoutDraft(workout(holder.mainContext))
         let ids = draft.exercises.map(\.id)
@@ -152,7 +148,7 @@ import Testing
     }
 
     @Test func timedExercisesEditSecondsNotReps() throws {
-        let holder = try container()
+        let holder = try makeTestContainer()
         defer { withExtendedLifetime(holder) {} }
         let context = holder.mainContext
         let model = workout(context)
@@ -166,7 +162,7 @@ import Testing
     }
 
     @Test func saveWritesValuesKeepsHiddenFieldsAndMovesTheEnd() throws {
-        let holder = try container()
+        let holder = try makeTestContainer()
         defer { withExtendedLifetime(holder) {} }
         let context = holder.mainContext
         let model = workout(context)
@@ -190,7 +186,7 @@ import Testing
     }
 
     @Test func saveDropsEmptySetsEmptyExercisesAndLoneSupersets() throws {
-        let holder = try container()
+        let holder = try makeTestContainer()
         defer { withExtendedLifetime(holder) {} }
         let context = holder.mainContext
         let model = workout(context)
@@ -221,7 +217,7 @@ import Testing
     }
 
     @Test func saveReordersExercises() throws {
-        let holder = try container()
+        let holder = try makeTestContainer()
         defer { withExtendedLifetime(holder) {} }
         let context = holder.mainContext
         let model = workout(context)

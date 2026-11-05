@@ -19,7 +19,7 @@ import Testing
 
     /// A seeded in-memory store plus an unfinished workout, saved so a second context sees it.
     private func seededContainer(catalog: LibraryCatalog) throws -> ModelContainer {
-        let container = try ModelContainer.workouts(inMemory: true, cloudKit: false)
+        let container = try makeTestContainer()
         let context = container.mainContext
         try SampleData.seed(into: context, catalog: catalog, now: Self.now, workoutCount: 40)
         let open = Workout(name: "In progress", startedAt: Self.now)
@@ -81,7 +81,7 @@ import Testing
     }
 
     @Test func aFreshReaderSeesWhatTheMainContextSaved() async throws {
-        let container = try ModelContainer.workouts(inMemory: true, cloudKit: false)
+        let container = try makeTestContainer()
         let exerciseID = UUID()
         let none = try await WorkoutStatsReader(modelContainer: container)
             .historySummary(weightTypes: [:], options: RecordsOptions())

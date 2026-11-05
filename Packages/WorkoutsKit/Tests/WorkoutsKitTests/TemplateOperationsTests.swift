@@ -5,10 +5,6 @@ import Testing
 @testable import WorkoutsKit
 
 @Suite struct TemplateOperationsTests {
-    private func makeContext() throws -> ModelContext {
-        ModelContext(try ModelContainer.workouts(inMemory: true, cloudKit: false))
-    }
-
     private func all(_ context: ModelContext) throws -> [Template] {
         FolderOperations.orderedTemplates(try context.fetch(FetchDescriptor<Template>()))
     }
@@ -38,7 +34,7 @@ import Testing
     }
 
     @Test func duplicateCopiesFieldsWithNewIDs() throws {
-        let context = try makeContext()
+        let context = try makeTestContext()
         let folder = try #require(try FolderOperations.create(named: "Gym", in: context))
         let original = makeRich(in: folder, position: 0, context: context)
         try context.save()
@@ -70,7 +66,7 @@ import Testing
     }
 
     @Test func duplicateLandsRightAfterTheOriginal() throws {
-        let context = try makeContext()
+        let context = try makeTestContext()
         let folder = try #require(try FolderOperations.create(named: "Gym", in: context))
         let other = try #require(try FolderOperations.create(named: "Home", in: context))
         let a = Template(name: "A", position: 0, folder: folder)
@@ -89,7 +85,7 @@ import Testing
     }
 
     @Test func duplicateOfAnUnfiledTemplateStaysUnfiled() throws {
-        let context = try makeContext()
+        let context = try makeTestContext()
         let loose = Template(name: "Loose", position: 0)
         let tail = Template(name: "Tail", position: 1)
         context.insert(loose)
@@ -103,7 +99,7 @@ import Testing
     }
 
     @Test func moveLandsLastInTheTarget() throws {
-        let context = try makeContext()
+        let context = try makeTestContext()
         let from = try #require(try FolderOperations.create(named: "From", in: context))
         let to = try #require(try FolderOperations.create(named: "To", in: context))
         let moving = Template(name: "Moving", position: 0, folder: from)
@@ -120,7 +116,7 @@ import Testing
     }
 
     @Test func moveToNilUnfilesAfterTheUnfiledOnes() throws {
-        let context = try makeContext()
+        let context = try makeTestContext()
         let folder = try #require(try FolderOperations.create(named: "Gym", in: context))
         let moving = Template(name: "Moving", position: 0, folder: folder)
         let loose = Template(name: "Loose", position: 2)
@@ -135,7 +131,7 @@ import Testing
     }
 
     @Test func moveToTheCurrentFolderIsANoOp() throws {
-        let context = try makeContext()
+        let context = try makeTestContext()
         let folder = try #require(try FolderOperations.create(named: "Gym", in: context))
         let template = Template(name: "T", position: 3, folder: folder)
         context.insert(template)
@@ -146,7 +142,7 @@ import Testing
     }
 
     @Test func deleteRemovesTheTreeAndKeepsWorkouts() throws {
-        let context = try makeContext()
+        let context = try makeTestContext()
         let template = makeRich(in: nil, position: 0, context: context)
         let keep = Template(name: "Keep", position: 1)
         context.insert(keep)

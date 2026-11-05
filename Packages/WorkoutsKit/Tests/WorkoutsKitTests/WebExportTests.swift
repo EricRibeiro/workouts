@@ -37,7 +37,7 @@ struct ImportWebExportTests {
         let (doc, catalog) = try Self.load()
         #expect(doc.version == WorkoutsJSON.currentVersion)
 
-        let container = try ModelContainer.workouts(inMemory: true, cloudKit: false)
+        let container = try makeTestContainer()
         let context = container.mainContext
 
         let first = try Importer.apply(doc, to: context, catalog: catalog)

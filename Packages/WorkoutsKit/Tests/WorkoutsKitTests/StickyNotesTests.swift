@@ -10,7 +10,7 @@ import Testing
     let id = UUID()
 
     init() throws {
-        container = try ModelContainer.workouts(inMemory: true, cloudKit: false)
+        container = try makeTestContainer()
     }
 
     @Test func noNoteReadsNil() {

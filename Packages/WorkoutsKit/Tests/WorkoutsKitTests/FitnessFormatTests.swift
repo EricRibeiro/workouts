@@ -108,7 +108,7 @@ import Testing
         let entry = HistoryEntry(
             id: UUID(),
             name: "Push",
-            startedAt: Date(timeIntervalSince1970: 1_800_000_000),
+            startedAt: TestSupport.referenceDate,
             durationSeconds: 3600,
             volume: 100,
             unit: .kg,
@@ -122,21 +122,13 @@ import Testing
 
     @MainActor
     @Test func weekActiveCaloriesSumsTheWeekAndHidesWhenNone() throws {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(identifier: "America/Toronto") ?? .gmt
+        let calendar = TestSupport.torontoCalendar
         func day(_ d: Int, _ h: Int = 12) -> Date {
             calendar.date(from: DateComponents(year: 2026, month: 11, day: d, hour: h)) ?? .distantPast
         }
-        let context = ModelContext(try ModelContainer.workouts(inMemory: true, cloudKit: false))
+        let context = try makeTestContext()
         func workout(_ start: Date, kcal: Double?, finished: Bool = true) -> Workout {
-            let workout = Workout(
-                name: "w",
-                startedAt: start,
-                finishedAt: finished ? start.addingTimeInterval(3000) : nil
-            )
-            workout.activeEnergyKcal = kcal
-            context.insert(workout)
-            return workout
+            makeWorkout(in: context, startedAt: start, minutes: finished ? 50 : nil, activeEnergyKcal: kcal)
         }
         // Tue Nov 3 is "now"; the week is Mon Nov 2 to Sun Nov 8.
         let now = day(3)

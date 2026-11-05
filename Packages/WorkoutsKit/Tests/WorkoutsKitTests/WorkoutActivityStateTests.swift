@@ -210,7 +210,7 @@ import Testing
     @Test func stateRoundTripsThroughJSON() throws {
         let state = WorkoutActivityState(
             workoutName: "Push",
-            startedAt: Date(timeIntervalSince1970: 1_800_000_000),
+            startedAt: TestSupport.referenceDate,
             restEndsAt: Date(timeIntervalSince1970: 1_800_000_090),
             restTotal: 90,
             setsDone: 4,

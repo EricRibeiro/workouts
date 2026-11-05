@@ -29,7 +29,7 @@ import Testing
     /// The C-04 case: an import rewrites an older workout. The newest `updatedAt` stays as it was, so only the
     /// generation tells the caches to re-derive.
     @Test func stampChangesWhenAnOlderWorkoutIsUpdated() throws {
-        let context = ModelContext(try ModelContainer.workouts(inMemory: true, cloudKit: false))
+        let context = try makeTestContext()
         let t0 = Date(timeIntervalSinceReferenceDate: 1_000_000)
         let older = Workout(name: "Old", startedAt: t0, finishedAt: t0, updatedAt: t0)
         let newer = Workout(
@@ -61,7 +61,7 @@ import Testing
     }
 
     @Test func finishedDescriptorsSelectOnlyFinishedWorkouts() throws {
-        let context = ModelContext(try ModelContainer.workouts(inMemory: true, cloudKit: false))
+        let context = try makeTestContext()
         let done = Workout(name: "Done", startedAt: .now, finishedAt: .now)
         let running = Workout(name: "Running", startedAt: .now)
         context.insert(done)

@@ -28,11 +28,7 @@ fileprivate func perSessionPRCounts(
 }
 
 @Suite struct HistoryListTests {
-    private static let toronto: Calendar = {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(identifier: "America/Toronto") ?? .gmt
-        return calendar
-    }()
+    private static let toronto = TestSupport.torontoCalendar
 
     private func date(_ year: Int, _ month: Int, _ day: Int, _ hour: Int = 12, _ minute: Int = 0) -> Date {
         let parts = DateComponents(year: year, month: month, day: day, hour: hour, minute: minute)
@@ -165,7 +161,7 @@ fileprivate func perSessionPRCounts(
 
     @MainActor
     @Test func entriesCarryDurationVolumePRsAndNames() throws {
-        let container = try ModelContainer.workouts(inMemory: true, cloudKit: false)
+        let container = try makeTestContainer()
         let context = container.mainContext
         let bench = UUID()
 
@@ -220,7 +216,7 @@ fileprivate func perSessionPRCounts(
 
     @MainActor
     @Test func volumeFollowsTheDisplayUnit() throws {
-        let container = try ModelContainer.workouts(inMemory: true, cloudKit: false)
+        let container = try makeTestContainer()
         let context = container.mainContext
         let workout = Workout(name: "W", startedAt: date(2026, 10, 1), finishedAt: date(2026, 10, 1, 13))
         let row = WorkoutExercise(exerciseID: UUID(), exerciseName: "Squat", unit: .kg, workout: workout)
@@ -259,7 +255,7 @@ fileprivate func perSessionPRCounts(
     @MainActor
     @Test func prCountsMatchThePerSessionFoldOnSampleData() throws {
         let catalog = try Self.realCatalog()
-        let container = try ModelContainer.workouts(inMemory: true, cloudKit: false)
+        let container = try makeTestContainer()
         let context = container.mainContext
         try SampleData.seed(into: context, catalog: catalog, now: Date(timeIntervalSince1970: 1_793_000_000), seed: 1)
         let workouts = try context.fetch(FetchDescriptor<Workout>())
@@ -349,7 +345,7 @@ struct HistoryListWebExportTests {
                 contentsOf: HistoryWebExportFixture.repoRoot.appendingPathComponent("Resources/Library/library.json")
             )
         )
-        let container = try ModelContainer.workouts(inMemory: true, cloudKit: false)
+        let container = try makeTestContainer()
         let context = container.mainContext
         _ = try Importer.apply(doc, to: context, catalog: catalog)
 

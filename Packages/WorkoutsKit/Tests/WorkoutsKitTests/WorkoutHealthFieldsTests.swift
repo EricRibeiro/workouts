@@ -5,12 +5,8 @@ import Testing
 @testable import WorkoutsKit
 
 @Suite struct WorkoutHealthFieldsTests {
-    private static let t0 = Date(timeIntervalSince1970: 1_800_000_000)
+    private static let t0 = TestSupport.referenceDate
     private static let hour: TimeInterval = 3600
-
-    private func makeContext() throws -> ModelContext {
-        ModelContext(try ModelContainer.workouts(inMemory: true, cloudKit: false))
-    }
 
     private static func summary(id: String = "HK-1") -> HealthWorkoutSummary {
         HealthWorkoutSummary(
@@ -36,7 +32,7 @@ import Testing
     // MARK: apply -> summary
 
     @Test func applyRoundTripsThroughTheStoreWithTheSeries() throws {
-        let context = try makeContext()
+        let context = try makeTestContext()
         let workout = Self.finished()
         context.insert(workout)
         #expect(workout.healthSummary == nil)
@@ -140,7 +136,7 @@ import Testing
     // MARK: Export and import
 
     private func exportedDocument(from workout: Workout) throws -> WorkoutsJSON {
-        let context = try makeContext()
+        let context = try makeTestContext()
         context.insert(workout)
         try context.save()
         return try Exporter.document(from: context)
@@ -157,7 +153,7 @@ import Testing
 
         // Through the JSON text too.
         let decoded = try WorkoutsJSON.decode(try document.encoded())
-        let target = try makeContext()
+        let target = try makeTestContext()
         _ = try Importer.apply(decoded, to: target)
         let imported = try #require(try target.fetch(FetchDescriptor<Workout>()).first)
         #expect(imported.healthSummary == Self.summary())
@@ -177,13 +173,13 @@ import Testing
         #expect(old.workouts.first?.healthWorkoutId == nil)
 
         // Into an empty store: nil fields.
-        let empty = try makeContext()
+        let empty = try makeTestContext()
         _ = try Importer.apply(old, to: empty)
         let fresh = try #require(try empty.fetch(FetchDescriptor<Workout>()).first)
         #expect(fresh.healthSummary == nil && fresh.healthCheckedAt == nil)
 
         // Over a store that has Fitness data: a newer old-format row does not clear it.
-        let store = try makeContext()
+        let store = try makeTestContext()
         let local = Self.finished()
         local.id = try #require(old.workouts.first?.id)
         local.applyHealth(Self.summary(), checkedAt: Self.t0)
@@ -256,7 +252,7 @@ import Testing
     }
 
     @Test func detailsRoundTripThroughApplyAndTheStore() throws {
-        let context = try makeContext()
+        let context = try makeTestContext()
         let workout = Self.finished()
         context.insert(workout)
         workout.applyHealth(Self.richSummary(), checkedAt: Self.t0)
@@ -345,7 +341,7 @@ import Testing
         #expect(dto.healthDetails?.statistics.count == 2)
 
         let decoded = try WorkoutsJSON.decode(try document.encoded())
-        let target = try makeContext()
+        let target = try makeTestContext()
         _ = try Importer.apply(decoded, to: target)
         let imported = try #require(try target.fetch(FetchDescriptor<Workout>()).first)
         #expect(imported.healthSummary == Self.richSummary())
@@ -363,7 +359,7 @@ import Testing
         }
         let old = try WorkoutsJSON.decode(Data(text.utf8))
 
-        let store = try makeContext()
+        let store = try makeTestContext()
         let local = Self.finished()
         local.id = try #require(old.workouts.first?.id)
         local.applyHealth(Self.richSummary(), checkedAt: Self.t0)
@@ -379,7 +375,7 @@ import Testing
     // MARK: Failures are logged, not fatal
 
     @Test func anUnreadableStoredSeriesReadsAsEmptyAndZonesAsNil() throws {
-        let context = try makeContext()
+        let context = try makeTestContext()
         let workout = Self.finished()
         context.insert(workout)
         workout.applyHealth(Self.summary(), checkedAt: Self.t0)
@@ -390,7 +386,7 @@ import Testing
     }
 
     @Test func aSeriesThatCannotBeEncodedStoresNothing() throws {
-        let context = try makeContext()
+        let context = try makeTestContext()
         let workout = Self.finished()
         context.insert(workout)
         var summary = Self.summary()

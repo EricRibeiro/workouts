@@ -5,10 +5,6 @@ import Testing
 @testable import WorkoutsKit
 
 @Suite struct FolderOperationsTests {
-    private func makeContext() throws -> ModelContext {
-        ModelContext(try ModelContainer.workouts(inMemory: true, cloudKit: false))
-    }
-
     private func folders(_ context: ModelContext) throws -> [TemplateFolder] {
         FolderOperations.ordered(try context.fetch(FetchDescriptor<TemplateFolder>()))
     }
@@ -18,7 +14,7 @@ import Testing
     }
 
     @Test func createAppendsAndTrims() throws {
-        let context = try makeContext()
+        let context = try makeTestContext()
         let first = try #require(try FolderOperations.create(named: "  Push  ", in: context))
         let second = try #require(try FolderOperations.create(named: "Pull", in: context))
         #expect(first.name == "Push" && first.position == 0)
@@ -27,14 +23,14 @@ import Testing
     }
 
     @Test func createAfterGapUsesMaxPlusOne() throws {
-        let context = try makeContext()
+        let context = try makeTestContext()
         context.insert(TemplateFolder(name: "A", position: 7))
         let new = try #require(try FolderOperations.create(named: "B", in: context))
         #expect(new.position == 8)
     }
 
     @Test func blankNameCreatesNothing() throws {
-        let context = try makeContext()
+        let context = try makeTestContext()
         #expect(try FolderOperations.create(named: "   ", in: context) == nil)
         #expect(try folders(context).isEmpty)
     }
@@ -46,7 +42,7 @@ import Testing
     }
 
     @Test func renameTrimsAndRejectsBlank() throws {
-        let context = try makeContext()
+        let context = try makeTestContext()
         let folder = try #require(try FolderOperations.create(named: "Old", in: context))
         #expect(try FolderOperations.rename(folder, to: " New ", in: context))
         #expect(folder.name == "New")
@@ -62,7 +58,7 @@ import Testing
     }
 
     @Test func moveSwapsAndRenumbers() throws {
-        let context = try makeContext()
+        let context = try makeTestContext()
         let a = TemplateFolder(name: "A", position: 0)
         let b = TemplateFolder(name: "B", position: 5)
         let c = TemplateFolder(name: "C", position: 5)
@@ -78,7 +74,7 @@ import Testing
     }
 
     @Test func moveAtTheEndsIsANoOp() throws {
-        let context = try makeContext()
+        let context = try makeTestContext()
         let a = try #require(try FolderOperations.create(named: "A", in: context))
         let b = try #require(try FolderOperations.create(named: "B", in: context))
         #expect(try !FolderOperations.move(a, .up, among: [a, b], in: context))
@@ -90,7 +86,7 @@ import Testing
     }
 
     @Test func deleteMovesTemplatesToUnfiledAfterExistingOnes() throws {
-        let context = try makeContext()
+        let context = try makeTestContext()
         let keep = TemplateFolder(name: "Keep", position: 0)
         let doomed = TemplateFolder(name: "Doomed", position: 1)
         context.insert(keep)
@@ -115,7 +111,7 @@ import Testing
     }
 
     @Test func deleteWithTemplatesRemovesThemAndKeepsWorkouts() throws {
-        let context = try makeContext()
+        let context = try makeTestContext()
         let doomed = TemplateFolder(name: "Doomed")
         context.insert(doomed)
         let template = Template(name: "T", folder: doomed)
@@ -135,7 +131,7 @@ import Testing
     }
 
     @Test func deletingAnEmptyFolderWorksEitherWay() throws {
-        let context = try makeContext()
+        let context = try makeTestContext()
         let a = try #require(try FolderOperations.create(named: "A", in: context))
         let b = try #require(try FolderOperations.create(named: "B", in: context))
         try FolderOperations.delete(a, .moveTemplatesToUnfiled, in: context)

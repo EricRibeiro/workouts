@@ -5,11 +5,7 @@ import Testing
 @testable import WorkoutsKit
 
 @Suite @MainActor struct TemplateDraftTests {
-    private let stamp = Date(timeIntervalSince1970: 1_800_000_000)
-
-    private func container() throws -> ModelContainer {
-        try ModelContainer.workouts(inMemory: true, cloudKit: false)
-    }
+    private let stamp = TestSupport.referenceDate
 
     /// "Push": Bench (2 sets, 100 x 5, bar and rest set) and Row (1 set).
     private func template(_ context: ModelContext) -> Template {
@@ -39,7 +35,7 @@ import Testing
     }
 
     @Test func freshDraftIsCleanAndReadsTheTemplate() throws {
-        let holder = try container()
+        let holder = try makeTestContainer()
         defer { withExtendedLifetime(holder) {} }
         let model = template(holder.mainContext)
         let draft = TemplateDraft(model)
@@ -52,7 +48,7 @@ import Testing
     }
 
     @Test func templateNoteTrimsClearsAndSaves() throws {
-        let holder = try container()
+        let holder = try makeTestContainer()
         defer { withExtendedLifetime(holder) {} }
         let context = holder.mainContext
         let model = template(context)
@@ -70,7 +66,7 @@ import Testing
     }
 
     @Test func everyKindOfEditMarksTheDraftDirty() throws {
-        let holder = try container()
+        let holder = try makeTestContainer()
         defer { withExtendedLifetime(holder) {} }
         let original = TemplateDraft(template(holder.mainContext))
         let setID = original.exercises[0].sets[0].id
@@ -110,7 +106,7 @@ import Testing
     }
 
     @Test func addSetCopiesTheLastAndWarmupBecomesNormal() throws {
-        let holder = try container()
+        let holder = try makeTestContainer()
         defer { withExtendedLifetime(holder) {} }
         var draft = TemplateDraft(template(holder.mainContext))
         let exercise = draft.exercises[0].id
@@ -158,7 +154,7 @@ import Testing
     }
 
     @Test func supersetGroupsTheNewExercisesOnly() throws {
-        let holder = try container()
+        let holder = try makeTestContainer()
         defer { withExtendedLifetime(holder) {} }
         var draft = TemplateDraft(template(holder.mainContext))
         let ids = draft.addExercises(
@@ -176,7 +172,7 @@ import Testing
     }
 
     @Test func reorderNeedsEveryIDExactlyOnce() throws {
-        let holder = try container()
+        let holder = try makeTestContainer()
         defer { withExtendedLifetime(holder) {} }
         var draft = TemplateDraft(template(holder.mainContext))
         let ids = draft.exercises.map(\.id)
@@ -188,7 +184,7 @@ import Testing
     }
 
     @Test func timedExercisesEditSecondsNotReps() throws {
-        let holder = try container()
+        let holder = try makeTestContainer()
         defer { withExtendedLifetime(holder) {} }
         let model = template(holder.mainContext)
         model.exercises?.first { $0.exerciseName == "Row" }?.sets?.first?.durationSeconds = 30
@@ -201,7 +197,7 @@ import Testing
     }
 
     @Test func saveWritesValuesKeepsHiddenFieldsAndStampsOnlyChangedRows() throws {
-        let holder = try container()
+        let holder = try makeTestContainer()
         defer { withExtendedLifetime(holder) {} }
         let context = holder.mainContext
         let model = template(context)
@@ -230,7 +226,7 @@ import Testing
     }
 
     @Test func saveRemovesDeletedRowsAndSetsAndAddsNewOnes() throws {
-        let holder = try container()
+        let holder = try makeTestContainer()
         defer { withExtendedLifetime(holder) {} }
         let context = holder.mainContext
         let model = template(context)
@@ -251,7 +247,7 @@ import Testing
     }
 
     @Test func saveReordersAndRenumbersPositions() throws {
-        let holder = try container()
+        let holder = try makeTestContainer()
         defer { withExtendedLifetime(holder) {} }
         let context = holder.mainContext
         let model = template(context)
@@ -263,7 +259,7 @@ import Testing
     }
 
     @Test func insertNewCreatesTheTemplateLastInItsFolder() throws {
-        let holder = try container()
+        let holder = try makeTestContainer()
         defer { withExtendedLifetime(holder) {} }
         let context = holder.mainContext
         let folder = TemplateFolder(name: "Strength")
@@ -286,7 +282,7 @@ import Testing
     }
 
     @Test func insertNewWithoutAFolderStartsAtZero() throws {
-        let holder = try container()
+        let holder = try makeTestContainer()
         defer { withExtendedLifetime(holder) {} }
         let created = try TemplateDraft().insertNew(in: nil, context: holder.mainContext, siblings: [])
         #expect(created.position == 0)

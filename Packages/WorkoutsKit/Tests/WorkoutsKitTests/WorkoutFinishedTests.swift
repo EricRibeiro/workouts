@@ -8,7 +8,7 @@ import Testing
     private let t0 = Date(timeIntervalSinceReferenceDate: 1_000_000)
 
     private func seeded() throws -> (ModelContext, finished: Workout, old: Workout, running: Workout) {
-        let context = ModelContext(try ModelContainer.workouts(inMemory: true, cloudKit: false))
+        let context = try makeTestContext()
         let old = Workout(name: "Old", startedAt: t0, finishedAt: t0.addingTimeInterval(3_600))
         let finished = Workout(
             name: "Done",

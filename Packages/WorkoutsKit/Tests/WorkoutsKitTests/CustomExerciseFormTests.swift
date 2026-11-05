@@ -11,7 +11,7 @@ import Testing
         var context: ModelContext { container.mainContext }
 
         init() throws {
-            container = try ModelContainer.workouts(inMemory: true, cloudKit: false)
+            container = try makeTestContainer()
             store = ExerciseStore(catalog: try LibraryFixture.catalog())
         }
     }

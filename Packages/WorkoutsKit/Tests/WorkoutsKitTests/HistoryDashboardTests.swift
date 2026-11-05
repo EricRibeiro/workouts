@@ -5,11 +5,7 @@ import Testing
 @testable import WorkoutsKit
 
 @Suite struct HistoryDashboardTests {
-    private static let toronto: Calendar = {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(identifier: "America/Toronto") ?? .gmt
-        return calendar
-    }()
+    private static let toronto = TestSupport.torontoCalendar
 
     private func date(_ year: Int, _ month: Int, _ day: Int, _ hour: Int = 12, _ minute: Int = 0) -> Date {
         let parts = DateComponents(year: year, month: month, day: day, hour: hour, minute: minute)
@@ -104,7 +100,7 @@ import Testing
 
     @MainActor
     @Test func recentPRsAreNewestFirstWithNamesAndValues() throws {
-        let container = try ModelContainer.workouts(inMemory: true, cloudKit: false)
+        let container = try makeTestContainer()
         let bench = UUID()
         let squat = UUID()
         let workouts = build(
@@ -138,7 +134,7 @@ import Testing
 
     @MainActor
     @Test func recentPRsHonourTheLimitAndAnEmptyHistory() throws {
-        let container = try ModelContainer.workouts(inMemory: true, cloudKit: false)
+        let container = try makeTestContainer()
         let bench = UUID()
         let workouts = build(
             container.mainContext,
@@ -162,7 +158,7 @@ import Testing
 
     @MainActor
     @Test func buildEqualsTheTwoSeparateCalls() throws {
-        let container = try ModelContainer.workouts(inMemory: true, cloudKit: false)
+        let container = try makeTestContainer()
         let bench = UUID()
         let squat = UUID()
         let workouts = build(
@@ -224,16 +220,9 @@ import Testing
 
     @MainActor
     @Test func weekAverageHeartRateIsDurationWeightedAndHidesWhenNone() throws {
-        let context = ModelContext(try ModelContainer.workouts(inMemory: true, cloudKit: false))
+        let context = try makeTestContext()
         func workout(_ start: Date, minutes: Int, bpm: Double?, finished: Bool = true) -> Workout {
-            let workout = Workout(
-                name: "w",
-                startedAt: start,
-                finishedAt: finished ? start.addingTimeInterval(Double(minutes) * 60) : nil
-            )
-            workout.avgHeartRate = bpm
-            context.insert(workout)
-            return workout
+            makeWorkout(in: context, startedAt: start, minutes: finished ? minutes : nil, avgHeartRate: bpm)
         }
         // Tue Nov 3 is "now"; the week is Mon Nov 2 to Sun Nov 8.
         let now = date(2026, 11, 3)

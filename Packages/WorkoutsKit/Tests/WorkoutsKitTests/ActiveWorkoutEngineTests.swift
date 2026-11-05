@@ -6,7 +6,7 @@ import Testing
 
 @Suite struct EngineTests {
     final class Clock {
-        var date = Date(timeIntervalSince1970: 1_800_000_000)
+        var date = TestSupport.referenceDate
         func advance(_ seconds: TimeInterval) { date = date.addingTimeInterval(seconds) }
     }
 
@@ -19,7 +19,7 @@ import Testing
         var context: ModelContext { container.mainContext }
 
         init(custom: [Exercise] = []) throws {
-            container = try ModelContainer.workouts(inMemory: true, cloudKit: false)
+            container = try makeTestContainer()
             store = ExerciseStore(catalog: try LibraryFixture.catalog(), custom: custom)
             settings = SettingsStore(backend: InMemoryBackend())
         }

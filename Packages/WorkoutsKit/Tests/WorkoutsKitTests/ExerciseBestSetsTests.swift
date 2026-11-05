@@ -55,7 +55,7 @@ struct ExerciseBestSetsTests {
 
     @MainActor
     @Test func sessionsFromWorkoutsKeepFinishedCompletedSetsOnly() throws {
-        let container = try ModelContainer.workouts(inMemory: true, cloudKit: false)
+        let container = try makeTestContainer()
         let context = container.mainContext
         let done = Workout(startedAt: Date(timeIntervalSince1970: 500), finishedAt: Date(timeIntervalSince1970: 900))
         let open = Workout(startedAt: Date(timeIntervalSince1970: 600))
@@ -74,7 +74,7 @@ struct ExerciseBestSetsTests {
 
     @MainActor
     @Test func sessionsFromFetchedRowsEqualTheFullWalk() throws {
-        let container = try ModelContainer.workouts(inMemory: true, cloudKit: false)
+        let container = try makeTestContainer()
         let context = container.mainContext
         let other = UUID()
         // Inserted out of date order, with another exercise, an unfinished workout, a repeated row and unsorted sets.

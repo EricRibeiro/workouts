@@ -21,7 +21,7 @@ import Testing
         now: Date = SampleDataTests.now,
         seed: UInt64 = 1
     ) throws -> ModelContext {
-        let container = try ModelContainer.workouts(inMemory: true, cloudKit: false)
+        let container = try makeTestContainer()
         let context = container.mainContext
         try SampleData.seed(into: context, catalog: catalog, now: now, seed: seed)
         // Keep the container alive for as long as the context is used.
@@ -220,7 +220,7 @@ import Testing
     }
 
     @Test func scalesTheWorkoutCountAcrossTheRequestedSpan() throws {
-        let container = try ModelContainer.workouts(inMemory: true, cloudKit: false)
+        let container = try makeTestContainer()
         try SampleData.seed(
             into: container.mainContext,
             catalog: Self.realCatalog(),

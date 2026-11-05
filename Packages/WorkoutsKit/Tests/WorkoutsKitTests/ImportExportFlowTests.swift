@@ -58,12 +58,12 @@ import Testing
 
     @Test func exportThenImportThroughASeparateContextIsIdempotent() throws {
         let catalog = try Self.catalog()
-        let source = try ModelContainer.workouts(inMemory: true, cloudKit: false)
+        let source = try makeTestContainer()
         try SampleData.seed(into: source.mainContext, catalog: catalog, now: Date(timeIntervalSince1970: 0), seed: 1)
         let data = try Exporter.document(from: ModelContext(source), catalog: catalog).encoded()
 
         // The app imports on its own context and the main context sees the result.
-        let target = try ModelContainer.workouts(inMemory: true, cloudKit: false)
+        let target = try makeTestContainer()
         let doc = try WorkoutsJSON.decode(data)
         let first = try Importer.apply(doc, to: ModelContext(target), catalog: catalog)
         #expect(first.changedAnything)

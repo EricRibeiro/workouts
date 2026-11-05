@@ -15,10 +15,6 @@ import Testing
 
     private func daysAgo(_ days: Int) -> Date { now.addingTimeInterval(-Double(days) * 86_400) }
 
-    private func makeContext() throws -> ModelContext {
-        ModelContext(try ModelContainer.workouts(inMemory: true, cloudKit: false))
-    }
-
     private func makeTemplate(_ context: ModelContext, exercises: [(String, Int, Int?)]) -> Template {
         let template = Template(name: "Push")
         context.insert(template)
@@ -36,7 +32,7 @@ import Testing
     }
 
     @Test func linesFollowPositionAndOverflow() throws {
-        let context = try makeContext()
+        let context = try makeTestContext()
         let template = makeTemplate(
             context,
             exercises: [("A", 3, nil), ("B", 4, 1), ("C", 2, 1), ("D", 1, nil), ("E", 5, nil), ("F", 2, nil)]
@@ -51,7 +47,7 @@ import Testing
     }
 
     @Test func emptyTemplate() throws {
-        let context = try makeContext()
+        let context = try makeTestContext()
         let template = makeTemplate(context, exercises: [])
         let summary = TemplateCardSummary.make(for: template, finishedWorkouts: [], now: now)
         #expect(summary.countText == "No exercises")
@@ -60,13 +56,13 @@ import Testing
     }
 
     @Test func singularCount() throws {
-        let context = try makeContext()
+        let context = try makeTestContext()
         let template = makeTemplate(context, exercises: [("A", 1, nil)])
         #expect(TemplateCardSummary.make(for: template, finishedWorkouts: [], now: now).countText == "1 exercise")
     }
 
     @Test func lastPerformedPrefersLinkedFinishedWorkouts() throws {
-        let context = try makeContext()
+        let context = try makeTestContext()
         let template = makeTemplate(context, exercises: [("A", 1, nil)])
         let linkedOld = Workout(name: "Push", startedAt: daysAgo(9), finishedAt: daysAgo(9), template: template)
         let linkedNew = Workout(name: "Push", startedAt: daysAgo(5), finishedAt: daysAgo(5), template: template)
@@ -83,7 +79,7 @@ import Testing
     }
 
     @Test func lastPerformedFallsBackToSameName() throws {
-        let context = try makeContext()
+        let context = try makeTestContext()
         let template = makeTemplate(context, exercises: [("A", 1, nil)])
         let imported = Workout(name: "PUSH", startedAt: daysAgo(1), finishedAt: daysAgo(1))
         let other = Workout(name: "Pull", startedAt: daysAgo(0), finishedAt: daysAgo(0))
@@ -98,7 +94,7 @@ import Testing
     }
 
     @Test func lonelySupersetBarIsHidden() throws {
-        let context = try makeContext()
+        let context = try makeTestContext()
         // B and C are a pair and both shown; D's partner E falls into "+ 1 more".
         let template = makeTemplate(
             context,
@@ -112,7 +108,7 @@ import Testing
     }
 
     @Test func indexLinkedBeatsSameNameEvenWhenOlder() throws {
-        let context = try makeContext()
+        let context = try makeTestContext()
         let template = makeTemplate(context, exercises: [("A", 1, nil)])
         let linked = Workout(name: "Renamed", startedAt: daysAgo(9), finishedAt: daysAgo(9), template: template)
         let sameName = Workout(name: "push", startedAt: daysAgo(1), finishedAt: daysAgo(1))
@@ -121,7 +117,7 @@ import Testing
     }
 
     @Test func indexNewestWinsAndIgnoresInProgress() throws {
-        let context = try makeContext()
+        let context = try makeTestContext()
         let template = makeTemplate(context, exercises: [("A", 1, nil)])
         let old = Workout(name: "Push", startedAt: daysAgo(9), finishedAt: daysAgo(9), template: template)
         let new = Workout(name: "Push", startedAt: daysAgo(5), finishedAt: daysAgo(5), template: template)
@@ -135,14 +131,14 @@ import Testing
     }
 
     @Test func indexOfNothingAnswersNil() throws {
-        let context = try makeContext()
+        let context = try makeTestContext()
         let template = makeTemplate(context, exercises: [("A", 1, nil)])
         #expect(TemplateCardSummary.LastPerformedIndex(finishedWorkouts: []).lastPerformed(of: template) == nil)
         #expect(TemplateCardSummary.LastPerformedIndex().lastPerformed(of: template) == nil)
     }
 
     @Test func indexMatchesPerTemplateAnswer() throws {
-        let context = try makeContext()
+        let context = try makeTestContext()
         let push = makeTemplate(context, exercises: [("A", 1, nil)])
         let pull = Template(name: "Pull")
         context.insert(pull)

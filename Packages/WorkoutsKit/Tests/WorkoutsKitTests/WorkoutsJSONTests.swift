@@ -255,7 +255,7 @@ import Testing
         var context: ModelContext { container.mainContext }
 
         init() throws {
-            container = try ModelContainer.workouts(inMemory: true, cloudKit: false)
+            container = try makeTestContainer()
         }
 
         func count<T: PersistentModel>(_ type: T.Type) throws -> Int {
