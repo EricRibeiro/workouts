@@ -326,8 +326,8 @@ Live Activity → notifications → logging, then templates, exercises, history.
     (sum/avg/min/max per quantity type in `allStatistics`), all metadata keys, workout events and activities, source and
     device, effort, zones, and any route points, so later features need no schema change and survive the
     workout leaving Health. Request every relevant read type up front (incl. workout route and effort types), since new
-    types re-prompt. Proof: kit tests with the fake; the d. integration test seeds effort and zones; Eric checks location
-    on device.
+    types re-prompt. Proof: kit tests with the fake; the d. integration test seeds effort, zones and weather
+    (shaped like a real export when Eric provides one).
   - [ ] **f. UI**: Fitness card on the workout detail (calories, avg/max HR, small HR chart), calories in History rows and
     the dashboard. Proof: `-preview` screenshots light/dark, closed/open.
   - [ ] **g. Backfill**: enrich imported history once (and after 7.4's import). Proof: kit test over a fixture year.
