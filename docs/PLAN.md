@@ -322,8 +322,13 @@ Live Activity → notifications → logging, then templates, exercises, history.
     the estimated one; absent on older workouts), time in heart-rate zones (`HKWorkout.zoneGroup(for: heartRate)`, iOS 27),
     weather temperature and humidity (workout metadata), and location best effort (the workout route's first point,
     reverse-geocoded to a locality; needs the workout-route read type; empty for indoor workouts without a route, then
-    dropped). Optional `Workout` fields, kept/removed with the toggle like the rest. Proof: kit tests with the fake; the
-    d. integration test seeds effort and zones; Eric checks location on device.
+    dropped). Optional `Workout` fields, kept/removed with the toggle like the rest. **Capture everything** (Eric: "get all
+    the info we can"): besides the typed fields, a versioned Codable snapshot `healthDetailsData` holds every statistic
+    (sum/avg/min/max per quantity type in `allStatistics`), all metadata keys, workout events and activities, source and
+    device, effort, zones, and the route's points + place name, so later features need no schema change and survive the
+    workout leaving Health. Request every relevant read type up front (incl. workout route and effort types), since new
+    types re-prompt. Proof: kit tests with the fake; the d. integration test seeds effort and zones; Eric checks location
+    on device.
   - [ ] **f. UI**: Fitness card on the workout detail (calories, avg/max HR, small HR chart), calories in History rows and
     the dashboard. Proof: `-preview` screenshots light/dark, closed/open.
   - [ ] **g. Backfill**: enrich imported history once (and after 7.4's import). Proof: kit test over a fixture year.

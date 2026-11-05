@@ -219,3 +219,8 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
     Fitness data already added. While on, lookups run when the app becomes active and right after a finish, plus once more
     two minutes later (the Watch workout usually ends just after ours). Unmatched workouts are re-checked at most every 15
     minutes and given up after 7 days; a denied or unavailable store stamps nothing, so a later grant still finds them.
+67. **Store a full Fitness snapshot, not only what is shown** (Eric, 2026-11-04: "get all the info we can"): the matched
+    HealthKit id makes re-reading possible, but not if the workout leaves Health, and every new read type re-prompts. So
+    all relevant read types are requested up front and each enriched workout keeps a versioned JSON snapshot of everything
+    HealthKit returns (statistics, metadata, events, source/device, effort, zones, route + place), beside typed fields for
+    what the UI uses.
