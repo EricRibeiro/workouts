@@ -321,7 +321,7 @@ Live Activity → notifications → logging, then templates, exercises, history.
   - [ ] **e4. More Fitness details** (Eric, 2026-11-04): effort (HKWorkoutEffortRelationshipQuery; the rated score, else
     the estimated one; absent on older workouts), time in heart-rate zones (`HKWorkout.zoneGroup(for: heartRate)`, iOS 27),
     weather temperature and humidity and the time zone (workout metadata). **No location**: Apple DTS, 2025: "no public API
-    for 3rd party developers to access the location of an indoor workout" (developer.apple.com/forums/thread/773408). Optional `Workout` fields, kept/removed with the toggle like the rest. **Capture everything** (Eric: "get all
+    for 3rd party developers to access the location of an indoor workout" (developer.apple.com/forums/thread/773408). Revisit after the first sync (Eric, 2026-11-04), e.g. from a real Health export. Optional `Workout` fields, kept/removed with the toggle like the rest. **Capture everything** (Eric: "get all
     the info we can"): besides the typed fields, a versioned Codable snapshot `healthDetailsData` holds every statistic
     (sum/avg/min/max per quantity type in `allStatistics`), all metadata keys, workout events and activities, source and
     device, effort, zones, and any route points, so later features need no schema change and survive the
