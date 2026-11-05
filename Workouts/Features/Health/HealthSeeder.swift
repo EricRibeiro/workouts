@@ -19,10 +19,13 @@
 
         static var isRequested: Bool { ProcessInfo.processInfo.arguments.contains("-seedHealth") }
 
-        /// Seeds when `-seedHealth` was passed. Fire and forget; the outcome is logged and printed.
+        /// The running seed, set by `seedIfRequested`; await it before reading what the seed writes.
+        static var seeding: Task<Void, Never>?
+
+        /// Seeds when `-seedHealth` was passed. Fire and forget; the outcome is logged and printed. `seeding` is awaitable.
         static func seedIfRequested() {
             guard isRequested, HealthKitSource.isAvailable else { return }
-            Task {
+            seeding = Task {
                 do {
                     let summary = try await seed()
                     print("HealthSeeder: saved \(summary)")

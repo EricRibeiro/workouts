@@ -115,7 +115,8 @@ struct FitnessCard: View {
 
 #if DEBUG
     /// The gallery entry `FitnessCard`: runs `HealthEnrichment` against a `HealthFixture` (`-healthFixture <name>`, default
-    /// `full`) for a sample interval and shows what a workout screen would.
+    /// `full`) for a sample interval and shows what a workout screen would. With `-healthReal` it reads the simulator's real
+    /// Health store instead (after `-seedHealth` finishes, if passed): the real-store integration test's subject.
     struct FitnessCardDemo: View {
         private enum Phase {
             case loading
@@ -126,6 +127,8 @@ struct FitnessCard: View {
         }
 
         var fixture: HealthFixture = HealthFixture.requested() ?? .full
+
+        var useRealStore = ProcessInfo.processInfo.arguments.contains("-healthReal")
 
         @State private var phase = Phase.loading
 
@@ -162,7 +165,27 @@ struct FitnessCard: View {
         private func load() async {
             let end = Date.now
             let start = end.addingTimeInterval(-50 * 60)
-            let enrichment = HealthEnrichment(source: fixture.source(around: start, end: end))
+            if useRealStore {
+                // The seeder (if requested) writes the workout the read below must find.
+                await HealthSeeder.seeding?.value
+                let source = HealthKitSource()
+                do {
+                    try await source.requestReadAuthorization()
+                } catch HealthSourceError.notAuthorized {
+                    phase = .denied
+                    return
+                } catch {
+                    phase = .failed
+                    return
+                }
+                // The seed spans the last 50 minutes; read the last 60.
+                await enrich(HealthEnrichment(source: source), start: end.addingTimeInterval(-60 * 60), end: end)
+            } else {
+                await enrich(HealthEnrichment(source: fixture.source(around: start, end: end)), start: start, end: end)
+            }
+        }
+
+        private func enrich(_ enrichment: HealthEnrichment, start: Date, end: Date) async {
             do {
                 if let summary = try await enrichment.enrich(workoutStart: start, workoutEnd: end) {
                     phase = .loaded(summary)

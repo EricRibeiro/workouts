@@ -224,7 +224,13 @@ test_summary() { # test_summary <name> <only> <bundle>
 
 cmd_build() { sim_resolve; run_logged build xcb build; }
 cmd_test() { run_tests test WorkoutsTests "${1:-}"; }
-cmd_ui_test() { run_tests ui-test WorkoutsUITests "${1:-}"; }
+cmd_ui_test() {
+  # HealthKitIntegrationUITests (real Health store, drives the permission sheet) skips itself unless this is set; xcodebuild
+  # forwards TEST_RUNNER_-prefixed variables to the test runner. Naming the suite in the filter opts in; the full suite and
+  # `check` leave it skipped.
+  [[ "${1:-}" == HealthKitIntegration* ]] && export TEST_RUNNER_HEALTH_INTEGRATION=1
+  run_tests ui-test WorkoutsUITests "${1:-}"
+}
 
 cmd_kit() {
   [[ -d "$KIT" ]] || die "$KIT does not exist"
@@ -629,7 +635,7 @@ sims               create the missing simulator clones (iPhone Duo 2..$DEV_SIM_P
                    or DEV_SIM_UDID=<udid> overrides)
 build              build the app for this checkout's simulator
 test [filter]      run WorkoutsTests (filter = suite or suite/test); prints totals, fails if none ran
-ui-test [filter]   run WorkoutsUITests; prints totals, fails if none ran
+ui-test [filter]   run WorkoutsUITests; prints totals, fails if none ran (filter HealthKitIntegrationUITests opts in to the real-Health test)
 kit [filter]       swift test in Packages/WorkoutsKit; prints summary line, fails if filter matched nothing
 kit-build          swift build in Packages/WorkoutsKit
 lint               swift-format lint --strict

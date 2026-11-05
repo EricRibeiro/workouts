@@ -314,7 +314,7 @@ Live Activity → notifications → logging, then templates, exercises, history.
     `./dev kit Health`.
   - [x] **c. App fixtures**: a fixture `HealthSource` injected by launch argument for UI tests and the gallery, so no test
     depends on real HealthKit or a permission prompt. Proof: a `-preview` entry renders fixture data.
-  - [ ] **d. Real-store check** (if a. says it is possible): DEBUG `-seedHealth` writes HealthKit samples matching the
+  - [x] **d. Real-store check** (if a. says it is possible): DEBUG `-seedHealth` writes HealthKit samples matching the
     sample workouts; one integration test reads them back through the real `HealthKitSource`. Proof: that test.
   - [ ] **e. Reader + permission**: `HealthKitSource` (entitlement, usage string, read-only authorization at the right
     moment), enrichment after finish and on foreground for unmatched recent workouts. Proof: kit + the d. test.

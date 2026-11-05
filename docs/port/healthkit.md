@@ -144,6 +144,7 @@ in the app target behind a small adapter.
    via the builder, after deleting earlier tagged seeds), that drives the Health Access sheet with the identifiers in section 2,
    then asserts the Finish/History UI shows the seeded avg/max HR and energy. Run on demand (`./dev ui-test
    HealthKitIntegration`), serialized on one simulator; it is the proof that predicates, units and `statistics(for:)` match.
+   Run it with `DEV_SIM_UDID=<udid> ./dev ui-test HealthKitIntegrationUITests` (that filter sets `TEST_RUNNER_HEALTH_INTEGRATION=1`; without it the test skips, so the full `./dev ui-test` and `check` never run it); `xcrun simctl privacy <udid> reset all com.ericribeiro.Workouts` first exercises the sheet path.
 5. **Only on Eric's device:** that his Apple Watch workout associates heart-rate/energy samples with the `HKWorkout`
    and arrives in time; real overlap behaviour (Watch start/stop vs. ours); the signing/provisioning with the HealthKit
    capability and TestFlight upload; the real read prompt wording and the "Past 30 Days" default; basal-energy "total"
