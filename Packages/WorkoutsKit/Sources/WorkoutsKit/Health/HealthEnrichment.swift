@@ -35,7 +35,11 @@ public nonisolated struct HealthEnrichment: Sendable {
             )
         else { return nil }
         var summary = try await source.summary(for: match)
-        summary.heartRateSeries = HeartRateSeries.downsample(summary.heartRateSeries, maxPoints: maxSeriesPoints)
+        // The source's offsets are relative to the Health workout's start; the app reads them against `workoutStart`.
+        // Re-base before downsampling. Offsets may go negative when the Watch workout began earlier; the chart clamps.
+        let shift = summary.start.timeIntervalSince(workoutStart)
+        let rebased = summary.heartRateSeries.map { HeartRatePoint(offset: $0.offset + shift, bpm: $0.bpm) }
+        summary.heartRateSeries = HeartRateSeries.downsample(rebased, maxPoints: maxSeriesPoints)
         return summary
     }
 }

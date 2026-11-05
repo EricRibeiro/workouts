@@ -243,6 +243,18 @@ import Testing
         return summary
     }
 
+    @Test func storedZeroBasedZonesReadAsOneBased() throws {
+        let workout = Self.finished()
+        var summary = Self.richSummary()
+        summary.zones = summary.zones.map { zone in
+            var zone = zone
+            zone.index -= 1
+            return zone
+        }
+        workout.applyHealth(summary, checkedAt: Self.t0)
+        #expect(workout.healthSummary?.zones.map(\.index) == [1, 2, 3])
+    }
+
     @Test func detailsRoundTripThroughApplyAndTheStore() throws {
         let context = try makeContext()
         let workout = Self.finished()

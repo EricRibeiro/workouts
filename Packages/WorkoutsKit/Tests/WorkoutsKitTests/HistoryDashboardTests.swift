@@ -223,4 +223,42 @@ import Testing
         #expect(HistoryDashboard.groupedWeight(117.5) == "117.5")
         #expect(HistoryDashboard.groupedWeight(0) == "0")
     }
+
+    @MainActor
+    @Test func weekAverageHeartRateIsDurationWeightedAndHidesWhenNone() throws {
+        let context = ModelContext(try ModelContainer.workouts(inMemory: true, cloudKit: false))
+        func workout(_ start: Date, minutes: Int, bpm: Double?, finished: Bool = true) -> Workout {
+            let workout = Workout(
+                name: "w",
+                startedAt: start,
+                finishedAt: finished ? start.addingTimeInterval(Double(minutes) * 60) : nil
+            )
+            workout.avgHeartRate = bpm
+            context.insert(workout)
+            return workout
+        }
+        // Tue Nov 3 is "now"; the week is Mon Nov 2 to Sun Nov 8.
+        let now = date(2026, 11, 3)
+        let calendar = Self.toronto
+        let none = [
+            workout(date(2026, 11, 3), minutes: 40, bpm: nil),
+            workout(date(2026, 11, 1, 23), minutes: 60, bpm: 170),
+        ]
+        #expect(HistoryDashboard.weekAverageHeartRate(workouts: [], calendar: calendar, now: now) == nil)
+        #expect(HistoryDashboard.weekAverageHeartRate(workouts: none, calendar: calendar, now: now) == nil)
+        let some =
+            none + [
+                workout(date(2026, 11, 2, 8), minutes: 30, bpm: 120),
+                workout(date(2026, 11, 3, 9), minutes: 90, bpm: 140),
+                workout(date(2026, 11, 4), minutes: 60, bpm: 200, finished: false),
+            ]
+        // (120 x 30 + 140 x 90) / 120 = 135: the unfinished, out-of-week and HR-less workouts are ignored.
+        let average = try #require(HistoryDashboard.weekAverageHeartRate(workouts: some, calendar: calendar, now: now))
+        #expect(abs(average - 135) < 0.0001)
+    }
+
+    @Test func heartRateTextRoundsToWholeBpm() {
+        #expect(HistoryDashboard.heartRateText(127.6) == "128 bpm")
+        #expect(HistoryDashboard.heartRateSpoken(126) == "126 beats per minute average")
+    }
 }

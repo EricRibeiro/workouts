@@ -6,7 +6,7 @@ extension Workout {
     /// A series that fails to decode reads as empty.
     public var healthSummary: HealthWorkoutSummary? {
         guard let healthWorkoutID else { return nil }
-        let zones = heartRateZones ?? []
+        let zones = HeartRateZoneTime.oneBased(heartRateZones ?? [])
         let series = heartRateSeriesData.flatMap { try? JSONDecoder().decode([HeartRatePoint].self, from: $0) } ?? []
         return HealthWorkoutSummary(
             healthWorkoutID: healthWorkoutID,

@@ -100,6 +100,53 @@ import Testing
         )
     }
 
+    @Test func headerSentenceAppendsOnlyTheHealthValuesThatExist() throws {
+        let holder = try container()
+        defer { withExtendedLifetime(holder) {} }
+        let first = workout(
+            holder.mainContext,
+            at: date(11, 1),
+            rows: [(bench, "Bench Press", nil, [(.normal, 100, 5, true), (.normal, 100, 5, true)])]
+        )
+        let detail = try #require(detail(first.id, [first]))
+        let base = detail.headerAccessibilityLabel
+        let locale = Locale(identifier: "en_US")
+        #expect(detail.accessibilityLabel(health: nil, locale: locale) == base)
+
+        let empty = HealthWorkoutSummary(healthWorkoutID: "h", start: first.startedAt, end: first.startedAt)
+        #expect(detail.accessibilityLabel(health: empty, locale: locale) == base)
+
+        let full = HealthWorkoutSummary(
+            healthWorkoutID: "h",
+            start: first.startedAt,
+            end: first.startedAt,
+            activeEnergyKcal: 266.4,
+            totalEnergyKcal: 410,
+            avgHeartRate: 128,
+            maxHeartRate: 162,
+            effort: HealthEffort(score: 6, isEstimated: true),
+            weatherTemperatureCelsius: 16,
+            weatherHumidityPercent: 83
+        )
+        #expect(
+            detail.accessibilityLabel(health: full, locale: locale)
+                == base + ", 266 active calories, 410 total calories, average heart rate 128, maximum heart rate 162"
+                + ", effort 6 Moderate, estimated, weather 61°F, 83% humidity"
+        )
+
+        let partial = HealthWorkoutSummary(
+            healthWorkoutID: "h",
+            start: first.startedAt,
+            end: first.startedAt,
+            avgHeartRate: 120,
+            effort: HealthEffort(score: 8, isEstimated: false)
+        )
+        #expect(
+            detail.accessibilityLabel(health: partial, locale: locale)
+                == base + ", average heart rate 120, effort 8 Hard"
+        )
+    }
+
     @Test func dateTextAddsTheYearOnlyWhenItIsNotThisOne() {
         #expect(
             WorkoutDetail.dateText(date(11, 1), calendar: Self.toronto, now: date(11, 4))

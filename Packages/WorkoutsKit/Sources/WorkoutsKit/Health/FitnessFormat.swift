@@ -92,9 +92,19 @@ public nonisolated enum FitnessFormat {
             )
     }
 
-    /// `65%`.
+    /// Normalises `HKMetadataKeyWeatherHumidity` read in `HKUnit.percent()` to a 0-100 percentage. Health's own docs say
+    /// the quantity is a fraction, but real Watch workouts store 83 for 83 %. A value of 1 or less is a fraction (x100);
+    /// anything above is already a percentage.
+    public static func humidityPercent(fromHealthPercent value: Double) -> Double {
+        value <= 1 ? value * 100 : value
+    }
+
+    /// `65%`. `percent` is a 0-100 percentage. Rule for already-stored data: an earlier build multiplied Watch values
+    /// that were already percentages by 100 (83 became 8300), so a stored value above 100 can only be that mistake and is
+    /// divided by 100 here.
     public static func humidityText(percent: Double, locale: Locale = .current) -> String {
-        (percent / 100).formatted(.percent.precision(.fractionLength(0)).locale(locale))
+        let percent = percent > 100 ? percent / 100 : percent
+        return (percent / 100).formatted(.percent.precision(.fractionLength(0)).locale(locale))
     }
 
     /// `66°F, 65% humidity`, as the weather row reads to VoiceOver; nil when Health had neither.

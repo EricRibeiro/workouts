@@ -1,7 +1,7 @@
 import XCTest
 
 /// The real-store proof for the Health enrichment (PLAN 7.1b-d): seeds a Functional Strength workout into the simulator's
-/// Health store, reads it back through `HealthKitSource` and checks the `FitnessCard` numbers. It drives the Health Access
+/// Health store, reads it back through `HealthKitSource` and checks the numbers in the workout detail's header. It drives the Health Access
 /// sheet(s), so it is out of the normal suites: it skips itself unless `HEALTH_INTEGRATION` is set, which
 /// `./dev ui-test HealthKitIntegrationUITests` does (via `TEST_RUNNER_HEALTH_INTEGRATION`). See docs/port/healthkit.md.
 final class HealthKitIntegrationUITests: XCTestCase {
@@ -16,16 +16,20 @@ final class HealthKitIntegrationUITests: XCTestCase {
     @MainActor
     func testSeededWorkoutIsReadBackFromTheRealStore() throws {
         let app = XCUIApplication()
-        app.launchArguments += ["-uiTesting", "-seedHealth", "-healthReal", "-preview", "FitnessCard"]
+        app.launchArguments += ["-uiTesting", "-seedHealth", "-healthReal", "-preview", "WorkoutDetail"]
         app.launch()
 
-        let card = app.descendants(matching: .any)["fitness.card"].firstMatch
+        // The detail's header exists before the enrichment lands; its label carries the Health values afterwards, so the
+        // test waits for the header to say so.
+        let card = app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier == 'workoutDetail.header' AND label CONTAINS 'active calories'")
+        ).firstMatch
         let health = XCUIApplication(bundleIdentifier: "com.apple.HealthPrivacyService")
         let answered = answerHealthSheets(health, until: card)
 
         XCTAssertTrue(
             card.waitForExistence(timeout: 20),
-            "no fitness.card after \(answered) Health pages; health sheet: \(health.debugDescription)"
+            "no Health values in workoutDetail.header after \(answered) Health pages; health sheet: \(health.debugDescription)"
         )
         let label = card.label
         XCTAssertTrue(label.contains("300 active calories"), "label was \(label)")
@@ -35,8 +39,9 @@ final class HealthKitIntegrationUITests: XCTestCase {
         // Zones are not asserted here: HKWorkoutBuilder computes none from added heart-rate samples (probed on the iOS 27.2
         // simulator: neither the builder, the saved workout, nor a custom zone configuration yields a zone group; Health
         // fills zones only from live collection). If a zone group does come back, it must be well formed.
-        if let zones = zoneCount(in: label) {
-            XCTAssertGreaterThan(zones, 0, "label was \(label)")
+        let zones = app.descendants(matching: .any)["heartRateChart.zones"].firstMatch
+        if zones.exists {
+            XCTAssertTrue(zones.label.contains("Zone"), "zones label was \(zones.label)")
         }
     }
 
@@ -79,13 +84,7 @@ final class HealthKitIntegrationUITests: XCTestCase {
         return answered
     }
 
-    /// The number before "zones" in the card's label.
-    private func zoneCount(in label: String) -> Int? {
-        guard let range = label.range(of: #"(\d+) zones"#, options: .regularExpression) else { return nil }
-        return Int(label[range].filter(\.isNumber))
-    }
-
-    /// The number after "average heart rate" in the card's label.
+    /// The number after "average heart rate" in the header's label.
     private func averageHeartRate(in label: String) -> Double? {
         guard let range = label.range(of: #"average heart rate (\d+)"#, options: .regularExpression) else { return nil }
         return Double(label[range].filter(\.isNumber))

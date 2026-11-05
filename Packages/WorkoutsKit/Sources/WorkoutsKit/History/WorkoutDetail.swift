@@ -54,6 +54,42 @@ public nonisolated struct WorkoutDetail: Hashable, Sendable {
 }
 
 extension WorkoutDetail {
+    // MARK: Health
+
+    /// The header sentence with the matched Apple Health values appended (`..., 266 active calories, average heart rate
+    /// 128, effort 6 Moderate, estimated`); only the values that exist. With no summary it is `headerAccessibilityLabel`
+    /// unchanged. The summary is read from the model at display time (Health data lands after the workout was saved).
+    public func accessibilityLabel(health: HealthWorkoutSummary?, locale: Locale = .current) -> String {
+        guard let health else { return headerAccessibilityLabel }
+        var parts: [String] = []
+        if let calories = health.activeEnergyKcal {
+            parts.append("\(FitnessFormat.wholeNumber(calories)) active calories")
+        }
+        if let calories = health.totalEnergyKcal {
+            parts.append("\(FitnessFormat.wholeNumber(calories)) total calories")
+        }
+        if let average = health.avgHeartRate {
+            parts.append("average heart rate \(FitnessFormat.wholeNumber(average))")
+        }
+        if let maximum = health.maxHeartRate {
+            parts.append("maximum heart rate \(FitnessFormat.wholeNumber(maximum))")
+        }
+        if let effort = health.effort {
+            parts.append(
+                "effort \(FitnessFormat.wholeScore(effort.score)) \(effort.word)"
+                    + (effort.isEstimated ? ", estimated" : "")
+            )
+        }
+        if let weather = FitnessFormat.weatherText(
+            celsius: health.weatherTemperatureCelsius,
+            humidityPercent: health.weatherHumidityPercent,
+            locale: locale
+        ) {
+            parts.append("weather \(weather)")
+        }
+        return ([headerAccessibilityLabel] + parts).joined(separator: ", ")
+    }
+
     // MARK: Building
 
     /// The detail of the finished workout `id`, or nil when it is not among `workouts` (or still running). Records are

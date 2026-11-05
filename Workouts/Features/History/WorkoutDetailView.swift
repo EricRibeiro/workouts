@@ -93,7 +93,22 @@ struct WorkoutDetailView: View {
     private func content(_ detail: WorkoutDetail) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                DetailHeader(detail: detail)
+                // Read from the model here, not from `detail`: Health data lands after the workout was saved and does
+                // not touch `updatedAt`, so the stats and the chart appear (and go) as the model changes.
+                let health = workout?.healthSummary
+                DetailHeader(detail: detail, health: health)
+                if let workout, let health, HeartRateChart.canShow(series: health.heartRateSeries) {
+                    HeartRateChart(
+                        series: health.heartRateSeries,
+                        timeline: SetTimeline.make(workout: workout),
+                        average: health.avgHeartRate,
+                        maximum: health.maxHeartRate,
+                        zones: health.zones
+                    )
+                    .dashboardCardStyle()
+                    .accessibilityElement(children: .contain)
+                    .accessibilityIdentifier("workoutDetail.heartRate")
+                }
                 ForEach(detail.exercises) { block in
                     ExerciseBlockView(block: block)
                 }
@@ -101,12 +116,6 @@ struct WorkoutDetailView: View {
                     Text("No completed sets in this workout.")
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                // After the sets, which are what this screen is for. Read from the model here, not from `detail`:
-                // Fitness data lands after the workout was saved and does not touch `updatedAt`, so the section appears
-                // (and goes) as the model changes.
-                if let health = workout?.healthSummary {
-                    FitnessSection(summary: health)
                 }
             }
             .padding(.horizontal)
@@ -196,17 +205,33 @@ private struct Inputs: Hashable {
 
 // MARK: - Header
 
-/// Date, the three numbers and the note.
+/// Date (with the weather, when Health had it), the stats and the note. Duration, volume and records are always
+/// there; Active, Avg HR and Effort join them only when the matched Health workout has the value.
 private struct DetailHeader: View {
     let detail: WorkoutDetail
+    let health: HealthWorkoutSummary?
+
+    /// The narrowest a stat may get before the grid drops a column; it grows with Dynamic Type, so the accessibility
+    /// sizes end up with one column.
+    @ScaledMetric(relativeTo: .headline) private var statMinimum = 100
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(detail.dateText)
-                .font(.headline)
-            ViewThatFits(in: .horizontal) {
-                HStack(alignment: .top, spacing: 24) { stats }
-                VStack(alignment: .leading, spacing: 8) { stats }
+            VStack(alignment: .leading, spacing: 4) {
+                Text(detail.dateText)
+                    .font(.headline)
+                if let health, health.weatherTemperatureCelsius != nil || health.weatherHumidityPercent != nil {
+                    weatherRow(health)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            LazyVGrid(
+                columns: [GridItem(.adaptive(minimum: statMinimum), spacing: 16, alignment: .topLeading)],
+                alignment: .leading,
+                spacing: 12
+            ) {
+                stats
             }
             if !detail.note.isEmpty {
                 Text(detail.note)
@@ -217,7 +242,7 @@ private struct DetailHeader: View {
         }
         .dashboardCardStyle()
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(detail.headerAccessibilityLabel)
+        .accessibilityLabel(detail.accessibilityLabel(health: health))
         .accessibilityIdentifier("workoutDetail.header")
     }
 
@@ -235,33 +260,102 @@ private struct DetailHeader: View {
                     .foregroundStyle(.tint)
             }
         }
+        if let health {
+            if let active = health.activeEnergyKcal {
+                stat(
+                    "Active",
+                    FitnessFormat.wholeNumber(active),
+                    unit: "kcal",
+                    symbol: "flame.fill",
+                    tint: .orange,
+                    secondary: health.totalEnergyKcal.map { "Total \(FitnessFormat.wholeNumber($0))" }
+                )
+            }
+            if let average = health.avgHeartRate {
+                stat(
+                    "Avg HR",
+                    FitnessFormat.wholeNumber(average),
+                    unit: "bpm",
+                    symbol: "heart.fill",
+                    tint: .red,
+                    secondary: health.maxHeartRate.map { "Max \(FitnessFormat.wholeNumber($0))" }
+                )
+            }
+            if let effort = health.effort {
+                stat(
+                    "Effort",
+                    "\(FitnessFormat.wholeScore(effort.score))",
+                    unit: effort.word,
+                    symbol: "gauge.with.dots.needle.67percent",
+                    tint: .purple,
+                    secondary: effort.isEstimated ? "Estimated" : nil,
+                    hierarchical: true
+                )
+            }
+        }
     }
 
-    private func stat(_ title: String, _ value: String) -> some View {
+    private func stat(
+        _ title: String,
+        _ value: String,
+        unit: String? = nil,
+        symbol: String? = nil,
+        tint: Color = .primary,
+        secondary: String? = nil,
+        hierarchical: Bool = false
+    ) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(title)
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            Text(value)
-                .font(.headline)
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                if let symbol {
+                    Image(systemName: symbol)
+                        .symbolRenderingMode(hierarchical ? .hierarchical : .monochrome)
+                        .font(.subheadline)
+                        .foregroundStyle(tint)
+                }
+                Text(value)
+                    .font(.headline)
+                if let unit {
+                    Text(unit)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            if let secondary {
+                Text(secondary)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
-}
 
-// MARK: - Apple Fitness
+    // MARK: Weather
 
-/// The "Apple Fitness" section: its heading over the `FitnessCard` in the same rounded container as the other blocks.
-private struct FitnessSection: View {
-    let summary: HealthWorkoutSummary
+    /// The temperature and humidity under the date; stacks when the text is large.
+    private func weatherRow(_ health: HealthWorkoutSummary) -> some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 6) {
+                weatherItems(health)
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                weatherItems(health)
+            }
+        }
+    }
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Apple Fitness")
-                .font(.headline)
-                .accessibilityAddTraits(.isHeader)
-                .accessibilityIdentifier("workoutDetail.fitness.title")
-            FitnessCard(summary: summary)
-                .dashboardCardStyle()
+    @ViewBuilder
+    private func weatherItems(_ health: HealthWorkoutSummary) -> some View {
+        if let celsius = health.weatherTemperatureCelsius {
+            Label(FitnessFormat.temperatureText(celsius: celsius), systemImage: "thermometer.medium")
+        }
+        if health.weatherTemperatureCelsius != nil, health.weatherHumidityPercent != nil {
+            Text("\u{00B7}")
+                .accessibilityHidden(true)
+        }
+        if let humidity = health.weatherHumidityPercent {
+            Label(FitnessFormat.humidityText(percent: humidity), systemImage: "humidity")
         }
     }
 }
@@ -505,11 +599,28 @@ struct SaveTemplateSheet: View {
         }
 
         /// With `-healthFixture <name>` (as in `-preview WorkoutDetail -healthFixture full`) the sample workout is
-        /// enriched from that fixture the way the app does it, so the Apple Fitness section appears live.
+        /// enriched from that fixture the way the app does it, so the Health stats and chart appear live. With
+        /// `-healthReal` it reads the simulator's real Health store instead (after `-seedHealth` finishes, if passed):
+        /// the real-store integration test's subject; the sample workout then takes the seeder's last-hour window.
         private func enrich(_ workout: Workout) async {
+            if ProcessInfo.processInfo.arguments.contains("-healthReal") {
+                await enrichFromRealStore(workout)
+                return
+            }
             guard let fixture = HealthFixture.requested() else { return }
             let summary = try? await HealthEnrichment(source: fixture.anyWorkoutSource)
                 .enrich(workoutStart: workout.startedAt, workoutEnd: workout.finishedAt ?? workout.startedAt)
+            workout.applyHealth(summary, checkedAt: .now)
+        }
+
+        private func enrichFromRealStore(_ workout: Workout) async {
+            await HealthSeeder.seeding?.value
+            let source = HealthKitSource()
+            do { try await source.requestReadAuthorization() } catch { return }
+            // The seed spans the last 50 minutes; read the last 60.
+            let end = Date.now
+            let summary = try? await HealthEnrichment(source: source)
+                .enrich(workoutStart: end.addingTimeInterval(-60 * 60), workoutEnd: end)
             workout.applyHealth(summary, checkedAt: .now)
         }
     }

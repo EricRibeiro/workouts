@@ -30,9 +30,8 @@ struct TemplatePreview: View {
     @Query(Workout.newestFinishedEdit) private var newest: [Workout]
     @State private var lastPerformedIndex = TemplateCardSummary.LastPerformedIndex()
     @State private var flow = StartWorkoutFlow()
-    /// The exercise whose detail the row's `info.circle` pushes. State plus an item destination rather than a value
-    /// `NavigationLink`: at regular width this view is itself pushed by an item destination, and a value link inside it
-    /// never activates (SwiftUI logs "declared earlier on the stack").
+    /// The exercise whose info sheet the row's `info.circle` opens (the same sheet as the active workout's; a sheet rather
+    /// than a push, which also sidesteps value links never activating when this view is itself pushed at regular width).
     @State private var aboutExerciseID: UUID?
 
     private var rows: [TemplatePreviewRow] { TemplatePreviewRow.rows(for: template) }
@@ -64,7 +63,7 @@ struct TemplatePreview: View {
                     .accessibilityIdentifier("template.edit")
             }
         }
-        .navigationDestination(item: $aboutExerciseID) { ExerciseDetailView(exerciseID: $0) }
+        .exerciseInfoSheet(exerciseID: $aboutExerciseID)
         .task(id: FinishedWorkoutsStamp(newestEdit: newest.first?.updatedAt, generation: generation?.value ?? 0)) {
             let finished = (try? context.fetch(Workout.allFinished)) ?? []
             lastPerformedIndex = TemplateCardSummary.LastPerformedIndex(finishedWorkouts: finished)
@@ -139,6 +138,7 @@ struct TemplatePreview: View {
                 Text(row.title)
                     .font(.body.weight(.medium))
                     .foregroundStyle(.primary)
+                    .exerciseNameLineLimit()
                 if let bodyPart = info?.bodyPart, !bodyPart.isEmpty {
                     Text(
                         store.map { ExerciseFilter.bodyPartLabel(bodyPart, labels: $0.catalog.labels) } ?? bodyPart

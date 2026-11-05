@@ -104,7 +104,7 @@ nonisolated final class HealthKitSource: HealthSource {
                     in: .degreeCelsius()
                 ),
                 weatherHumidityPercent: Self.quantity(workout.metadata?[HKMetadataKeyWeatherHumidity], in: .percent())
-                    .map { $0 * 100 },
+                    .map(FitnessFormat.humidityPercent(fromHealthPercent:)),
                 timeZoneIdentifier: workout.metadata?[HKMetadataKeyTimeZone] as? String,
                 details: await details(for: workout)
             )
@@ -139,7 +139,8 @@ nonisolated final class HealthKitSource: HealthSource {
         guard let group = workout.zoneGroup(for: HKQuantityType(.heartRate)) else { return [] }
         return group.zoneDurations.map { entry in
             HeartRateZoneTime(
-                index: entry.zone.index,
+                // `HKWorkoutZone.index` is zero-based; the kit's zone numbers are 1-based.
+                index: entry.zone.index + 1,
                 lowerBPM: entry.zone.minimum?.doubleValue(for: bpm),
                 upperBPM: entry.zone.maximum?.doubleValue(for: bpm),
                 seconds: entry.duration

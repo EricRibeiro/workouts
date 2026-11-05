@@ -134,12 +134,9 @@ struct SetTable: View {
     /// accessibility sizes); the template and past editors wrap. When it opens the exercise, a trailing chevron stays visible after
     /// truncation. The Button gives the whole thing one accessibility element labelled with the full name.
     private func nameLabel(_ section: SetTableSection) -> some View {
-        let active = source.mode == .active
-        let lines: Int? = active ? (dynamicTypeSize.isAccessibilitySize ? 2 : 1) : nil
-        return HStack(alignment: .firstTextBaseline, spacing: 4) {
+        HStack(alignment: .firstTextBaseline, spacing: 4) {
             Text(section.name)
-                .lineLimit(lines)
-                .truncationMode(.tail)
+                .exerciseNameLineLimit(source.mode == .active)
                 .layoutPriority(0)
             if onSelectExercise != nil {
                 Image(systemName: "chevron.forward")

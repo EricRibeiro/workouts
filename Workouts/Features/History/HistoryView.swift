@@ -116,6 +116,8 @@ struct HistoryView: View {
             // does not touch `updatedAt`, so the rows and the week's total follow the model.
             let activeKcal = activeKcalByWorkout
             let weekKcal = HistoryDashboard.weekActiveCalories(workouts: finished)
+            let weekBpm = HistoryDashboard.weekAverageHeartRate(workouts: finished)
+            let heartRates = avgHeartRateByWorkout
             List {
                 if query.isEmpty && scope == .all {
                     Section {
@@ -125,7 +127,8 @@ struct HistoryView: View {
                                 starts: finished.map(\.startedAt),
                                 entries: entries,
                                 recentPRs: recentPRs,
-                                weekActiveKcal: weekKcal
+                                weekActiveKcal: weekKcal,
+                                weekAverageBpm: weekBpm
                             ) { path.append(.workout($0)) }
                             .listRowSeparator(.hidden)
                             .listRowBackground(Color.clear)
@@ -133,7 +136,12 @@ struct HistoryView: View {
                             WeeklyGoalSection(starts: finished.map(\.startedAt))
                                 .listRowSeparator(.hidden)
                                 .listRowBackground(Color.clear)
-                            DashboardSection(entries: entries, recentPRs: recentPRs, weekActiveKcal: weekKcal) {
+                            DashboardSection(
+                                entries: entries,
+                                recentPRs: recentPRs,
+                                weekActiveKcal: weekKcal,
+                                weekAverageBpm: weekBpm
+                            ) {
                                 path.append(.workout($0))
                             }
                             .listRowSeparator(.hidden)
@@ -144,7 +152,7 @@ struct HistoryView: View {
                 ForEach(sections) { section in
                     Section(section.title) {
                         ForEach(section.entries) { entry in
-                            row(entry, activeKcal: activeKcal[entry.id])
+                            row(entry, activeKcal: activeKcal[entry.id], avgBpm: heartRates[entry.id])
                         }
                     }
                 }
@@ -190,13 +198,23 @@ struct HistoryView: View {
         }
     }
 
-    private func row(_ entry: HistoryEntry, activeKcal: Double?) -> some View {
+    /// Average heart rate from Apple Fitness per workout, for the workouts that have one.
+    private var avgHeartRateByWorkout: [UUID: Double] {
+        finished.reduce(into: [:]) { result, workout in
+            if let bpm = workout.avgHeartRate { result[workout.id] = bpm }
+        }
+    }
+
+    private func row(_ entry: HistoryEntry, activeKcal: Double?, avgBpm: Double?) -> some View {
         NavigationLink(value: HistoryRoute.workout(entry.id)) {
-            HistoryRow(entry: entry, activeKcal: activeKcal)
+            HistoryRow(entry: entry, activeKcal: activeKcal, avgBpm: avgBpm)
         }
         .matchedTransitionSource(id: entry.id, in: zoom)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(HistoryList.accessibilityLabel(for: entry, activeKcal: activeKcal))
+        .accessibilityLabel(
+            HistoryList.accessibilityLabel(for: entry, activeKcal: activeKcal)
+                + (avgBpm.map { ", \(HistoryDashboard.heartRateSpoken($0))" } ?? "")
+        )
         .accessibilityAddTraits(.isButton)
         .accessibilityIdentifier("history.row.\(entry.id.uuidString)")
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
@@ -279,19 +297,21 @@ struct HistoryView: View {
     }
 }
 
-/// One History row: name, date, then duration, volume and (from Apple Fitness) active calories, and the PR count with a
-/// trophy.
+/// One History row: name, date, then duration, volume and (from Apple Fitness) active calories and average heart rate,
+/// and the PR count with a trophy.
 private struct HistoryRow: View {
     let entry: HistoryEntry
     var activeKcal: Double?
+    var avgBpm: Double?
 
-    /// `45min · 15,421 lb · 266 kcal`.
+    /// `45min · 15,421 lb · 266 kcal · 128 bpm`.
     private var statsText: String {
         var parts = [
             HistoryList.durationText(seconds: entry.durationSeconds),
             HistoryList.volumeText(entry.volume, unit: entry.unit),
         ]
         if let activeKcal { parts.append(FitnessFormat.kcalText(activeKcal)) }
+        if let avgBpm { parts.append(HistoryDashboard.heartRateText(avgBpm)) }
         return parts.joined(separator: " · ")
     }
 

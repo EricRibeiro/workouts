@@ -187,6 +187,25 @@ struct HealthEnrichmentTests {
         #expect(result?.heartRateSeries.isEmpty == false)
     }
 
+    @Test func rebasesTheSeriesOntoOurWorkoutStart() async throws {
+        // The Watch workout started 90 s before ours, so a sample 100 s into it is 10 s into ours: every offset moves by
+        // healthStart - workoutStart = -90 s.
+        let points = [HeartRatePoint(offset: 0, bpm: 100), HeartRatePoint(offset: 100, bpm: 120)]
+        let watch = summary("a", from: -1.5, to: 60, series: points)
+        let source = FakeHealthSource(candidates: [candidate("a", from: -1.5, to: 60)], summaries: [watch])
+        let result = try await HealthEnrichment(source: source).enrich(workoutStart: at(0), workoutEnd: at(60))
+        #expect(result?.heartRateSeries.map(\.offset) == [-90, 10])
+        #expect(result?.heartRateSeries.map(\.bpm) == [100, 120])
+    }
+
+    @Test func rebasesForwardWhenTheWatchStartedAfterUs() async throws {
+        let points = [HeartRatePoint(offset: 0, bpm: 100), HeartRatePoint(offset: 100, bpm: 120)]
+        let watch = summary("a", from: 1.5, to: 60, series: points)
+        let source = FakeHealthSource(candidates: [candidate("a", from: 1.5, to: 60)], summaries: [watch])
+        let result = try await HealthEnrichment(source: source).enrich(workoutStart: at(0), workoutEnd: at(60))
+        #expect(result?.heartRateSeries.map(\.offset) == [90, 190])
+    }
+
     @Test func noMatchIsNil() async throws {
         let source = FakeHealthSource(candidates: [candidate("a", from: 300, to: 360)], summaries: [summary("a")])
         let result = try await HealthEnrichment(source: source).enrich(workoutStart: at(0), workoutEnd: at(60))
@@ -212,6 +231,24 @@ struct HealthEnrichmentTests {
         await #expect(throws: HealthSourceError.notFound) {
             _ = try await HealthEnrichment(source: source).enrich(workoutStart: at(0), workoutEnd: at(60))
         }
+    }
+}
+
+struct HealthZoneTests {
+    @Test func zeroBasedZonesShiftUpByOne() {
+        let stored = [
+            HeartRateZoneTime(index: 0, upperBPM: 138, seconds: 10),
+            HeartRateZoneTime(index: 1, lowerBPM: 139, upperBPM: 150, seconds: 20),
+            HeartRateZoneTime(index: 4, lowerBPM: 175, seconds: 0),
+        ]
+        #expect(HeartRateZoneTime.oneBased(stored).map(\.index) == [1, 2, 5])
+        #expect(HeartRateZoneTime.oneBased(stored).map(\.seconds) == [10, 20, 0])
+    }
+
+    @Test func oneBasedZonesAreUntouched() {
+        let zones = [HeartRateZoneTime(index: 1, seconds: 1), HeartRateZoneTime(index: 2, seconds: 2)]
+        #expect(HeartRateZoneTime.oneBased(zones) == zones)
+        #expect(HeartRateZoneTime.oneBased([]) == [])
     }
 }
 

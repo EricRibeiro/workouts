@@ -113,6 +113,44 @@ public nonisolated enum HistoryDashboard {
         return values.isEmpty ? nil : values.reduce(0, +)
     }
 
+    /// The average heart rate (from Apple Fitness) of the finished `workouts` started in the Monday-first week containing
+    /// `now`, weighted by each workout's duration and counting only workouts that have an average; nil when none does.
+    @MainActor
+    public static func weekAverageHeartRate(
+        workouts: [Workout],
+        calendar: Calendar = .current,
+        now: Date = .now
+    ) -> Double? {
+        let calendar = mondayFirst(calendar)
+        guard let week = calendar.dateInterval(of: .weekOfYear, for: now) else { return nil }
+        var weighted = 0.0
+        var seconds = 0.0
+        var plain = (sum: 0.0, count: 0)
+        for workout in workouts {
+            guard let end = workout.finishedAt, workout.startedAt >= week.start, workout.startedAt < week.end,
+                let bpm = workout.avgHeartRate
+            else { continue }
+            let duration = max(0, end.timeIntervalSince(workout.startedAt))
+            weighted += bpm * duration
+            seconds += duration
+            plain.sum += bpm
+            plain.count += 1
+        }
+        if seconds > 0 { return weighted / seconds }
+        // Zero-length workouts carry no weight; fall back to the plain mean rather than hiding the figure.
+        return plain.count == 0 ? nil : plain.sum / Double(plain.count)
+    }
+
+    /// `128 bpm`: a heart rate as whole beats per minute.
+    public static func heartRateText(_ bpm: Double) -> String {
+        "\(FitnessFormat.wholeNumber(bpm)) bpm"
+    }
+
+    /// `128 beats per minute average`, for VoiceOver.
+    public static func heartRateSpoken(_ bpm: Double) -> String {
+        "\(FitnessFormat.wholeNumber(bpm)) beats per minute average"
+    }
+
     /// The newest entry by start date.
     public static func lastWorkout(entries: [HistoryEntry]) -> HistoryEntry? {
         entries.max { $0.startedAt < $1.startedAt }

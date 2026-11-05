@@ -88,6 +88,19 @@ import Testing
         #expect(FitnessFormat.temperatureText(celsius: 19, locale: Self.britain) == "19°C")
     }
 
+    @Test func humidityPercentNormalisesFractionsAndPercentages() {
+        #expect(abs(FitnessFormat.humidityPercent(fromHealthPercent: 0.65) - 65) < 1e-9)
+        #expect(FitnessFormat.humidityPercent(fromHealthPercent: 83) == 83)
+        #expect(FitnessFormat.humidityPercent(fromHealthPercent: 1) == 100)
+        #expect(FitnessFormat.humidityPercent(fromHealthPercent: 0) == 0)
+    }
+
+    @Test func humidityTextRepairsValuesStoredTimesOneHundred() {
+        #expect(FitnessFormat.humidityText(percent: 83, locale: Self.us) == "83%")
+        #expect(FitnessFormat.humidityText(percent: 8300, locale: Self.us) == "83%")
+        #expect(FitnessFormat.humidityText(percent: 100, locale: Self.us) == "100%")
+    }
+
     @Test func weatherTextJoinsWhatExists() {
         #expect(
             FitnessFormat.weatherText(celsius: 19, humidityPercent: 65, locale: Self.britain) == "19°C, 65% humidity"

@@ -128,7 +128,8 @@ public nonisolated struct HealthEffort: Codable, Hashable, Sendable {
 /// Time spent in one heart-rate zone. Bounds are nil for the open ends (the first zone has no lower bound, the last
 /// no upper bound) or when Health does not report them.
 public nonisolated struct HeartRateZoneTime: Codable, Hashable, Sendable {
-    /// Zone number as Health reports it (1-based, lowest effort first).
+    /// Zone number, 1-based, lowest effort first. Health's `HKWorkoutZone.index` is zero-based; the HealthKit source adds
+    /// one. Snapshots stored by an earlier build may still hold zero-based numbers: see `oneBased(_:)`.
     public var index: Int
     public var lowerBPM: Double?
     public var upperBPM: Double?
@@ -139,6 +140,17 @@ public nonisolated struct HeartRateZoneTime: Codable, Hashable, Sendable {
         self.lowerBPM = lowerBPM
         self.upperBPM = upperBPM
         self.seconds = seconds
+    }
+
+    /// Read-side repair for snapshots stored with Health's zero-based indexes: when any zone has index 0 the whole list is
+    /// zero-based and every index shifts up by one; a list that already starts at 1 is returned unchanged.
+    public static func oneBased(_ zones: [HeartRateZoneTime]) -> [HeartRateZoneTime] {
+        guard zones.contains(where: { $0.index == 0 }) else { return zones }
+        return zones.map { zone in
+            var zone = zone
+            zone.index += 1
+            return zone
+        }
     }
 }
 
