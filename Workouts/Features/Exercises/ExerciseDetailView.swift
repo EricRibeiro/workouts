@@ -109,7 +109,7 @@ struct ExerciseDetailView: View {
         if embedded {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    ExerciseMediaHeader(info: info, library: library, embedded: embedded)
+                    ExerciseMediaHeader(info: info, library: library)
                     summary(info)
                     sections(info, library: library)
                         .padding(.horizontal)
@@ -121,7 +121,7 @@ struct ExerciseDetailView: View {
             ArrangementView {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
-                        ExerciseMediaHeader(info: info, library: library, embedded: false)
+                        ExerciseMediaHeader(info: info, library: library)
                         summary(info)
                         if !splits {
                             sections(info, library: library)

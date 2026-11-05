@@ -295,3 +295,10 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
     Not part of the JSON export (no other UI setting is). Found on the way: launch-argument overrides reach the defaults
     as text, and integer/boolean settings were read with `as?` only, so `-defaultRestSeconds 90` was silently ignored
     (the Settings UI test passed only because 90 was the old default). They now parse their text.
+85. **Exercise video is a card the colour of the video's own background** (Eric, 2026-11-05): every source video has a
+    flat background (light #FFFFFF, dark #282A2C), so the hero is a 20 pt continuous card filled with `VideoBackground`
+    and the video fits instead of filling (Apple's iPhone Duo checklist: aspect-fill heroes crop on wide displays). The
+    exercise info sheet opts out of the Duo's vertical bar (`toolbarVerticalBehavior(.disabled)`) so its content uses the
+    full width, and drops its ✕: it is a read-only, resizable sheet with a grabber, dismissed by swiping (HIG Modality:
+    "a button in the top toolbar or swipe down"). This replaces the close-button half of JC75. The medium detent keeps
+    the full-size video; the rest of the content is one swipe or a segment tap away.

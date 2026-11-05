@@ -69,7 +69,7 @@ private struct PlayerLayerView: UIViewRepresentable {
             backgroundColor = .clear
             isOpaque = false
             isAccessibilityElement = true
-            playerLayer?.videoGravity = .resizeAspectFill
+            playerLayer?.videoGravity = .resizeAspect
             playerLayer?.backgroundColor = nil
         }
 
@@ -98,6 +98,9 @@ extension EnvironmentValues {
     /// Whether the exercise hero is limited to 35 % of its container's height (the default). The info sheet turns it off:
     /// a medium-detent sheet is short, and the cap would shrink the 16:9 media into a narrow letterboxed box.
     @Entry var exerciseHeroCapped = true
+    /// Whether the exercise detail is the info sheet's content. A library exercise's sheet has no top bar, so the hero card
+    /// takes the same inset above it as at its sides, which leaves the grabber clear space on the sheet's own background.
+    @Entry var exerciseInfoSheetContent = false
 }
 
 /// The hero of the exercise detail: the exercise video when the cache has (or can fetch) one, else the bundled start
@@ -105,8 +108,6 @@ extension EnvironmentValues {
 struct ExerciseMediaHeader: View {
     let info: ExerciseInfo
     let library: LibraryExercise?
-    /// The embedded pane draws a rounded card; the pushed detail runs edge to edge and extends under the bars.
-    let embedded: Bool
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
@@ -117,6 +118,7 @@ struct ExerciseMediaHeader: View {
     @State private var userPlaying = false
     @State private var heroCap: CGFloat = .infinity
     @Environment(\.exerciseHeroCapped) private var heroCapped
+    @Environment(\.exerciseInfoSheetContent) private var inInfoSheet
 
     private var startURL: URL? { info.isCustom ? nil : ExerciseMedia.store.thumbnailURL(for: info.id, phase: .start) }
     private var endURL: URL? { info.isCustom ? nil : ExerciseMedia.store.thumbnailURL(for: info.id, phase: .end) }
@@ -178,14 +180,13 @@ struct ExerciseMediaHeader: View {
                     heroCap = $0
                 }
         }
-        if embedded {
-            frame
-                .clipShape(.rect(cornerRadius: 12))
-                .padding(.horizontal)
-        } else {
-            frame
-                .backgroundExtensionEffect()
-        }
+        // The card's fill is the videos' own flat background colour, and the video is fitted (never cropped), so the
+        // letterbox area and the not-yet-loaded stills sit on the same colour and the video edge is invisible.
+        frame
+            .background(Color.videoBackground)
+            .clipShape(.rect(cornerRadius: 20, style: .continuous))
+            .padding(.horizontal)
+            .padding(.top, inInfoSheet && !info.isCustom ? 16 : 0)
     }
 
     /// With Reduce Motion the video never autoplays and, having no system controls, needs its own button. Without Reduce
@@ -226,7 +227,7 @@ struct ExerciseMediaHeader: View {
 
     private func frames(showsEnd: Bool) -> some View {
         ZStack {
-            Color.secondary.opacity(0.12)
+            Color.videoBackground
             if let startURL {
                 AsyncImage(url: startURL) {
                     $0.resizable().scaledToFit()

@@ -32,6 +32,7 @@
         case templatePreview = "TemplatePreview"
         case templateEditor = "TemplateEditor"
         case exercisePane = "ExercisePane"
+        case exerciseInfoSheet = "ExerciseInfoSheet"
 
         var id: String { rawValue }
 
@@ -62,6 +63,7 @@
             case .templatePreview: TemplatePreviewDemo()
             case .templateEditor: TemplateEditorDemo()
             case .exercisePane: ExercisePaneDemo()
+            case .exerciseInfoSheet: ExerciseInfoSheetDemo()
             case .exercisePickerMulti:
                 ExercisePickerView(title: "Add Exercises", mode: .multiple(add: { _ in }, superset: { _ in }))
             }
@@ -131,6 +133,27 @@
         /// Hosts the view on the sample container and exercise store.
         func sampleEnvironment(_ environment: SampleEnvironment) -> some View {
             modelContainer(environment.container).environment(environment.store)
+        }
+    }
+
+    /// The exercise info sheet over an empty screen, presented at launch (`-preview ExerciseInfoSheet`).
+    struct ExerciseInfoSheetDemo: View {
+        @Environment(ExerciseStore.self) private var store
+        @State private var exerciseID: UUID?
+
+        var body: some View {
+            Color.clear
+                .exerciseInfoSheet(exerciseID: $exerciseID)
+                .task {
+                    // `-infoSheetExercise custom` shows the sample custom exercise (its sheet has an Edit bar).
+                    let arguments = ProcessInfo.processInfo.arguments
+                    let custom =
+                        arguments.firstIndex(of: "-infoSheetExercise").map {
+                            arguments.indices.contains($0 + 1) && arguments[$0 + 1] == "custom"
+                        } ?? false
+                    let name = custom ? SampleData.customExerciseName : "Barbell Bench Press"
+                    exerciseID = store.all().first(where: { $0.name == name })?.id
+                }
         }
     }
 

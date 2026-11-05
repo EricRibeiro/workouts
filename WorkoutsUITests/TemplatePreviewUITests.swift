@@ -63,9 +63,7 @@ final class TemplatePreviewUITests: XCTestCase {
             any["exerciseDetail.name"].waitForExistence(timeout: 5),
             "the info button should open the exercise's detail in the info sheet"
         )
-        let close = app.buttons["exerciseInfo.close"].firstMatch
-        XCTAssertTrue(close.exists, "the info sheet has the same Close button as the workout's")
-        close.tap()
+        app.dismissSheetBySwiping(top: any["screen.exerciseDetail"])
         XCTAssertTrue(any["exerciseDetail.name"].waitForNonExistence(timeout: 5))
         XCTAssertTrue(any["template.preview"].exists, "closing the info sheet returns to the preview")
     }

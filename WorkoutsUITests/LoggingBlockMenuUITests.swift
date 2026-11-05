@@ -91,36 +91,35 @@ final class LoggingBlockMenuUITests: XCTestCase {
         XCTAssertTrue(name.waitForExistence(timeout: 5))
         name.tap()
         XCTAssertTrue(any["screen.exerciseDetail"].waitForExistence(timeout: 10), "tapping the name opened no detail")
-        let close = app.buttons["exerciseInfo.close"]
-        XCTAssertTrue(close.waitForExistence(timeout: 5))
+        let detail = any["screen.exerciseDetail"]
 
-        // The sheet opens at half height; picking a segment expands it to full height. The Close button sits in the
-        // sheet's top corner, so its position is the sheet's top edge.
+        // The sheet opens at half height; picking a segment expands it to full height. The detail's content starts at
+        // the sheet's top edge, so its position tracks the detent.
         let windowHeight = app.windows.firstMatch.frame.height
-        let mediumTop = close.frame.minY
+        let mediumTop = detail.frame.minY
         XCTAssertGreaterThan(mediumTop, windowHeight * 0.3, "the sheet did not open at half height")
         let segment = app.segmentedControls["exerciseDetail.segment"]
         XCTAssertTrue(segment.waitForExistence(timeout: 5))
         segment.buttons["History"].tap()
-        // The detent change animates; wait for the Close button to settle well above where it was at half height.
+        // The detent change animates; wait for the sheet to settle well above where it was at half height.
         let deadline = Date().addingTimeInterval(5)
-        while close.frame.minY > mediumTop * 0.7 && Date() < deadline {
+        while detail.frame.minY > mediumTop * 0.7 && Date() < deadline {
             RunLoop.current.run(until: Date().addingTimeInterval(0.2))
         }
         XCTAssertLessThan(
-            close.frame.minY,
+            detail.frame.minY,
             mediumTop * 0.7,
-            "tapping a segment did not expand the sheet to full height (Close at \(close.frame.minY), was \(mediumTop), window \(windowHeight))"
+            "tapping a segment did not expand the sheet to full height (top at \(detail.frame.minY), was \(mediumTop), window \(windowHeight))"
         )
-        close.tap()
-        XCTAssertTrue(any["screen.exerciseDetail"].waitUntilGone(), "Close did not close the exercise sheet")
+        app.dismissSheetBySwiping(top: detail)
+        XCTAssertTrue(any["screen.exerciseDetail"].waitUntilGone(), "swiping down did not close the exercise sheet")
 
         // The block menu's Exercise Info entry opens the same sheet.
         let (menu, _) = firstMenu(app)
         openMenuEntry(app, menu: menu, entry: "settable.menu.info")
         XCTAssertTrue(any["screen.exerciseDetail"].waitForExistence(timeout: 10), "Exercise Info opened no detail")
-        app.buttons["exerciseInfo.close"].tap()
-        XCTAssertTrue(any["screen.exerciseDetail"].waitUntilGone(), "Close did not close the exercise sheet")
+        app.dismissSheetBySwiping(top: any["screen.exerciseDetail"])
+        XCTAssertTrue(any["screen.exerciseDetail"].waitUntilGone(), "swiping down did not close the exercise sheet")
     }
 
     /// A long library name stays on one line in the logging header: its button is about as tall as a short name's.
