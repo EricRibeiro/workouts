@@ -40,17 +40,39 @@ final class LoopingPlayer {
 /// shows as a thin dark line down each side of the 16:9 clip. `VideoPlayer` exposes neither knob, hence the wrapper.
 private struct ClearVideoPlayer: UIViewControllerRepresentable {
     let player: AVPlayer
+    /// Called on the main actor whenever `AVPlayerViewController.isReadyForDisplay` changes: true once the first
+    /// video frame can be drawn, so the owner can keep something else showing until then.
+    let onReadyForDisplay: (Bool) -> Void
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
 
     func makeUIViewController(context: Context) -> AVPlayerViewController {
         let controller = AVPlayerViewController()
         controller.player = player
         controller.videoGravity = .resizeAspectFill
         controller.view.backgroundColor = .clear
+        context.coordinator.observe(controller, onReadyForDisplay)
         return controller
     }
 
     func updateUIViewController(_ controller: AVPlayerViewController, context: Context) {
         if controller.player !== player { controller.player = player }
+        context.coordinator.onReadyForDisplay = onReadyForDisplay
+    }
+
+    @MainActor
+    final class Coordinator {
+        var onReadyForDisplay: (Bool) -> Void = { _ in }
+        private var observation: NSKeyValueObservation?
+
+        func observe(_ controller: AVPlayerViewController, _ callback: @escaping (Bool) -> Void) {
+            onReadyForDisplay = callback
+            observation = controller.observe(\.isReadyForDisplay, options: [.initial, .new]) {
+                [weak self] controller, _ in
+                let ready = controller.isReadyForDisplay
+                Task { @MainActor in self?.onReadyForDisplay(ready) }
+            }
+        }
     }
 }
 
@@ -65,6 +87,8 @@ struct ExerciseMediaHeader: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
     @State private var video: LoopingPlayer?
+    /// The player has a frame to show; until then the stills stay up so the swap never shows an empty hero.
+    @State private var videoReady = false
     @State private var showsEnd = false
     @State private var heroCap: CGFloat = .infinity
 
@@ -82,21 +106,29 @@ struct ExerciseMediaHeader: View {
         } else {
             hero
                 .task(id: colorScheme) { await loadVideo() }
-                .task(id: reduceMotion) { await crossfade() }
+                .task(id: animatesStills) { await crossfade() }
                 .onAppear { if !reduceMotion { video?.player.play() } }
                 .onDisappear { video?.player.pause() }
         }
     }
 
+    /// The stills trade places only while they are what the person sees.
+    private var animatesStills: Bool { !reduceMotion && !videoReady }
+
     @ViewBuilder
     private var hero: some View {
+        // The stills stay underneath; the player sits on top, invisible until it can draw a frame, then fades in
+        // (a plain swap with Reduce Motion). Swapping them in one pass left a frame with neither on screen.
         let frame = ZStack {
+            frames
+                .accessibilityHidden(videoReady)
             if let video {
-                ClearVideoPlayer(player: video.player)
+                ClearVideoPlayer(player: video.player) { videoReady = $0 }
+                    .opacity(videoReady ? 1 : 0)
+                    .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: videoReady)
                     .accessibilityLabel("Exercise video")
                     .accessibilityIdentifier("exerciseDetail.video")
-            } else {
-                frames
+                    .accessibilityHidden(!videoReady)
             }
         }
         .aspectRatio(16 / 9, contentMode: .fit)
@@ -149,6 +181,7 @@ struct ExerciseMediaHeader: View {
 
     private func loadVideo() async {
         video = nil
+        videoReady = false
         guard ExerciseMedia.canStreamVideo, let library, library.hasVideos else { return }
         let scheme: MediaScheme = colorScheme == .dark ? .dark : .light
         guard let url = try? await ExerciseMedia.store.video(for: library.sourceId, scheme: scheme) else { return }
@@ -159,8 +192,8 @@ struct ExerciseMediaHeader: View {
 
     /// The poor-man's animation while no video is playing: start and end frames trade places every 1.5 s.
     private func crossfade() async {
-        showsEnd = false
-        guard !reduceMotion, endURL != nil, !ProcessInfo.processInfo.arguments.contains("-uiTesting") else { return }
+        if !videoReady { showsEnd = false }
+        guard animatesStills, endURL != nil, !ProcessInfo.processInfo.arguments.contains("-uiTesting") else { return }
         while !Task.isCancelled {
             try? await Task.sleep(for: .seconds(1.5))
             if Task.isCancelled { return }
