@@ -118,6 +118,13 @@ public enum Exporter {
                     restEndsAt: workout.restEndsAt,
                     restSeconds: workout.restSeconds,
                     restSetId: workout.restSetID,
+                    healthWorkoutId: workout.healthWorkoutID,
+                    activeEnergyKcal: workout.activeEnergyKcal,
+                    totalEnergyKcal: workout.totalEnergyKcal,
+                    avgHeartRate: workout.avgHeartRate,
+                    maxHeartRate: workout.maxHeartRate,
+                    heartRateSeries: workout.heartRateSeries,
+                    healthCheckedAt: workout.healthCheckedAt,
                     exercises: ordered(workout.exercises).map { exercise in
                         WorkoutExerciseDTO(
                             id: exercise.id,

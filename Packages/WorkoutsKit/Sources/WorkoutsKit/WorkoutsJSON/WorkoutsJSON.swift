@@ -273,6 +273,14 @@ public nonisolated struct WorkoutDTO: Codable, Hashable, Sendable {
     public var restEndsAt: Date?
     public var restSeconds: Int?
     public var restSetId: UUID?
+    /// Apple Fitness enrichment (PLAN 7.1b). All optional; files written before it existed decode with these nil.
+    public var healthWorkoutId: String? = nil
+    public var activeEnergyKcal: Double? = nil
+    public var totalEnergyKcal: Double? = nil
+    public var avgHeartRate: Double? = nil
+    public var maxHeartRate: Double? = nil
+    public var heartRateSeries: [HeartRatePoint]? = nil
+    public var healthCheckedAt: Date? = nil
     public var exercises: [WorkoutExerciseDTO]
 }
 

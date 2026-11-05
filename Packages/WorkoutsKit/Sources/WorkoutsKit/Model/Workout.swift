@@ -20,6 +20,19 @@ public final class Workout {
     /// The set whose completion started the running rest timer.
     public var restSetID: UUID?
 
+    // Apple Fitness enrichment (PLAN 7.1b). Optional with nil defaults, so adding them is a lightweight migration and
+    // stays CloudKit-compatible. Read and written through `healthSummary` / `applyHealth` (Health/WorkoutHealthFields).
+    /// The matched HealthKit workout's UUID string; nil = not matched.
+    public var healthWorkoutID: String?
+    public var activeEnergyKcal: Double?
+    public var totalEnergyKcal: Double?
+    public var avgHeartRate: Double?
+    public var maxHeartRate: Double?
+    /// JSON of `[HeartRatePoint]` (a few dozen points, so stored inline).
+    public var heartRateSeriesData: Data?
+    /// The last time the app looked for a matching Fitness workout, so unmatched workouts are not re-queried endlessly.
+    public var healthCheckedAt: Date?
+
     /// Nil when the template was deleted (or the workout was started empty).
     public var template: Template?
 

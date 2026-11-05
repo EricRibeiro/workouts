@@ -335,9 +335,26 @@ public enum Importer {
                 row.restEndsAt = dto.restEndsAt
                 row.restSeconds = dto.restSeconds
                 row.restSetID = dto.restSetId
+                importHealth(dto, into: row)
                 row.template = resolve(dto.templateId, in: templates)
                 syncExercises(of: row, with: dto.exercises)
             }
+        }
+
+        /// A document without Fitness data (an older file) never clears what the store already has; `healthCheckedAt`
+        /// only moves forward.
+        private func importHealth(_ dto: WorkoutDTO, into row: Workout) {
+            if let checked = dto.healthCheckedAt, checked > (row.healthCheckedAt ?? .distantPast) {
+                row.healthCheckedAt = checked
+            }
+            guard let id = dto.healthWorkoutId else { return }
+            row.healthWorkoutID = id
+            row.activeEnergyKcal = dto.activeEnergyKcal
+            row.totalEnergyKcal = dto.totalEnergyKcal
+            row.avgHeartRate = dto.avgHeartRate
+            row.maxHeartRate = dto.maxHeartRate
+            row.heartRateSeriesData =
+                (dto.heartRateSeries?.isEmpty ?? true) ? nil : try? JSONEncoder().encode(dto.heartRateSeries)
         }
 
         private mutating func syncExercises(of workout: Workout, with dtos: [WorkoutExerciseDTO]) {
