@@ -128,6 +128,8 @@ struct SettingsView: View {
                 // Imported custom exercises must reach the pickers and detail screens.
                 exerciseStore?.setCustom(try modelContext.fetch(FetchDescriptor<Exercise>()))
                 outcome = TransferOutcome(title: report.headline, message: report.summary)
+                // Imported history never got Fitness data when it was recorded; look it up once (no-op while off).
+                if let health { Task { await health.backfill(context: context) } }
             } catch {
                 outcome = TransferOutcome(title: "Could Not Import", message: DataTransfer.message(for: error))
             }
@@ -238,9 +240,15 @@ struct SettingsView: View {
             } header: {
                 Text("Apple Fitness")
             } footer: {
-                Text(
-                    "Reads calories and heart rate from the Apple Fitness strength workout you record alongside each session. Workouts Duo never writes to Health."
-                )
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(
+                        "Reads calories and heart rate from the Apple Fitness strength workout you record alongside each session. Workouts Duo never writes to Health."
+                    )
+                    if let progress = health.backfillProgress {
+                        Text("Adding Fitness data… \(progress.done) of \(progress.total)")
+                            .accessibilityIdentifier("settings.health.progress")
+                    }
+                }
             }
         }
     }

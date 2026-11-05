@@ -51,8 +51,8 @@ struct HealthEnrichmentServiceTests {
     }
 
     /// A service over a gated source holding one Fitness workout that matches the one finished workout, opted in.
-    private func makeSetup(followUpDelay: Duration = .seconds(120)) throws -> Setup {
-        let end = Date.now.addingTimeInterval(-600)
+    private func makeSetup(followUpDelay: Duration = .seconds(120), endedAgo: TimeInterval = 600) throws -> Setup {
+        let end = Date.now.addingTimeInterval(-endedAgo)
         let start = end.addingTimeInterval(-3000)
         let candidate = HealthWorkoutCandidate(id: "HK-1", kind: .functionalStrength, start: start, end: end)
         let summary = HealthWorkoutSummary(
@@ -95,6 +95,26 @@ struct HealthEnrichmentServiceTests {
         await setup.service.refresh(context: setup.context)
         #expect(setup.workout.healthWorkoutID == "HK-1")
         #expect(setup.workout.activeEnergyKcal == 300)
+    }
+
+    @Test func becomingActiveBackfillsAnOldWorkoutButARoutineRefreshDoesNot() async throws {
+        let setup = try makeSetup(endedAgo: 30 * 86400)
+        await setup.gate.release()
+        await setup.service.refresh(context: setup.context)
+        #expect(setup.workout.healthWorkoutID == nil && setup.workout.healthCheckedAt == nil)
+
+        await setup.service.appBecameActive(context: setup.context)
+        #expect(setup.workout.healthWorkoutID == "HK-1")
+        #expect(setup.workout.activeEnergyKcal == 300)
+    }
+
+    @Test func backfillIsANoOpWhileOptedOut() async throws {
+        let setup = try makeSetup(endedAgo: 30 * 86400)
+        setup.settings.healthEnrichmentEnabled = false
+        await setup.gate.release()
+        await setup.service.backfill(context: setup.context)
+        await setup.service.appBecameActive(context: setup.context)
+        #expect(setup.workout.healthWorkoutID == nil && setup.workout.healthCheckedAt == nil)
     }
 
     @Test func nothingRunsWhileOptedOut() async throws {

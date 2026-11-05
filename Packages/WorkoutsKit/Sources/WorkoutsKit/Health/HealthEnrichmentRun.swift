@@ -44,11 +44,47 @@ public enum HealthEnrichmentRun {
             workouts
             .filter { $0.needsHealthCheck(now: now, recheckAfter: recheckAfter) }
             .sorted { ($0.finishedAt ?? .distantPast) < ($1.finishedAt ?? .distantPast) }
-        var claimed = Set(workouts.compactMap(\.healthWorkoutID))
+        return await process(pending, among: workouts, source: source, now: now, progress: nil)
+    }
+
+    /// Looks up every finished, unmatched workout that was never checked (`healthCheckedAt == nil`), however old, oldest
+    /// finish first. This is what reaches imported history and workouts from before the person opted in, which `run`
+    /// gives up on after a week. A workout already stamped is left alone (matched or not), so each workout is backfilled
+    /// once; later passes are `run`'s job. Same rules as `run` for claimed Fitness workouts, a denied or unavailable store
+    /// (ends the pass, nothing stamped from there on) and other errors (skipped, not stamped).
+    ///
+    /// - Parameter progress: called after each workout is handled with `(done, total)`, where `total` is the number
+    ///   of workouts this pass will look at.
+    public static func backfill(
+        workouts: [Workout],
+        source: any HealthSource,
+        now: Date,
+        progress: ((_ done: Int, _ total: Int) -> Void)? = nil
+    ) async -> Outcome {
+        let pending =
+            workouts
+            .filter { $0.finishedAt != nil && $0.healthWorkoutID == nil && $0.healthCheckedAt == nil }
+            .sorted { ($0.finishedAt ?? .distantPast) < ($1.finishedAt ?? .distantPast) }
+        return await process(pending, among: workouts, source: source, now: now, progress: progress)
+    }
+
+    /// The loop `run` and `backfill` share. `all` supplies the Fitness workouts already attached, which count as claimed.
+    private static func process(
+        _ pending: [Workout],
+        among all: [Workout],
+        source: any HealthSource,
+        now: Date,
+        progress: ((_ done: Int, _ total: Int) -> Void)?
+    ) async -> Outcome {
+        var claimed = Set(all.compactMap(\.healthWorkoutID))
         let enrichment = HealthEnrichment(source: source)
         var outcome = Outcome()
+        let total = pending.count
+        progress?(0, total)
 
-        for workout in pending {
+        for (index, workout) in pending.enumerated() {
+            // A cancelled pass (Settings turned the feature off) stops here; what it stamped so far stands.
+            if Task.isCancelled { return outcome }
             guard let finishedAt = workout.finishedAt else { continue }
             do {
                 let summary = try await enrichment.enrich(
@@ -68,11 +104,12 @@ public enum HealthEnrichmentRun {
                     outcome.stopped = error
                     return outcome
                 case .notFound, .failed:
-                    continue
+                    break
                 }
             } catch {
-                continue
+                // Skipped without a stamp; the pass goes on.
             }
+            progress?(index + 1, total)
         }
         return outcome
     }
@@ -88,6 +125,14 @@ public enum HealthEnrichmentRun {
         for workout in workouts { workout.clearHealth() }
         if context.hasChanges { try context.save() }
         return workouts.count
+    }
+
+    /// Every finished workout, oldest finish first: what the app fetches to feed `backfill`.
+    public static func allFinishedDescriptor() -> FetchDescriptor<Workout> {
+        FetchDescriptor<Workout>(
+            predicate: #Predicate<Workout> { $0.finishedAt != nil },
+            sortBy: [SortDescriptor(\Workout.finishedAt)]
+        )
     }
 
     /// Finished workouts that finished within `within` of `now`, oldest finish first: what the app fetches to feed

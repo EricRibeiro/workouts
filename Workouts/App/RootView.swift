@@ -84,7 +84,7 @@ struct RootView: View {
         // Coming back to the foreground is when a Watch workout recorded meanwhile can be picked up (when the person opted in).
         .onChange(of: scenePhase, initial: true) { _, phase in
             guard phase == .active, let health else { return }
-            Task { await health.refresh(context: context) }
+            Task { await health.appBecameActive(context: context) }
         }
     }
 }

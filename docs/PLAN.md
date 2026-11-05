@@ -330,7 +330,7 @@ Live Activity → notifications → logging, then templates, exercises, history.
     (shaped like a real export when Eric provides one).
   - [x] **f. UI**: Fitness card on the workout detail (calories, avg/max HR, small HR chart), calories in History rows and
     the dashboard. Proof: `-preview` screenshots light/dark, closed/open.
-  - [ ] **g. Backfill**: enrich imported history once (and after 8.3's import). Proof: kit test over a fixture year.
+  - [x] **g. Backfill**: enrich imported history once (and after 8.3's import). Proof: kit test over a fixture year.
 - [x] **7.5 TestFlight**: archive, export, upload. Needs: 7.1. Proof: `./dev testflight`; the build installs on the Duo.
 - [ ] **7.6 Whole-app review by Fable** (after everything except Phase 8, which follows it; Eric, 2026-11-04): one `model: fable` pass over the entire app,
   code and running screens, reporting P0–P3 findings in five areas: (1) **bugs** (correctness, data loss, sync/import edge

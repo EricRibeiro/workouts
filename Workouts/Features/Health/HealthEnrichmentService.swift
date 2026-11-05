@@ -39,7 +39,12 @@ final class HealthEnrichmentService {
     /// Set when a refresh was requested while one ran; the running one goes around again, since its fetch may predate the
     /// request. Holds the shortest re-check interval asked for.
     @ObservationIgnored private var queuedRecheck: TimeInterval?
+    /// Set when a backfill was requested while the loop ran; it follows the refresh in the next round.
+    @ObservationIgnored private var queuedBackfill = false
     @ObservationIgnored private var followUp: Task<Void, Never>?
+
+    /// While a backfill runs, how many of the workouts it will look at are done; nil otherwise. Settings shows it.
+    private(set) var backfillProgress: (done: Int, total: Int)?
     @ObservationIgnored private let logger = Logger(subsystem: "com.ericribeiro.Workouts", category: "Health")
 
     init(source: (any HealthSource)?, settings: SettingsStore, followUpDelay: Duration = .seconds(120)) {
@@ -79,20 +84,51 @@ final class HealthEnrichmentService {
     }
 
     private func refresh(context: ModelContext, recheckAfter: TimeInterval) async {
+        await request(context: context, recheckAfter: recheckAfter, backfill: false)
+    }
+
+    /// The app came to the foreground: the routine refresh, then the backfill, in one serialised round. Backfill only
+    /// touches workouts never checked, so once everything is stamped this costs an in-memory scan; and a grant given
+    /// later (Health settings) still reaches old workouts that an earlier denied pass left unstamped.
+    func appBecameActive(context: ModelContext) async {
+        await request(context: context, recheckAfter: Self.defaultRecheck, backfill: true)
+    }
+
+    /// One lookup over every finished workout that was never checked, however old (PLAN 7.1b g): imported history and
+    /// workouts from before the person opted in, which the routine pass gave up on. Each workout is stamped, so it is
+    /// looked up once. Joins the refresh loop, so it never overlaps a refresh and `turnOff` waits for it.
+    func backfill(context: ModelContext) async {
+        await request(context: context, recheckAfter: nil, backfill: true)
+    }
+
+    /// The one entry to the serialised loop. `recheckAfter` nil means no routine pass this time. A call while the loop
+    /// runs only queues what it asked for: the running loop goes around again, since its fetch may predate the request.
+    private func request(context: ModelContext, recheckAfter: TimeInterval?, backfill: Bool) async {
         guard isActive, let source else { return }
         if runningRefresh != nil {
-            queuedRecheck = min(queuedRecheck ?? recheckAfter, recheckAfter)
+            if let recheckAfter { queuedRecheck = min(queuedRecheck ?? recheckAfter, recheckAfter) }
+            if backfill { queuedBackfill = true }
             return
         }
         // A task, not an inline loop, so `turnOff` can await it. It runs on the main actor like the service.
         let task = Task { [self] in
             var recheck = recheckAfter
-            repeat {
+            var wantsBackfill = backfill
+            while isActive, recheck != nil || wantsBackfill {
+                let round = (recheck: recheck, backfill: wantsBackfill)
                 queuedRecheck = nil
-                await pass(context: context, source: source, recheckAfter: recheck)
-                recheck = queuedRecheck ?? recheck
-            } while queuedRecheck != nil && isActive
+                queuedBackfill = false
+                if let interval = round.recheck {
+                    await pass(context: context, source: source, recheckAfter: interval)
+                }
+                if round.backfill, isActive {
+                    await backfillPass(context: context, source: source)
+                }
+                recheck = queuedRecheck
+                wantsBackfill = queuedBackfill
+            }
             queuedRecheck = nil
+            queuedBackfill = false
             runningRefresh = nil
         }
         runningRefresh = task
@@ -118,6 +154,31 @@ final class HealthEnrichmentService {
         }
     }
 
+    private func backfillPass(context: ModelContext, source: any HealthSource) async {
+        defer { backfillProgress = nil }
+        do {
+            let workouts = try context.fetch(HealthEnrichmentRun.allFinishedDescriptor())
+            let outcome = await HealthEnrichmentRun.backfill(
+                workouts: workouts,
+                source: source,
+                now: .now,
+                progress: { [weak self] done, total in
+                    self?.backfillProgress = total > 0 && done < total ? (done, total) : nil
+                    // A long backfill saves as it goes, so quitting the app midway keeps what was found.
+                    if done > 0, done.isMultiple(of: 25), context.hasChanges {
+                        do { try context.save() } catch {
+                            self?.logger.error("Fitness backfill save failed: \(error.localizedDescription)")
+                        }
+                    }
+                }
+            )
+            if context.hasChanges { try context.save() }
+            logger.info("Fitness backfill matched \(outcome.matched) of \(outcome.checked) checked workouts")
+        } catch {
+            logger.error("Fitness backfill failed: \(error.localizedDescription)")
+        }
+    }
+
     /// Shows the Health read sheet (HealthKit only; a fixture has nothing to ask), then looks up what is waiting. Called
     /// when the person turns the Settings toggle on, so `healthEnrichmentEnabled` is already true.
     func requestAuthorization(context: ModelContext) async {
@@ -130,7 +191,8 @@ final class HealthEnrichmentService {
                 return
             }
         }
-        await refresh(context: context)
+        // The normal refresh first, then the one-time backfill of older workouts, in one serialised round.
+        await request(context: context, recheckAfter: Self.defaultRecheck, backfill: true)
     }
 
     /// A workout just finished: look now, and once more after `followUpDelay`, when the Watch workout has ended too. A
@@ -155,6 +217,10 @@ final class HealthEnrichmentService {
         followUp?.cancel()
         followUp = nil
         queuedRecheck = nil
+        queuedBackfill = false
+        // Cancelling lets a long backfill stop at its next workout (the kit checks); what it found so far is kept and
+        // saved before this resumes.
+        runningRefresh?.cancel()
         await runningRefresh?.value
         if remove { try HealthEnrichmentRun.clearAll(context: context) }
     }

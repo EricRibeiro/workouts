@@ -60,6 +60,7 @@ struct WorkoutsApp: App {
             let engine = try ActiveWorkoutEngine(context: context, store: store, settings: settings)
             #if DEBUG
                 try Self.startSampleWorkoutIfRequested(engine: engine, context: context)
+                try Self.seedOldWorkoutIfRequested(context: context)
             #endif
             notifier.observe(engine)
             if Self.wantsLiveActivity {
@@ -155,6 +156,35 @@ struct WorkoutsApp: App {
     }
 
     #if DEBUG
+        /// `-seedOldWorkout`: inserts one finished workout "Old Backfill Workout" that ended 30 days ago and was never
+        /// checked against Health, so a UI test can prove the Fitness backfill (the routine lookup gives up after 7 days).
+        @MainActor
+        private static func seedOldWorkoutIfRequested(context: ModelContext) throws {
+            guard ProcessInfo.processInfo.arguments.contains("-seedOldWorkout") else { return }
+            let start = Date.now.addingTimeInterval(-30 * 86400)
+            let workout = Workout(
+                name: "Old Backfill Workout",
+                startedAt: start,
+                finishedAt: start.addingTimeInterval(50 * 60),
+                createdAt: start,
+                updatedAt: start
+            )
+            context.insert(workout)
+            let row = WorkoutExercise(exerciseName: "Back Squat", position: 0, unit: .kg, updatedAt: start)
+            context.insert(row)
+            row.workout = workout
+            let set = WorkoutSet(
+                position: 0,
+                weight: 100,
+                reps: 5,
+                completed: true,
+                completedAt: start.addingTimeInterval(600)
+            )
+            context.insert(set)
+            set.workoutExercise = row
+            try context.save()
+        }
+
         /// `-seedSampleData`: seeds the sample data when the store has no templates and stops there.
         /// `-startSampleWorkout`: seeds the sample data when the store has no templates, then starts a workout from the
         /// first template (if none runs), then always starts a 5-minute rest, so the Live Activity can be shown without any UI.

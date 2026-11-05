@@ -280,4 +280,173 @@ private nonisolated struct FlakySource: HealthSource {
         let narrow = try context.fetch(HealthEnrichmentRun.recentFinishedDescriptor(now: now, within: 86400))
         #expect(narrow.map(\.name) == ["newest"])
     }
+
+    // MARK: Backfill
+
+    /// `now` a year after t0: the workouts below are far past `run`'s seven-day give-up.
+    private static let later = t0.addingTimeInterval(365 * 86400)
+
+    @Test func backfillMatchesAnOldNeverCheckedWorkout() async {
+        let old = Self.workout()
+        // Proof of the premise: the routine pass leaves it alone.
+        let routine = await HealthEnrichmentRun.run(
+            workouts: [old],
+            source: Self.source([("HK-1", 0)]),
+            now: Self.later
+        )
+        #expect(routine == Outcome())
+        #expect(old.healthCheckedAt == nil)
+
+        let outcome = await HealthEnrichmentRun.backfill(
+            workouts: [old],
+            source: Self.source([("HK-1", 0)]),
+            now: Self.later
+        )
+        #expect(outcome == Outcome(matched: 1, checked: 1, stopped: nil))
+        #expect(old.healthWorkoutID == "HK-1")
+        #expect(old.healthCheckedAt == Self.later)
+    }
+
+    @Test func backfillStampsAnOldWorkoutWithNoMatchSoItIsNotChasedAgain() async {
+        let old = Self.workout()
+        let outcome = await HealthEnrichmentRun.backfill(
+            workouts: [old],
+            source: FakeHealthSource(),
+            now: Self.later
+        )
+        #expect(outcome == Outcome(matched: 0, checked: 1, stopped: nil))
+        #expect(old.healthWorkoutID == nil)
+        #expect(old.healthCheckedAt == Self.later)
+
+        // A second backfill, now that Health has the workout, still leaves it: once per workout.
+        let again = await HealthEnrichmentRun.backfill(
+            workouts: [old],
+            source: Self.source([("HK-1", 0)]),
+            now: Self.later.addingTimeInterval(60)
+        )
+        #expect(again == Outcome())
+        #expect(old.healthWorkoutID == nil)
+        #expect(old.healthCheckedAt == Self.later)
+    }
+
+    @Test func backfillSkipsAnAlreadyCheckedWorkout() async {
+        let checked = Self.workout()
+        checked.healthCheckedAt = Self.t0.addingTimeInterval(7200)
+        let outcome = await HealthEnrichmentRun.backfill(
+            workouts: [checked],
+            source: Self.source([("HK-1", 0)]),
+            now: Self.later
+        )
+        #expect(outcome == Outcome())
+        #expect(checked.healthWorkoutID == nil)
+        #expect(checked.healthCheckedAt == Self.t0.addingTimeInterval(7200))
+    }
+
+    @Test func backfillIgnoresUnfinishedAndAlreadyMatchedWorkouts() async {
+        let running = Workout(name: "running", startedAt: Self.t0, updatedAt: Self.t0)
+        let matched = Self.workout(startOffset: 7200)
+        matched.applyHealth(Self.summary("HK-2", startOffset: 7200), checkedAt: Self.t0)
+        let outcome = await HealthEnrichmentRun.backfill(
+            workouts: [running, matched],
+            source: Self.source([("HK-1", 0)]),
+            now: Self.later
+        )
+        #expect(outcome == Outcome())
+        #expect(running.healthCheckedAt == nil && running.healthWorkoutID == nil)
+        #expect(matched.healthWorkoutID == "HK-2")
+    }
+
+    @Test func backfillStopsWhenDeniedAndStampsNothing() async {
+        let a = Self.workout(startOffset: 0)
+        let b = Self.workout(startOffset: 7200)
+        let outcome = await HealthEnrichmentRun.backfill(
+            workouts: [a, b],
+            source: FakeHealthSource.failing(.notAuthorized),
+            now: Self.later
+        )
+        #expect(outcome == Outcome(matched: 0, checked: 0, stopped: .notAuthorized))
+        #expect(a.healthCheckedAt == nil && b.healthCheckedAt == nil)
+    }
+
+    @Test func backfillSkipsAnErroringWorkoutWithoutStampingAndGoesOn() async {
+        let a = Self.workout(startOffset: 0)
+        let b = Self.workout(startOffset: 7200)
+        let source = FlakySource(
+            base: Self.source([("HK-1", 0), ("HK-2", 7200)]),
+            failSummaryFor: ["HK-1": .failed("boom")]
+        )
+        let outcome = await HealthEnrichmentRun.backfill(workouts: [a, b], source: source, now: Self.later)
+        #expect(outcome == Outcome(matched: 1, checked: 1, stopped: nil))
+        #expect(a.healthWorkoutID == nil && a.healthCheckedAt == nil)
+        #expect(b.healthWorkoutID == "HK-2")
+    }
+
+    @Test func backfillClaimsHoldAcrossOldAndNewWorkouts() async {
+        // One Fitness workout; a recent workout already holds it, so the old never-checked one cannot take it.
+        let recent = Workout(
+            name: "recent",
+            startedAt: Self.later.addingTimeInterval(-3600),
+            finishedAt: Self.later.addingTimeInterval(-600),
+            updatedAt: Self.later
+        )
+        recent.applyHealth(Self.summary("HK-1"), checkedAt: Self.later)
+        let old = Self.workout(startOffset: 0, name: "old")
+        let outcome = await HealthEnrichmentRun.backfill(
+            workouts: [recent, old],
+            source: Self.source([("HK-1", 0)]),
+            now: Self.later
+        )
+        #expect(outcome == Outcome(matched: 0, checked: 1, stopped: nil))
+        #expect(old.healthWorkoutID == nil)
+        #expect(old.healthCheckedAt == Self.later)
+        #expect(recent.healthWorkoutID == "HK-1")
+    }
+
+    @Test func backfillClaimsWithinThePassOldestFirst() async {
+        let older = Self.workout(startOffset: 0, name: "older")
+        let newer = Self.workout(startOffset: 600, name: "newer")
+        let outcome = await HealthEnrichmentRun.backfill(
+            workouts: [newer, older],
+            source: Self.source([("HK-1", 0)]),
+            now: Self.later
+        )
+        #expect(outcome == Outcome(matched: 1, checked: 2, stopped: nil))
+        #expect(older.healthWorkoutID == "HK-1")
+        #expect(newer.healthWorkoutID == nil)
+    }
+
+    @Test func backfillReportsProgress() async {
+        let a = Self.workout(startOffset: 0)
+        let b = Self.workout(startOffset: 7200)
+        var seen: [[Int]] = []
+        _ = await HealthEnrichmentRun.backfill(
+            workouts: [b, a],
+            source: FakeHealthSource(),
+            now: Self.later,
+            progress: { seen.append([$0, $1]) }
+        )
+        #expect(seen == [[0, 2], [1, 2], [2, 2]])
+    }
+
+    @Test func backfillStopsWhenItsTaskIsCancelled() async {
+        let a = Self.workout(startOffset: 0)
+        let b = Self.workout(startOffset: 7200)
+        let source = Self.source([("HK-1", 0), ("HK-2", 7200)])
+        let task = Task { await HealthEnrichmentRun.backfill(workouts: [a, b], source: source, now: Self.later) }
+        task.cancel()
+        let outcome = await task.value
+        #expect(outcome == Outcome())
+        #expect(a.healthCheckedAt == nil && b.healthCheckedAt == nil)
+    }
+
+    @Test func allFinishedDescriptorReturnsEveryFinishedWorkoutOldestFirst() throws {
+        let context = try makeContext()
+        let newest = Self.workout(startOffset: 7200, name: "newest")
+        let oldest = Self.workout(startOffset: 0, name: "oldest")
+        let active = Workout(name: "active", startedAt: Self.t0, updatedAt: Self.t0)
+        for workout in [newest, active, oldest] { context.insert(workout) }
+        try context.save()
+        let names = try context.fetch(HealthEnrichmentRun.allFinishedDescriptor()).map(\.name)
+        #expect(names == ["oldest", "newest"])
+    }
 }

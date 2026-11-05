@@ -231,3 +231,6 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
 69. **Plan renumbered (Eric, 2026-11-04)**: CloudKit on, Settings KVS and the final import moved from 7.2/7.3/7.4 to a new
     Phase 8 (8.1/8.2/8.3), the very last steps; the whole-app Fable review is 7.6, before them. Earlier entries that say
     "7.2" or "7.4" mean 8.1 and 8.3.
+70. **Phase 6 review folded into 7.6** (2026-11-05): Eric asked for a whole-app Fable review before Phase 8, covering
+    bugs, framework fit, Duo UX, iOS 27 guidelines and polish, which is a superset of the Phase 6 (Duo and accessibility)
+    review. One Fable pass after 6.4 and 7.1b land, instead of two back to back; it also covers Phase 7's HealthKit work.

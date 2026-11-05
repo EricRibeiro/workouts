@@ -29,7 +29,8 @@ struct ExerciseDetailView: View {
     @Environment(SettingsStore.self) private var settings: SettingsStore?
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Query private var customs: [Exercise]
-    @Query(filter: #Predicate<Workout> { $0.finishedAt != nil }) private var finished: [Workout]
+    /// Only this exercise's rows in finished workouts (their sets and workouts prefetched), not every workout.
+    @Query private var rows: [WorkoutExercise]
     @State private var segment: Segment
     @State private var records: [ExerciseRecord] = []
     @State private var sessions: [Session] = []
@@ -43,6 +44,7 @@ struct ExerciseDetailView: View {
         self.inSplitColumn = inSplitColumn
         _segment = State(initialValue: initialSegment)
         _customs = Query(filter: #Predicate<Exercise> { $0.id == exerciseID })
+        _rows = Query(ExerciseBestSets.rowsDescriptor(exerciseID: exerciseID))
     }
 
     var body: some View {
@@ -74,15 +76,16 @@ struct ExerciseDetailView: View {
                 CustomExerciseFormView(editing: exerciseID, onRemoved: { removals += 1 })
                     .presentationPlacement(.center)
             }
-            .task(id: Fingerprint(finished, unit: unit, formula: options.formula)) {
-                let found =
-                    ExerciseBestSets.sessions(from: finished) { id in
-                        id == info.id ? info.weightType : nil
-                    }[info.id] ?? []
+            .task(id: Fingerprint(rows, unit: unit, formula: options.formula)) {
+                let found = ExerciseBestSets.sessions(forRows: rows, weightType: info.weightType)
                 sessions = found
                 records = WorkoutsKit.records(found, weightType: info.weightType, options: options)
-                let names = Dictionary(finished.map { ($0.id, $0.name) }, uniquingKeysWith: { first, _ in first })
-                history = ExerciseHistory.sessions(found, names: names, weightType: info.weightType, options: options)
+                history = ExerciseHistory.sessions(
+                    found,
+                    names: ExerciseBestSets.workoutNames(of: rows),
+                    weightType: info.weightType,
+                    options: options
+                )
             }
             .accessibilityIdentifier("screen.exerciseDetail")
     }
@@ -212,16 +215,17 @@ private struct DetailChrome: ViewModifier {
     }
 }
 
-/// Changes when a finished workout is added, removed or edited, or the display unit or formula changes.
+/// Changes when a finished workout with this exercise is added, removed or edited, or the display unit or formula changes.
 private struct Fingerprint: Hashable {
     let count: Int
     let newestEdit: Date?
     let unit: WeightUnit
     let formula: E1RMFormula
 
-    init(_ workouts: [Workout], unit: WeightUnit, formula: E1RMFormula) {
-        count = workouts.count
-        newestEdit = workouts.map(\.updatedAt).max()
+    init(_ rows: [WorkoutExercise], unit: WeightUnit, formula: E1RMFormula) {
+        count = rows.count
+        // A row's own stamp, or its workout's (a rename or a date change stamps only the workout).
+        newestEdit = rows.flatMap { [$0.updatedAt, $0.workout?.updatedAt] }.compactMap { $0 }.max()
         self.unit = unit
         self.formula = formula
     }

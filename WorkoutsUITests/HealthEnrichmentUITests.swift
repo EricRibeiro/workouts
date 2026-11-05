@@ -188,6 +188,35 @@ final class HealthEnrichmentUITests: XCTestCase {
         XCTAssertTrue(fitnessRow(app).exists, "Keep Fitness Data dropped the data")
     }
 
+    /// PLAN 7.1b g: a workout that finished 30 days ago (past the routine lookup's 7-day give-up) gets its Fitness data when
+    /// the toggle goes on, through the one-time backfill. The row's label then says "N active calories".
+    @MainActor
+    func testTurningOnBackfillsAnOldWorkout() throws {
+        let app = XCUIApplication()
+        app.launchArguments += ["-uiTesting", "-healthFixture", "full", "-seedOldWorkout"]
+        app.launch()
+
+        selectTab(app, "tab.history", label: "History")
+        let oldRow = "identifier BEGINSWITH 'history.row.' AND label BEGINSWITH 'Old Backfill Workout'"
+        XCTAssertTrue(historyRow(app, oldRow).exists, "the seeded old workout is missing from History")
+        XCTAssertFalse(
+            historyRow(app, oldRow + " AND label CONTAINS 'active calories'", timeout: 2).exists,
+            "the old workout had Fitness data before the toggle went on"
+        )
+
+        selectTab(app, "tab.workout", label: "Workout")
+        inSettings(app) {
+            let toggle = fitnessToggle(app)
+            flip(toggle)
+            expectValue(toggle, "1")
+        }
+        selectTab(app, "tab.history", label: "History")
+        XCTAssertTrue(
+            historyRow(app, oldRow + " AND label CONTAINS 'active calories'", timeout: 15).exists,
+            "the backfill never gave the old workout its Fitness data"
+        )
+    }
+
     @MainActor
     func testSettingsSectionOnlyWhereHealthIsAvailable() throws {
         let without = XCUIApplication()

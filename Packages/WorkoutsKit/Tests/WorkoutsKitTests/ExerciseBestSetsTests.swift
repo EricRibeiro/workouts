@@ -71,4 +71,50 @@ struct ExerciseBestSetsTests {
         #expect(found[0].sets.count == 1)
         #expect(ExerciseBestSets.text(for: found, options: kg) == "60 kg × 5")
     }
+
+    @MainActor
+    @Test func sessionsFromFetchedRowsEqualTheFullWalk() throws {
+        let container = try ModelContainer.workouts(inMemory: true, cloudKit: false)
+        let context = container.mainContext
+        let other = UUID()
+        // Inserted out of date order, with another exercise, an unfinished workout, a repeated row and unsorted sets.
+        for (index, day) in [5, 1, 9, 3, 7].enumerated() {
+            let start = Date(timeIntervalSince1970: Double(day) * 86_400)
+            let finished: Date? = day == 7 ? nil : start.addingTimeInterval(3_600)
+            let workout = Workout(name: "Day \(day)", startedAt: start, finishedAt: finished)
+            context.insert(workout)
+            let ids = day == 3 ? [exercise, other, exercise] : [exercise, other]
+            for (position, id) in ids.enumerated() {
+                let row = WorkoutExercise(
+                    exerciseID: id,
+                    position: position,
+                    unit: index.isMultiple(of: 2) ? .kg : .lb,
+                    workout: workout
+                )
+                _ = WorkoutSet(position: 2, kind: .warmup, weight: 40, reps: 8, completed: true, workoutExercise: row)
+                _ = WorkoutSet(position: 1, weight: Double(60 + day), reps: 5, completed: true, workoutExercise: row)
+                _ = WorkoutSet(position: 0, weight: 200, reps: 1, completed: false, workoutExercise: row)
+            }
+        }
+        // A row whose workout was never set must not appear either.
+        context.insert(WorkoutExercise(exerciseID: exercise))
+        try context.save()
+
+        let workouts = try context.fetch(FetchDescriptor<Workout>())
+        let walked = try #require(ExerciseBestSets.sessions(from: workouts, weightType: { _ in .barbell })[exercise])
+        let rows = try context.fetch(ExerciseBestSets.rowsDescriptor(exerciseID: exercise))
+        let fetched = ExerciseBestSets.sessions(forRows: rows, weightType: .barbell)
+
+        #expect(rows.count == 5)
+        #expect(fetched.count == walked.count)
+        #expect(fetched.map(\.time) == fetched.map(\.time).sorted())
+        // Same sessions, compared irrespective of the walk's own order (the walk keeps the store's order).
+        let key: (Session) -> [Double] = { [$0.time.timeIntervalSince1970, Double($0.sets.count)] }
+        #expect(fetched.map(key) == walked.sorted { $0.time < $1.time }.map(key))
+        #expect(Set(fetched) == Set(walked))
+        #expect(
+            ExerciseBestSets.workoutNames(of: rows)
+                == Dictionary(uniqueKeysWithValues: workouts.filter { $0.finishedAt != nil }.map { ($0.id, $0.name) })
+        )
+    }
 }
