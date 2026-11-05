@@ -25,6 +25,10 @@ struct TemplatePreview: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Query(filter: #Predicate<Workout> { $0.finishedAt != nil }) private var finishedWorkouts: [Workout]
     @State private var flow = StartWorkoutFlow()
+    /// The exercise whose detail the row's `info.circle` pushes. State plus an item destination rather than a value
+    /// `NavigationLink`: at regular width this view is itself pushed by an item destination, and a value link inside it
+    /// never activates (SwiftUI logs "declared earlier on the stack").
+    @State private var aboutExerciseID: UUID?
 
     private var rows: [TemplatePreviewRow] { TemplatePreviewRow.rows(for: template) }
 
@@ -55,9 +59,7 @@ struct TemplatePreview: View {
                     .accessibilityIdentifier("template.edit")
             }
         }
-        .navigationDestination(for: ExerciseAboutRoute.self) { route in
-            ExerciseDetailView(exerciseID: route.id)
-        }
+        .navigationDestination(item: $aboutExerciseID) { ExerciseDetailView(exerciseID: $0) }
         .accessibilityIdentifier("template.preview")
     }
 
@@ -142,7 +144,9 @@ struct TemplatePreview: View {
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(row.accessibilityLabel)
             Spacer(minLength: 0)
-            NavigationLink(value: ExerciseAboutRoute(id: row.exerciseID)) {
+            Button {
+                aboutExerciseID = row.exerciseID
+            } label: {
                 Image(systemName: "info.circle")
                     .imageScale(.large)
                     .frame(minWidth: 44, minHeight: 44)
@@ -164,11 +168,6 @@ struct TemplatePreview: View {
             }
         }
     }
-}
-
-/// Pushes an exercise's detail from a preview row's `info.circle`.
-struct ExerciseAboutRoute: Hashable {
-    let id: UUID
 }
 
 /// The compact-width presentation: a medium-detent sheet with its own stack and a Close item.

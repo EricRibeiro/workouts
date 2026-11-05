@@ -40,6 +40,7 @@ private struct Editor: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     @State private var draft: PastWorkoutDraft
     /// The draft as it was when the editor opened; dirty means different from this.
@@ -120,17 +121,29 @@ private struct Editor: View {
 
     // MARK: Start and duration
 
-    /// Start time and duration under the bar; stacks when the text is large.
+    /// Start time and duration under the bar; stacks when the text is large. At accessibility sizes nothing keeps its
+    /// ideal width (a fixed-size row wider than the screen is centred by its parent and clipped on both edges): the
+    /// controls take the proposed width and the duration label sits above its field.
+    @ViewBuilder
     private var details: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: 24) {
-                startPicker
-                Spacer(minLength: 0)
-                durationControl
-            }
-            VStack(alignment: .leading, spacing: 8) {
-                startPicker
-                durationControl
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 8) {
+                    startPicker
+                    durationControl
+                }
+            } else {
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 24) {
+                        startPicker
+                        Spacer(minLength: 0)
+                        durationControl
+                    }
+                    VStack(alignment: .leading, spacing: 8) {
+                        startPicker
+                        durationControl
+                    }
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -138,31 +151,44 @@ private struct Editor: View {
         .padding(.vertical, 8)
     }
 
+    @ViewBuilder
     private var startPicker: some View {
-        DatePicker(
+        let picker = DatePicker(
             "Start",
             selection: $draft.startedAt,
             in: ...Date.now,
             displayedComponents: [.date, .hourAndMinute]
         )
-        .fixedSize()
-        .accessibilityIdentifier("pastEditor.start")
+        if dynamicTypeSize.isAccessibilitySize {
+            // The label would share a row with the date pill and be squeezed to "S…": stack it above instead.
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Start").accessibilityHidden(true)
+                picker.labelsHidden().accessibilityIdentifier("pastEditor.start")
+            }
+        } else {
+            picker.fixedSize().accessibilityIdentifier("pastEditor.start")
+        }
     }
 
     /// Minutes as a number field with a stepper beside it: typing handles the long jumps, the stepper the small ones.
+    /// At accessibility sizes the label stacks above the field, which grows to fill the row.
     private var durationControl: some View {
         let minutes = Binding(
             get: { draft.durationMinutes },
             set: { draft.setDurationMinutes($0) }
         )
-        return HStack(spacing: 8) {
-            Text("Duration")
+        let isLarge = dynamicTypeSize.isAccessibilitySize
+        let layout =
+            isLarge
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+            : AnyLayout(HStackLayout(spacing: 8))
+        let field = HStack(spacing: 8) {
             TextField("Minutes", value: minutes, format: .number)
                 .keyboardType(.numberPad)
                 .multilineTextAlignment(.trailing)
                 .monospacedDigit()
                 .textFieldStyle(.roundedBorder)
-                .frame(width: 72)
+                .frame(minWidth: 72, maxWidth: isLarge ? .infinity : 72)
                 .focused($isDurationFocused)
                 .toolbar {
                     // The number pad has no Return; shown only while this field has focus so the set keyboard's
@@ -182,11 +208,15 @@ private struct Editor: View {
                 .foregroundStyle(.secondary)
             Stepper("Duration", value: minutes, in: 0...PastWorkoutDraft.maxDurationMinutes)
                 .labelsHidden()
+                .fixedSize()
                 .accessibilityLabel("Duration")
                 .accessibilityValue("\(draft.durationMinutes) minutes")
                 .accessibilityIdentifier("pastEditor.duration.stepper")
         }
-        .fixedSize()
+        return layout {
+            Text("Duration")
+            if isLarge { field } else { field.fixedSize() }
+        }
     }
 
     // MARK: Table

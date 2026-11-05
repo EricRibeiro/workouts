@@ -53,6 +53,25 @@ final class TemplatePreviewUITests: XCTestCase {
     }
 
     @MainActor
+    func testAboutButtonOpensTheExerciseDetail() throws {
+        let app = launch("-seedSampleData")
+        let any = app.descendants(matching: .any)
+        let card = firstCard(app)
+        XCTAssertTrue(card.waitForExistence(timeout: 10))
+        card.tap()
+        XCTAssertTrue(any["template.preview"].waitForExistence(timeout: 5))
+
+        let about = app.buttons["template.exercise.about"].firstMatch
+        XCTAssertTrue(about.waitForExistence(timeout: 5))
+        about.tap()
+
+        XCTAssertTrue(
+            any["exerciseDetail.name"].waitForExistence(timeout: 5),
+            "the info button should push the exercise's detail"
+        )
+    }
+
+    @MainActor
     func testEmptyWorkoutWhileOneRunsAsksAndResumes() throws {
         let app = launch("-startSampleWorkout")
         let any = app.descendants(matching: .any)

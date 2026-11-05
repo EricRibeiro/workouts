@@ -192,3 +192,10 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
     custom exercise form is a navigation-link picker at every size (a menu value is one line and truncated at AX sizes);
     the filter pills are one shared `FilterPillRow` that stacks at AX sizes; the gallery's exercise detail is pushed like the
     real app (a root detail with no bar items gets no strip, so the clock vanished there only).
+61. **Template preview's info button uses an item destination** (Eric: did nothing on the open Duo): at regular width the
+    preview is itself pushed by `navigationDestination(item:)`, and a value `NavigationLink` inside it never activates
+    (hoisting the value destination to the stack root did not help either). The button now sets `@State` consumed by
+    `.navigationDestination(item:)` in the preview, which works closed, open wide and open tall; `ExerciseAboutRoute` is gone.
+    A UI test taps it (compact only; XCUITest cannot fold).
+61b. **Past-workout editor at AX sizes**: Start and Duration stack label above control and drop their `.fixedSize()`, which
+    had kept them wider than the screen so the whole editor was centred and clipped on both edges.

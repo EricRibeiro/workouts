@@ -40,27 +40,32 @@ struct SetTable: View {
     var body: some View {
         let sections = source.sections
         let numbers = supersetNumbers(for: sections)
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 24) {
-                ForEach(sections) { section in
-                    block(section, supersetNumber: numbers[section.id])
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 24) {
+                    ForEach(sections) { section in
+                        block(section, supersetNumber: numbers[section.id])
+                    }
+                    .reorderable()
                 }
-                .reorderable()
+                .reorderContainer(for: SetTableSection.self) { difference in
+                    reorder(sections, difference)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 16)
+                .frame(maxWidth: readableWidth)
+                .frame(maxWidth: .infinity)
             }
-            .reorderContainer(for: SetTableSection.self) { difference in
-                reorder(sections, difference)
+            .scrollDismissesKeyboard(.interactively)
+            .onChange(of: focus) { _, field in
+                guard let field,
+                    let section = sections.first(where: { $0.rows.contains { $0.id == field.setID } })
+                else { return }
+                focusedSection.wrappedValue = section.id
+                // Keyboard avoidance lifts the content above the keyboard but not above the floating keyboard toolbar
+                // pill, which would hide the focused row; centring it keeps it clear of both.
+                withAnimation(.snappy) { proxy.scrollTo(field.setID, anchor: .center) }
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 16)
-            .frame(maxWidth: readableWidth)
-            .frame(maxWidth: .infinity)
-        }
-        .scrollDismissesKeyboard(.interactively)
-        .onChange(of: focus) { _, field in
-            guard let field,
-                let section = sections.first(where: { $0.rows.contains { $0.id == field.setID } })
-            else { return }
-            focusedSection.wrappedValue = section.id
         }
         .swipeActionsContainer()
         .animation(.snappy, value: sections.flatMap { $0.rows.map(\.id) })
@@ -93,6 +98,7 @@ struct SetTable: View {
                     onCommitReps: { source.commitReps($0, for: row.id) },
                     onToggleCheck: { source.toggleCheck(of: row.id) }
                 )
+                .id(row.id)
                 .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                     Button(role: .destructive) {
                         source.deleteSet(row.id)
