@@ -9,11 +9,8 @@ final class HistoryCalendarUITests: XCTestCase {
 
     @MainActor
     private func launchAndOpenCalendar() -> XCUIApplication {
-        let app = XCUIApplication()
-        app.launchArguments += ["-uiTesting", "-preview", "History"]
-        app.launch()
+        let app = XCUIApplication.launchedPreview("History", waitingFor: "screen.history")
         let any = app.descendants(matching: .any)
-        XCTAssertTrue(any["screen.history"].waitForExistence(timeout: 10))
         let open = app.buttons["history.calendar"]
         XCTAssertTrue(open.waitForExistence(timeout: 5), "no Calendar toolbar item")
         open.tap()

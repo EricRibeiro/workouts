@@ -10,14 +10,8 @@ final class TemplatePreviewUITests: XCTestCase {
 
     @MainActor
     private func launch(_ extra: String) -> XCUIApplication {
-        let app = XCUIApplication()
-        app.launchArguments += ["-uiTesting", extra]
-        app.launch()
+        let app = XCUIApplication.launchedForTesting([extra])
         return app
-    }
-
-    private func firstCard(_ app: XCUIApplication) -> XCUIElement {
-        app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'workout.template.'")).firstMatch
     }
 
     /// A dialog button by identifier, or by label (an action sheet's buttons lose their identifier).
@@ -31,7 +25,7 @@ final class TemplatePreviewUITests: XCTestCase {
     func testCardOpensPreviewAndStartOpensTheLoggingScreen() throws {
         let app = launch("-seedSampleData")
         let any = app.descendants(matching: .any)
-        let card = firstCard(app)
+        let card = app.firstTemplateCard
         XCTAssertTrue(card.waitForExistence(timeout: 10))
         let name = card.label.components(separatedBy: ", ").first ?? ""
         card.tap()
@@ -56,7 +50,7 @@ final class TemplatePreviewUITests: XCTestCase {
     func testAboutButtonOpensTheExerciseDetail() throws {
         let app = launch("-seedSampleData")
         let any = app.descendants(matching: .any)
-        let card = firstCard(app)
+        let card = app.firstTemplateCard
         XCTAssertTrue(card.waitForExistence(timeout: 10))
         card.tap()
         XCTAssertTrue(any["template.preview"].waitForExistence(timeout: 5))
@@ -105,7 +99,7 @@ final class TemplatePreviewUITests: XCTestCase {
     func testStartFromPreviewWhileOneRunsCanDiscardAndStartNew() throws {
         let app = launch("-startSampleWorkout")
         let any = app.descendants(matching: .any)
-        let card = firstCard(app)
+        let card = app.firstTemplateCard
         XCTAssertTrue(card.waitForExistence(timeout: 15))
         card.tap()
         let start = app.buttons["template.start"].firstMatch
@@ -122,11 +116,8 @@ final class TemplatePreviewUITests: XCTestCase {
 
     @MainActor
     func testFinishingADifferingTemplateWorkoutAsksToUpdateTheTemplate() throws {
-        let app = XCUIApplication()
-        app.launchArguments += ["-uiTesting", "-startSampleWorkout", "-openWorkoutCover"]
-        app.launch()
+        let app = XCUIApplication.launchedInActiveWorkout()
         let any = app.descendants(matching: .any)
-        XCTAssertTrue(any["screen.activeWorkout"].waitForExistence(timeout: 15))
 
         // Check one set; the rest are dropped on Finish, so the workout no longer matches its template's sets.
         let check = app.switches.matching(

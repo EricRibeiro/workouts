@@ -9,17 +9,8 @@ final class LoggingBlockMenuUITests: XCTestCase {
 
     @MainActor
     private func launchCover() -> XCUIApplication {
-        let app = XCUIApplication()
-        app.launchArguments += ["-uiTesting", "-startSampleWorkout", "-openWorkoutCover"]
-        app.launch()
-        XCTAssertTrue(app.descendants(matching: .any)["screen.activeWorkout"].waitForExistence(timeout: 15))
+        let app = XCUIApplication.launchedInActiveWorkout()
         return app
-    }
-
-    private func waitUntilGone(_ element: XCUIElement, _ message: String) {
-        let gone = NSPredicate(format: "exists == false")
-        let closed = XCTNSPredicateExpectation(predicate: gone, object: element)
-        XCTAssertEqual(XCTWaiter().wait(for: [closed], timeout: 10), .completed, message)
     }
 
     /// The first block's options menu button and its section id.
@@ -52,7 +43,7 @@ final class LoggingBlockMenuUITests: XCTestCase {
         XCTAssertTrue(confirm.waitForExistence(timeout: 5), "no confirmation before removing")
         XCTAssertTrue(block.exists, "the block went before the answer")
         confirm.tap()
-        waitUntilGone(block, "the block's header is still there after confirming")
+        XCTAssertTrue(block.waitUntilGone(), "the block's header is still there after confirming")
     }
 
     @MainActor
@@ -74,7 +65,7 @@ final class LoggingBlockMenuUITests: XCTestCase {
         let save = app.buttons["superset.save"]
         XCTAssertTrue(save.isEnabled, "ticking a second block did not enable Create Superset")
         save.tap()
-        waitUntilGone(any["superset.sheet"], "Create Superset did not close the sheet")
+        XCTAssertTrue(any["superset.sheet"].waitUntilGone(), "Create Superset did not close the sheet")
         XCTAssertTrue(
             any["settable.superset.\(section)"].waitForExistence(timeout: 5),
             "first header has no superset marker"
@@ -122,14 +113,14 @@ final class LoggingBlockMenuUITests: XCTestCase {
             "tapping a segment did not expand the sheet to full height (Close at \(close.frame.minY), was \(mediumTop), window \(windowHeight))"
         )
         close.tap()
-        waitUntilGone(any["screen.exerciseDetail"], "Close did not close the exercise sheet")
+        XCTAssertTrue(any["screen.exerciseDetail"].waitUntilGone(), "Close did not close the exercise sheet")
 
         // The block menu's Exercise Info entry opens the same sheet.
         let (menu, _) = firstMenu(app)
         openMenuEntry(app, menu: menu, entry: "settable.menu.info")
         XCTAssertTrue(any["screen.exerciseDetail"].waitForExistence(timeout: 10), "Exercise Info opened no detail")
         app.buttons["exerciseInfo.close"].tap()
-        waitUntilGone(any["screen.exerciseDetail"], "Close did not close the exercise sheet")
+        XCTAssertTrue(any["screen.exerciseDetail"].waitUntilGone(), "Close did not close the exercise sheet")
     }
 
     /// A long library name stays on one line in the logging header: its button is about as tall as a short name's.

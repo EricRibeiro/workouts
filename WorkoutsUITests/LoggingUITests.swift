@@ -9,9 +9,7 @@ final class LoggingUITests: XCTestCase {
 
     @MainActor
     func testEmptyWorkoutAddExercisePreviousAndCheck() throws {
-        let app = XCUIApplication()
-        app.launchArguments += ["-uiTesting"]
-        app.launch()
+        let app = XCUIApplication.launchedForTesting()
         let any = app.descendants(matching: .any)
 
         // Sample data gives the exercises a Previous.
@@ -103,11 +101,8 @@ final class LoggingUITests: XCTestCase {
     /// on the closed display (`.visibilityPriority(.high)`); Skip and +30 s may fold into the overflow menu.
     @MainActor
     func testKeyboardKeepsCountdownWhenCompact() throws {
-        let app = XCUIApplication()
-        app.launchArguments += ["-uiTesting", "-startSampleWorkout", "-openWorkoutCover"]
-        app.launch()
+        let app = XCUIApplication.launchedInActiveWorkout()
         let any = app.descendants(matching: .any)
-        XCTAssertTrue(any["screen.activeWorkout"].waitForExistence(timeout: 15))
         // The launch argument starts a 300 s rest.
         XCTAssertTrue(app.buttons["rest.ring"].firstMatch.waitForExistence(timeout: 10), "no rest running")
 

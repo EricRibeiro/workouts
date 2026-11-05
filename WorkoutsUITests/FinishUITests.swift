@@ -9,11 +9,8 @@ final class FinishUITests: XCTestCase {
 
     @MainActor
     func testFinishNothingLoggedThenCompleteUnfinished() throws {
-        let app = XCUIApplication()
-        app.launchArguments += ["-uiTesting", "-startSampleWorkout", "-openWorkoutCover"]
-        app.launch()
+        let app = XCUIApplication.launchedInActiveWorkout()
         let any = app.descendants(matching: .any)
-        XCTAssertTrue(any["screen.activeWorkout"].waitForExistence(timeout: 15))
 
         let finish = app.anyControl("cover.finish")
         let keepGoing = app.buttons.matching(NSPredicate(format: "label == 'Keep Going'")).firstMatch

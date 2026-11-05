@@ -9,9 +9,7 @@ final class FitnessFixtureUITests: XCTestCase {
 
     @MainActor
     private func launch(fixture: String) -> XCUIApplication {
-        let app = XCUIApplication()
-        app.launchArguments += ["-uiTesting", "-preview", "WorkoutDetail", "-healthFixture", fixture]
-        app.launch()
+        let app = XCUIApplication.launchedPreview("WorkoutDetail", extraArguments: ["-healthFixture", fixture])
         return app
     }
 

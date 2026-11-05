@@ -8,22 +8,16 @@ final class TemplateGridUITests: XCTestCase {
 
     @MainActor
     private func launch() -> XCUIApplication {
-        let app = XCUIApplication()
-        app.launchArguments += ["-uiTesting", "-preview", "Workout"]
-        app.launch()
+        let app = XCUIApplication.launchedPreview("Workout")
         return app
-    }
-
-    private func cards(_ app: XCUIApplication) -> XCUIElementQuery {
-        app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'workout.template.'"))
     }
 
     @MainActor
     func testCardsShowAndOpenThePreview() throws {
         let app = launch()
-        let first = cards(app).firstMatch
+        let first = app.templateCards.firstMatch
         XCTAssertTrue(first.waitForExistence(timeout: 10))
-        XCTAssertEqual(cards(app).count, 3, "the sample has three templates")
+        XCTAssertEqual(app.templateCards.count, 3, "the sample has three templates")
         XCTAssertTrue(first.label.contains("exercise"), "label should carry the exercise count: \(first.label)")
         let name = first.label.components(separatedBy: ", ").first ?? ""
         XCTAssertFalse(name.isEmpty)

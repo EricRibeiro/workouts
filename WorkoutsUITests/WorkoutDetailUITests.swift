@@ -16,11 +16,8 @@ final class WorkoutDetailUITests: XCTestCase {
     /// Launches History and opens the first row (scrolling past the dashboard cards; the list is lazy).
     @MainActor
     private func openFirstWorkout() -> (XCUIApplication, rowID: String) {
-        let app = XCUIApplication()
-        app.launchArguments += ["-uiTesting", "-preview", "History"]
-        app.launch()
+        let app = XCUIApplication.launchedPreview("History", waitingFor: "screen.history")
         let any = app.descendants(matching: .any)
-        XCTAssertTrue(any["screen.history"].waitForExistence(timeout: 10))
 
         let first = rows(app).element(boundBy: 0)
         for _ in 0..<8 {
@@ -72,9 +69,10 @@ final class WorkoutDetailUITests: XCTestCase {
         none.tap()
         app.buttons["workoutDetail.saveTemplate.confirm"].tap()
 
-        let gone = NSPredicate(format: "exists == false")
-        let closed = XCTNSPredicateExpectation(predicate: gone, object: any["workoutDetail.saveTemplate.sheet"])
-        XCTAssertEqual(XCTWaiter().wait(for: [closed], timeout: 5), .completed, "the template sheet did not close")
+        XCTAssertTrue(
+            any["workoutDetail.saveTemplate.sheet"].waitUntilGone(timeout: 5),
+            "the template sheet did not close"
+        )
         XCTAssertTrue(any["history.detail"].exists, "saving a template left the detail")
     }
 
@@ -88,14 +86,11 @@ final class WorkoutDetailUITests: XCTestCase {
         XCTAssertTrue(any["history.detail"].exists, "the detail left before the confirmation")
         confirm.tap()
 
-        let gone = NSPredicate(format: "exists == false")
-        let popped = XCTNSPredicateExpectation(predicate: gone, object: any["history.detail"])
-        XCTAssertEqual(XCTWaiter().wait(for: [popped], timeout: 8), .completed, "Delete did not pop the detail")
+        XCTAssertTrue(any["history.detail"].waitUntilGone(timeout: 8), "Delete did not pop the detail")
         XCTAssertTrue(any["screen.history"].waitForExistence(timeout: 5))
-        let removed = XCTNSPredicateExpectation(
-            predicate: gone,
-            object: any.matching(identifier: rowID).firstMatch
+        XCTAssertTrue(
+            any.matching(identifier: rowID).firstMatch.waitUntilGone(timeout: 5),
+            "the deleted row is still listed"
         )
-        XCTAssertEqual(XCTWaiter().wait(for: [removed], timeout: 5), .completed, "the deleted row is still listed")
     }
 }

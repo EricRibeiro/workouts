@@ -32,10 +32,11 @@ final class NaturalSearchUITests: XCTestCase {
 
     @MainActor
     private func launch() -> XCUIApplication {
-        let app = XCUIApplication()
-        app.launchArguments += ["-uiTesting", "-stubQueryParser", "-preview", "Exercises"]
-        app.launch()
-        XCTAssertTrue(app.descendants(matching: .any)["screen.exercises"].waitForExistence(timeout: 10))
+        let app = XCUIApplication.launchedPreview(
+            "Exercises",
+            extraArguments: ["-stubQueryParser"],
+            waitingFor: "screen.exercises"
+        )
         XCTAssertTrue(rows(app).element(boundBy: 0).waitForExistence(timeout: 10), "no exercise rows")
         return app
     }

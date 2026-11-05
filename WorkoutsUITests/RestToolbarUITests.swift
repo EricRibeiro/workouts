@@ -22,11 +22,8 @@ final class RestToolbarUITests: XCTestCase {
 
     @MainActor
     func testSkipPlus30CheckAndMinimise() throws {
-        let app = XCUIApplication()
-        app.launchArguments += ["-uiTesting", "-startSampleWorkout", "-openWorkoutCover"]
-        app.launch()
+        let app = XCUIApplication.launchedInActiveWorkout()
         let any = app.descendants(matching: .any)
-        XCTAssertTrue(any["screen.activeWorkout"].waitForExistence(timeout: 15))
 
         let ring = app.buttons["rest.ring"].firstMatch
         let skip = app.buttons["rest.toolbar.skip"].firstMatch

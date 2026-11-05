@@ -26,9 +26,7 @@ final class HistoryListUITests: XCTestCase {
 
     @MainActor
     private func launch() -> XCUIApplication {
-        let app = XCUIApplication()
-        app.launchArguments += ["-uiTesting", "-preview", "History"]
-        app.launch()
+        let app = XCUIApplication.launchedPreview("History")
         return app
     }
 
@@ -140,12 +138,10 @@ final class HistoryListUITests: XCTestCase {
         )
         confirm.tap()
 
-        let gone = NSPredicate(format: "exists == false")
-        let removed = XCTNSPredicateExpectation(
-            predicate: gone,
-            object: app.descendants(matching: .any).matching(identifier: id).firstMatch
+        XCTAssertTrue(
+            app.descendants(matching: .any).matching(identifier: id).firstMatch.waitUntilGone(timeout: 5),
+            "row \(label) is still there"
         )
-        XCTAssertEqual(XCTWaiter().wait(for: [removed], timeout: 5), .completed, "row \(label) is still there")
     }
 
     @MainActor

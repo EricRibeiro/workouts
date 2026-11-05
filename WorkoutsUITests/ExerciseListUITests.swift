@@ -14,12 +14,9 @@ final class ExerciseListUITests: XCTestCase {
 
     @MainActor
     func testListSearchAndOpen() throws {
-        let app = XCUIApplication()
-        app.launchArguments += ["-uiTesting", "-preview", "Exercises"]
-        app.launch()
+        let app = XCUIApplication.launchedPreview("Exercises", waitingFor: "screen.exercises")
 
         let any = app.descendants(matching: .any)
-        XCTAssertTrue(any["screen.exercises"].waitForExistence(timeout: 10))
 
         let rows = rows(app)
         XCTAssertTrue(rows.element(boundBy: 0).waitForExistence(timeout: 10), "no exercise rows")
@@ -64,9 +61,7 @@ final class ExerciseListUITests: XCTestCase {
 
     @MainActor
     func testBodyPartFilterAndShowRetired() throws {
-        let app = XCUIApplication()
-        app.launchArguments += ["-uiTesting", "-preview", "Exercises"]
-        app.launch()
+        let app = XCUIApplication.launchedPreview("Exercises")
 
         let rows = rows(app)
         XCTAssertTrue(rows.element(boundBy: 0).waitForExistence(timeout: 10), "no exercise rows")
@@ -124,9 +119,7 @@ final class ExerciseListUITests: XCTestCase {
     /// R4-02: the best-set column follows the display unit chosen in Settings (the default unit is lb).
     @MainActor
     func testBestSetFollowsUnitChange() throws {
-        let app = XCUIApplication()
-        app.launchArguments += ["-uiTesting"]
-        app.launch()
+        let app = XCUIApplication.launchedForTesting()
         let any = app.descendants(matching: .any)
 
         // Sample data gives the exercises a best set.

@@ -10,11 +10,8 @@ final class PastEditorUITests: XCTestCase {
     /// Launches History, opens the first row and returns the app and its first exercise block.
     @MainActor
     private func openFirstWorkout() -> XCUIApplication {
-        let app = XCUIApplication()
-        app.launchArguments += ["-uiTesting", "-preview", "History"]
-        app.launch()
+        let app = XCUIApplication.launchedPreview("History", waitingFor: "screen.history")
         let any = app.descendants(matching: .any)
-        XCTAssertTrue(any["screen.history"].waitForExistence(timeout: 10))
         let rows = any.matching(NSPredicate(format: "identifier BEGINSWITH 'history.row.'"))
         let first = rows.element(boundBy: 0)
         for _ in 0..<8 {
@@ -75,9 +72,7 @@ final class PastEditorUITests: XCTestCase {
 
         app.buttons["pastEditor.save"].tap()
         XCTAssertTrue(any["history.detail"].waitForExistence(timeout: 5), "Save did not return to the detail")
-        let gone = NSPredicate(format: "exists == false")
-        let closed = XCTNSPredicateExpectation(predicate: gone, object: any["screen.pastEditor"])
-        XCTAssertEqual(XCTWaiter().wait(for: [closed], timeout: 5), .completed, "the editor is still up")
+        XCTAssertTrue(any["screen.pastEditor"].waitUntilGone(timeout: 5), "the editor is still up")
 
         let after = firstBlockLabel(app)
         // The detail shows the display unit (kg 72.5 reads as lb), so the proof is that it changed and that reopening the
@@ -107,9 +102,7 @@ final class PastEditorUITests: XCTestCase {
         discard.tap()
 
         XCTAssertTrue(any["history.detail"].waitForExistence(timeout: 5), "Discard did not return to the detail")
-        let gone = NSPredicate(format: "exists == false")
-        let closed = XCTNSPredicateExpectation(predicate: gone, object: any["screen.pastEditor"])
-        XCTAssertEqual(XCTWaiter().wait(for: [closed], timeout: 5), .completed, "the editor is still up")
+        XCTAssertTrue(any["screen.pastEditor"].waitUntilGone(timeout: 5), "the editor is still up")
         XCTAssertEqual(firstBlockLabel(app), before, "a discarded edit changed the workout")
     }
 

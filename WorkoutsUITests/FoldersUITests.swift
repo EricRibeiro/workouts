@@ -9,9 +9,7 @@ final class FoldersUITests: XCTestCase {
 
     @MainActor
     private func launch() -> XCUIApplication {
-        let app = XCUIApplication()
-        app.launchArguments += ["-uiTesting", "-preview", "Workout"]
-        app.launch()
+        let app = XCUIApplication.launchedPreview("Workout")
         return app
     }
 
@@ -114,7 +112,7 @@ final class FoldersUITests: XCTestCase {
         XCTAssertTrue(confirm.waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["workout.folder.delete.move"].exists)
         confirm.tap()
-        XCTAssertTrue(waitForGone(toggle(app, named: "Stretching")), "folder was not deleted")
+        XCTAssertTrue(toggle(app, named: "Stretching").waitUntilGone(timeout: 5), "folder was not deleted")
         expectCount(toggles(app), 2)
         expectCount(templateRows(app), 3)
     }
@@ -132,7 +130,7 @@ final class FoldersUITests: XCTestCase {
         XCTAssertTrue(app.buttons["workout.folder.delete.confirm"].exists)
         move.tap()
 
-        XCTAssertTrue(waitForGone(toggle(app, named: "Upper Body")))
+        XCTAssertTrue(toggle(app, named: "Upper Body").waitUntilGone(timeout: 5))
         expectCount(templateRows(app), 3, "templates should survive unfiled")
         XCTAssertTrue(app.descendants(matching: .any)["workout.unfiled"].waitForExistence(timeout: 5))
         expectCount(toggles(app), 1)
@@ -147,7 +145,7 @@ final class FoldersUITests: XCTestCase {
         let confirm = app.buttons["workout.folder.delete.confirm"].firstMatch
         XCTAssertTrue(confirm.waitForExistence(timeout: 5))
         confirm.tap()
-        XCTAssertTrue(waitForGone(toggle(app, named: "Upper Body")))
+        XCTAssertTrue(toggle(app, named: "Upper Body").waitUntilGone(timeout: 5))
         expectCount(templateRows(app), 1)
     }
 
@@ -163,11 +161,5 @@ final class FoldersUITests: XCTestCase {
         let deadline = Date().addingTimeInterval(5)
         while query.count != count && Date() < deadline { RunLoop.current.run(until: Date().addingTimeInterval(0.2)) }
         XCTAssertEqual(query.count, count, message, file: file, line: line)
-    }
-
-    @MainActor
-    private func waitForGone(_ element: XCUIElement, timeout: TimeInterval = 5) -> Bool {
-        let gone = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: element)
-        return XCTWaiter().wait(for: [gone], timeout: timeout) == .completed
     }
 }

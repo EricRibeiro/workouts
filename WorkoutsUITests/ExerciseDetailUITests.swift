@@ -8,9 +8,7 @@ final class ExerciseDetailUITests: XCTestCase {
 
     @MainActor
     func testOpenSwitchToRecords() throws {
-        let app = XCUIApplication()
-        app.launchArguments += ["-uiTesting", "-preview", "Exercises"]
-        app.launch()
+        let app = XCUIApplication.launchedPreview("Exercises")
 
         let any = app.descendants(matching: .any)
         try openBenchPress(app)
@@ -96,9 +94,7 @@ final class ExerciseDetailUITests: XCTestCase {
     /// (`-preview Root`), because the link is `AppNavigation.openWorkout`.
     @MainActor
     func testSessionOpensWorkout() throws {
-        let app = XCUIApplication()
-        app.launchArguments += ["-uiTesting", "-preview", "Root"]
-        app.launch()
+        let app = XCUIApplication.launchedPreview("Root")
 
         let any = app.descendants(matching: .any)
         let tab = any["tab.exercises"].firstMatch

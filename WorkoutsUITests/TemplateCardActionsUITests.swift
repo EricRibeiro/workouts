@@ -9,14 +9,8 @@ final class TemplateCardActionsUITests: XCTestCase {
 
     @MainActor
     private func launch() -> XCUIApplication {
-        let app = XCUIApplication()
-        app.launchArguments += ["-uiTesting", "-seedSampleData"]
-        app.launch()
+        let app = XCUIApplication.launchedForTesting(["-seedSampleData"])
         return app
-    }
-
-    private func firstCard(_ app: XCUIApplication) -> XCUIElement {
-        app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'workout.template.'")).firstMatch
     }
 
     private func cards(_ app: XCUIApplication, named name: String) -> XCUIElementQuery {
@@ -32,7 +26,7 @@ final class TemplateCardActionsUITests: XCTestCase {
     @MainActor
     func testDuplicateAddsACopyNextToTheOriginal() throws {
         let app = launch()
-        let card = firstCard(app)
+        let card = app.firstTemplateCard
         XCTAssertTrue(card.waitForExistence(timeout: 10))
         let original = name(of: card)
         XCTAssertFalse(original.isEmpty)
@@ -53,7 +47,7 @@ final class TemplateCardActionsUITests: XCTestCase {
     @MainActor
     func testDeleteAsksThenRemovesTheCard() throws {
         let app = launch()
-        let card = firstCard(app)
+        let card = app.firstTemplateCard
         XCTAssertTrue(card.waitForExistence(timeout: 10))
         let doomed = name(of: card)
         let before = cards(app, named: doomed).count

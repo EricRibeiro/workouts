@@ -13,18 +13,8 @@ final class HealthEnrichmentUITests: XCTestCase {
     /// Launches with a running (minimised) sample workout and the full Health fixture.
     @MainActor
     private func launchWithRunningWorkout() -> XCUIApplication {
-        let app = XCUIApplication()
-        app.launchArguments += ["-uiTesting", "-healthFixture", "full", "-startSampleWorkout"]
-        app.launch()
+        let app = XCUIApplication.launchedForTesting(["-healthFixture", "full", "-startSampleWorkout"])
         return app
-    }
-
-    /// The closed Duo's trailing strip drops the tab identifiers; the buttons keep their labels.
-    @MainActor
-    private func selectTab(_ app: XCUIApplication, _ id: String, label: String) {
-        let tab = app.buttons.matching(NSPredicate(format: "identifier == %@ OR label == %@", id, label)).firstMatch
-        XCTAssertTrue(tab.waitForExistence(timeout: 10), "\(id) missing")
-        tab.tap()
     }
 
     /// The Settings sheet from the Workout tab's gear; `body` runs while it is up, then Done closes it.
@@ -124,7 +114,7 @@ final class HealthEnrichmentUITests: XCTestCase {
             XCTAssertEqual(fitnessToggle(app).value as? String, "0")
         }
         finishWorkout(app)
-        selectTab(app, "tab.history", label: "History")
+        app.selectTab("tab.history", label: "History")
         XCTAssertTrue(anyRow(app).exists, "the finished workout is missing from History")
         // Give a (wrongly) triggered lookup time to land before asserting its absence.
         sleep(3)
@@ -140,11 +130,11 @@ final class HealthEnrichmentUITests: XCTestCase {
             expectValue(toggle, "1")
         }
         finishWorkout(app)
-        selectTab(app, "tab.history", label: "History")
+        app.selectTab("tab.history", label: "History")
         XCTAssertTrue(fitnessRow(app).exists, "the finished workout never got its Fitness data")
 
         // Off, then Cancel: stays on and keeps the data.
-        selectTab(app, "tab.workout", label: "Workout")
+        app.selectTab("tab.workout", label: "Workout")
         inSettings(app) {
             let toggle = fitnessToggle(app)
             flip(toggle)
@@ -163,7 +153,7 @@ final class HealthEnrichmentUITests: XCTestCase {
             XCTAssertTrue(app.alerts["Turn Off Apple Fitness?"].waitForNonExistence(timeout: 5))
             expectValue(toggle, "0")
         }
-        selectTab(app, "tab.history", label: "History")
+        app.selectTab("tab.history", label: "History")
         XCTAssertTrue(anyRow(app).exists)
         XCTAssertFalse(fitnessRow(app, timeout: 3).exists, "Remove Fitness Data left the data in place")
     }
@@ -173,10 +163,10 @@ final class HealthEnrichmentUITests: XCTestCase {
         let app = launchWithRunningWorkout()
         inSettings(app) { flip(fitnessToggle(app)) }
         finishWorkout(app)
-        selectTab(app, "tab.history", label: "History")
+        app.selectTab("tab.history", label: "History")
         XCTAssertTrue(fitnessRow(app).exists)
 
-        selectTab(app, "tab.workout", label: "Workout")
+        app.selectTab("tab.workout", label: "Workout")
         inSettings(app) {
             let toggle = fitnessToggle(app)
             flip(toggle)
@@ -184,7 +174,7 @@ final class HealthEnrichmentUITests: XCTestCase {
             app.alerts.buttons["settings.health.keep"].firstMatch.tap()
             expectValue(toggle, "0")
         }
-        selectTab(app, "tab.history", label: "History")
+        app.selectTab("tab.history", label: "History")
         XCTAssertTrue(fitnessRow(app).exists, "Keep Fitness Data dropped the data")
     }
 
@@ -192,11 +182,9 @@ final class HealthEnrichmentUITests: XCTestCase {
     /// the toggle goes on, through the one-time backfill. The row's label then says "N active calories".
     @MainActor
     func testTurningOnBackfillsAnOldWorkout() throws {
-        let app = XCUIApplication()
-        app.launchArguments += ["-uiTesting", "-healthFixture", "full", "-seedOldWorkout"]
-        app.launch()
+        let app = XCUIApplication.launchedForTesting(["-healthFixture", "full", "-seedOldWorkout"])
 
-        selectTab(app, "tab.history", label: "History")
+        app.selectTab("tab.history", label: "History")
         let oldRow = "identifier BEGINSWITH 'history.row.' AND label BEGINSWITH 'Old Backfill Workout'"
         XCTAssertTrue(historyRow(app, oldRow).exists, "the seeded old workout is missing from History")
         XCTAssertFalse(
@@ -204,13 +192,13 @@ final class HealthEnrichmentUITests: XCTestCase {
             "the old workout had Fitness data before the toggle went on"
         )
 
-        selectTab(app, "tab.workout", label: "Workout")
+        app.selectTab("tab.workout", label: "Workout")
         inSettings(app) {
             let toggle = fitnessToggle(app)
             flip(toggle)
             expectValue(toggle, "1")
         }
-        selectTab(app, "tab.history", label: "History")
+        app.selectTab("tab.history", label: "History")
         XCTAssertTrue(
             historyRow(app, oldRow + " AND label CONTAINS 'active calories'", timeout: 15).exists,
             "the backfill never gave the old workout its Fitness data"
@@ -219,10 +207,7 @@ final class HealthEnrichmentUITests: XCTestCase {
 
     @MainActor
     func testSettingsSectionOnlyWhereHealthIsAvailable() throws {
-        let without = XCUIApplication()
-        without.launchArguments += ["-uiTesting", "-preview", "Settings"]
-        without.launch()
-        XCTAssertTrue(without.descendants(matching: .any)["screen.settings"].waitForExistence(timeout: 10))
+        let without = XCUIApplication.launchedPreview("Settings", waitingFor: "screen.settings")
         XCTAssertTrue(without.anyControl("settings.weeklyGoal").waitForExistence(timeout: 5))
         for _ in 0..<3 { without.swipeUp() }
         XCTAssertFalse(without.anyControl("settings.health.enabled").exists)

@@ -8,19 +8,8 @@ final class ResumeControlUITests: XCTestCase {
 
     @MainActor
     func testRingOnEveryTabRestoresTheCover() throws {
-        let app = XCUIApplication()
-        app.launchArguments += ["-uiTesting", "-startSampleWorkout", "-openWorkoutCover"]
-        app.launch()
+        let app = XCUIApplication.launchedInActiveWorkout()
         let any = app.descendants(matching: .any)
-        XCTAssertTrue(any["screen.activeWorkout"].waitForExistence(timeout: 15))
-        // The closed Duo's trailing strip drops the tab identifiers; the buttons keep their labels.
-        func selectTab(_ id: String, label: String) {
-            let tab = app.buttons.matching(
-                NSPredicate(format: "identifier == %@ OR label == %@", id, label)
-            ).firstMatch
-            XCTAssertTrue(tab.waitForExistence(timeout: 10), "\(id) missing")
-            tab.tap()
-        }
         let ring = app.buttons["resume.ring"].firstMatch
         XCTAssertFalse(ring.exists, "the ring shows while the cover is open")
 
@@ -29,15 +18,15 @@ final class ResumeControlUITests: XCTestCase {
         XCTAssertTrue(ring.waitForExistence(timeout: 5), "no resume ring on the Workout tab")
         XCTAssertTrue(ring.label.hasPrefix("Resume workout, "), "label \(ring.label)")
 
-        selectTab("tab.history", label: "History")
+        app.selectTab("tab.history", label: "History")
         XCTAssertTrue(any["screen.history"].waitForExistence(timeout: 10))
         XCTAssertTrue(ring.waitForExistence(timeout: 5), "no resume ring on the History tab")
 
-        selectTab("tab.exercises", label: "Exercises")
+        app.selectTab("tab.exercises", label: "Exercises")
         XCTAssertTrue(any["screen.exercises"].waitForExistence(timeout: 10))
         XCTAssertTrue(ring.waitForExistence(timeout: 5), "no resume ring on the Exercises tab")
 
-        selectTab("tab.history", label: "History")
+        app.selectTab("tab.history", label: "History")
         XCTAssertTrue(ring.waitForExistence(timeout: 5))
         ring.tap()
         XCTAssertTrue(any["screen.activeWorkout"].waitForExistence(timeout: 10), "the ring did not restore the cover")

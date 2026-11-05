@@ -10,14 +10,8 @@ final class TemplateEditorUITests: XCTestCase {
 
     @MainActor
     private func launch() -> XCUIApplication {
-        let app = XCUIApplication()
-        app.launchArguments += ["-uiTesting", "-seedSampleData"]
-        app.launch()
+        let app = XCUIApplication.launchedForTesting(["-seedSampleData"])
         return app
-    }
-
-    private func firstCard(_ app: XCUIApplication) -> XCUIElement {
-        app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'workout.template.'")).firstMatch
     }
 
     /// The first exercise row's sentence in the open preview (`3 sets of Bench Press, 3 × 100 kg × 5`).
@@ -31,7 +25,7 @@ final class TemplateEditorUITests: XCTestCase {
     /// Opens the first card's preview and returns the title and the first row's plan.
     @MainActor
     private func openPreview(_ app: XCUIApplication) -> String {
-        let card = firstCard(app)
+        let card = app.firstTemplateCard
         XCTAssertTrue(card.waitForExistence(timeout: 10), "no template cards")
         card.tap()
         XCTAssertTrue(app.descendants(matching: .any)["template.preview"].waitForExistence(timeout: 5))
@@ -68,12 +62,6 @@ final class TemplateEditorUITests: XCTestCase {
         XCTAssertTrue(app.buttons["templateEditor.save"].waitForExistence(timeout: 5))
     }
 
-    private func waitUntilGone(_ element: XCUIElement, _ message: String) {
-        let gone = NSPredicate(format: "exists == false")
-        let closed = XCTNSPredicateExpectation(predicate: gone, object: element)
-        XCTAssertEqual(XCTWaiter().wait(for: [closed], timeout: 10), .completed, message)
-    }
-
     @MainActor
     func testEditingAWeightAndSavingShowsItInTheReopenedPreview() throws {
         let app = launch()
@@ -85,11 +73,11 @@ final class TemplateEditorUITests: XCTestCase {
         editFirstWeight(app)
 
         app.buttons["templateEditor.save"].tap()
-        waitUntilGone(any["screen.templateEditor"], "Save did not close the editor")
+        XCTAssertTrue(any["screen.templateEditor"].waitUntilGone(), "Save did not close the editor")
 
         // Compact: back on the grid (the sheet closed); regular: back on the pushed preview.
         if !any["template.preview"].waitForExistence(timeout: 3) {
-            let card = firstCard(app)
+            let card = app.firstTemplateCard
             XCTAssertTrue(card.waitForExistence(timeout: 5))
             card.tap()
             XCTAssertTrue(any["template.preview"].waitForExistence(timeout: 5))
@@ -110,10 +98,10 @@ final class TemplateEditorUITests: XCTestCase {
         XCTAssertTrue(discard.waitForExistence(timeout: 5), "no unsaved-changes dialog")
         XCTAssertTrue(any["screen.templateEditor"].exists, "the editor left before the answer")
         discard.tap()
-        waitUntilGone(any["screen.templateEditor"], "Discard did not close the editor")
+        XCTAssertTrue(any["screen.templateEditor"].waitUntilGone(), "Discard did not close the editor")
 
         if !any["template.preview"].waitForExistence(timeout: 3) {
-            let card = firstCard(app)
+            let card = app.firstTemplateCard
             XCTAssertTrue(card.waitForExistence(timeout: 5))
             card.tap()
             XCTAssertTrue(any["template.preview"].waitForExistence(timeout: 5))
@@ -128,7 +116,7 @@ final class TemplateEditorUITests: XCTestCase {
         _ = openPreview(app)
         openEditor(app)
         app.buttons["templateEditor.cancel"].tap()
-        waitUntilGone(any["screen.templateEditor"], "Cancel did not close the editor")
+        XCTAssertTrue(any["screen.templateEditor"].waitUntilGone(), "Cancel did not close the editor")
         XCTAssertFalse(app.buttons["Discard Changes"].exists)
     }
 
@@ -152,7 +140,7 @@ final class TemplateEditorUITests: XCTestCase {
         let add = any["picker.add"].firstMatch
         XCTAssertTrue(add.waitForExistence(timeout: 5))
         add.tap()
-        waitUntilGone(any["picker.add"].firstMatch, "the picker did not close")
+        XCTAssertTrue(any["picker.add"].firstMatch.waitUntilGone(), "the picker did not close")
 
         // The new block is last; the table is lazy, so scroll to it.
         let block = any.matching(
@@ -187,12 +175,12 @@ final class TemplateEditorUITests: XCTestCase {
         XCTAssertTrue(field.waitForExistence(timeout: 5), "no note field")
         field.typeText(" Heavy singles.")
         app.buttons["templateEditor.templateNote.save"].tap()
-        waitUntilGone(any["templateEditor.templateNote.sheet"], "Save did not close the note sheet")
+        XCTAssertTrue(any["templateEditor.templateNote.sheet"].waitUntilGone(), "Save did not close the note sheet")
 
         app.buttons["templateEditor.save"].tap()
-        waitUntilGone(any["screen.templateEditor"], "Save did not close the editor")
+        XCTAssertTrue(any["screen.templateEditor"].waitUntilGone(), "Save did not close the editor")
         if !any["template.preview"].waitForExistence(timeout: 3) {
-            let card = firstCard(app)
+            let card = app.firstTemplateCard
             XCTAssertTrue(card.waitForExistence(timeout: 5))
             card.tap()
             XCTAssertTrue(any["template.preview"].waitForExistence(timeout: 5))

@@ -22,11 +22,8 @@ final class RestRingUITests: XCTestCase {
 
     @MainActor
     func testPresetAdjustSkipAndCustom() throws {
-        let app = XCUIApplication()
-        app.launchArguments += ["-uiTesting", "-startSampleWorkout", "-openWorkoutCover"]
-        app.launch()
+        let app = XCUIApplication.launchedInActiveWorkout()
         let any = app.descendants(matching: .any)
-        XCTAssertTrue(any["screen.activeWorkout"].waitForExistence(timeout: 15))
 
         let ring = app.buttons["rest.ring"].firstMatch
         let skip = app.buttons["rest.skip"].firstMatch
@@ -115,11 +112,8 @@ final class RestRingUITests: XCTestCase {
     /// timer-driven but cannot be asserted from XCUITest.
     @MainActor
     func testRestEndsAndRingReturnsToIdle() throws {
-        let app = XCUIApplication()
-        app.launchArguments += ["-uiTesting", "-startSampleWorkout", "-sampleRestSeconds", "3", "-openWorkoutCover"]
-        app.launch()
+        let app = XCUIApplication.launchedInActiveWorkout(["-sampleRestSeconds", "3"])
         let any = app.descendants(matching: .any)
-        XCTAssertTrue(any["screen.activeWorkout"].waitForExistence(timeout: 15))
         let ring = app.buttons["rest.ring"].firstMatch
         XCTAssertTrue(ring.waitForExistence(timeout: 10))
         // 3 s rest + 3 s grace + loop tick; the idle ring's label has no ", ".

@@ -10,10 +10,8 @@ final class TemplateEditorBlockMenuUITests: XCTestCase {
 
     @MainActor
     private func launchEditor() -> XCUIApplication {
-        let app = XCUIApplication()
-        app.launchArguments += ["-uiTesting", "-seedSampleData"]
-        app.launch()
-        let card = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'workout.template.'")).firstMatch
+        let app = XCUIApplication.launchedForTesting(["-seedSampleData"])
+        let card = app.firstTemplateCard
         XCTAssertTrue(card.waitForExistence(timeout: 10), "no template cards")
         card.tap()
         let any = app.descendants(matching: .any)
@@ -23,12 +21,6 @@ final class TemplateEditorBlockMenuUITests: XCTestCase {
         edit.tap()
         XCTAssertTrue(any["screen.templateEditor"].waitForExistence(timeout: 10), "Edit did not push the editor")
         return app
-    }
-
-    private func waitUntilGone(_ element: XCUIElement, _ message: String) {
-        let gone = NSPredicate(format: "exists == false")
-        let closed = XCTNSPredicateExpectation(predicate: gone, object: element)
-        XCTAssertEqual(XCTWaiter().wait(for: [closed], timeout: 10), .completed, message)
     }
 
     /// The first block's options menu button and its section id.
@@ -85,13 +77,13 @@ final class TemplateEditorBlockMenuUITests: XCTestCase {
         XCTAssertTrue(confirm.waitForExistence(timeout: 5), "no confirmation before removing")
         XCTAssertTrue(block.exists, "the block went before the answer")
         confirm.tap()
-        waitUntilGone(block, "the block's header is still there after confirming")
+        XCTAssertTrue(block.waitUntilGone(), "the block's header is still there after confirming")
 
         app.buttons["templateEditor.cancel"].tap()
         let discard = app.buttons["Discard Changes"].firstMatch
         XCTAssertTrue(discard.waitForExistence(timeout: 5), "no unsaved-changes dialog")
         discard.tap()
-        waitUntilGone(any["screen.templateEditor"], "Discard did not close the editor")
+        XCTAssertTrue(any["screen.templateEditor"].waitUntilGone(), "Discard did not close the editor")
     }
 
     private func openMenuEntry(_ app: XCUIApplication, menu: XCUIElement, entry: String) {
@@ -126,7 +118,7 @@ final class TemplateEditorBlockMenuUITests: XCTestCase {
         second.tap()
         XCTAssertTrue(save.isEnabled, "ticking a second block did not enable Create Superset")
         save.tap()
-        waitUntilGone(any["superset.sheet"], "Create Superset did not close the sheet")
+        XCTAssertTrue(any["superset.sheet"].waitUntilGone(), "Create Superset did not close the sheet")
         XCTAssertTrue(
             any["settable.superset.\(section)"].waitForExistence(timeout: 5),
             "first header has no superset marker"
@@ -145,9 +137,12 @@ final class TemplateEditorBlockMenuUITests: XCTestCase {
         if !remove.waitForExistence(timeout: 2) { any["superset.sheet"].swipeUp() }
         XCTAssertTrue(remove.waitForExistence(timeout: 5), "no Remove from Superset")
         remove.tap()
-        waitUntilGone(any["settable.superset.\(section)"], "the marker stayed after Remove from Superset")
-        waitUntilGone(
-            any["settable.superset.\(secondID)"],
+        XCTAssertTrue(
+            any["settable.superset.\(section)"].waitUntilGone(),
+            "the marker stayed after Remove from Superset"
+        )
+        XCTAssertTrue(
+            any["settable.superset.\(secondID)"].waitUntilGone(),
             "the other member kept its marker (a one-member group dissolves)"
         )
     }
@@ -169,14 +164,14 @@ final class TemplateEditorBlockMenuUITests: XCTestCase {
         XCTAssertFalse(app.buttons["preferences.rest"].exists, "rest is edited through Update Rest Timer only")
         unitControl().buttons["lb"].tap()
         app.buttons["preferences.cancel"].tap()
-        waitUntilGone(any["preferences.sheet"], "Cancel did not close the sheet")
+        XCTAssertTrue(any["preferences.sheet"].waitUntilGone(), "Cancel did not close the sheet")
 
         openMenuEntry(app, menu: menu, entry: "settable.menu.preferences")
         XCTAssertTrue(unitControl().waitForExistence(timeout: 5))
         XCTAssertTrue(unitControl().buttons["kg"].isSelected, "Cancel kept the unit change")
         unitControl().buttons["lb"].tap()
         app.buttons["preferences.save"].tap()
-        waitUntilGone(any["preferences.sheet"], "Save did not close the sheet")
+        XCTAssertTrue(any["preferences.sheet"].waitUntilGone(), "Save did not close the sheet")
 
         openMenuEntry(app, menu: menu, entry: "settable.menu.preferences")
         XCTAssertTrue(unitControl().waitForExistence(timeout: 5))

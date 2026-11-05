@@ -8,12 +8,9 @@ final class StickyNoteUITests: XCTestCase {
 
     @MainActor
     func testAddEditRemoveStickyNote() throws {
-        let app = XCUIApplication()
-        app.launchArguments += ["-uiTesting", "-preview", "Exercises"]
-        app.launch()
+        let app = XCUIApplication.launchedPreview("Exercises", waitingFor: "screen.exercises")
 
         let any = app.descendants(matching: .any)
-        XCTAssertTrue(any["screen.exercises"].waitForExistence(timeout: 10))
         let rows = app.descendants(matching: .any).matching(
             NSPredicate(format: "identifier BEGINSWITH 'exercises.row.'")
         )

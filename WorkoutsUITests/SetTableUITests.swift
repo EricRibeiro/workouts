@@ -7,11 +7,9 @@ final class SetTableUITests: XCTestCase {
         continueAfterFailure = false
     }
 
+    @MainActor
     private func launch() -> XCUIApplication {
-        let app = XCUIApplication()
-        app.launchArguments += ["-uiTesting", "-preview", "SetTable"]
-        app.launch()
-        XCTAssertTrue(app.descendants(matching: .any)["screen.setTable"].waitForExistence(timeout: 10))
+        let app = XCUIApplication.launchedPreview("SetTable", waitingFor: "screen.setTable")
         return app
     }
 

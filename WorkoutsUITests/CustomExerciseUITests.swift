@@ -25,11 +25,8 @@ final class CustomExerciseUITests: XCTestCase {
 
     @MainActor
     func testCreateThenDeleteUnusedExercise() throws {
-        let app = XCUIApplication()
-        app.launchArguments += ["-uiTesting", "-preview", "Exercises"]
-        app.launch()
+        let app = XCUIApplication.launchedPreview("Exercises", waitingFor: "screen.exercises")
         let any = app.descendants(matching: .any)
-        XCTAssertTrue(any["screen.exercises"].waitForExistence(timeout: 10))
 
         // New Exercise: Save is disabled until the name is valid.
         let new = any["exercises.new"].firstMatch
@@ -87,11 +84,8 @@ final class CustomExerciseUITests: XCTestCase {
 
     @MainActor
     func testPickerCreateTicksTheNewExercise() throws {
-        let app = XCUIApplication()
-        app.launchArguments += ["-uiTesting", "-preview", "ExercisePickerMulti"]
-        app.launch()
+        let app = XCUIApplication.launchedPreview("ExercisePickerMulti", waitingFor: "screen.exercisePicker")
         let any = app.descendants(matching: .any)
-        XCTAssertTrue(any["screen.exercisePicker"].waitForExistence(timeout: 10))
 
         search(app, "Zz Nonexistent\n")
         let create = any["picker.createCustom"].firstMatch

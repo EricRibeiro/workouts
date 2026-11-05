@@ -17,11 +17,7 @@ final class SetKeyboardUITests: XCTestCase {
 
     @MainActor
     func testStepNextAndDone() throws {
-        let app = XCUIApplication()
-        app.launchArguments += ["-uiTesting", "-preview", "SetRow"]
-        app.launch()
-
-        XCTAssertTrue(app.descendants(matching: .any)["screen.setRowDemo"].waitForExistence(timeout: 10))
+        let app = XCUIApplication.launchedPreview("SetRow", waitingFor: "screen.setRowDemo")
 
         // Row 1: weight 60 kg, reps 8 (a normal weighted set, so the step is 1.25 kg).
         let weight = app.textFields.matching(

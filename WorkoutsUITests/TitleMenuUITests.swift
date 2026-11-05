@@ -9,10 +9,7 @@ final class TitleMenuUITests: XCTestCase {
 
     @MainActor
     private func launchCover() -> XCUIApplication {
-        let app = XCUIApplication()
-        app.launchArguments += ["-uiTesting", "-startSampleWorkout", "-openWorkoutCover"]
-        app.launch()
-        XCTAssertTrue(app.descendants(matching: .any)["screen.activeWorkout"].waitForExistence(timeout: 15))
+        let app = XCUIApplication.launchedInActiveWorkout()
         return app
     }
 

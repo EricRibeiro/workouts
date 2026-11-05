@@ -8,12 +8,9 @@ final class ExercisePickerUITests: XCTestCase {
 
     @MainActor
     func testMultiSelectAddSupersetAndPeek() throws {
-        let app = XCUIApplication()
-        app.launchArguments += ["-uiTesting", "-preview", "ExercisePickerMulti"]
-        app.launch()
+        let app = XCUIApplication.launchedPreview("ExercisePickerMulti", waitingFor: "screen.exercisePicker")
 
         let any = app.descendants(matching: .any)
-        XCTAssertTrue(any["screen.exercisePicker"].waitForExistence(timeout: 10))
 
         // Nothing ticked: Add and Superset are disabled.
         let add = any["picker.add"].firstMatch
