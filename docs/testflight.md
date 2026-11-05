@@ -26,3 +26,4 @@ Builds uploaded with `./dev testflight --upload` (cadence: AGENTS.md "TestFlight
 | 202611050626 | 3f0f47f | Review fixes: import guard, Fitness opt-in re-check, first rest notification, save rollbacks, Live Activity off |
 | 202611050706 | d376c65 | Countdown stays above the keyboard, one set numbering, checkable rows look checkable, screens refresh after import |
 | 202611050754 | 04b4e24 | Review fixes: saves on field exit, "Workouts" copy, card dates, large titles across poses, no dead band on exercise detail |
+| 202611050836 | ea74e7f | Native timers for the rest ring, resume button and hero cross-fade; all 7.6 review fixes in |
