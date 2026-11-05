@@ -14,6 +14,9 @@ import SwiftData
 ///   replaces its children: children are matched by id (updated, or inserted), and local children the
 ///   document does not list are deleted (`removed`). A skipped parent leaves its children untouched
 ///   (they count as skipped). Importing the same document twice therefore skips everything.
+/// - **Never a second in-progress workout.** A document workout with `finishedAt == nil` whose id differs from the
+///   store's in-progress workout is skipped (counted in ``ImportReport/skippedInProgress``) while one exists. With
+///   none running it is imported, and the caller resumes the engine.
 /// - **Relationships are wired by id**: template to folder, workout to template. An id that matches no
 ///   row leaves the relationship nil and counts in `danglingReferences`.
 /// - **Exercise references** resolve to ids through ``LibraryID`` (library) or the custom id. A library
@@ -95,6 +98,8 @@ public enum Importer {
         var workouts: [UUID: Workout]
         var workoutExercises: [UUID: WorkoutExercise]
         var workoutSets: [UUID: WorkoutSet]
+        /// The store's in-progress workout (newest `startedAt`, as the engine resumes it), if any.
+        let inProgressID: UUID?
 
         init(context: ModelContext) throws {
             self.context = context
@@ -107,6 +112,12 @@ public enum Importer {
             workouts = Self.index(try context.fetch(FetchDescriptor<Workout>()), by: \.id)
             workoutExercises = Self.index(try context.fetch(FetchDescriptor<WorkoutExercise>()), by: \.id)
             workoutSets = Self.index(try context.fetch(FetchDescriptor<WorkoutSet>()), by: \.id)
+            var running = FetchDescriptor<Workout>(
+                predicate: #Predicate { $0.finishedAt == nil },
+                sortBy: [SortDescriptor(\.startedAt, order: .reverse)]
+            )
+            running.fetchLimit = 1
+            inProgressID = try context.fetch(running).first?.id
         }
 
         private static func index<T>(_ rows: [T], by id: KeyPath<T, UUID>) -> [UUID: T] {
@@ -311,6 +322,13 @@ public enum Importer {
 
         mutating func importWorkouts(_ dtos: [WorkoutDTO]) {
             for dto in dtos {
+                // Never a second in-progress workout: an unfinished row that is not the store's own is skipped.
+                if dto.finishedAt == nil, let inProgressID, dto.id != inProgressID {
+                    report[.workouts].skipped += 1
+                    report.skippedInProgress += 1
+                    countSkipped(dto.exercises)
+                    continue
+                }
                 let row: Workout
                 if let existing = workouts[dto.id] {
                     guard isNewer(dto.updatedAt, than: existing.updatedAt) else {

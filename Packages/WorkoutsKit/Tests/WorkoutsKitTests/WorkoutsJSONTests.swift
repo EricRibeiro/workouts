@@ -424,6 +424,69 @@ import Testing
         #expect(after == before)
     }
 
+    // MARK: In-progress workout
+
+    private static func engine(for store: Store) throws -> ActiveWorkoutEngine {
+        try ActiveWorkoutEngine(
+            context: store.context,
+            store: ExerciseStore(catalog: try catalog(), custom: []),
+            settings: SettingsStore(backend: InMemoryBackend()),
+            now: { t(8_000) }
+        )
+    }
+
+    @Test func anUnfinishedWorkoutIsSkippedWhileAnotherIsInProgress() throws {
+        let store = try Store()
+        let engine = try Self.engine(for: store)
+        let running = try engine.startEmpty()
+        let runningID = running.id
+
+        let report = try Importer.apply(Self.fixture(), to: store.context, catalog: try Self.catalog())
+
+        #expect(report.skippedInProgress == 1)
+        #expect(report[.workouts] == ImportCounts(inserted: 1, skipped: 1))
+        #expect(report.summary.contains("1 unfinished workout was skipped because one is in progress."))
+        let unfinished = try store.context.fetch(
+            FetchDescriptor<Workout>(predicate: #Predicate { $0.finishedAt == nil })
+        )
+        #expect(unfinished.map(\.id) == [runningID])
+        #expect(try engine.resume()?.id == runningID)
+        #expect(try store.count(WorkoutExercise.self) == 1)
+    }
+
+    @Test func anUnfinishedWorkoutIsImportedWhenNoneIsRunningAndTheEngineResumesIt() throws {
+        let store = try Store()
+        let engine = try Self.engine(for: store)
+        #expect(engine.workout == nil)
+
+        let report = try Importer.apply(Self.fixture(), to: store.context, catalog: try Self.catalog())
+
+        #expect(report.skippedInProgress == 0)
+        #expect(report[.workouts] == ImportCounts(inserted: 2))
+        let resumed = try #require(try engine.resume())
+        #expect(resumed.id == Self.id(50))
+        #expect(engine.workout?.id == Self.id(50))
+    }
+
+    @Test func reimportingTheEnginesOwnMidWorkoutExportIsANoOp() throws {
+        let store = try Store()
+        let engine = try Self.engine(for: store)
+        let running = try engine.startEmpty()
+        let exported = try Exporter.document(
+            from: store.context,
+            catalog: try Self.catalog(),
+            exportedAt: Self.t(10_000)
+        )
+        #expect(exported.workouts.map(\.id) == [running.id])
+
+        let report = try Importer.apply(exported, to: store.context, catalog: try Self.catalog())
+
+        #expect(report.changedAnything == false)
+        #expect(report.skippedInProgress == 0)
+        #expect(report[.workouts] == ImportCounts(skipped: 1))
+        #expect(try store.count(Workout.self) == 1)
+    }
+
     @Test func aNewerRowWinsAndReplacesItsChildren() throws {
         var doc = Self.fixture()
         let store = try Store()

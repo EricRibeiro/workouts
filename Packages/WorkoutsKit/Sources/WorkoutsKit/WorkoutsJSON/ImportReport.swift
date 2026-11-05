@@ -57,6 +57,9 @@ public nonisolated struct ImportReport: Equatable, Sendable {
     public var unknownLibraryRefs: [UnknownLibraryRef] = []
     /// `folderId` / `templateId` values that matched no folder or template; the relationship is left nil.
     public var danglingReferences = 0
+    /// Unfinished workouts in the file that were skipped because the store already has a different one in progress
+    /// (they are also counted in `workouts.skipped`).
+    public var skippedInProgress = 0
 
     public init() {}
 
@@ -140,6 +143,13 @@ extension ImportReport {
         if danglingReferences > 0 {
             let noun = danglingReferences == 1 ? "link" : "links"
             lines.append("\(danglingReferences) \(noun) to a missing folder or template could not be restored.")
+        }
+        if skippedInProgress > 0 {
+            lines.append(
+                skippedInProgress == 1
+                    ? "1 unfinished workout was skipped because one is in progress."
+                    : "\(skippedInProgress) unfinished workouts were skipped because one is in progress."
+            )
         }
         return lines.joined(separator: "\n")
     }

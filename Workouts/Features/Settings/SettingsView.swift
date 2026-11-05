@@ -17,6 +17,7 @@ struct SettingsView: View {
     @Environment(\.colorScheme) private var colorScheme
     /// Optional so the screen still builds where no store is injected; Import then skips the library check.
     @Environment(ExerciseStore.self) private var exerciseStore: ExerciseStore?
+    @Environment(ActiveWorkoutEngine.self) private var engine: ActiveWorkoutEngine?
     /// Optional like the store above; the Apple Fitness section shows only where Health is available.
     @Environment(HealthEnrichmentService.self) private var health: HealthEnrichmentService?
 
@@ -127,6 +128,8 @@ struct SettingsView: View {
                 let report = try DataTransfer.apply(document, to: context, catalog: catalog)
                 // Imported custom exercises must reach the pickers and detail screens.
                 exerciseStore?.setCustom(try modelContext.fetch(FetchDescriptor<Exercise>()))
+                // A legitimately imported unfinished workout (no other running) shows at once, not after relaunch.
+                if engine?.workout == nil { try engine?.resume() }
                 outcome = TransferOutcome(title: report.headline, message: report.summary)
                 // Imported history never got Fitness data when it was recorded; look it up once (no-op while off).
                 if let health { Task { await health.backfill(context: context) } }
