@@ -8,8 +8,6 @@ import SwiftUI
 import WorkoutsKit
 
 struct WorkoutView: View {
-    /// Opens the Settings sheet, which the root view owns.
-    var showSettings: () -> Void = {}
     /// Presents the active workout's cover, which the root view owns.
     var presentWorkout: () -> Void = {}
     @Environment(ActiveWorkoutEngine.self) private var engine: ActiveWorkoutEngine?
@@ -101,6 +99,7 @@ struct WorkoutView: View {
                     }
                 ) { TemplatePreviewSheet(template: $0, started: workoutStarted, edit: edit) }
                 .resumeControl()
+                .settingsControl()
                 .toolbar {
                     ToolbarItem(placement: .primaryAction) {
                         Menu("Add", systemImage: "plus") {
@@ -123,11 +122,6 @@ struct WorkoutView: View {
                         .accessibilityLabel("Add")
                         .accessibilityIdentifier("toolbar.add")
                         .startWorkoutFlow(startFlow)
-                    }
-                    ToolbarItem(placement: .primaryAction) {
-                        Button("Settings", systemImage: "gearshape", action: showSettings)
-                            .accessibilityLabel("Settings")
-                            .accessibilityIdentifier("toolbar.settings")
                     }
                 }
         }

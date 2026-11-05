@@ -112,6 +112,7 @@ struct ExercisesView: View {
         }
         .navigationTitle("Exercises")
         .resumeControl()
+        .settingsControl()
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button("New Exercise", systemImage: "plus") { isCreating = true }

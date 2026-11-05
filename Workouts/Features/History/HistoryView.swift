@@ -44,6 +44,7 @@ struct HistoryView: View {
             content
                 .navigationTitle("History")
                 .resumeControl()
+                .settingsControl()
                 .toolbar {
                     ToolbarItem(placement: .primaryAction) {
                         Button("Calendar", systemImage: "calendar") { isCalendarPresented = true }
