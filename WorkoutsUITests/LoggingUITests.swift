@@ -98,4 +98,29 @@ final class LoggingUITests: XCTestCase {
         check.tap()
         XCTAssertEqual(check.value as? String, "Done")
     }
+
+    /// Brief A (final design review): with a rest running and the keyboard up, the countdown stays in the keyboard accessory
+    /// on the closed display (`.visibilityPriority(.high)`); Skip and +30 s may fold into the overflow menu.
+    @MainActor
+    func testKeyboardKeepsCountdownWhenCompact() throws {
+        let app = XCUIApplication()
+        app.launchArguments += ["-uiTesting", "-startSampleWorkout", "-openWorkoutCover"]
+        app.launch()
+        let any = app.descendants(matching: .any)
+        XCTAssertTrue(any["screen.activeWorkout"].waitForExistence(timeout: 15))
+        // The launch argument starts a 300 s rest.
+        XCTAssertTrue(app.buttons["rest.ring"].firstMatch.waitForExistence(timeout: 10), "no rest running")
+
+        let weight = app.textFields.matching(
+            NSPredicate(format: "identifier BEGINSWITH 'setrow.' AND identifier ENDSWITH '.weight'")
+        )
+        .element(boundBy: 0)
+        XCTAssertTrue(weight.waitForExistence(timeout: 10))
+        weight.tap()
+        XCTAssertTrue(app.buttons["setkeyboard.done"].firstMatch.waitForExistence(timeout: 5), "keyboard group missing")
+        XCTAssertTrue(
+            app.staticTexts["rest.keyboard.countdown"].firstMatch.waitForExistence(timeout: 5),
+            "the countdown folded into the overflow menu"
+        )
+    }
 }

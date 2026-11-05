@@ -12,7 +12,7 @@ import WorkoutsKit
 ///
 /// `step` is a −1 / +1 step press. `previous` copies the previous set into the focused row. `next` moves focus
 /// (weight → reps → next row's weight) and dismisses after the last field. `done` only closes the keyboard; it never checks.
-/// While a rest runs (`rest` non-nil) the group starts with its countdown, Skip and +30 s.
+/// While a rest runs (`rest` non-nil) the bar starts with its countdown (never folded), Skip and +30 s (folded first).
 struct SetKeyboardToolbar: ViewModifier {
     let step: (SetKeyboard.Direction) -> Void
     let previous: () -> Void
@@ -23,8 +23,9 @@ struct SetKeyboardToolbar: ViewModifier {
     func body(content: Content) -> some View {
         content
             .toolbar {
-                // Three groups so the overflow order is ours: the rest trio folds first (the toolbar strip already has the
-                // countdown, Skip and +30), Next and Done never fold.
+                // Four groups so the overflow order is ours: Skip and +30 fold first (the toolbar strip already has them),
+                // then −/+/Previous; the countdown, Next and Done never fold, so the remaining time stays visible on the
+                // closed display while the user types the next set.
                 ToolbarItemGroup(placement: .keyboard) {
                     if let rest {
                         TimelineView(.periodic(from: .now, by: 1)) { context in
@@ -37,7 +38,12 @@ struct SetKeyboardToolbar: ViewModifier {
                                 .accessibilityAddTraits(.updatesFrequently)
                                 .accessibilityIdentifier("rest.keyboard.countdown")
                         }
+                    }
+                }
+                .visibilityPriority(.high)
 
+                ToolbarItemGroup(placement: .keyboard) {
+                    if let rest {
                         Button(action: rest.skip) {
                             Label("Skip", systemImage: "forward.end")
                         }

@@ -230,6 +230,41 @@ import Testing
         #expect(throws: ActiveWorkoutError.emptySet) { try engine.check(set) }
     }
 
+    @Test func canCheckMirrorsTheCheckRefusal() throws {
+        let rig = try Rig()
+        let engine = try rig.makeEngine()
+        try engine.startEmpty()
+        let row = try engine.addExercise(try rig.info(LibraryFixture.squat))
+        let set = try #require(sets(row).first)
+        #expect(!engine.canCheck(set))
+        try engine.setValues(set, weight: 0, reps: 0, durationSeconds: nil)
+        #expect(!engine.canCheck(set))
+        try engine.setValues(set, weight: 70, reps: 8, durationSeconds: nil)
+        #expect(engine.canCheck(set))
+        try engine.check(set)
+        #expect(engine.canCheck(set))
+        // Weight alone is not a set for the rep types.
+        let stretch = try engine.addExercise(try rig.info(LibraryFixture.etirement))
+        let other = try #require(sets(stretch).first)
+        try engine.setValues(other, weight: 10, reps: nil, durationSeconds: nil)
+        #expect(!engine.canCheck(other))
+    }
+
+    @Test func canCheckCountsAutofillFromPrevious() throws {
+        let rig = try Rig()
+        rig.finishedWorkout(
+            exercise: LibraryFixture.squat,
+            unit: .kg,
+            sets: [(90, 6, .normal)],
+            startedAt: rig.clock.date.addingTimeInterval(-86_400)
+        )
+        let engine = try rig.makeEngine()
+        try engine.startEmpty()
+        let row = try engine.addExercise(try rig.info(LibraryFixture.squat))
+        let set = try #require(sets(row).first)
+        #expect(engine.canCheck(set))
+    }
+
     @Test func weightAloneDoesNotCountForRepTypes() throws {
         let rig = try Rig()
         let engine = try rig.makeEngine()

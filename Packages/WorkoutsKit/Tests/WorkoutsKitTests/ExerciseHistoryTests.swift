@@ -33,7 +33,7 @@ struct ExerciseHistoryTests {
         #expect(result.map(\.workoutName) == ["Workout", "Push"])
     }
 
-    @Test func completedSetsOnlyAndMarkersDoNotConsumeNumbers() throws {
+    @Test func completedSetsOnlyAndNumbersAreCompletedPositions() throws {
         let result = ExerciseHistory.sessions(
             [
                 session(
@@ -53,8 +53,28 @@ struct ExerciseHistoryTests {
             options: options
         )
         let sets = try #require(result.first).sets
-        #expect(sets.map(\.label) == ["W", "1", "D", "2", "F"])
+        #expect(sets.map(\.label) == ["W", "2", "D", "4", "F"])
         #expect(sets.map(\.text) == ["60 kg × 8", "100 kg × 5", "80 kg × 8", "100 kg × 5", "100 kg × 3"])
+    }
+
+    @Test func warmupsConsumeNumbersLikeTheWorkoutDetail() throws {
+        let result = ExerciseHistory.sessions(
+            [
+                session(
+                    1,
+                    [
+                        LoggedSet(kind: .warmup, weight: 40, reps: 10),
+                        LoggedSet(kind: .warmup, weight: 60, reps: 8),
+                        LoggedSet(weight: 100, reps: 5),
+                        LoggedSet(weight: 100, reps: 5),
+                    ]
+                )
+            ],
+            names: [:],
+            weightType: .barbell,
+            options: options
+        )
+        #expect(try #require(result.first).sets.map(\.label) == ["W", "W", "3", "4"])
     }
 
     @Test func weightsStayInTheSessionsOwnUnit() throws {

@@ -5,7 +5,8 @@ public nonisolated struct ExerciseHistorySet: Hashable, Sendable, Identifiable {
     /// Position among the session's completed sets.
     public var id: Int
     public var kind: SetKind
-    /// The set label: the 1-based number of a normal set, else `W`, `D` or `F` (markers do not consume numbers).
+    /// The set label: `W`, `D` or `F` for a marker, else the 1-based position among the session's completed sets (markers
+    /// consume numbers, as in the workout detail: W, W, 3, 4).
     public var label: String
     /// Weight, reps or time as entered, in the set's own unit: `100 kg × 5`, `12 reps`, `45 s`.
     public var text: String
@@ -101,9 +102,7 @@ public nonisolated enum ExerciseHistory {
             }
             if let match { marked.insert(match.index) }
         }
-        var number = 0
         return session.sets.enumerated().map { index, set in
-            if set.kind == .normal { number += 1 }
             let text = formatSetDetail(
                 weight: set.weight,
                 unit: set.unit,
@@ -113,7 +112,7 @@ public nonisolated enum ExerciseHistory {
             return ExerciseHistorySet(
                 id: index,
                 kind: set.kind,
-                label: SetInputFormat.setLabel(number: number, kind: set.kind),
+                label: SetInputFormat.setLabel(number: index + 1, kind: set.kind),
                 text: text.isEmpty ? "–" : text,
                 isPR: marked.contains(index)
             )

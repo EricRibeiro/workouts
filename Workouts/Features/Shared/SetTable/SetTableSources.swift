@@ -53,6 +53,7 @@ struct EngineSetTableSource: SetTableDataSource {
                         weightText: SetInputFormat.weightText(set.weight),
                         repsText: SetInputFormat.countText(timed ? set.durationSeconds : set.reps),
                         isChecked: set.completed,
+                        canCheck: engine.canCheck(set),
                         weightPlaceholder: placeholder(
                             weight: previous?.weight ?? plan?.weight
                         ),

@@ -181,11 +181,18 @@ struct SetRow: View {
         }
     }
 
+    /// Done: dark on the green fill. Not done: `.primary` when the set can be checked, `.secondary` when checking would be
+    /// refused (nothing to record). Both sit on `.quaternary`; no new tint.
+    private var checkGlyphStyle: AnyShapeStyle {
+        if model.isChecked { return AnyShapeStyle(Color.onOkFill) }
+        return model.canCheck ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary)
+    }
+
     private var checkButton: some View {
         Button(action: toggleCheck) {
             Image(systemName: "checkmark")
                 .font(.body.bold())
-                .foregroundStyle(model.isChecked ? Color.onOkFill : Color.secondary)
+                .foregroundStyle(checkGlyphStyle)
                 .symbolEffect(.wiggle, value: refusedCount)
                 .frame(width: touch, height: touch)
                 .background(
@@ -197,6 +204,8 @@ struct SetRow: View {
         .buttonStyle(.plain)
         .accessibilityLabel("Mark set done")
         .accessibilityValue(model.isChecked ? "Done" : "Not done")
+        // Not `.disabled`: a refused tap must still reach `toggleCheck` so it wiggles, buzzes and announces itself.
+        .accessibilityHint(model.isChecked || model.canCheck ? "" : "Enter weight and reps first")
         .accessibilityAddTraits(.isToggle)
         .accessibilityIdentifier("setrow.\(model.id.uuidString).check")
     }
@@ -275,6 +284,9 @@ struct SetRow: View {
         private func update(_ id: UUID, _ change: (inout SetRowModel) -> Void) {
             guard let index = rows.firstIndex(where: { $0.id == id }) else { return }
             change(&rows[index])
+            // Stands in for the engine's rule: something typed, or a placeholder that checking would fill in.
+            let row = rows[index]
+            rows[index].canCheck = !row.repsText.isEmpty || row.repsPlaceholder != "–"
         }
 
         private func applyPrevious(_ id: UUID) {
@@ -348,7 +360,7 @@ struct SetRow: View {
                     repsPlaceholder: "60",
                     measure: .duration
                 ),
-                SetRowModel(id: UUID(), number: 8),
+                SetRowModel(id: UUID(), number: 8, canCheck: false),
             ]
         }
     }

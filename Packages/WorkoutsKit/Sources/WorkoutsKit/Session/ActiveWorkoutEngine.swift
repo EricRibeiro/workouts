@@ -126,6 +126,15 @@ public final class ActiveWorkoutEngine {
         try commit(workout, row)
     }
 
+    /// Whether ``check(_:)`` would succeed on `set`: something to record remains once empty fields are filled from Previous or
+    /// the plan. Always `false` for a set outside the active workout; already-checked sets report `true`.
+    public func canCheck(_ set: WorkoutSet) -> Bool {
+        guard let row = set.workoutExercise else { return false }
+        if set.completed { return true }
+        let filled = filledValues(of: set, in: row)
+        return hasValues(weight: filled.weight, reps: filled.reps, duration: filled.duration, row: row)
+    }
+
     /// Unchecks `set`: back to unchecked with its values kept.
     public func uncheck(_ set: WorkoutSet) throws {
         let (workout, row) = try owner(of: set)

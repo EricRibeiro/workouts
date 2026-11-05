@@ -19,6 +19,9 @@ struct SetRowModel: Identifiable, Hashable {
     /// The reps field's text, or the duration in seconds when `measure` is `.duration`.
     var repsText: String = ""
     var isChecked: Bool = false
+    /// Whether checking would be accepted (the engine's rule, autofill from Previous or the plan included); the check
+    /// button draws brighter when it would. Irrelevant once `isChecked`.
+    var canCheck: Bool = true
     /// Greyed hints from the template plan; `–` when there is none.
     var weightPlaceholder: String = "–"
     var repsPlaceholder: String = "–"
