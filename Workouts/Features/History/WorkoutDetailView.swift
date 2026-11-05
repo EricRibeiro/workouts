@@ -331,14 +331,15 @@ private struct ExerciseBlockView: View {
     /// `Bench Press    Best Set 100 kg × 5`; stacks when the text is large.
     private var titleRow: some View {
         ViewThatFits(in: .horizontal) {
+            // Side by side only when the name fits on one line; otherwise the next layout stacks them.
             HStack(alignment: .firstTextBaseline) {
-                name
+                name.fixedSize(horizontal: true, vertical: false)
                 Spacer(minLength: 8)
-                best
+                best(alignment: .trailing)
             }
             VStack(alignment: .leading, spacing: 2) {
                 name
-                best
+                best(alignment: .leading)
             }
         }
     }
@@ -356,9 +357,9 @@ private struct ExerciseBlockView: View {
     }
 
     @ViewBuilder
-    private var best: some View {
+    private func best(alignment: HorizontalAlignment) -> some View {
         if !block.bestSetText.isEmpty {
-            VStack(alignment: .trailing, spacing: 0) {
+            VStack(alignment: alignment, spacing: 0) {
                 Text("Best Set")
                     .font(.caption)
                     .foregroundStyle(.secondary)

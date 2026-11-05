@@ -28,6 +28,7 @@ import Testing
         try engine.setValues(sets(squat)[0], weight: 100, reps: 5, durationSeconds: nil)
         try engine.check(sets(squat)[0])
         try engine.setValues(sets(squat)[1], weight: 100, reps: 5, durationSeconds: nil)
+        try engine.commitEdits()
         return (engine, workout, squat)
     }
 
@@ -92,6 +93,79 @@ import Testing
         try engine.discard()
         #expect(engine.workout == nil)
         #expect(try rig.context.fetchCount(FetchDescriptor<Workout>()) == 0)
+    }
+
+    // MARK: Typed values (C-10): in memory per keystroke, saved at commit points
+
+    @Test func typingDoesNotSaveAndACommitSavesOnce() throws {
+        let rig = try Rig()
+        let (engine, _, squat) = try startedWorkout(rig)
+        let set = sets(squat)[2]
+        var saves = 0
+        engine.saveHook = { saves += 1 }
+
+        // "1", "10", "100": three keystrokes, no save, but the model already holds the latest value.
+        for weight in [1.0, 10, 100] {
+            try engine.setValues(set, weight: weight, reps: nil, durationSeconds: nil)
+        }
+        #expect(saves == 0)
+        #expect(set.weight == 100)
+        #expect(engine.hasUncommittedEdits)
+        #expect(try rig.context.hasChanges)
+
+        try engine.commitEdits()  // focus left the cell, or the scene went inactive
+        #expect(saves == 1)
+        #expect(!engine.hasUncommittedEdits)
+        #expect(try !rig.context.hasChanges)
+
+        try engine.commitEdits()  // nothing typed since: no save
+        #expect(saves == 1)
+    }
+
+    @Test func anotherEngineMutationSavesTheTypedValuesAlong() throws {
+        let rig = try Rig()
+        let (engine, _, squat) = try startedWorkout(rig)
+        let set = sets(squat)[2]
+        try engine.setValues(set, weight: 80, reps: 8, durationSeconds: nil)
+        #expect(engine.hasUncommittedEdits)
+        try engine.check(set)
+        #expect(!engine.hasUncommittedEdits)
+        #expect(try !rig.context.hasChanges)
+        #expect(set.completed && set.weight == 80 && set.reps == 8)
+    }
+
+    @Test func aFailedCommitSurfacesKeepsTheValuesAndRetries() throws {
+        let rig = try Rig()
+        let (engine, _, squat) = try startedWorkout(rig)
+        let set = sets(squat)[2]
+        try engine.setValues(set, weight: 90, reps: 3, durationSeconds: nil)
+        engine.saveHook = { throw SaveFailed() }
+        #expect(throws: SaveFailed.self) { try engine.commitEdits() }
+        #expect(set.weight == 90 && set.reps == 3)
+        #expect(engine.hasUncommittedEdits)
+
+        engine.saveHook = nil
+        try engine.commitEdits()
+        #expect(!engine.hasUncommittedEdits)
+        #expect(try !rig.context.hasChanges)
+    }
+
+    @Test func aFailedStructuralEditKeepsTheTypedValuesOfOtherSets() throws {
+        let rig = try Rig()
+        let (engine, workout, squat) = try startedWorkout(rig)
+        let typed = sets(squat)[1]
+        let removed = sets(squat)[2]
+        try engine.setValues(typed, weight: 77, reps: 7, durationSeconds: nil)
+        engine.saveHook = { throw SaveFailed() }
+        #expect(throws: SaveFailed.self) { try engine.removeSet(removed) }
+        #expect(sets(squat).count == 3 && !removed.isDeleted)
+        #expect(typed.weight == 77 && typed.reps == 7)
+        #expect(engine.hasUncommittedEdits)
+        #expect(engine.workout === workout)
+
+        engine.saveHook = nil
+        try engine.commitEdits()
+        #expect(try !rig.context.hasChanges)
     }
 
     @Test func failedStartLeavesNoWorkoutBehind() throws {

@@ -35,17 +35,6 @@ import Testing
         #expect(nav.historyPath == [.workout(a), .editWorkout(a)])
         #expect(nav.workoutPath == [.editTemplate(b)])
         #expect(nav.exercisesPath == [.exercise(b)])
-
-        nav.pop(.history)
-        #expect(nav.historyPath == [.workout(a)])
-        #expect(nav.workoutPath == [.editTemplate(b)])
-        #expect(nav.exercisesPath == [.exercise(b)])
-
-        nav.pop(.workout)
-        nav.pop(.exercises)
-        #expect(nav.workoutPath.isEmpty && nav.exercisesPath.isEmpty)
-        nav.pop(.workout)  // popping an empty stack is a no-op
-        #expect(nav.workoutPath.isEmpty)
     }
 
     @Test func popToRootClearsOnlyThatTab() {
@@ -72,13 +61,6 @@ import Testing
         #expect(nav.historyPath == [.workout(b)])
     }
 
-    @Test func openTemplateSelectsWorkoutAndResetsItsStack() {
-        let nav = AppNavigation(selectedTab: .history, workoutPath: [.editTemplate(b)])
-        nav.openTemplate(a)
-        #expect(nav.selectedTab == .workout)
-        #expect(nav.workoutPath == [.template(a)])
-    }
-
     @Test func openWorkoutSelectsHistoryAndResetsItsStack() {
         let nav = AppNavigation(historyPath: [.editWorkout(b)])
         nav.openWorkout(a)
@@ -90,7 +72,7 @@ import Testing
         let nav = AppNavigation()
         nav.openSettings()
         #expect(nav.isSettingsPresented)
-        nav.closeSettings()
+        nav.isSettingsPresented = false
         #expect(!nav.isSettingsPresented)
     }
 

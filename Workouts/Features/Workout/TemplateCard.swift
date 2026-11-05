@@ -101,7 +101,7 @@ struct TemplateCard: View {
                     }
                 }
                 if let last = summary.lastPerformed {
-                    Text("Last performed · \(last)")
+                    Label(last, systemImage: "clock")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(2)

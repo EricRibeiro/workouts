@@ -28,6 +28,9 @@ public final class ActiveWorkoutEngine {
     @ObservationIgnored var previousLoaded: Set<UUID> = []
     /// Test seam: runs before every save and may throw to simulate a failed save. Always nil in the app.
     @ObservationIgnored var saveHook: (() throws -> Void)?
+    /// Typed values (``setValues(_:weight:reps:durationSeconds:)``) that are in the models but not yet saved, by set id.
+    /// Cleared by every successful save; re-applied after a rollback so a failed structural edit cannot eat them.
+    @ObservationIgnored var pendingEdits: [UUID: PendingValues] = [:]
 
     /// Creates the engine and resumes the in-progress workout, if the store has one (relaunch).
     public init(
@@ -147,12 +150,35 @@ public final class ActiveWorkoutEngine {
 
     /// Sets the typed values of `set` (nil clears a field). Weight is clamped to >= 0 with at most 2 decimals; reps and
     /// duration to >= 0.
+    ///
+    /// **Does not save.** The set field calls this on every keystroke; the values go into the models at once (the Live
+    /// Activity, the rest notification and the table all observe the models, not the store), and are written by the next
+    /// commit point: ``commitEdits()`` (focus leaves the field, the app goes inactive) or any other engine mutation, whose
+    /// save takes them along (check, Previous, add or remove a set, finish).
     public func setValues(_ set: WorkoutSet, weight: Double?, reps: Int?, durationSeconds: Int?) throws {
         let (workout, row) = try owner(of: set)
         set.weight = weight.map { max(0, ($0 * 100).rounded() / 100) }
         set.reps = reps.map { max(0, $0) }
         set.durationSeconds = durationSeconds.map { max(0, $0) }
-        try commit(workout, row)
+        let stamp = now()
+        workout.updatedAt = stamp
+        row.updatedAt = stamp
+        pendingEdits[set.id] = PendingValues(
+            weight: set.weight,
+            reps: set.reps,
+            durationSeconds: set.durationSeconds
+        )
+    }
+
+    /// Whether typed values are waiting for a save.
+    public var hasUncommittedEdits: Bool { !pendingEdits.isEmpty }
+
+    /// Saves the values typed since the last save (a no-op when there are none). Called when focus leaves a set field and
+    /// when the app goes inactive. On failure the values stay in the models and pending, so the next commit point retries;
+    /// the error is the caller's to surface.
+    public func commitEdits() throws {
+        guard hasUncommittedEdits else { return }
+        try save()
     }
 
     /// Sets the kind of `set` (W, D, F or normal).
@@ -386,7 +412,7 @@ public final class ActiveWorkoutEngine {
         } catch {
             // A failed save must not leave the deletions and `finishedAt` behind: the table would re-read deleted
             // rows and a retry would walk deleted models. The engine still reports the (restored) workout.
-            context.rollback()
+            rollbackKeepingEdits(in: workout)
             throw error
         }
         // The workout is saved as finished: the engine lets go of it even if building the summary throws below.
@@ -412,7 +438,7 @@ public final class ActiveWorkoutEngine {
         do {
             try save()
         } catch {
-            context.rollback()
+            rollbackKeepingEdits(in: workout)
             self.workout = workout
             throw error
         }

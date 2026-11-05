@@ -81,7 +81,7 @@ struct SettingsView: View {
                 .accessibilityIdentifier("settings.health.cancel")
         } message: {
             Text(
-                "Workouts Duo stops reading Fitness workouts. Keep the calories and heart rate already added, or remove them?"
+                "Workouts stops reading Fitness workouts. Keep the calories and heart rate already added, or remove them?"
             )
         }
         .alert(
@@ -248,7 +248,7 @@ struct SettingsView: View {
             } footer: {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(
-                        "Reads calories and heart rate from the Apple Fitness strength workout you record alongside each session. Workouts Duo never writes to Health."
+                        "Reads calories and heart rate from the Apple Fitness strength workout you record alongside each session. Workouts never writes to Health."
                     )
                     if let progress = health.backfillProgress {
                         Text("Adding Fitness data… \(progress.done) of \(progress.total)")

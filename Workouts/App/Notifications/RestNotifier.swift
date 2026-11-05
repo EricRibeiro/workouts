@@ -64,8 +64,8 @@ final class SystemNotificationCenter: NotificationCenterProviding {
 
 /// Schedules the rest-end notification (`DECISIONS.md`, "Active workout behaviour"): a `.timeSensitive` local
 /// notification at `restEndsAt` with the next set in the body and **Skip** / **+30 s** actions. In the foreground the
-/// system banner is suppressed (``willPresent`` returns `[]`) and ``onRestEndedInForeground`` fires instead, for the
-/// haptic and the flash (the UI sets it later).
+/// system banner is suppressed (``willPresent`` returns `[]`); the rest ring and the resume control play the haptic
+/// themselves when the countdown reaches zero (`restEndCount`).
 ///
 /// It is also the `UNUserNotificationCenterDelegate`, so the owner must keep it alive (the center holds it weakly).
 ///
@@ -85,9 +85,6 @@ final class RestNotifier: NSObject {
     private var didRequestAuthorization = false
     private let debounce: Duration
     private var pendingSync: Task<Void, Never>?
-
-    /// Called when a rest ends while the app is in the foreground (the system would have shown the notification).
-    var onRestEndedInForeground: (() -> Void)?
 
     /// `debounce` is how long the engine must stay quiet before the schedule is re-synced; tests pass `.zero` or a short
     /// value.
@@ -246,12 +243,6 @@ final class RestNotifier: NSObject {
         }
     }
 
-    /// What to show for a notification that arrives with the app in the foreground: nothing (the app plays a haptic and
-    /// flashes), and the hook fires for the rest-end one.
-    func presentationOptions(forNotification identifier: String) -> UNNotificationPresentationOptions {
-        if identifier == RestNotificationPlan.identifier { onRestEndedInForeground?() }
-        return []
-    }
 }
 
 extension RestNotifier: UNUserNotificationCenterDelegate {
@@ -259,8 +250,8 @@ extension RestNotifier: UNUserNotificationCenterDelegate {
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification
     ) async -> UNNotificationPresentationOptions {
-        let identifier = notification.request.identifier
-        return await MainActor.run { presentationOptions(forNotification: identifier) }
+        // Nothing in the foreground: the rest ring plays the haptic itself.
+        []
     }
 
     nonisolated func userNotificationCenter(

@@ -201,7 +201,7 @@ private struct ExercisePickerRow: View {
             .accessibilityAddTraits(isSelected ? .isSelected : [])
             .accessibilityIdentifier("picker.row.\(info.id.uuidString)")
 
-            Button("About \(info.name)", systemImage: "questionmark.circle", action: about)
+            Button("About \(info.name)", systemImage: "info.circle", action: about)
                 .labelStyle(.iconOnly)
                 .buttonStyle(.borderless)
                 .foregroundStyle(.secondary)

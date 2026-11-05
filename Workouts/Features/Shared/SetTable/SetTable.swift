@@ -57,7 +57,9 @@ struct SetTable: View {
                 .frame(maxWidth: .infinity)
             }
             .scrollDismissesKeyboard(.interactively)
-            .onChange(of: focus) { _, field in
+            .onChange(of: focus) { previous, field in
+                // Focus left a cell (another cell, Next/Previous, Done, the keyboard hidden): the commit point for typing.
+                if previous != nil, previous != field { source.commitEdits() }
                 guard let field,
                     let section = sections.first(where: { $0.rows.contains { $0.id == field.setID } })
                 else { return }
@@ -68,6 +70,8 @@ struct SetTable: View {
             }
         }
         .swipeActionsContainer()
+        // The table leaving the screen (cover minimised) with a field still focused.
+        .onDisappear { source.commitEdits() }
         .animation(.snappy, value: sections.flatMap { $0.rows.map(\.id) })
         .setKeyboardToolbar(
             step: { direction in step(direction, in: sections) },

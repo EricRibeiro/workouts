@@ -7,6 +7,13 @@ struct PreviousEntry {
     var sets: [PreviousSet]
 }
 
+/// The typed values of one set that are in the model but not yet saved (see ``ActiveWorkoutEngine/setValues(_:weight:reps:durationSeconds:)``).
+struct PendingValues {
+    var weight: Double?
+    var reps: Int?
+    var durationSeconds: Int?
+}
+
 // MARK: - Lookup and persistence
 
 extension ActiveWorkoutEngine {
@@ -62,6 +69,24 @@ extension ActiveWorkoutEngine {
     func save() throws {
         try saveHook?()
         try context.save()
+        pendingEdits.removeAll()
+    }
+
+    /// `context.rollback()` that keeps the typed values waiting for a save: a failed structural edit (add or remove a set,
+    /// finish, discard) must undo only itself, as it did when every keystroke was saved. Values of sets that no longer
+    /// exist after the rollback are dropped.
+    func rollbackKeepingEdits(in workout: Workout) {
+        let pending = pendingEdits
+        context.rollback()
+        pendingEdits = [:]
+        for set in (workout.exercises ?? []).flatMap({ $0.sets ?? [] }) {
+            guard let values = pending[set.id] else { continue }
+            set.weight = values.weight
+            set.reps = values.reps
+            set.durationSeconds = values.durationSeconds
+            pendingEdits[set.id] = values
+        }
+        if !pendingEdits.isEmpty { workout.updatedAt = now() }
     }
 
     /// ``commit(_:_:)`` for mutations that insert, delete or renumber several models: when the save fails the whole
@@ -71,7 +96,7 @@ extension ActiveWorkoutEngine {
         do {
             try commit(workout, row)
         } catch {
-            context.rollback()
+            rollbackKeepingEdits(in: workout)
             throw error
         }
     }

@@ -14,8 +14,4 @@ struct WorkoutActivityAttributes: ActivityAttributes {
     init(workoutID: UUID) {
         self.workoutID = workoutID
     }
-
-    init(_ info: WorkoutActivityStaticInfo) {
-        self.workoutID = info.workoutID
-    }
 }

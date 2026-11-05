@@ -83,6 +83,8 @@ struct RootView: View {
         .onAppear(perform: restoreCover)
         // Coming back to the foreground is when a Watch workout recorded meanwhile can be picked up (when the person opted in).
         .onChange(of: scenePhase, initial: true) { _, phase in
+            // Inactive comes before background and before the app can be killed: write what was typed in the focused field.
+            if phase != .active { commitTypedValues() }
             guard phase == .active, let health else { return }
             Task { await health.appBecameActive(context: context) }
         }
@@ -90,6 +92,15 @@ struct RootView: View {
 }
 
 extension RootView {
+    /// Saves the set values typed since the last save (the engine's `setValues` does not save per keystroke).
+    private func commitTypedValues() {
+        do {
+            try engine?.commitEdits()
+        } catch {
+            saveErrors?.report(error)
+        }
+    }
+
     /// After the summary sheet is gone: if the finished workout came from a template it no longer matches, ask whether to
     /// update the template. Skipped when the template was deleted meanwhile (`Workout.template` is then nil).
     private func askToUpdateTemplate() {

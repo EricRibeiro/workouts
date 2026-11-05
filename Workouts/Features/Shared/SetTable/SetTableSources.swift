@@ -112,6 +112,10 @@ struct EngineSetTableSource: SetTableDataSource {
         }
     }
 
+    func commitEdits() {
+        perform { try engine.commitEdits() }
+    }
+
     @discardableResult
     func toggleCheck(of setID: UUID) -> Bool {
         guard let set = set(setID) else { return true }

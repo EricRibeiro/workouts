@@ -58,15 +58,6 @@ public final class AppNavigation {
     public func push(_ route: WorkoutRoute) { workoutPath.append(route) }
     public func push(_ route: ExercisesRoute) { exercisesPath.append(route) }
 
-    /// Pops the top route of a tab's stack; a no-op at the root.
-    public func pop(_ tab: AppTab) {
-        switch tab {
-        case .history: _ = historyPath.popLast()
-        case .workout: _ = workoutPath.popLast()
-        case .exercises: _ = exercisesPath.popLast()
-        }
-    }
-
     public func popToRoot(_ tab: AppTab) {
         switch tab {
         case .history: historyPath.removeAll()
@@ -77,12 +68,6 @@ public final class AppNavigation {
 
     // MARK: Deep links
 
-    /// Opens a template from a notification or Live Activity: Workout tab, stack reset to the preview.
-    public func openTemplate(_ id: UUID) {
-        selectedTab = .workout
-        workoutPath = [.template(id)]
-    }
-
     /// Opens a past workout's detail: History tab, stack reset to it.
     public func openWorkout(_ id: UUID) {
         selectedTab = .history
@@ -92,7 +77,6 @@ public final class AppNavigation {
     // MARK: Settings
 
     public func openSettings() { isSettingsPresented = true }
-    public func closeSettings() { isSettingsPresented = false }
 
     // MARK: Active workout
 

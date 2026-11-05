@@ -140,9 +140,11 @@ struct TemplatePreview: View {
                     .font(.body.weight(.medium))
                     .foregroundStyle(.primary)
                 if let bodyPart = info?.bodyPart, !bodyPart.isEmpty {
-                    Text(bodyPart)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                    Text(
+                        store.map { ExerciseFilter.bodyPartLabel(bodyPart, labels: $0.catalog.labels) } ?? bodyPart
+                    )
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
                 }
                 if !row.plan.isEmpty {
                     Text(row.plan)

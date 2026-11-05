@@ -54,9 +54,12 @@ protocol SetTableDataSource {
     func cycleKind(of setID: UUID)
     /// Copies the set's Previous values into it (active only).
     func applyPrevious(to setID: UUID)
+    /// Typing: the value goes into the model per keystroke; it is written by ``commitEdits()``.
     func commitWeight(_ weight: Double?, for setID: UUID)
     /// Reps, or seconds when the row's measure is `.duration`.
     func commitReps(_ value: Int?, for setID: UUID)
+    /// Writes what was typed (focus left a cell, Done); a no-op for sources that save on every edit.
+    func commitEdits()
     /// Checks or unchecks (active only). Returns `false` when the engine refused (a set with nothing to record); the row then
     /// shows the refusal. Template and past sources do nothing and return `true`.
     @discardableResult
@@ -71,5 +74,6 @@ protocol SetTableDataSource {
 
 extension SetTableDataSource {
     var checkedSetCount: Int { 0 }
+    func commitEdits() {}
     var rest: SetTableRest? { nil }
 }

@@ -182,18 +182,6 @@ final class FakeNotificationCenter: NotificationCenterProviding {
         #expect(center.delivered == [RestNotificationPlan.identifier])
     }
 
-    // MARK: Foreground
-
-    @Test func willPresentShowsNothingAndFiresTheHook() {
-        let notifier = notifier()
-        var fired = 0
-        notifier.onRestEndedInForeground = { fired += 1 }
-        #expect(notifier.presentationOptions(forNotification: RestNotificationPlan.identifier) == [])
-        #expect(fired == 1)
-        #expect(notifier.presentationOptions(forNotification: "other") == [])
-        #expect(fired == 1)
-    }
-
     // MARK: Responses
 
     @Test func actionsRouteToTheEngine() throws {
