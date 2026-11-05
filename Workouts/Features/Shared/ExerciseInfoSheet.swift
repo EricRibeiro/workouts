@@ -16,11 +16,14 @@ struct ExerciseInfoItem: Identifiable {
 struct ExerciseInfoSheet: View {
     let exerciseID: UUID
     @Environment(\.dismiss) private var dismiss
+    /// Starts at half height; picking a segment means "show me what is below", so it grows to full height.
+    @State private var detent: PresentationDetent = .medium
 
     var body: some View {
         NavigationStack {
             ExerciseDetailView(exerciseID: exerciseID)
                 .environment(\.exerciseHeroCapped, false)
+                .environment(\.onExerciseSegmentChange) { detent = .large }
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
                         Button(role: .close) {
@@ -31,6 +34,7 @@ struct ExerciseInfoSheet: View {
                     }
                 }
         }
+        .presentationDetents([.medium, .large], selection: $detent)
     }
 }
 
@@ -45,7 +49,6 @@ extension View {
             )
         ) { item in
             ExerciseInfoSheet(exerciseID: item.exerciseID)
-                .presentationDetents([.medium, .large])
         }
     }
 }

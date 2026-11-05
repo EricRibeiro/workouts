@@ -7,6 +7,12 @@ import SwiftData
 import SwiftUI
 import WorkoutsKit
 
+extension EnvironmentValues {
+    /// Called when the person picks another segment (About, History, Charts, Records). Only the exercise info sheet sets
+    /// it, to expand from the medium to the large detent; nil everywhere else.
+    @Entry var onExerciseSegmentChange: (() -> Void)?
+}
+
 /// The exercise detail (task 4.2): a media header, the full wrapping name, and a segmented control over About,
 /// History, Charts and Records (4.3). `embedded` drops the navigation chrome (title, Edit) and the
 /// edge-to-edge hero (a rounded media card instead), for the logging pane; the sticky note is editable in both. Edit exists for custom exercises only.
@@ -32,6 +38,7 @@ struct ExerciseDetailView: View {
     @Query private var customs: [Exercise]
     /// Only this exercise's rows in finished workouts (their sets and workouts prefetched), not every workout.
     @Query private var rows: [WorkoutExercise]
+    @Environment(\.onExerciseSegmentChange) private var onSegmentChange
     @State private var segment: Segment
     @State private var records: [ExerciseRecord] = []
     @State private var sessions: [Session] = []
@@ -148,6 +155,8 @@ struct ExerciseDetailView: View {
             .pickerStyle(.segmented)
             .accessibilityLabel("Section")
             .accessibilityIdentifier("exerciseDetail.segment")
+            // `onChange` ignores the initial value, so this fires only for a tap on another segment.
+            .onChange(of: segment) { onSegmentChange?() }
         }
         .padding(.horizontal)
     }

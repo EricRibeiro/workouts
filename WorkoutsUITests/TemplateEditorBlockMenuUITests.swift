@@ -141,7 +141,9 @@ final class TemplateEditorBlockMenuUITests: XCTestCase {
         XCTAssertTrue(save.waitForExistence(timeout: 5))
         XCTAssertEqual(save.label, "Update Superset")
         let remove = app.buttons["superset.remove"]
-        XCTAssertTrue(remove.exists, "no Remove from Superset")
+        // Long sample names make the member list taller, so the button can sit below the fold of the sheet's List.
+        if !remove.waitForExistence(timeout: 2) { any["superset.sheet"].swipeUp() }
+        XCTAssertTrue(remove.waitForExistence(timeout: 5), "no Remove from Superset")
         remove.tap()
         waitUntilGone(any["settable.superset.\(section)"], "the marker stayed after Remove from Superset")
         waitUntilGone(

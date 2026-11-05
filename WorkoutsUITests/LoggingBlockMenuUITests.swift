@@ -102,6 +102,25 @@ final class LoggingBlockMenuUITests: XCTestCase {
         XCTAssertTrue(any["screen.exerciseDetail"].waitForExistence(timeout: 10), "tapping the name opened no detail")
         let close = app.buttons["exerciseInfo.close"]
         XCTAssertTrue(close.waitForExistence(timeout: 5))
+
+        // The sheet opens at half height; picking a segment expands it to full height. The Close button sits in the
+        // sheet's top corner, so its position is the sheet's top edge.
+        let windowHeight = app.windows.firstMatch.frame.height
+        let mediumTop = close.frame.minY
+        XCTAssertGreaterThan(mediumTop, windowHeight * 0.3, "the sheet did not open at half height")
+        let segment = app.segmentedControls["exerciseDetail.segment"]
+        XCTAssertTrue(segment.waitForExistence(timeout: 5))
+        segment.buttons["History"].tap()
+        // The detent change animates; wait for the Close button to settle well above where it was at half height.
+        let deadline = Date().addingTimeInterval(5)
+        while close.frame.minY > mediumTop * 0.7 && Date() < deadline {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+        }
+        XCTAssertLessThan(
+            close.frame.minY,
+            mediumTop * 0.7,
+            "tapping a segment did not expand the sheet to full height (Close at \(close.frame.minY), was \(mediumTop), window \(windowHeight))"
+        )
         close.tap()
         waitUntilGone(any["screen.exerciseDetail"], "Close did not close the exercise sheet")
 
@@ -111,5 +130,22 @@ final class LoggingBlockMenuUITests: XCTestCase {
         XCTAssertTrue(any["screen.exerciseDetail"].waitForExistence(timeout: 10), "Exercise Info opened no detail")
         app.buttons["exerciseInfo.close"].tap()
         waitUntilGone(any["screen.exerciseDetail"], "Close did not close the exercise sheet")
+    }
+
+    /// A long library name stays on one line in the logging header: its button is about as tall as a short name's.
+    @MainActor
+    func testLongExerciseNameIsOneLine() throws {
+        let app = launchCover()
+        let names = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'settable.name.'"))
+        let long = names.matching(NSPredicate(format: "label CONTAINS 'Lever Seated Hammer Grip Shoulder Press'"))
+            .firstMatch
+        let short = names.matching(NSPredicate(format: "label CONTAINS 'Barbell Bench Press'")).firstMatch
+        XCTAssertTrue(short.waitForExistence(timeout: 10), "no Barbell Bench Press header")
+        XCTAssertTrue(long.waitForExistence(timeout: 10), "no Lever Seated Hammer Grip Shoulder Press header")
+        XCTAssertLessThan(
+            long.frame.height,
+            short.frame.height * 1.5,
+            "the long name wraps (\(long.frame.height) vs \(short.frame.height))"
+        )
     }
 }
