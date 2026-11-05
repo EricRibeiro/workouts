@@ -138,14 +138,15 @@ final class TemplatePreviewUITests: XCTestCase {
         app.buttons["summary.done"].firstMatch.tap()
         XCTAssertTrue(any["screen.finishSummary"].waitForNonExistence(timeout: 10))
 
-        XCTAssertTrue(app.staticTexts["Update Template?"].firstMatch.waitForExistence(timeout: 10))
+        let alert = app.alerts["Update Template?"]
+        XCTAssertTrue(alert.waitForExistence(timeout: 10))
         XCTAssertTrue(
             dialogButton(app, id: "updateTemplate.templateAndValues", label: "Update Template and Values").exists
         )
-        // Keep Original Template is the cancel role: a popover (regular width) omits it and a tap outside keeps instead.
+        XCTAssertTrue(alert.buttons["Keep Original Template"].exists)
         let valuesOnly = dialogButton(app, id: "updateTemplate.valuesOnly", label: "Update Values Only")
         XCTAssertTrue(valuesOnly.exists)
         valuesOnly.tap()
-        XCTAssertTrue(app.staticTexts["Update Template?"].firstMatch.waitForNonExistence(timeout: 5))
+        XCTAssertTrue(alert.waitForNonExistence(timeout: 5))
     }
 }

@@ -16,18 +16,13 @@ struct TemplateUpdatePrompt: Identifiable {
 }
 
 extension View {
-    /// Presents the "Update Template?" confirmation for `prompt` and reports the answer through `apply`. The workout is
-    /// saved either way; dismissing the dialog keeps the original template.
+    /// Presents the "Update Template?" alert for `prompt` and reports the answer through `apply`. The workout is
+    /// saved either way; dismissing the alert keeps the original template.
     func templateUpdateDialog(
         _ prompt: Binding<TemplateUpdatePrompt?>,
         apply: @escaping (TemplateUpdate.Choice, TemplateUpdatePrompt) -> Void
     ) -> some View {
-        confirmationDialog(
-            "Update Template?",
-            isPresented: Binding(get: { prompt.wrappedValue != nil }, set: { if !$0 { prompt.wrappedValue = nil } }),
-            titleVisibility: .visible,
-            presenting: prompt.wrappedValue
-        ) { prompt in
+        alert("Update Template?", item: prompt) { prompt in
             if prompt.kind == .structure {
                 Button("Update Values Only") { apply(.valuesOnly, prompt) }
                     .accessibilityIdentifier("updateTemplate.valuesOnly")
