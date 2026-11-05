@@ -28,3 +28,4 @@ Builds uploaded with `./dev testflight --upload` (cadence: AGENTS.md "TestFlight
 | 202611050754 | 04b4e24 | Review fixes: saves on field exit, "Workouts" copy, card dates, large titles across poses, no dead band on exercise detail |
 | 202611050836 | ea74e7f | Native timers for the rest ring, resume button and hero cross-fade; all 7.6 review fixes in |
 | 202611051256 | 8b18459 | Coloured rest ring, no rest caption in workouts, Exercise Info sheet during a workout |
+| 202611051341 | 18e81b6 | Ring+dumbbell resume control, Live Activity redesign, info sheet polish, one-line names |
