@@ -18,7 +18,12 @@ struct WorkoutDetailView: View {
     @Environment(SettingsStore.self) private var settings: SettingsStore?
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
-    @Query(filter: #Predicate<Workout> { $0.finishedAt != nil }) private var finished: [Workout]
+    @Environment(StoreGeneration.self) private var generation: StoreGeneration?
+    /// This workout alone (zero or one row): Edit, Save as Template and Delete need no more, and it keys the detail.
+    @Query private var current: [Workout]
+    /// The newest edit among finished workouts: with the store generation it tells the detail that the history its
+    /// records are judged against changed (the whole set is fetched once per change in the task, not observed).
+    @Query(Workout.newestFinishedEdit) private var newest: [Workout]
 
     @State private var isTemplatePresented = false
     @State private var isDeleteConfirming = false
@@ -28,6 +33,11 @@ struct WorkoutDetailView: View {
     /// Derived in `.task(id:)` when the history or a setting changes, never in `body`.
     @State private var detail: WorkoutDetail?
     @State private var isLoaded = false
+
+    init(workoutID: UUID) {
+        self.workoutID = workoutID
+        _current = Query(Workout.finished(id: workoutID))
+    }
 
     var body: some View {
         ZStack {
@@ -42,7 +52,7 @@ struct WorkoutDetailView: View {
                 .accessibilityIdentifier("history.detail.missing")
             }
         }
-        .task(id: Inputs(finished, unit: settings?.defaultUnit, formula: settings?.e1rmFormula)) {
+        .task(id: inputs) {
             detail = isDeleted ? nil : makeDetail()
             isLoaded = true
         }
@@ -52,8 +62,20 @@ struct WorkoutDetailView: View {
         }
     }
 
+    private var inputs: Inputs {
+        Inputs(
+            workout: current.first,
+            newestEdit: newest.first?.updatedAt,
+            generation: generation?.value ?? 0,
+            unit: settings?.defaultUnit,
+            formula: settings?.e1rmFormula
+        )
+    }
+
     private func makeDetail() -> WorkoutDetail? {
-        WorkoutDetail.make(
+        // Records are judged against the whole history: one fetch per change of the inputs, not an observed query.
+        let finished = (try? context.fetch(Workout.allFinished)) ?? []
+        return WorkoutDetail.make(
             id: workoutID,
             from: finished,
             weightType: { store.exercise(id: $0)?.weightType },
@@ -64,9 +86,7 @@ struct WorkoutDetailView: View {
         )
     }
 
-    private var workout: Workout? {
-        finished.first { $0.id == workoutID }
-    }
+    private var workout: Workout? { current.first }
 
     // MARK: Content
 
@@ -141,6 +161,7 @@ struct WorkoutDetailView: View {
         context.delete(workout)
         do {
             try context.save()
+            generation?.bump()
             isDeleted = true
             detail = nil
             dismiss()
@@ -154,14 +175,20 @@ struct WorkoutDetailView: View {
 /// What the detail is derived from: changes when a finished workout is added, removed or edited, or a setting that
 /// changes the numbers does, so the detail is recomputed then and not on every body evaluation.
 private struct Inputs: Hashable {
-    let ids: [UUID]
+    /// The workout's own identity and stamp: nil once it is gone, a new stamp after an edit of it.
+    let workoutID: UUID?
+    let workoutEdit: Date?
     let newestEdit: Date?
+    /// `StoreGeneration`: an import can update an older workout, or a delete remove one, without moving the newest stamp.
+    let generation: Int
     let unit: WeightUnit?
     let formula: E1RMFormula?
 
-    init(_ workouts: [Workout], unit: WeightUnit?, formula: E1RMFormula?) {
-        ids = workouts.map(\.id)
-        newestEdit = workouts.map(\.updatedAt).max()
+    init(workout: Workout?, newestEdit: Date?, generation: Int, unit: WeightUnit?, formula: E1RMFormula?) {
+        workoutID = workout?.id
+        workoutEdit = workout?.updatedAt
+        self.newestEdit = newestEdit
+        self.generation = generation
         self.unit = unit
         self.formula = formula
     }

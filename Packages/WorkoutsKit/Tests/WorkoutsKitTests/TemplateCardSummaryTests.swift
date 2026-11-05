@@ -165,16 +165,6 @@ import Testing
         #expect(index.lastPerformed(of: pull) == daysAgo(2))
     }
 
-    @Test func fingerprintChangesWithWorkouts() {
-        let a = Workout(name: "Push", startedAt: daysAgo(3), finishedAt: daysAgo(3))
-        let b = Workout(name: "Push", startedAt: daysAgo(1), finishedAt: daysAgo(1))
-        let before = TemplateCardSummary.LastPerformedIndex.fingerprint(of: [a])
-        #expect(before == TemplateCardSummary.LastPerformedIndex.fingerprint(of: [a]))
-        #expect(before != TemplateCardSummary.LastPerformedIndex.fingerprint(of: [a, b]))
-        a.name = "Pull"
-        #expect(before != TemplateCardSummary.LastPerformedIndex.fingerprint(of: [a]))
-    }
-
     @Test func relativeTextBuckets() {
         func text(_ days: Int) -> String {
             TemplateCardSummary.relativeText(daysAgo(days), now: now, calendar: calendar)

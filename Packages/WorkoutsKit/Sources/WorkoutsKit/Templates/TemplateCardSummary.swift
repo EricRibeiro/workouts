@@ -63,19 +63,6 @@ public struct TemplateCardSummary: Sendable, Equatable {
             byTemplate[template.id] ?? byName[Self.key(template.name)]
         }
 
-        /// A cheap value that changes when the index's answer could: it reads only each workout's own attributes (no
-        /// relationship), so a view can use it as a `.task(id:)` key without faulting every workout's template.
-        public static func fingerprint(of finishedWorkouts: [Workout]) -> Int {
-            var hasher = Hasher()
-            for workout in finishedWorkouts {
-                hasher.combine(workout.id)
-                hasher.combine(workout.startedAt)
-                hasher.combine(workout.finishedAt)
-                hasher.combine(workout.name)
-            }
-            return hasher.finalize()
-        }
-
         private static func key(_ name: String) -> String { name.lowercased() }
     }
 

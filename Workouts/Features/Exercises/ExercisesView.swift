@@ -15,9 +15,10 @@ struct ExercisesView: View {
     @Environment(ExerciseStore.self) private var store
     @Environment(SettingsStore.self) private var settings
     @Environment(\.modelContext) private var context
-    @Query(filter: #Predicate<Workout> { $0.finishedAt != nil }) private var finished: [Workout]
-    /// The newest edit among finished workouts: with the count it keys the best-set task without reading every workout.
-    @Query(ExercisesView.newestEdit) private var newest: [Workout]
+    /// The newest edit among finished workouts: with the store generation it keys the best-set task without reading every
+    /// workout. A delete or an import that updates an older workout bumps the generation.
+    @Query(Workout.newestFinishedEdit) private var newest: [Workout]
+    @Environment(StoreGeneration.self) private var generation: StoreGeneration?
     // Read here only so a unit or formula change in Settings recomputes the best sets.
     @AppStorage(SettingsKey.defaultUnit.rawValue) private var unitRaw = ""
     @AppStorage(SettingsKey.e1rmFormula.rawValue) private var formulaRaw = ""
@@ -51,15 +52,6 @@ struct ExercisesView: View {
         .onChange(of: selectionExists) { _, exists in
             if !exists { selection = nil }
         }
-    }
-
-    private static var newestEdit: FetchDescriptor<Workout> {
-        var descriptor = FetchDescriptor<Workout>(
-            predicate: #Predicate { $0.finishedAt != nil },
-            sortBy: [SortDescriptor(\.updatedAt, order: .reverse)]
-        )
-        descriptor.fetchLimit = 1
-        return descriptor
     }
 
     private var naturalResults: [ExerciseInfo] {
@@ -168,7 +160,11 @@ struct ExercisesView: View {
     }
 
     private var fingerprint: Fingerprint {
-        Fingerprint(count: finished.count, newestEdit: newest.first?.updatedAt, unit: unitRaw, formula: formulaRaw)
+        Fingerprint(
+            history: FinishedWorkoutsStamp(newestEdit: newest.first?.updatedAt, generation: generation?.value ?? 0),
+            unit: unitRaw,
+            formula: formulaRaw
+        )
     }
 
     private var recordsOptions: RecordsOptions {
@@ -177,11 +173,11 @@ struct ExercisesView: View {
 }
 
 /// Changes when a finished workout is added, removed or edited, or a setting that changes the numbers does, so the best
-/// sets are recomputed then and not per render. Built from a count and the newest `updatedAt` so no per-workout read runs
-/// per body evaluation; every editor stamps `updatedAt` (`PastWorkoutDraft.apply`, the engine's finish).
+/// sets are recomputed then and not per render. Built from the newest `updatedAt` and the `StoreGeneration` so no
+/// per-workout read runs per body evaluation; every editor stamps `updatedAt` (`PastWorkoutDraft.apply`, the engine's
+/// finish) and the bulk writes (import, delete) bump the generation.
 private struct Fingerprint: Hashable {
-    let count: Int
-    let newestEdit: Date?
+    let history: FinishedWorkoutsStamp
     let unit: String
     let formula: String
 }

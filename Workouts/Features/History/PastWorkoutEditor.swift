@@ -15,10 +15,16 @@ import WorkoutsKit
 struct PastWorkoutEditor: View {
     let workoutID: UUID
 
-    @Query(filter: #Predicate<Workout> { $0.finishedAt != nil }) private var finished: [Workout]
+    /// This workout alone (zero or one row), not every finished workout.
+    @Query private var found: [Workout]
+
+    init(workoutID: UUID) {
+        self.workoutID = workoutID
+        _found = Query(Workout.finished(id: workoutID))
+    }
 
     var body: some View {
-        if let workout = finished.first(where: { $0.id == workoutID }) {
+        if let workout = found.first {
             Editor(workout: workout)
         } else {
             ContentUnavailableView(

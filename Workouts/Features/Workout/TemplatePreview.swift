@@ -23,7 +23,12 @@ struct TemplatePreview: View {
     @Environment(SaveErrors.self) private var errors: SaveErrors?
     @Environment(ExerciseStore.self) private var store: ExerciseStore?
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @Query(filter: #Predicate<Workout> { $0.finishedAt != nil }) private var finishedWorkouts: [Workout]
+    @Environment(\.modelContext) private var context
+    @Environment(StoreGeneration.self) private var generation: StoreGeneration?
+    /// The newest edit among finished workouts: with the store generation it keys "last performed", which is read once
+    /// per change in the task (one fetch) rather than from an observed query of every finished workout.
+    @Query(Workout.newestFinishedEdit) private var newest: [Workout]
+    @State private var lastPerformedIndex = TemplateCardSummary.LastPerformedIndex()
     @State private var flow = StartWorkoutFlow()
     /// The exercise whose detail the row's `info.circle` pushes. State plus an item destination rather than a value
     /// `NavigationLink`: at regular width this view is itself pushed by an item destination, and a value link inside it
@@ -34,7 +39,7 @@ struct TemplatePreview: View {
 
     var body: some View {
         let rows = rows
-        let lastPerformed = TemplateCardSummary.make(for: template, finishedWorkouts: finishedWorkouts).lastPerformed
+        let lastPerformed = TemplateCardSummary.make(for: template, index: lastPerformedIndex).lastPerformed
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 header(lastPerformed: lastPerformed)
@@ -60,6 +65,10 @@ struct TemplatePreview: View {
             }
         }
         .navigationDestination(item: $aboutExerciseID) { ExerciseDetailView(exerciseID: $0) }
+        .task(id: FinishedWorkoutsStamp(newestEdit: newest.first?.updatedAt, generation: generation?.value ?? 0)) {
+            let finished = (try? context.fetch(Workout.allFinished)) ?? []
+            lastPerformedIndex = TemplateCardSummary.LastPerformedIndex(finishedWorkouts: finished)
+        }
         .accessibilityIdentifier("template.preview")
     }
 

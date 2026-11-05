@@ -17,6 +17,7 @@ struct HistoryView: View {
     @Environment(ExerciseStore.self) private var store
     @Environment(SettingsStore.self) private var settings
     @Environment(\.modelContext) private var context
+    @Environment(StoreGeneration.self) private var generation: StoreGeneration?
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Query(
         filter: #Predicate<Workout> { $0.finishedAt != nil },
@@ -74,7 +75,7 @@ struct HistoryView: View {
                     destination(route)
                 }
         }
-        .task(id: Inputs(finished, unit: unitRaw, formula: formulaRaw)) {
+        .task(id: Inputs(finished, generation: generation?.value ?? 0, unit: unitRaw, formula: formulaRaw)) {
             await refreshSummary()
         }
         .accessibilityIdentifier("screen.history")
@@ -247,6 +248,7 @@ struct HistoryView: View {
         context.delete(workout)
         do {
             try context.save()
+            generation?.bump()
             entries.removeAll { $0.id == entry.id }
         } catch {
             context.rollback()
@@ -320,11 +322,14 @@ private struct HistoryRow: View {
 private struct Inputs: Hashable {
     let ids: [UUID]
     let newestEdit: Date?
+    /// `StoreGeneration`: an import can update an older workout without moving the ids or the newest stamp.
+    let generation: Int
     let unit: String
     let formula: String
 
-    init(_ workouts: [Workout], unit: String, formula: String) {
+    init(_ workouts: [Workout], generation: Int, unit: String, formula: String) {
         ids = workouts.map(\.id)
+        self.generation = generation
         newestEdit = workouts.map(\.updatedAt).max()
         self.unit = unit
         self.formula = formula

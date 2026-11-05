@@ -27,6 +27,7 @@ struct ExerciseDetailView: View {
 
     @Environment(ExerciseStore.self) private var store
     @Environment(SettingsStore.self) private var settings: SettingsStore?
+    @Environment(StoreGeneration.self) private var generation: StoreGeneration?
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Query private var customs: [Exercise]
     /// Only this exercise's rows in finished workouts (their sets and workouts prefetched), not every workout.
@@ -76,7 +77,7 @@ struct ExerciseDetailView: View {
                 CustomExerciseFormView(editing: exerciseID, onRemoved: { removals += 1 })
                     .presentationPlacement(.center)
             }
-            .task(id: Fingerprint(rows, unit: unit, formula: options.formula)) {
+            .task(id: Fingerprint(rows, generation: generation?.value ?? 0, unit: unit, formula: options.formula)) {
                 let found = ExerciseBestSets.sessions(forRows: rows, weightType: info.weightType)
                 sessions = found
                 records = WorkoutsKit.records(found, weightType: info.weightType, options: options)
@@ -219,11 +220,14 @@ private struct DetailChrome: ViewModifier {
 private struct Fingerprint: Hashable {
     let count: Int
     let newestEdit: Date?
+    /// `StoreGeneration`: an import can update an older workout without moving the count or the newest stamp.
+    let generation: Int
     let unit: WeightUnit
     let formula: E1RMFormula
 
-    init(_ rows: [WorkoutExercise], unit: WeightUnit, formula: E1RMFormula) {
+    init(_ rows: [WorkoutExercise], generation: Int, unit: WeightUnit, formula: E1RMFormula) {
         count = rows.count
+        self.generation = generation
         // A row's own stamp, or its workout's (a rename or a date change stamps only the workout).
         newestEdit = rows.flatMap { [$0.updatedAt, $0.workout?.updatedAt] }.compactMap { $0 }.max()
         self.unit = unit

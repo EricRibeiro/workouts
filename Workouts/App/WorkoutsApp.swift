@@ -27,6 +27,8 @@ struct WorkoutsApp: App {
     private let activityController: LiveActivityController
     /// Where save failures are reported; the root view and the logging cover each host its alert.
     private let saveErrors = SaveErrors()
+    /// Bumped by bulk writes that `updatedAt` does not show (an import); the history caches fold it into their keys.
+    private let storeGeneration = StoreGeneration()
     /// Looks up the Apple Fitness workout behind each finished workout; its source is chosen once, here at launch.
     private let healthService: HealthEnrichmentService
     private let intentHandler: EngineActivityIntentHandler?
@@ -124,6 +126,7 @@ struct WorkoutsApp: App {
                 .environment(store)
                 .environment(settings)
                 .environment(saveErrors)
+                .environment(storeGeneration)
                 .environment(healthService)
         } else {
             ContentUnavailableView(

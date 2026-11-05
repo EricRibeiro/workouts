@@ -18,7 +18,10 @@ struct WorkoutView: View {
     @Query(sort: [SortDescriptor(\TemplateFolder.position), SortDescriptor(\TemplateFolder.name)])
     private var folders: [TemplateFolder]
     @Query private var templates: [Template]
-    @Query(filter: #Predicate<Workout> { $0.finishedAt != nil }) private var finishedWorkouts: [Workout]
+    /// The newest edit among finished workouts: with the store generation it keys "last performed", which is built from one
+    /// fetch of the finished workouts per change in the task, not from an observed query of all of them.
+    @Query(Workout.newestFinishedEdit) private var newestFinished: [Workout]
+    @Environment(StoreGeneration.self) private var generation: StoreGeneration?
     /// "Last performed" for every card, built once per change of the finished workouts (not once per card per body).
     @State private var lastPerformed = TemplateCardSummary.LastPerformedIndex()
 
@@ -230,8 +233,14 @@ struct WorkoutView: View {
                 .padding(.horizontal)
             }
             .accessibilityIdentifier("workout.list")
-            .task(id: TemplateCardSummary.LastPerformedIndex.fingerprint(of: finishedWorkouts)) {
-                lastPerformed = TemplateCardSummary.LastPerformedIndex(finishedWorkouts: finishedWorkouts)
+            .task(
+                id: FinishedWorkoutsStamp(
+                    newestEdit: newestFinished.first?.updatedAt,
+                    generation: generation?.value ?? 0
+                )
+            ) {
+                let finished = (try? context.fetch(Workout.allFinished)) ?? []
+                lastPerformed = TemplateCardSummary.LastPerformedIndex(finishedWorkouts: finished)
             }
         }
     }
