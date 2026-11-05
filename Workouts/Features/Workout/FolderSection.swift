@@ -132,6 +132,8 @@ private struct FolderHeader: View {
                     .foregroundStyle(.secondary)
                     .rotationEffect(.degrees(collapsed ? 0 : 90))
             }
+            // The whole header toggles the folder: give it the HIG's 44 pt minimum hit target.
+            .frame(minHeight: 44)
             .contentShape(Rectangle())
         } primaryAction: {
             withAnimation { collapsed.toggle() }

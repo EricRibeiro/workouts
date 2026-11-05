@@ -78,6 +78,8 @@ struct ExerciseAboutSection: View {
                         }
                         .accessibilityElement(children: .ignore)
                         .accessibilityLabel("Step \(index + 1), \(item)")
+                        // A combined element has no traits of its own; without this the audit reads it as a control.
+                        .accessibilityAddTraits(.isStaticText)
                     }
                 }
             }
@@ -99,6 +101,8 @@ struct ExerciseAboutSection: View {
                         }
                         .accessibilityElement(children: .ignore)
                         .accessibilityLabel(item)
+                        // A combined element has no traits of its own; without this the audit reads it as a control.
+                        .accessibilityAddTraits(.isStaticText)
                     }
                 }
             }
