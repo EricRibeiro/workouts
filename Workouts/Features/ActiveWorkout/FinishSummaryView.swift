@@ -24,7 +24,7 @@ struct FinishSummaryView: View {
 
     @Environment(\.dismiss) private var dismiss
     @Environment(ExerciseStore.self) private var store: ExerciseStore?
-    /// Flips once on appear when the workout set a record; `levelChange` plays then.
+    /// Flips once on appear; the one haptic plays then (`levelChange` for a record, `success` otherwise).
     @State private var celebrated = false
 
     var body: some View {
@@ -73,6 +73,16 @@ struct FinishSummaryView: View {
                     }
                 }
             }
+            // Stars fall behind the cards: rows are opaque, so only the header and the gutters show them and
+            // every row stays fully readable. The grouped background moves from the list to this layer.
+            .scrollContentBackground(.hidden)
+            .background {
+                ZStack {
+                    Color(.systemGroupedBackground)
+                    StarCelebration(hasRecord: summary.prCount > 0, seed: UInt64(max(0, summary.workoutNumber)))
+                }
+                .ignoresSafeArea()
+            }
             .navigationDestination(for: ExerciseRecordsRoute.self) { route in
                 ExerciseDetailView(exerciseID: route.exerciseID, initialSegment: .records)
             }
@@ -86,10 +96,10 @@ struct FinishSummaryView: View {
             .navigationBarTitleDisplayMode(.inline)
         }
         .accessibilityIdentifier("screen.finishSummary")
-        .sensoryFeedback(.levelChange, trigger: celebrated)
-        .onAppear {
-            if summary.prCount > 0 { celebrated = true }
+        .sensoryFeedback(trigger: celebrated) { _, _ in
+            summary.prCount > 0 ? .levelChange : .success
         }
+        .onAppear { celebrated = true }
     }
 
     private var header: some View {

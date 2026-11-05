@@ -155,9 +155,10 @@ orchestrator after review. Workers do not commit.
 
 ## TestFlight cadence
 
-After the orchestrator pushes a milestone to `main` (a PLAN task or a review's fix batch, with the full `./dev ui-test` and
-`./dev check` green), it runs `./dev testflight --upload` in the background from the main checkout whenever the app
-changed since the last upload (no minimum interval; Eric, 2026-11-04). Never from a worktree, never with uncommitted changes,
+After **every push to `main` that changes the app** (any fix, not only milestones; Eric, 2026-11-04: "we can update with
+far more frequency"), the orchestrator runs `./dev testflight --upload` in the background from the main checkout. The
+commit gate is unchanged: `./dev check` plus the UI suites the change touches; the full `./dev ui-test` still runs before
+a milestone (a PLAN task or a review's fix batch). Never from a worktree, never with uncommitted changes,
 never by workers. It takes no simulator lock (own DerivedData under `.build/testflight/`). Log each upload's build number
 and commit in `docs/testflight.md`. A failed upload is reported, not retried in a loop.
 
