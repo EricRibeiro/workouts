@@ -37,6 +37,8 @@ struct WorkoutsApp: App {
             if ProcessInfo.processInfo.arguments.contains("-uiTesting"), let domain = Bundle.main.bundleIdentifier {
                 UserDefaults.standard.removePersistentDomain(forName: domain)
             }
+            // `-seedHealth`: writes a sample Fitness workout into the simulator's Health store (docs/port/healthkit.md).
+            HealthSeeder.seedIfRequested()
         #endif
         let settings = SettingsStore()
         self.settings = settings
