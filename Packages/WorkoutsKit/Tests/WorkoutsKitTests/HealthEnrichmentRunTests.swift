@@ -193,6 +193,24 @@ private nonisolated struct FlakySource: HealthSource {
         #expect(b.healthCheckedAt == Self.now)
     }
 
+    @Test func clearAllWipesMatchedAndStampedWorkoutsOnly() throws {
+        let context = try makeContext()
+        let matched = Self.workout(startOffset: 0)
+        matched.applyHealth(Self.summary("HK-1"), checkedAt: Self.t0)
+        let stamped = Self.workout(startOffset: 7200)
+        stamped.applyHealth(nil, checkedAt: Self.t0)
+        let untouched = Self.workout(startOffset: 14400)
+        for workout in [matched, stamped, untouched] { context.insert(workout) }
+        try context.save()
+
+        #expect(try HealthEnrichmentRun.clearAll(context: context) == 2)
+        #expect(matched.healthWorkoutID == nil && matched.healthCheckedAt == nil && matched.activeEnergyKcal == nil)
+        #expect(stamped.healthCheckedAt == nil)
+        #expect(matched.updatedAt == Self.t0)
+        #expect(!context.hasChanges)
+        #expect(try HealthEnrichmentRun.clearAll(context: context) == 0)
+    }
+
     // MARK: Which workouts are picked
 
     @Test func unfinishedMatchedAndRecentlyCheckedAreSkipped() async {

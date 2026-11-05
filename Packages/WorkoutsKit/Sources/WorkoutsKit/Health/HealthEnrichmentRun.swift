@@ -77,6 +77,19 @@ public enum HealthEnrichmentRun {
         return outcome
     }
 
+    /// Clears the Fitness data and lookup stamp from every workout that has either, then saves. Returns how many workouts
+    /// changed. What "Remove Fitness Data" does.
+    @discardableResult
+    public static func clearAll(context: ModelContext) throws -> Int {
+        let descriptor = FetchDescriptor<Workout>(
+            predicate: #Predicate<Workout> { $0.healthWorkoutID != nil || $0.healthCheckedAt != nil }
+        )
+        let workouts = try context.fetch(descriptor)
+        for workout in workouts { workout.clearHealth() }
+        if context.hasChanges { try context.save() }
+        return workouts.count
+    }
+
     /// Finished workouts that finished within `within` of `now`, oldest finish first: what the app fetches to feed
     /// `run`. The default window matches `needsHealthCheck`'s give-up age.
     public static func recentFinishedDescriptor(

@@ -224,3 +224,7 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
     all relevant read types are requested up front and each enriched workout keeps a versioned JSON snapshot of everything
     HealthKit returns (statistics, metadata, events, source/device, effort, zones, time zone, any route), beside typed fields for
     what the UI uses.
+68. **Heart-rate zones are proven by the fixture only** (2026-11-04): on the iOS 27.2 simulator `HKWorkoutBuilder` never
+    produces a zone group (not from added samples, a live-timed workout or a custom configuration), so the real-store
+    integration test checks effort, weather, time zone and statistics but not zones. The zone mapping is covered by the
+    `full` fixture; real zones are confirmed on Eric's device once enrichment is on.

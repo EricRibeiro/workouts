@@ -13,6 +13,7 @@ import Testing
         #expect(store.restPresets.isEmpty)
         #expect(store.keepScreenOn)
         #expect(!store.downloadAllVideos)
+        #expect(!store.healthEnrichmentEnabled)
     }
 
     @Test func writeThroughPersistsAndFreshStoreReadsItBack() {
@@ -25,6 +26,7 @@ import Testing
         store.restPresets = [45, 150]
         store.keepScreenOn = false
         store.downloadAllVideos = true
+        store.healthEnrichmentEnabled = true
 
         #expect(backend.object(forKey: SettingsKey.defaultUnit.rawValue) as? String == "kg")
         #expect(backend.object(forKey: SettingsKey.e1rmFormula.rawValue) as? String == "brzycki")
@@ -38,6 +40,7 @@ import Testing
         #expect(fresh.restPresets == [45, 150])
         #expect(!fresh.keepScreenOn)
         #expect(fresh.downloadAllVideos)
+        #expect(fresh.healthEnrichmentEnabled)
     }
 
     @Test func everyKeyIsWrittenUnderItsOwnName() {
@@ -50,10 +53,11 @@ import Testing
         store.restPresets = [30]
         store.keepScreenOn = false
         store.downloadAllVideos = true
+        store.healthEnrichmentEnabled = true
         for key in SettingsKey.allCases {
             #expect(backend.object(forKey: key.rawValue) != nil, "\(key) not written")
         }
-        #expect(SettingsKey.allCases.count == 7)
+        #expect(SettingsKey.allCases.count == 8)
     }
 
     @Test func invalidStoredValuesFallBack() {

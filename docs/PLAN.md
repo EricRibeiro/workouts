@@ -316,7 +316,7 @@ Live Activity → notifications → logging, then templates, exercises, history.
     depends on real HealthKit or a permission prompt. Proof: a `-preview` entry renders fixture data.
   - [x] **d. Real-store check** (if a. says it is possible): DEBUG `-seedHealth` writes HealthKit samples matching the
     sample workouts; one integration test reads them back through the real `HealthKitSource`. Proof: that test.
-  - [ ] **e. Reader + permission**: `HealthKitSource` (entitlement, usage string, read-only authorization at the right
+  - [x] **e. Reader + permission**: `HealthKitSource` (entitlement, usage string, read-only authorization at the right
     moment), enrichment after finish and on foreground for unmatched recent workouts. Proof: kit + the d. test.
   - [ ] **e4. More Fitness details** (Eric, 2026-11-04): effort (HKWorkoutEffortRelationshipQuery; the rated score, else
     the estimated one; absent on older workouts), time in heart-rate zones (`HKWorkout.zoneGroup(for: heartRate)`, iOS 27),

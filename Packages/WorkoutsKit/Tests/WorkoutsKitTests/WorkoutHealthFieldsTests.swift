@@ -51,6 +51,19 @@ import Testing
         #expect(fetched.healthSummary == Self.summary())
     }
 
+    @Test func clearHealthRemovesEverythingButLeavesUpdatedAt() throws {
+        let workout = Self.finished()
+        workout.applyHealth(Self.summary(), checkedAt: Self.t0.addingTimeInterval(4000))
+        workout.clearHealth()
+        #expect(workout.healthSummary == nil)
+        #expect(workout.healthWorkoutID == nil && workout.healthCheckedAt == nil)
+        #expect(workout.activeEnergyKcal == nil && workout.totalEnergyKcal == nil)
+        #expect(workout.avgHeartRate == nil && workout.maxHeartRate == nil && workout.heartRateSeriesData == nil)
+        #expect(workout.updatedAt == Self.t0)
+        // Cleared means "never looked up": the next pass picks it up again.
+        #expect(workout.needsHealthCheck(now: Self.t0.addingTimeInterval(4100)))
+    }
+
     @Test func badSeriesDataReadsAsEmpty() {
         let workout = Self.finished()
         workout.applyHealth(Self.summary(), checkedAt: Self.t0)

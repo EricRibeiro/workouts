@@ -21,6 +21,9 @@ struct RootView: View {
     @Environment(\.modelContext) private var context
     @Environment(ActiveWorkoutEngine.self) private var engine: ActiveWorkoutEngine?
     @Environment(SaveErrors.self) private var saveErrors: SaveErrors?
+    @Environment(\.scenePhase) private var scenePhase
+    /// Optional so previews without the services still build; nil behaves like "no Health here".
+    @Environment(HealthEnrichmentService.self) private var health: HealthEnrichmentService?
     /// Whether the cover was open when the app last changed it: per device, so a relaunch can reopen it (task 2.7). A
     /// minimised workout relaunches as only the resume ring.
     @AppStorage("workoutCoverWasOpen") private var coverWasOpen = false
@@ -67,6 +70,7 @@ struct RootView: View {
             ActiveWorkoutCover(
                 minimise: { navigation.minimiseWorkout() },
                 onFinished: { summary in
+                    health?.workoutFinished(context: context)
                     pendingSummary = FinishSummaryItem(summary: summary)
                     summaryWorkoutID = summary.workoutID
                     navigation.endWorkout()
@@ -80,6 +84,11 @@ struct RootView: View {
             coverWasOpen = isPresented
         }
         .onAppear(perform: restoreCover)
+        // Coming back to the foreground is when a Watch workout recorded meanwhile can be picked up (when the person opted in).
+        .onChange(of: scenePhase, initial: true) { _, phase in
+            guard phase == .active, let health else { return }
+            Task { await health.refresh(context: context) }
+        }
     }
 }
 

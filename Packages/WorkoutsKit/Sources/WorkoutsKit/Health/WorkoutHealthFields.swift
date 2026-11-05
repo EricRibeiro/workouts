@@ -33,6 +33,18 @@ extension Workout {
         heartRateSeriesData = summary.heartRateSeries.isEmpty ? nil : try? JSONEncoder().encode(summary.heartRateSeries)
     }
 
+    /// Removes everything Fitness added: the matched workout, its numbers and series, and the lookup stamp, so a later
+    /// opt-in looks the workout up afresh. Like `applyHealth`, leaves `updatedAt` alone.
+    public func clearHealth() {
+        healthWorkoutID = nil
+        healthCheckedAt = nil
+        activeEnergyKcal = nil
+        totalEnergyKcal = nil
+        avgHeartRate = nil
+        maxHeartRate = nil
+        heartRateSeriesData = nil
+    }
+
     /// True when the app should look for a Fitness match: the workout is finished, not matched yet, was never checked or
     /// last checked more than `recheckAfter` ago, and finished less than `giveUpAfter` ago (Fitness data for older
     /// workouts is not worth chasing).

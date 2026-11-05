@@ -9,7 +9,7 @@
 
     /// Canned Health data for previews, the gallery and UI tests (`-healthFixture <name>`), so the enrichment path is provable
     /// without HealthKit or a paired watch.
-    enum HealthFixture: String, CaseIterable {
+    nonisolated enum HealthFixture: String, CaseIterable, Sendable {
         /// One strength workout overlapping the interval, with energy and a heart-rate series.
         case full
         /// Health is readable but holds no workout.
@@ -26,6 +26,14 @@
             }
             return HealthFixture(rawValue: arguments[index + 1])
         }
+
+        /// How long before and after our workout the canned Fitness workout starts and stops, like the real thing.
+        fileprivate static let fitnessLeadIn: TimeInterval = 45
+        fileprivate static let fitnessTail: TimeInterval = 30
+
+        /// A source that answers for any workout: it builds the fixture around the interval each query asks about, so a
+        /// workout recorded during the run finds its own Fitness data. Use this where the workout is not known up front.
+        var anyWorkoutSource: any HealthSource { HealthFixtureSource(fixture: self) }
 
         /// A source for a workout that ran from `start` to `end`.
         func source(around start: Date, end: Date) -> FakeHealthSource {
@@ -45,8 +53,8 @@
 
         private static func fullSource(around start: Date, end: Date) -> FakeHealthSource {
             // Fitness is started a little before and stopped a little after ours, like the real thing.
-            let fitnessStart = start.addingTimeInterval(-45)
-            let fitnessEnd = end.addingTimeInterval(30)
+            let fitnessStart = start.addingTimeInterval(-fitnessLeadIn)
+            let fitnessEnd = end.addingTimeInterval(fitnessTail)
             let candidate = HealthWorkoutCandidate(
                 id: "fixture-fitness-workout",
                 kind: .functionalStrength,
@@ -77,6 +85,31 @@
                 heartRateSeries: series
             )
             return FakeHealthSource(candidates: [candidate], summaries: [summary])
+        }
+    }
+
+    /// A `HealthSource` that builds a `HealthFixture` around whatever workout is being looked up.
+    ///
+    /// `HealthEnrichment` queries the workout's interval widened by the matcher's slack, so `workouts(in:)` narrows the
+    /// query back to the workout and builds the fixture around that. `summary(for:)` receives the candidate it produced and
+    /// rebuilds the same fixture from the candidate's own times. A query that is not slack-widened (shorter than the slack)
+    /// is taken as the workout itself.
+    private nonisolated struct HealthFixtureSource: HealthSource {
+        let fixture: HealthFixture
+
+        func workouts(in interval: DateInterval) async throws -> [HealthWorkoutCandidate] {
+            let before = HealthMatcher.defaultSlackBefore
+            let after = HealthMatcher.defaultSlackAfter
+            let start = interval.start.addingTimeInterval(before)
+            let end = interval.end.addingTimeInterval(-after)
+            let ours = end > start ? (start, end) : (interval.start, interval.end)
+            return try await fixture.source(around: ours.0, end: ours.1).workouts(in: interval)
+        }
+
+        func summary(for candidate: HealthWorkoutCandidate) async throws -> HealthWorkoutSummary {
+            let start = candidate.start.addingTimeInterval(HealthFixture.fitnessLeadIn)
+            let end = candidate.end.addingTimeInterval(-HealthFixture.fitnessTail)
+            return try await fixture.source(around: start, end: end).summary(for: candidate)
         }
     }
 #endif

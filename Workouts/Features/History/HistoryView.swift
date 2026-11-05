@@ -99,6 +99,7 @@ struct HistoryView: View {
             .accessibilityIdentifier("history.empty")
         } else {
             let sections = HistoryList.sections(HistoryList.filter(entries, query: query, scope: scope))
+            let fitnessIDs = fitnessProofIDs
             List {
                 if query.isEmpty && scope == .all {
                     Section {
@@ -124,7 +125,7 @@ struct HistoryView: View {
                 ForEach(sections) { section in
                     Section(section.title) {
                         ForEach(section.entries) { entry in
-                            row(entry)
+                            row(entry, fitnessIDs: fitnessIDs)
                         }
                     }
                 }
@@ -163,7 +164,16 @@ struct HistoryView: View {
         }
     }
 
-    private func row(_ entry: HistoryEntry) -> some View {
+    /// The workouts that carry Fitness data, for the UI tests' proof signal (`fitnessProof`); empty in release builds.
+    private var fitnessProofIDs: Set<UUID> {
+        #if DEBUG
+            Set(finished.filter { $0.healthWorkoutID != nil }.map(\.id))
+        #else
+            []
+        #endif
+    }
+
+    private func row(_ entry: HistoryEntry, fitnessIDs: Set<UUID>) -> some View {
         NavigationLink(value: HistoryRoute.workout(entry.id)) {
             HistoryRow(entry: entry)
         }
@@ -172,6 +182,7 @@ struct HistoryView: View {
         .accessibilityLabel(HistoryList.accessibilityLabel(for: entry))
         .accessibilityAddTraits(.isButton)
         .accessibilityIdentifier("history.row.\(entry.id.uuidString)")
+        .fitnessProof(hasFitness: fitnessIDs.contains(entry.id))
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
             deleteButton(entry)
         }
@@ -248,6 +259,19 @@ struct HistoryView: View {
         case .editWorkout(let id):
             PastWorkoutEditor(workoutID: id)
         }
+    }
+}
+
+extension View {
+    /// DEBUG only: marks a History row whose workout has Apple Fitness data with the accessibility value "Fitness", so a UI
+    /// test can prove the enrichment end to end before the row shows the numbers. Release builds add nothing.
+    @ViewBuilder
+    fileprivate func fitnessProof(hasFitness: Bool) -> some View {
+        #if DEBUG
+            accessibilityValue(hasFitness ? "Fitness" : "")
+        #else
+            self
+        #endif
     }
 }
 

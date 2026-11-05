@@ -10,6 +10,7 @@ public nonisolated enum SettingsKey: String, CaseIterable, Sendable {
     case restPresets
     case keepScreenOn
     case downloadAllVideos
+    case healthEnrichmentEnabled
 }
 
 /// App settings, outside SwiftData. Loads from the backend on init; every property writes through on change. Stored
@@ -23,6 +24,7 @@ public final class SettingsStore {
     public static let restPresetsDefault: [Int] = []
     public static let keepScreenOnDefault = true
     public static let downloadAllVideosDefault = false
+    public static let healthEnrichmentEnabledDefault = false
 
     /// Most custom rest presets kept.
     public static let maxRestPresets = 6
@@ -61,6 +63,13 @@ public final class SettingsStore {
         didSet { backend.set(downloadAllVideos, forKey: SettingsKey.downloadAllVideos.rawValue) }
     }
 
+    /// Opt-in Apple Fitness enrichment (off until Settings turns it on): while off, the app never asks Health for anything.
+    public var healthEnrichmentEnabled: Bool {
+        didSet {
+            backend.set(healthEnrichmentEnabled, forKey: SettingsKey.healthEnrichmentEnabled.rawValue)
+        }
+    }
+
     public init(backend: any SettingsBackend = UserDefaultsBackend()) {
         self.backend = backend
 
@@ -83,6 +92,9 @@ public final class SettingsStore {
         keepScreenOn = backend.object(forKey: SettingsKey.keepScreenOn.rawValue) as? Bool ?? Self.keepScreenOnDefault
         downloadAllVideos =
             backend.object(forKey: SettingsKey.downloadAllVideos.rawValue) as? Bool ?? Self.downloadAllVideosDefault
+        healthEnrichmentEnabled =
+            backend.object(forKey: SettingsKey.healthEnrichmentEnabled.rawValue) as? Bool
+            ?? Self.healthEnrichmentEnabledDefault
     }
 
     /// Keeps the valid (1-3600), distinct entries in order, at most 6; anything that is not `[Int]` becomes `[]`.

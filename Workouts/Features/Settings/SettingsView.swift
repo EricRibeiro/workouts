@@ -17,11 +17,14 @@ struct SettingsView: View {
     @Environment(\.colorScheme) private var colorScheme
     /// Optional so the screen still builds where no store is injected; Import then skips the library check.
     @Environment(ExerciseStore.self) private var exerciseStore: ExerciseStore?
+    /// Optional like the store above; the Apple Fitness section shows only where Health is available.
+    @Environment(HealthEnrichmentService.self) private var health: HealthEnrichmentService?
 
     private let download = BulkVideoDownload.shared
     @State private var isPickingFile = false
     @State private var isImporting = false
     @State private var outcome: TransferOutcome?
+    @State private var isTurningOffFitness = false
 
     /// What the result alert shows after an import.
     private struct TransferOutcome {
@@ -40,6 +43,7 @@ struct SettingsView: View {
                 unitsAndRecords
                 workout
                 media
+                appleFitness
                 iCloud
                 data
                 #if DEBUG
@@ -63,6 +67,19 @@ struct SettingsView: View {
             case .failure(let error):
                 outcome = TransferOutcome(title: "Could Not Import", message: DataTransfer.message(for: error))
             }
+        }
+        // An alert, not a dialog: it is raised from a toggle, and a dialog's popover arrow would point at nothing sensible.
+        .alert("Turn Off Apple Fitness?", isPresented: $isTurningOffFitness) {
+            Button("Keep Fitness Data") { turnOffFitness(removeData: false) }
+                .accessibilityIdentifier("settings.health.keep")
+            Button("Remove Fitness Data", role: .destructive) { turnOffFitness(removeData: true) }
+                .accessibilityIdentifier("settings.health.remove")
+            Button("Cancel", role: .cancel) {}
+                .accessibilityIdentifier("settings.health.cancel")
+        } message: {
+            Text(
+                "Workouts Duo stops reading Fitness workouts. Keep the calories and heart rate already added, or remove them?"
+            )
         }
         .alert(
             outcome?.title ?? "",
@@ -209,6 +226,53 @@ struct SettingsView: View {
         guard let catalog = exerciseStore?.catalog else { return }
         let ids = catalog.exercises.filter(\.hasVideos).map(\.sourceId)
         download.start(sourceIDs: ids, scheme: colorScheme == .dark ? .dark : .light)
+    }
+
+    @ViewBuilder
+    private var appleFitness: some View {
+        if let health, health.isAvailable {
+            Section {
+                Toggle("Read Apple Fitness Workouts", isOn: fitnessBinding(health))
+                    .accessibilityLabel("Read Apple Fitness Workouts")
+                    .accessibilityIdentifier("settings.health.enabled")
+            } header: {
+                Text("Apple Fitness")
+            } footer: {
+                Text(
+                    "Reads calories and heart rate from the Apple Fitness strength workout you record alongside each session. Workouts Duo never writes to Health."
+                )
+            }
+        }
+    }
+
+    /// On turns the setting on and shows the Health sheet (then looks up what is waiting). Off does not change anything
+    /// yet: it asks whether to keep the data already added, and Cancel leaves the toggle on.
+    private func fitnessBinding(_ health: HealthEnrichmentService) -> Binding<Bool> {
+        Binding(
+            get: { settings.healthEnrichmentEnabled },
+            set: { isOn in
+                if isOn {
+                    settings.healthEnrichmentEnabled = true
+                    Task { await health.requestAuthorization(context: modelContext) }
+                } else {
+                    isTurningOffFitness = true
+                }
+            }
+        )
+    }
+
+    private func turnOffFitness(removeData: Bool) {
+        guard let health else { return }
+        Task {
+            do {
+                try await health.turnOff(remove: removeData, context: modelContext)
+            } catch {
+                outcome = TransferOutcome(
+                    title: "Could Not Remove Fitness Data",
+                    message: error.localizedDescription
+                )
+            }
+        }
     }
 
     private var iCloud: some View {

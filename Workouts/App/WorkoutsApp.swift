@@ -27,6 +27,8 @@ struct WorkoutsApp: App {
     private let activityController: LiveActivityController
     /// Where save failures are reported; the root view and the logging cover each host its alert.
     private let saveErrors = SaveErrors()
+    /// Looks up the Apple Fitness workout behind each finished workout; its source is chosen once, here at launch.
+    private let healthService: HealthEnrichmentService
     private let intentHandler: EngineActivityIntentHandler?
 
     @MainActor
@@ -42,6 +44,7 @@ struct WorkoutsApp: App {
         #endif
         let settings = SettingsStore()
         self.settings = settings
+        healthService = HealthEnrichmentService.atLaunch(settings: settings)
         let notifier = RestNotifier()
         notifier.activate()
         restNotifier = notifier
@@ -101,6 +104,7 @@ struct WorkoutsApp: App {
                 if let name = PreviewGallery.requestedName() {
                     PreviewGallery.host(name)
                         .environment(settings)
+                        .environment(healthService)
                 } else {
                     appRoot
                 }
@@ -119,6 +123,7 @@ struct WorkoutsApp: App {
                 .environment(store)
                 .environment(settings)
                 .environment(saveErrors)
+                .environment(healthService)
         } else {
             ContentUnavailableView(
                 "Could not open the database",
