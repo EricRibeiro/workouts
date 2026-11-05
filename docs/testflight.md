@@ -21,3 +21,4 @@ Builds uploaded with `./dev testflight --upload` (cadence: AGENTS.md "TestFlight
 | 202611050200 | 77333d0 | Fitness fields on workouts (store migration); resume button shows a stopwatch, not a second figure |
 | 202611050207 | dc0baa5 | HealthKit capability (read-only reader, no UI yet) |
 | 202611050247 | 4bfd921 | Exercise chips no longer overlap the next section |
+| 202611050346 | 54e53c9 | Apple Fitness toggle in Settings (off by default); full Fitness capture (calories, HR, effort, zones, weather) — no on-screen card yet |

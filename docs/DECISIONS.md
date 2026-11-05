@@ -22,7 +22,7 @@ Eric deferred the technical choices to Claude. These close every item in `docs/p
   CloudKit runs **off** behind one flag (`ModelConfiguration(cloudKitDatabase: .none)`); the schema is CloudKit-safe from day one.
 - Settings live outside SwiftData, in `SettingsStore` (WorkoutsKit, Foundation-only, `@Observable`, injected in the environment so
   unit and formula changes recompute derived numbers; `@AppStorage` alone would not) with a protocol and one key list:
-  **`UserDefaults`** now, `NSUbiquitousKeyValueStore` only if a second device appears (7.3). Keys: `defaultUnit`,
+  **`UserDefaults`** now, `NSUbiquitousKeyValueStore` only if a second device appears (8.2). Keys: `defaultUnit`,
   `defaultRestSeconds` (90), `weeklyGoal` (3), `e1rmFormula` (epley), `restPresets`, `keepScreenOn` (true), `downloadAllVideos`
   (false, Wi-Fi only). Appearance follows the system.
 - Library: 1,038 exercises bundled as `library.json` + thumbnails (`scripts/build-library`), decoded once into a read-only

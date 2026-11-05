@@ -12,7 +12,7 @@ import WorkoutsKit
 
 @main
 struct WorkoutsApp: App {
-    /// Local-only: the iCloud entitlement exists (7.1) but SwiftData sync stays off until PLAN 7.2 (JC54).
+    /// Local-only: the iCloud entitlement exists (7.1) but SwiftData sync stays off until PLAN 8.1 (JC54).
     private let container: ModelContainer?
     private let containerError: String?
     /// The one engine for the in-progress workout; resumes a running workout from the store at launch.

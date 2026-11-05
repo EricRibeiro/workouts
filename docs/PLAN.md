@@ -303,7 +303,7 @@ Live Activity → notifications → logging, then templates, exercises, history.
   `./dev build` signs with the team.
 - [ ] **7.1b Fitness enrichment (HealthKit, read-only, opt-in: Settings toggle, default off)** (Eric, 2026-11-04): after a workout, read the overlapping Apple
   Fitness Functional Strength Training workout and store calories, avg/max heart rate and its duration on the `Workout`
-  (optional fields, so additive; land before 7.2 so the first Production schema has them); show a Fitness card on the
+  (optional fields, so additive; land before 8.1 so the first Production schema has them); show a Fitness card on the
   workout detail and calories in History; backfill imported history. **Testing infrastructure first** (Eric: "being able
   to test and iterate is a core premise"), in this order, each its own worker task:
   - [x] **a. Research** (done: `docs/port/healthkit.md`): what the simulator supports (granting Health authorization without the prompt, e.g.
@@ -330,17 +330,9 @@ Live Activity → notifications → logging, then templates, exercises, history.
     (shaped like a real export when Eric provides one).
   - [ ] **f. UI**: Fitness card on the workout detail (calories, avg/max HR, small HR chart), calories in History rows and
     the dashboard. Proof: `-preview` screenshots light/dark, closed/open.
-  - [ ] **g. Backfill**: enrich imported history once (and after 7.4's import). Proof: kit test over a fixture year.
-- [ ] **7.2 CloudKit on**: flip the flag, promote the schema to production. Needs: 7.1. Proof: two simulators sync.
-- [ ] **7.3 Settings on iCloud KVS** (only if a second device appears): `NSUbiquitousKeyValueStore` backend behind the
-  `cloudKit` flag. Needs: 7.1. Proof: `./dev kit Settings` runs both backends.
-- [ ] **7.4 TestFlight-time migration run**: re-run `scripts/export-web`, Import the delta. Needs: 7.2. Proof: the device's
-  workout count matches the export.
+  - [ ] **g. Backfill**: enrich imported history once (and after 8.3's import). Proof: kit test over a fixture year.
 - [x] **7.5 TestFlight**: archive, export, upload. Needs: 7.1. Proof: `./dev testflight`; the build installs on the Duo.
-
-### Phase 8 — Final review (Eric, 2026-11-04)
-
-- [ ] **8.1 Whole-app review by Fable** (after everything else except 7.2 and 7.4, which follow it; Eric, 2026-11-04): one `model: fable` pass over the entire app,
+- [ ] **7.6 Whole-app review by Fable** (after everything except Phase 8, which follows it; Eric, 2026-11-04): one `model: fable` pass over the entire app,
   code and running screens, reporting P0–P3 findings in five areas: (1) **bugs** (correctness, data loss, sync/import edge
   cases, concurrency); (2) **framework fit**: native SwiftUI/SwiftData/HealthKit/ActivityKit APIs used as Apple documents
   them, no workarounds or private behaviour that would break on the next iOS; (3) **iPhone Duo UX**: closed, open, book
@@ -348,6 +340,14 @@ Live Activity → notifications → logging, then templates, exercises, history.
   guidelines** (HIG, Liquid Glass, toolbars, sheets, dialogs, typography, SF Symbols); (5) **visual polish** (spacing,
   hierarchy, motion, light/dark, Dynamic Type). Findings become worker tasks; Eric decides taste calls. Proof: the report
   in `docs/reviews/`, fixes landed, the full `./dev ui-test` green.
+
+### Phase 8 — Sync and final import (the very last steps; Eric, 2026-11-04)
+
+- [ ] **8.1 CloudKit on**: flip the flag, promote the schema to production. Needs: 7.1. Proof: two simulators sync.
+- [ ] **8.2 Settings on iCloud KVS** (only if a second device appears): `NSUbiquitousKeyValueStore` backend behind the
+  `cloudKit` flag. Needs: 7.1. Proof: `./dev kit Settings` runs both backends.
+- [ ] **8.3 TestFlight-time migration run**: re-run `scripts/export-web`, Import the delta. Needs: 8.1. Proof: the device's
+  workout count matches the export.
 
 ## 7. Risks and unknowns
 
@@ -360,7 +360,7 @@ Live Activity → notifications → logging, then templates, exercises, history.
 - **Live Activity cannot update itself while the app is suspended** (no push server): 0:00 and the time-sensitive notification
   are the "rest over" signals.
 - **SwiftData + CloudKit**: no unique constraints, optional relationships, additive-only migrations once CloudKit is on; keep
-  `SchemaV1` frozen after 7.2. **Island screenshots** need an Island sim (`iPhone 18 Pro`; the Duo's inner display has none);
+  `SchemaV1` frozen after 8.1. **Island screenshots** need an Island sim (`iPhone 18 Pro`; the Duo's inner display has none);
   **TestFlight** needs the paid program (simulator-only until then).
 - **Foundation Models in the simulator** run on the host Mac's model, so 4.6 only parses when the server Mac has Apple Intelligence
   enabled (and macOS/Xcode match the sim's iOS). The kit never imports it and the preview stubs the parser, so no proof depends on it.

@@ -228,3 +228,6 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
     produces a zone group (not from added samples, a live-timed workout or a custom configuration), so the real-store
     integration test checks effort, weather, time zone and statistics but not zones. The zone mapping is covered by the
     `full` fixture; real zones are confirmed on Eric's device once enrichment is on.
+69. **Plan renumbered (Eric, 2026-11-04)**: CloudKit on, Settings KVS and the final import moved from 7.2/7.3/7.4 to a new
+    Phase 8 (8.1/8.2/8.3), the very last steps; the whole-app Fable review is 7.6, before them. Earlier entries that say
+    "7.2" or "7.4" mean 8.1 and 8.3.

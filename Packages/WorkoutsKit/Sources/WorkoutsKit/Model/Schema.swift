@@ -27,15 +27,15 @@ public enum WorkoutsMigrationPlan: SchemaMigrationPlan {
 }
 
 extension ModelContainer {
-    /// The app's container. The store is always local (`cloudKitDatabase: .none`) until PLAN 7.2 turns sync on, so
+    /// The app's container. The store is always local (`cloudKitDatabase: .none`) until PLAN 8.1 turns sync on, so
     /// `cloudKit` is accepted but ignored for now (JC54). `inMemory` is for tests and previews.
     public static func workouts(inMemory: Bool = false, cloudKit: Bool = false) throws -> ModelContainer {
         let schema = Schema(versionedSchema: SchemaV1.self)
         let configuration = ModelConfiguration(
             schema: schema,
             isStoredInMemoryOnly: inMemory,
-            // Explicit on purpose (JC54 / PLAN 7.2): the app now carries the iCloud entitlement, and SwiftData
-            // would otherwise start syncing to CloudKit on its own. 7.2 replaces this with `cloudKit ? .automatic : .none`.
+            // Explicit on purpose (JC54 / PLAN 8.1): the app now carries the iCloud entitlement, and SwiftData
+            // would otherwise start syncing to CloudKit on its own. 8.1 replaces this with `cloudKit ? .automatic : .none`.
             cloudKitDatabase: .none
         )
         return try ModelContainer(
