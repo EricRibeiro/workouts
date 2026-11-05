@@ -4,7 +4,7 @@
       "idiom" : "universal",
       "platform" : "ios",
       "size" : "1024x1024",
-      "filename" : "AppIcon.png"
+      "filename" : "AppIcon-light.png"
     },
     {
       "appearances" : [
@@ -15,7 +15,8 @@
       ],
       "idiom" : "universal",
       "platform" : "ios",
-      "size" : "1024x1024"
+      "size" : "1024x1024",
+      "filename" : "AppIcon-dark.png"
     },
     {
       "appearances" : [
@@ -26,7 +27,8 @@
       ],
       "idiom" : "universal",
       "platform" : "ios",
-      "size" : "1024x1024"
+      "size" : "1024x1024",
+      "filename" : "AppIcon-tinted.png"
     },
     {
       "idiom" : "mac",

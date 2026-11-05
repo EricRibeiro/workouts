@@ -35,29 +35,46 @@ final class LoopingPlayer {
     }
 }
 
-/// AVKit's player with a clear backdrop that fills its bounds. SwiftUI's `VideoPlayer` paints a black backdrop and
-/// letterboxes (`.resizeAspect`), so when the hero's fractional size lands off the pixel grid the sliver of backdrop
-/// shows as a thin dark line down each side of the 16:9 clip. `VideoPlayer` exposes neither knob, hence the wrapper.
-private struct ClearVideoPlayer: UIViewControllerRepresentable {
+/// A bare `AVPlayerLayer` that fills its bounds: no playback controls, no scrim, no backdrop. `AVPlayerViewController`
+/// (and SwiftUI's `VideoPlayer`, which wraps it) shows its controls overlay with a dimming scrim as playback starts, which
+/// read as one dark frame over the hero; `VideoPlayer` also paints a black backdrop and letterboxes, which showed as a thin
+/// dark line at the sides when the hero's fractional size landed off the pixel grid. The layer has neither.
+private struct PlayerLayerView: UIViewRepresentable {
     let player: AVPlayer
-    /// Called on the main actor whenever `AVPlayerViewController.isReadyForDisplay` changes: true once the first
-    /// video frame can be drawn, so the owner can keep something else showing until then.
+    /// Called on the main actor whenever `AVPlayerLayer.isReadyForDisplay` changes: true once the first video frame can
+    /// be drawn, so the owner can keep something else showing until then.
     let onReadyForDisplay: (Bool) -> Void
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
-    func makeUIViewController(context: Context) -> AVPlayerViewController {
-        let controller = AVPlayerViewController()
-        controller.player = player
-        controller.videoGravity = .resizeAspectFill
-        controller.view.backgroundColor = .clear
-        context.coordinator.observe(controller, onReadyForDisplay)
-        return controller
+    func makeUIView(context: Context) -> LayerView {
+        let view = LayerView()
+        view.playerLayer?.player = player
+        context.coordinator.observe(view, onReadyForDisplay)
+        return view
     }
 
-    func updateUIViewController(_ controller: AVPlayerViewController, context: Context) {
-        if controller.player !== player { controller.player = player }
+    func updateUIView(_ view: LayerView, context: Context) {
+        if view.playerLayer?.player !== player { view.playerLayer?.player = player }
         context.coordinator.onReadyForDisplay = onReadyForDisplay
+    }
+
+    final class LayerView: UIView {
+        override class var layerClass: AnyClass { AVPlayerLayer.self }
+
+        var playerLayer: AVPlayerLayer? { layer as? AVPlayerLayer }
+
+        override init(frame: CGRect) {
+            super.init(frame: frame)
+            backgroundColor = .clear
+            isOpaque = false
+            isAccessibilityElement = true
+            playerLayer?.videoGravity = .resizeAspectFill
+            playerLayer?.backgroundColor = nil
+        }
+
+        @available(*, unavailable)
+        required init?(coder: NSCoder) { nil }
     }
 
     @MainActor
@@ -65,11 +82,12 @@ private struct ClearVideoPlayer: UIViewControllerRepresentable {
         var onReadyForDisplay: (Bool) -> Void = { _ in }
         private var observation: NSKeyValueObservation?
 
-        func observe(_ controller: AVPlayerViewController, _ callback: @escaping (Bool) -> Void) {
+        func observe(_ view: LayerView, _ callback: @escaping (Bool) -> Void) {
             onReadyForDisplay = callback
-            observation = controller.observe(\.isReadyForDisplay, options: [.initial, .new]) {
-                [weak self] controller, _ in
-                let ready = controller.isReadyForDisplay
+            guard let layer = view.playerLayer else { return }
+            observation = layer.observe(\.isReadyForDisplay, options: [.initial, .new]) {
+                [weak self] layer, _ in
+                let ready = layer.isReadyForDisplay
                 Task { @MainActor in self?.onReadyForDisplay(ready) }
             }
         }
@@ -89,6 +107,8 @@ struct ExerciseMediaHeader: View {
     @State private var video: LoopingPlayer?
     /// The player has a frame to show; until then the stills stay up so the swap never shows an empty hero.
     @State private var videoReady = false
+    /// Reduce Motion only: whether the person has started the video (it never autoplays then).
+    @State private var userPlaying = false
     @State private var showsEnd = false
     @State private var heroCap: CGFloat = .infinity
 
@@ -108,7 +128,10 @@ struct ExerciseMediaHeader: View {
                 .task(id: colorScheme) { await loadVideo() }
                 .task(id: animatesStills) { await crossfade() }
                 .onAppear { if !reduceMotion { video?.player.play() } }
-                .onDisappear { video?.player.pause() }
+                .onDisappear {
+                    video?.player.pause()
+                    userPlaying = false
+                }
         }
     }
 
@@ -123,12 +146,15 @@ struct ExerciseMediaHeader: View {
             frames
                 .accessibilityHidden(videoReady)
             if let video {
-                ClearVideoPlayer(player: video.player) { videoReady = $0 }
+                PlayerLayerView(player: video.player) { videoReady = $0 }
                     .opacity(videoReady ? 1 : 0)
                     .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: videoReady)
                     .accessibilityLabel("Exercise video")
                     .accessibilityIdentifier("exerciseDetail.video")
                     .accessibilityHidden(!videoReady)
+                if reduceMotion {
+                    playPauseButton(for: video)
+                }
             }
         }
         .aspectRatio(16 / 9, contentMode: .fit)
@@ -153,6 +179,27 @@ struct ExerciseMediaHeader: View {
             frame
                 .backgroundExtensionEffect()
         }
+    }
+
+    /// With Reduce Motion the video never autoplays and, having no system controls, needs its own button. Without Reduce
+    /// Motion the demo is a silent loop with nothing on top.
+    @ViewBuilder
+    private func playPauseButton(for video: LoopingPlayer) -> some View {
+        Button {
+            userPlaying.toggle()
+            if userPlaying { video.player.play() } else { video.player.pause() }
+        } label: {
+            Label(
+                userPlaying ? "Pause video" : "Play video",
+                systemImage: userPlaying ? "pause.fill" : "play.fill"
+            )
+            .labelStyle(.iconOnly)
+        }
+        .buttonStyle(.glass)
+        .buttonBorderShape(.circle)
+        .padding(12)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+        .accessibilityIdentifier("exerciseDetail.playPause")
     }
 
     private var frames: some View {
@@ -182,6 +229,7 @@ struct ExerciseMediaHeader: View {
     private func loadVideo() async {
         video = nil
         videoReady = false
+        userPlaying = false
         guard ExerciseMedia.canStreamVideo, let library, library.hasVideos else { return }
         let scheme: MediaScheme = colorScheme == .dark ? .dark : .light
         guard let url = try? await ExerciseMedia.store.video(for: library.sourceId, scheme: scheme) else { return }

@@ -107,17 +107,18 @@ struct WorkoutDetailView: View {
                 Button("Delete", systemImage: "trash", role: .destructive) { isDeleteConfirming = true }
                     .accessibilityLabel("Delete")
                     .accessibilityIdentifier("workoutDetail.delete")
+                    // On the button so the popover's arrow points at it.
+                    .confirmationDialog(
+                        "Delete workout?",
+                        isPresented: $isDeleteConfirming,
+                        titleVisibility: .visible
+                    ) {
+                        Button("Delete Workout", role: .destructive, action: delete)
+                            .accessibilityIdentifier("workoutDetail.delete.confirm")
+                    } message: {
+                        Text("\"\(detail.name)\" and every set in it will be deleted. This cannot be undone.")
+                    }
             }
-        }
-        .confirmationDialog(
-            "Delete workout?",
-            isPresented: $isDeleteConfirming,
-            titleVisibility: .visible
-        ) {
-            Button("Delete Workout", role: .destructive, action: delete)
-                .accessibilityIdentifier("workoutDetail.delete.confirm")
-        } message: {
-            Text("\"\(detail.name)\" and every set in it will be deleted. This cannot be undone.")
         }
         .sheet(isPresented: $isTemplatePresented) {
             if let workout {

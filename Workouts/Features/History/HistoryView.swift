@@ -143,14 +143,17 @@ struct HistoryView: View {
                     }
                 }
             }
-            .confirmationDialog(
+            // An alert, not a dialog: it is raised from a swipe action or a context menu, both gone by then, so a
+            // popover's arrow would have nothing to point at.
+            .alert(
                 "Delete workout?",
                 isPresented: Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } }),
-                titleVisibility: .visible,
                 presenting: pendingDelete
             ) { entry in
                 Button("Delete Workout", role: .destructive) { delete(entry) }
                     .accessibilityIdentifier("history.delete.confirm")
+                Button("Cancel", role: .cancel) {}
+                    .accessibilityIdentifier("history.delete.cancel")
             } message: { entry in
                 Text("\"\(entry.name)\" and every set in it will be deleted. This cannot be undone.")
             }

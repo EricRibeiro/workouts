@@ -13,8 +13,8 @@ for one Sonnet worker, names what it **Needs** (never dispatch it before those a
 A private, single-user, native SwiftUI iPhone app that keeps the web app's curated workout-tracking experience (feature
 complete, Eric-designed, "awesome") and adds what a PWA cannot do on the **iPhone Duo**: a real sidebar on the inner
 display, split layouts, Live Activity + Dynamic Island for the rest timer, notifications, haptics. Parity is the floor.
-Not goals: App Store release, other users, iPad/Mac, widgets, Shortcuts, Siri (natural-language search is in-app only, 4.6), Control Center, HealthKit/Apple Fitness (Eric
-starts his Fitness workouts in Apple's app himself), Apple Watch, the web app, multi-window and keyboard shortcuts (one
+Not goals: App Store release, other users, iPad/Mac, widgets, Shortcuts, Siri (natural-language search is in-app only, 4.6), Control Center, writing to HealthKit or starting Fitness
+workouts (Eric starts them in Apple's app himself; reading them back is 7.1b), Apple Watch, the web app, multi-window and keyboard shortcuts (one
 scene; no `UIApplicationSupportsMultipleScenes`), localisation (English only: `Text("…")` literals, no catalog upkeep,
 no `String(localized:)` in the kit).
 
@@ -132,7 +132,7 @@ Live Activity → notifications → logging, then templates, exercises, history.
   (named view factories on `ModelContainer.preview`; register 0.5–0.9's views), one smoke XCUITest. `./dev run -- -preview <Name>`
   already passes arguments through. Needs: 0.9. Proof: `./dev run -- -preview Swatches` + `./dev screenshot`; `./dev ui-test
   Smoke`.
-- [ ] **0.11 App icon** (placeholder; ask Eric, taste). Proof: `./dev build`; Eric approves the icon.
+- [x] **0.11 App icon** (placeholder; ask Eric, taste). Proof: `./dev build`; Eric approves the icon.
 
 ### Phase 1 — Engine and native layer
 
@@ -288,13 +288,13 @@ Live Activity → notifications → logging, then templates, exercises, history.
 - [x] **6.1 Half-open bench mode**: the arrangement view puts the SetTable on the lower half and the exercise pane + rest
   countdown on the upper; `reservedRegions(kind: .division)` only if the system split is wrong (`onHingeChange` is for effects).
   Needs: 4.5. Proof: Device Hub screenshots at two angles.
-- [ ] **6.2 Pose and scenario pass** of every screen with `verify-ui`: closed portrait and landscape (title collapse, ~2 rows
+- [x] **6.2 Pose and scenario pass** of every screen with `verify-ui`: closed portrait and landscape (title collapse, ~2 rows
   above the keyboard, strip), open tall and wide, book and laptop half-open (arrangement and split divider vs the fold; the laptop
   pose's lower half is where the keyboard lands), Split View (safe areas flip sides; PiP), fold mid-flow with a sheet, menu,
   dialog or cell focus up (incl. folding into and out of 6.1 bench mode while typing a weight: the value, focus and scroll must
   survive, since `BenchArrangementStyle` switches layouts on the division region), keyboard in each pose, AX Dynamic Type and VoiceOver order across the strip and the fold. Proof:
   pass/fail table, every screen × pose/scenario, no breaks.
-- [ ] **6.3 Accessibility audits**: VoiceOver, Dynamic Type, contrast skills. Proof: audits report clean.
+- [x] **6.3 Accessibility audits**: VoiceOver, Dynamic Type, contrast skills. Proof: audits report clean.
 - [ ] **6.4 Performance**: full-library scrolling, 600-workout chart (sample data scaled up). Proof: `xctrace`, no hitches.
 
 ### Phase 7 — Sync, distribution (needs the Developer Program)
@@ -306,7 +306,7 @@ Live Activity → notifications → logging, then templates, exercises, history.
   (optional fields, so additive; land before 7.2 so the first Production schema has them); show a Fitness card on the
   workout detail and calories in History; backfill imported history. **Testing infrastructure first** (Eric: "being able
   to test and iterate is a core premise"), in this order, each its own worker task:
-  - [ ] **a. Research**: what the simulator supports (granting Health authorization without the prompt, e.g.
+  - [x] **a. Research** (done: `docs/port/healthkit.md`): what the simulator supports (granting Health authorization without the prompt, e.g.
     `simctl privacy`; writing `HKWorkout` + heart-rate/energy samples from a DEBUG build; statistics queries behaving as on
     device; the HealthKit entitlement with development and cloud-managed signing). Proof: a findings doc in `docs/port/`.
   - [ ] **b. Kit boundary**: `HealthSource` protocol, value types (`HealthWorkoutSummary`), matching (overlap with slack,
@@ -326,7 +326,7 @@ Live Activity → notifications → logging, then templates, exercises, history.
   `cloudKit` flag. Needs: 7.1. Proof: `./dev kit Settings` runs both backends.
 - [ ] **7.4 TestFlight-time migration run**: re-run `scripts/export-web`, Import the delta. Needs: 7.2. Proof: the device's
   workout count matches the export.
-- [ ] **7.5 TestFlight**: archive, export, upload. Needs: 7.1. Proof: `./dev testflight`; the build installs on the Duo.
+- [x] **7.5 TestFlight**: archive, export, upload. Needs: 7.1. Proof: `./dev testflight`; the build installs on the Duo.
 
 ## 7. Risks and unknowns
 

@@ -143,10 +143,11 @@ private struct FinishFlow: ViewModifier {
                 Button("Keep Logging", role: .cancel) {}
                     .accessibilityIdentifier("finish.keepLogging")
             }
-            .confirmationDialog(
+            // An alert, not a dialog: it is raised from the title menu, which is gone by then, so a popover's arrow would
+            // have nothing to point at (the dialogs above are attached to the Finish button they come from).
+            .alert(
                 "Discard workout?",
-                isPresented: $state.isDiscardConfirmationShown,
-                titleVisibility: .visible
+                isPresented: $state.isDiscardConfirmationShown
             ) {
                 Button("Discard Workout", role: .destructive) {
                     state.destructiveCount += 1

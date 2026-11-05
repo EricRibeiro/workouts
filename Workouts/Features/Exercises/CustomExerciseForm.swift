@@ -88,26 +88,6 @@ struct CustomExerciseFormView: View {
                         .accessibilityIdentifier("customExercise.save")
                 }
             }
-            .confirmationDialog(
-                removal == .delete ? "Delete this exercise?" : "Archive this exercise?",
-                isPresented: Binding(get: { removal != nil }, set: { if !$0 { removal = nil } }),
-                titleVisibility: .visible,
-                presenting: removal
-            ) { kind in
-                switch kind {
-                case .archive:
-                    Button("Archive", role: .destructive) { remove(.archive) }
-                case .delete:
-                    Button("Delete", role: .destructive) { remove(.delete) }
-                }
-            } message: { kind in
-                switch kind {
-                case .archive:
-                    Text("It is hidden from the list and the picker, but stays in your history. Show Retired lists it.")
-                case .delete:
-                    Text("Nothing uses it, so it is removed for good.")
-                }
-            }
             .alert(
                 "Could Not Save",
                 isPresented: Binding(get: { failure != nil }, set: { if !$0 { failure = nil } })
@@ -228,14 +208,37 @@ struct CustomExerciseFormView: View {
     @ViewBuilder
     private func removalSection(for id: UUID) -> some View {
         Section {
-            if isReferenced {
-                Button("Archive Exercise", systemImage: "archivebox", role: .destructive) { removal = .archive }
-                    .accessibilityLabel("Archive Exercise")
-                    .accessibilityIdentifier("customExercise.archive")
-            } else {
-                Button("Delete Exercise", systemImage: "trash", role: .destructive) { removal = .delete }
-                    .accessibilityLabel("Delete Exercise")
-                    .accessibilityIdentifier("customExercise.delete")
+            // The dialog is on the button (one of the two is on screen) so the popover's arrow points at it.
+            Group {
+                if isReferenced {
+                    Button("Archive Exercise", systemImage: "archivebox", role: .destructive) { removal = .archive }
+                        .accessibilityLabel("Archive Exercise")
+                        .accessibilityIdentifier("customExercise.archive")
+                } else {
+                    Button("Delete Exercise", systemImage: "trash", role: .destructive) { removal = .delete }
+                        .accessibilityLabel("Delete Exercise")
+                        .accessibilityIdentifier("customExercise.delete")
+                }
+            }
+            .confirmationDialog(
+                removal == .delete ? "Delete this exercise?" : "Archive this exercise?",
+                isPresented: Binding(get: { removal != nil }, set: { if !$0 { removal = nil } }),
+                titleVisibility: .visible,
+                presenting: removal
+            ) { kind in
+                switch kind {
+                case .archive:
+                    Button("Archive", role: .destructive) { remove(.archive) }
+                case .delete:
+                    Button("Delete", role: .destructive) { remove(.delete) }
+                }
+            } message: { kind in
+                switch kind {
+                case .archive:
+                    Text("It is hidden from the list and the picker, but stays in your history. Show Retired lists it.")
+                case .delete:
+                    Text("Nothing uses it, so it is removed for good.")
+                }
             }
         } footer: {
             Text("Exercises with history are archived instead of deleted.")

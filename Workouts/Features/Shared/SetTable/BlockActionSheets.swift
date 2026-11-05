@@ -132,14 +132,15 @@ private struct BlockActionSheets: ViewModifier {
                 preferencesSheet(for: target.id)
                     .presentationPlacement(.center)
             }
-            .confirmationDialog(
+            // An alert, not a dialog: it is raised from a block's menu, which is gone by then, so a popover's arrow would
+            // have nothing to point at.
+            .alert(
                 block(state.removeBlockID)?.name.isEmpty == false
                     ? "Remove \(block(state.removeBlockID)?.name ?? "")?" : "Remove Exercise?",
                 isPresented: Binding(
                     get: { state.removeBlockID != nil },
                     set: { if !$0 { state.removeBlockID = nil } }
-                ),
-                titleVisibility: .visible
+                )
             ) {
                 Button("Remove Exercise", role: .destructive) {
                     if let id = state.removeBlockID { host.remove(id) }

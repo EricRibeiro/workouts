@@ -99,10 +99,11 @@ private struct StartWorkoutDialog: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .confirmationDialog(
+            // An alert, not a dialog: starts come from a menu item, a template card's menu and a preview sheet, none of
+            // which is on screen by then, so a popover's arrow would have nothing to point at.
+            .alert(
                 "Workout in progress",
                 isPresented: Binding(get: { flow.blocked != nil }, set: { if !$0 { flow.blocked = nil } }),
-                titleVisibility: .visible,
                 presenting: flow.blocked
             ) { blocked in
                 Button("Resume Workout") { flow.resume() }

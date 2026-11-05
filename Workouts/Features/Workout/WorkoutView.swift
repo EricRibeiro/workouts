@@ -155,20 +155,20 @@ struct WorkoutView: View {
             }
             .accessibilityIdentifier("workout.folderName.confirm")
         }
-        .confirmationDialog(
+        // Alerts, not dialogs: both are raised from context menus, which are gone by then, so a popover's arrow would
+        // have nothing to point at.
+        .alert(
             deleting.map { "Delete \($0.name)?" } ?? "Delete Folder?",
             isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }),
-            titleVisibility: .visible,
             presenting: deleting
         ) { folder in
             deleteActions(for: folder)
         } message: { folder in
             Text(deleteMessage(for: folder))
         }
-        .confirmationDialog(
+        .alert(
             deletingTemplate.map { "Delete \($0.name)?" } ?? "Delete Template?",
             isPresented: Binding(get: { deletingTemplate != nil }, set: { if !$0 { deletingTemplate = nil } }),
-            titleVisibility: .visible,
             presenting: deletingTemplate
         ) { template in
             Button("Delete Template", role: .destructive) { delete(template) }
