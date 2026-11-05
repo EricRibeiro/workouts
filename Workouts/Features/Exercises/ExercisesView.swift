@@ -14,6 +14,7 @@ import WorkoutsKit
 struct ExercisesView: View {
     @Environment(ExerciseStore.self) private var store
     @Environment(SettingsStore.self) private var settings
+    @Environment(\.modelContext) private var context
     @Query(filter: #Predicate<Workout> { $0.finishedAt != nil }) private var finished: [Workout]
     /// The newest edit among finished workouts: with the count it keys the best-set task without reading every workout.
     @Query(ExercisesView.newestEdit) private var newest: [Workout]
@@ -133,10 +134,7 @@ struct ExercisesView: View {
         .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search exercises")
         .naturalLanguageSearch(text: query, includeRetired: showRetired, match: $naturalMatch)
         .task(id: fingerprint) {
-            bestSets = ExerciseBestSets.texts(
-                from: ExerciseBestSets.sessions(from: finished) { store.exercise(id: $0)?.weightType },
-                options: recordsOptions
-            )
+            await refreshBestSets()
         }
     }
 
@@ -153,6 +151,20 @@ struct ExercisesView: View {
             )
             .accessibilityIdentifier("exercises.detail.empty")
         }
+    }
+
+    /// Walks the history on a `WorkoutStatsReader` (its own context, off the main thread) and publishes the result here.
+    /// The texts already shown stay until the new ones arrive, so a refresh never blanks the rows.
+    private func refreshBestSets() async {
+        // The reader's context reads the store: flush edits the main context has not saved yet.
+        if context.hasChanges { try? context.save() }
+        let texts = try? await WorkoutStatsReader.loadBestSetTexts(
+            in: context.container,
+            weightTypes: store.weightTypes,
+            options: recordsOptions
+        )
+        guard !Task.isCancelled, let texts else { return }
+        bestSets = texts
     }
 
     private var fingerprint: Fingerprint {

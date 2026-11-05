@@ -19,6 +19,8 @@ public nonisolated enum ExerciseRemoval: Sendable, Hashable {
 public final class ExerciseStore {
     public let catalog: LibraryCatalog
     private var byID: [UUID: ExerciseInfo] = [:]
+    /// Exercise id to weight type, a Sendable copy for work that runs off the main actor (`WorkoutStatsReader`).
+    public private(set) var weightTypes: [UUID: WeightType] = [:]
     private var sorted: [ExerciseInfo] = []
     /// Folded search haystacks (name, then aliases), parallel to `sorted`.
     private var haystacks: [[String]] = []
@@ -89,6 +91,7 @@ public final class ExerciseStore {
             return order == .orderedSame ? lhs.id.uuidString < rhs.id.uuidString : order == .orderedAscending
         }
         byID = merged
+        weightTypes = merged.mapValues(\.weightType)
         sorted = ordered
         haystacks = ordered.map { info in ([info.name] + info.aliases).map(Self.fold) }
     }

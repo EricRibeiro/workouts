@@ -7,7 +7,6 @@ public nonisolated enum ExerciseBestSets {
     /// One `Session` per finished workout and exercise row, completed sets only, grouped by exercise id.
     /// `weightType` resolves an exercise id to its weight type (unknown ids are `.weighted`). With `exerciseIDs`, only
     /// rows of those exercises are folded; the rest of the history is skipped rather than filtered afterwards.
-    @MainActor
     public static func sessions(
         from workouts: [Workout],
         weightType: (UUID) -> WeightType?,
@@ -60,7 +59,6 @@ public nonisolated enum ExerciseBestSets {
         )
     }
 
-    @MainActor
     private static func session(row: WorkoutExercise, workout: Workout, weightType: WeightType) -> Session {
         let sets = (row.sets ?? []).filter(\.completed).sorted { $0.position < $1.position }.map {
             LoggedSet(

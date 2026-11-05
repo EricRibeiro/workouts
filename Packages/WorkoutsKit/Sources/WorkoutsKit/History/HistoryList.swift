@@ -135,7 +135,7 @@ public nonisolated enum HistoryList {
 
     /// `November 2026`.
     public static func monthTitle(_ date: Date, calendar: Calendar = .current) -> String {
-        formatter("LLLL yyyy", calendar: calendar).string(from: date)
+        date.formatted(monthTitleStyle(in: calendar))
     }
 
     /// Entries in `scope` whose workout name or an exercise name contains `query` (case and diacritics ignored).
@@ -155,7 +155,7 @@ public nonisolated enum HistoryList {
     /// `Sunday, Nov 1`; the year (`Sunday, Nov 1, 2025`) only when it is not the year of `now`.
     public static func dateText(_ date: Date, now: Date = .now, calendar: Calendar = .current) -> String {
         let sameYear = calendar.isDate(date, equalTo: now, toGranularity: .year)
-        return formatter(sameYear ? "EEEE, MMM d" : "EEEE, MMM d, yyyy", calendar: calendar).string(from: date)
+        return date.formatted(sameYear ? dayStyle(in: calendar) : dayWithYearStyle(in: calendar))
     }
 
     /// `1h 12min`, `45min`, `<1min` (under a minute; also 0). A whole hour reads `1h 0min`.
@@ -168,13 +168,16 @@ public nonisolated enum HistoryList {
 
     /// `15,421 lb`: whole units with thousands separators.
     public static func volumeText(_ volume: Double, unit: WeightUnit) -> String {
-        let format = NumberFormatter()
-        format.locale = Locale(identifier: "en_US")
-        format.numberStyle = .decimal
-        format.maximumFractionDigits = 0
-        format.roundingMode = .halfUp
-        return "\(format.string(from: NSNumber(value: volume)) ?? "0") \(unit.rawValue)"
+        "\(volume.formatted(volumeStyle)) \(unit.rawValue)"
     }
+
+    /// Whole units, thousands separators, halves rounded up (away from zero), always en_US. A `FormatStyle` is a Sendable
+    /// value, so this one is shared by every row and by the background reader.
+    private static let volumeStyle = FloatingPointFormatStyle<Double>.number
+        .locale(Locale(identifier: "en_US"))
+        .grouping(.automatic)
+        .precision(.fractionLength(0))
+        .rounded(rule: .toNearestOrAwayFromZero)
 
     /// `1 PR`, `3 PRs`.
     public static func prText(count: Int) -> String {
@@ -199,12 +202,43 @@ public nonisolated enum HistoryList {
         return parts.joined(separator: ", ")
     }
 
-    private static func formatter(_ format: String, calendar: Calendar) -> DateFormatter {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US")
-        formatter.calendar = calendar
-        formatter.timeZone = calendar.timeZone
-        formatter.dateFormat = format
-        return formatter
+    // The date styles are verbatim patterns (`EEEE, MMM d`) in en_US; the grouping calendar and its time zone are applied
+    // per call, since they follow the caller.
+    private static let monthTitleFormat = Date.VerbatimFormatStyle(
+        format: "\(month: .wide) \(year: .padded(4))",
+        locale: Locale(identifier: "en_US"),
+        timeZone: .gmt,
+        calendar: Calendar(identifier: .gregorian)
+    )
+    private static let dayFormat = Date.VerbatimFormatStyle(
+        format: "\(weekday: .wide), \(month: .abbreviated) \(day: .defaultDigits)",
+        locale: Locale(identifier: "en_US"),
+        timeZone: .gmt,
+        calendar: Calendar(identifier: .gregorian)
+    )
+    private static let dayWithYearFormat = Date.VerbatimFormatStyle(
+        format: "\(weekday: .wide), \(month: .abbreviated) \(day: .defaultDigits), \(year: .padded(4))",
+        locale: Locale(identifier: "en_US"),
+        timeZone: .gmt,
+        calendar: Calendar(identifier: .gregorian)
+    )
+
+    private static func monthTitleStyle(in calendar: Calendar) -> Date.VerbatimFormatStyle {
+        applying(calendar, to: monthTitleFormat)
+    }
+
+    private static func dayStyle(in calendar: Calendar) -> Date.VerbatimFormatStyle {
+        applying(calendar, to: dayFormat)
+    }
+
+    private static func dayWithYearStyle(in calendar: Calendar) -> Date.VerbatimFormatStyle {
+        applying(calendar, to: dayWithYearFormat)
+    }
+
+    private static func applying(_ calendar: Calendar, to style: Date.VerbatimFormatStyle) -> Date.VerbatimFormatStyle {
+        var style = style
+        style.calendar = calendar
+        style.timeZone = calendar.timeZone
+        return style
     }
 }

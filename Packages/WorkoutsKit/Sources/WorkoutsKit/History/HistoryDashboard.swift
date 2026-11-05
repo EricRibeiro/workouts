@@ -133,7 +133,6 @@ public nonisolated enum HistoryDashboard {
     /// Everything the History tab derives from its finished workouts, with the sessions and records folded once:
     /// the rows and the "Recent PRs" card. Equal to calling `HistoryList.entries` and ``recentPRs(from:weightType:options:limit:)``
     /// separately, in one pass.
-    @MainActor
     public static func build(
         from workouts: [Workout],
         weightType: (UUID) -> WeightType?,
@@ -149,7 +148,6 @@ public nonisolated enum HistoryDashboard {
     }
 
     /// Every exercise's sessions with the records each newly set, one fold per exercise.
-    @MainActor
     static func foldSessions(
         _ finished: [Workout],
         weightType: (UUID) -> WeightType?,
@@ -166,7 +164,6 @@ public nonisolated enum HistoryDashboard {
         return folded
     }
 
-    @MainActor
     static func recentPRs(
         finished: [Workout],
         folded: [FoldedSession],
@@ -227,13 +224,13 @@ public nonisolated enum HistoryDashboard {
 
     /// A weight with thousands separators and up to two decimals, like `formatWeight` otherwise: `1,929`, `117.5`.
     public static func groupedWeight(_ weight: Double) -> String {
-        let format = NumberFormatter()
-        format.locale = Locale(identifier: "en_US")
-        format.numberStyle = .decimal
-        format.usesGroupingSeparator = true
-        format.minimumFractionDigits = 0
-        format.maximumFractionDigits = 2
-        let text = format.string(from: NSNumber(value: weight)) ?? formatWeight(weight)
+        let text = weight.formatted(groupedWeightStyle)
         return text == "-0" ? "0" : text
     }
+
+    /// Up to two decimals with thousands separators, always en_US (halves to even, like `NumberFormatter`'s default).
+    private static let groupedWeightStyle = FloatingPointFormatStyle<Double>.number
+        .locale(Locale(identifier: "en_US"))
+        .grouping(.automatic)
+        .precision(.fractionLength(0...2))
 }

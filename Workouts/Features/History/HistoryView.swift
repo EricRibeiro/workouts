@@ -75,16 +75,25 @@ struct HistoryView: View {
                 }
         }
         .task(id: Inputs(finished, unit: unitRaw, formula: formulaRaw)) {
-            let options = RecordsOptions(formula: settings.e1rmFormula, displayUnit: settings.defaultUnit)
-            let summary = HistoryDashboard.build(
-                from: finished,
-                weightType: { store.exercise(id: $0)?.weightType },
-                options: options
-            )
-            entries = summary.entries
-            recentPRs = summary.recentPRs
+            await refreshSummary()
         }
         .accessibilityIdentifier("screen.history")
+    }
+
+    /// Folds the history on a `WorkoutStatsReader` (its own context, off the main thread) and publishes the rows and the
+    /// Recent PRs card here. What is shown stays until the new summary arrives, so a refresh never blanks the list.
+    private func refreshSummary() async {
+        // The reader's context reads the store: flush edits the main context has not saved yet.
+        if context.hasChanges { try? context.save() }
+        let options = RecordsOptions(formula: settings.e1rmFormula, displayUnit: settings.defaultUnit)
+        let summary = try? await WorkoutStatsReader.loadHistorySummary(
+            in: context.container,
+            weightTypes: store.weightTypes,
+            options: options
+        )
+        guard !Task.isCancelled, let summary else { return }
+        entries = summary.entries
+        recentPRs = summary.recentPRs
     }
 
     // MARK: List

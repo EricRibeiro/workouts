@@ -301,7 +301,7 @@ Live Activity → notifications → logging, then templates, exercises, history.
 
 - [x] **7.1 Team + entitlements**: `DEVELOPMENT_TEAM`, iCloud (container + key-value), push, time-sensitive; no App Group. Proof:
   `./dev build` signs with the team.
-- [ ] **7.1b Fitness enrichment (HealthKit, read-only, opt-in: Settings toggle, default off)** (Eric, 2026-11-04): after a workout, read the overlapping Apple
+- [x] **7.1b Fitness enrichment (HealthKit, read-only, opt-in: Settings toggle, default off)** (Eric, 2026-11-04): after a workout, read the overlapping Apple
   Fitness Functional Strength Training workout and store calories, avg/max heart rate and its duration on the `Workout`
   (optional fields, so additive; land before 8.1 so the first Production schema has them); show a Fitness card on the
   workout detail and calories in History; backfill imported history. **Testing infrastructure first** (Eric: "being able
