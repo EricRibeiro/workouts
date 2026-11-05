@@ -242,3 +242,8 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
     the system moves the split divider onto the fold (list fills the left panel, detail entirely right). Flat open has no
     division (duo-layout: "The division is active only when partially open"), so a detail crossing the middle there is
     fine. The laptop pose with a horizontal division could not be produced on the simulator; Eric checks it on the Duo.
+73. **History has no title once scrolled on the closed display: accepted as system behaviour** (2026-11-05): the closed
+    Duo's bar is the vertical trailing strip, which has no title slot in any title mode (`.inlineLarge` changes nothing
+    there, and pushed details lose theirs the same way). On the open display `.inlineLarge` on Workout and History keeps
+    the large title consistent across pose changes. The stacked exercise detail now sizes its top pane to its content
+    (`splitArrangementFixedLayoutSize`), which also makes the tall hero image smaller (35 % of a shorter container).

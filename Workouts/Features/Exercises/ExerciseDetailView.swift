@@ -123,6 +123,7 @@ struct ExerciseDetailView: View {
                     }
                     .padding(.bottom, 24)
                 }
+                .stackedPrimaryFitsContent(isSplit: splits)
             } secondary: {
                 if splits {
                     ScrollView {
@@ -232,6 +233,25 @@ private struct Fingerprint: Hashable {
         newestEdit = rows.flatMap { [$0.updatedAt, $0.workout?.updatedAt] }.compactMap { $0 }.max()
         self.unit = unit
         self.formula = formula
+    }
+}
+
+/// In the stacked split (open, taller than wide) the primary pane takes the height of its content, so the secondary
+/// follows directly under the segmented control instead of after a half-height pane with a gap at its bottom. Side by
+/// side (open wide, book pose) the primary keeps the full height. The arrangement publishes its axis to the primary's
+/// subtree, so this reads it there.
+private struct StackedPrimaryFitsContent: ViewModifier {
+    let isSplit: Bool
+    @Environment(\.splitArrangementAxis) private var axis
+
+    func body(content: Content) -> some View {
+        content.splitArrangementFixedLayoutSize(horizontal: false, vertical: isSplit && axis == .vertical)
+    }
+}
+
+extension View {
+    fileprivate func stackedPrimaryFitsContent(isSplit: Bool) -> some View {
+        modifier(StackedPrimaryFitsContent(isSplit: isSplit))
     }
 }
 

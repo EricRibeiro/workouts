@@ -71,6 +71,9 @@ struct WorkoutView: View {
         NavigationStack {
             content
                 .navigationTitle("Workout")
+                // The title stays large in the bar row: with the default large title, folding the Duo open with the grid
+                // scrolled left it collapsed to a small inline one that History (fresh launch) did not show.
+                .toolbarTitleDisplayMode(.inlineLarge)
                 .navigationDestination(item: $previewPush) { template in
                     TemplatePreview(template: template, started: workoutStarted, edit: edit)
                         .navigationTransition(.zoom(sourceID: template.id, in: cardZoom))

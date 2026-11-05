@@ -44,6 +44,8 @@ struct HistoryView: View {
         NavigationStack(path: $path) {
             content
                 .navigationTitle("History")
+                // Same bar title as the Workout tab, so the tabs look alike on the open display.
+                .toolbarTitleDisplayMode(.inlineLarge)
                 .resumeControl()
                 .settingsControl()
                 .toolbar {

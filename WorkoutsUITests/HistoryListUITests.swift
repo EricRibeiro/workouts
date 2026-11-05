@@ -102,6 +102,9 @@ final class HistoryListUITests: XCTestCase {
     func testDashboardCardsAndLastWorkoutPush() throws {
         let app = launch()
         let any = app.descendants(matching: .any)
+        // The summary is computed off the main thread (6.4), so the cards land a moment after launch: wait for the
+        // first one before scrolling, or the swipes run past where they appear.
+        XCTAssertTrue(any["history.card.thisWeek"].waitForExistence(timeout: 10), "the dashboard never appeared")
         for id in ["history.card.thisWeek", "history.card.recentPRs", "history.card.lastWorkout"] {
             let card = any[id]
             for _ in 0..<6 where !(card.exists && card.isHittable) { app.swipeUp() }
