@@ -52,7 +52,7 @@ import Testing
         }
     }
 
-    @Test func groupedWeightMatchesTheNumberFormatter() {
+    @Test func groupedNumberMatchesTheNumberFormatter() {
         for value in Self.values {
             let reference = Self.referenceNumber(
                 {
@@ -62,8 +62,8 @@ import Testing
                 },
                 value
             )
-            let expected = reference.map { $0 == "-0" ? "0" : $0 } ?? formatWeight(value)
-            #expect(HistoryDashboard.groupedWeight(value) == expected, "weight \(value)")
+            let expected = reference.map { $0 == "-0" ? "0" : $0 } ?? WeightFormat.number(value)
+            #expect(WeightFormat.groupedNumber(value) == expected, "weight \(value)")
         }
     }
 

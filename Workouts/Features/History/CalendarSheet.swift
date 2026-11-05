@@ -223,7 +223,7 @@ struct CalendarSheet: View {
     /// Hosts the sheet's content for the gallery, over the sample workouts.
     struct CalendarDemo: View {
         @Query(
-            filter: #Predicate<Workout> { $0.finishedAt != nil },
+            filter: Workout.finishedPredicate,
             sort: \Workout.startedAt,
             order: .reverse
         ) private var finished: [Workout]

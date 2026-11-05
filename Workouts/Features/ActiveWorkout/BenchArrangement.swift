@@ -50,37 +50,18 @@ private struct BenchArrangementBody: View {
     }
 
     private func placement(in proxy: GeometryProxy) -> BenchLayout.Placement {
-        guard !axes.isEmpty else { return .init(kind: .single, lead: 0, gap: 0) }
-        let size = proxy.size
-        let divisions = proxy.reservedRegions(kind: .division).filter(\.isActive)
-        if axes.contains(.vertical), let fold = divisions.first(where: { $0.frame.width > $0.frame.height }) {
-            return .init(kind: .bench, lead: max(0, fold.frame.minY), gap: fold.frame.height)
-        }
-        if axes.contains(.horizontal), let fold = divisions.first(where: { $0.frame.width < $0.frame.height }) {
-            return .init(kind: .sideBySide, lead: max(0, fold.frame.minX), gap: fold.frame.width)
-        }
-        if size.width > size.height, axes.contains(.horizontal) {
-            return .init(kind: .sideBySide, lead: size.width / 2, gap: 0)
-        }
-        if axes.contains(.vertical) {
-            return .init(kind: .stacked, lead: size.height / 2, gap: 0)
-        }
-        return .init(kind: .single, lead: 0, gap: 0)
+        var foldAxes: FoldPlacement.Axes = []
+        if axes.contains(.horizontal) { foldAxes.insert(.horizontal) }
+        if axes.contains(.vertical) { foldAxes.insert(.vertical) }
+        let divisions = proxy.reservedRegions(kind: .division).filter(\.isActive).map(\.frame)
+        return FoldPlacement.placement(size: proxy.size, divisions: divisions, axes: foldAxes)
     }
 }
 
-/// Places the primary, the secondary and, in bench mode, the rest header (subviews in that order, the header last).
+/// Places the primary, the secondary and, in bench mode, the rest header (subviews in that order, the header last), at the
+/// frames `FoldPlacement` decides.
 private struct BenchLayout: Layout {
-    struct Placement: Equatable {
-        enum Kind { case single, sideBySide, stacked, bench }
-        var kind: Kind
-        /// The length of the first region along the split axis (its far edge); the gap follows it.
-        var lead: CGFloat
-        /// The division's thickness, left empty between the two regions.
-        var gap: CGFloat
-
-        var isBench: Bool { kind == .bench }
-    }
+    typealias Placement = FoldPlacement.Placement
 
     var placement: Placement
 
@@ -90,45 +71,13 @@ private struct BenchLayout: Layout {
 
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
         guard subviews.count >= 2 else { return }
-        let primary = subviews[0]
-        let secondary = subviews[1]
-        let origin = bounds.origin
-        let lead = min(placement.lead, placement.kind == .sideBySide ? bounds.width : bounds.height)
-        switch placement.kind {
-        case .single:
-            primary.place(at: origin, proposal: ProposedViewSize(bounds.size))
-            secondary.place(at: origin, proposal: .zero)
-        case .sideBySide:
-            let trailingX = min(lead + placement.gap, bounds.width)
-            primary.place(at: origin, proposal: ProposedViewSize(width: lead, height: bounds.height))
-            secondary.place(
-                at: CGPoint(x: origin.x + trailingX, y: origin.y),
-                proposal: ProposedViewSize(width: bounds.width - trailingX, height: bounds.height)
-            )
-        case .stacked:
-            let lowerY = min(lead + placement.gap, bounds.height)
-            primary.place(at: origin, proposal: ProposedViewSize(width: bounds.width, height: lead))
-            secondary.place(
-                at: CGPoint(x: origin.x, y: origin.y + lowerY),
-                proposal: ProposedViewSize(width: bounds.width, height: bounds.height - lowerY)
-            )
-        case .bench:
-            let lowerY = min(lead + placement.gap, bounds.height)
-            var secondaryY = origin.y
-            if subviews.count > 2 {
-                let header = subviews[2]
-                let height = min(header.sizeThatFits(ProposedViewSize(width: bounds.width, height: nil)).height, lead)
-                header.place(at: origin, proposal: ProposedViewSize(width: bounds.width, height: height))
-                secondaryY += height
-            }
-            secondary.place(
-                at: CGPoint(x: origin.x, y: secondaryY),
-                proposal: ProposedViewSize(width: bounds.width, height: max(0, origin.y + lead - secondaryY))
-            )
-            primary.place(
-                at: CGPoint(x: origin.x, y: origin.y + lowerY),
-                proposal: ProposedViewSize(width: bounds.width, height: bounds.height - lowerY)
-            )
+        let header = subviews.count > 2 && placement.isBench ? subviews[2] : nil
+        let headerHeight = header?.sizeThatFits(ProposedViewSize(width: bounds.width, height: nil)).height
+        let frames = FoldPlacement.frames(for: placement, in: bounds, headerHeight: headerHeight)
+        subviews[0].place(at: frames.primary.origin, proposal: ProposedViewSize(frames.primary.size))
+        subviews[1].place(at: frames.secondary.origin, proposal: ProposedViewSize(frames.secondary.size))
+        if let header, let frame = frames.header {
+            header.place(at: frame.origin, proposal: ProposedViewSize(frame.size))
         }
     }
 }

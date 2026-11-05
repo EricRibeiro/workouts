@@ -21,7 +21,7 @@ struct HistoryView: View {
     @Environment(SaveErrors.self) private var saveErrors: SaveErrors?
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Query(
-        filter: #Predicate<Workout> { $0.finishedAt != nil },
+        filter: Workout.finishedPredicate,
         sort: \Workout.startedAt,
         order: .reverse
     ) private var finished: [Workout]

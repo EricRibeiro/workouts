@@ -279,7 +279,7 @@ private struct Editor: View {
     /// The editor of the newest sample workout, for the gallery (`-preview PastEditor`) and the previews.
     struct PastEditorDemo: View {
         @Query(
-            filter: #Predicate<Workout> { $0.finishedAt != nil },
+            filter: Workout.finishedPredicate,
             sort: \Workout.startedAt,
             order: .reverse
         ) private var finished: [Workout]

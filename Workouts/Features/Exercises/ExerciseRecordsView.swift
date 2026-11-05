@@ -20,12 +20,12 @@ enum RecordFormat {
 
     /// `225 lb`, `Bodyweight` for zero.
     static func weight(_ value: Double, unit: WeightUnit) -> String {
-        value > 0 ? "\(HistoryDashboard.groupedWeight(value)) \(unit.rawValue)" : "Bodyweight"
+        value > 0 ? WeightFormat.groupedText(value, unit: unit) : "Bodyweight"
     }
 
     static func value(_ record: ExerciseRecord, unit: WeightUnit) -> String {
         switch record.kind {
-        case .e1rm, .heaviest, .bestVolumeSet: "\(HistoryDashboard.groupedWeight(record.value)) \(unit.rawValue)"
+        case .e1rm, .heaviest, .bestVolumeSet: WeightFormat.groupedText(record.value, unit: unit)
         case .longestDuration: ClockFormat.clock(seconds: Int(record.value))
         case .repsAtWeight: "\(record.reps) \(record.reps == 1 ? "rep" : "reps")"
         }

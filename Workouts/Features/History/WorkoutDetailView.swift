@@ -607,7 +607,7 @@ struct SaveTemplateSheet: View {
     /// The detail of the newest sample workout, for the gallery (`-preview WorkoutDetail`) and the previews.
     struct WorkoutDetailDemo: View {
         @Query(
-            filter: #Predicate<Workout> { $0.finishedAt != nil },
+            filter: Workout.finishedPredicate,
             sort: \Workout.startedAt,
             order: .reverse
         ) private var finished: [Workout]

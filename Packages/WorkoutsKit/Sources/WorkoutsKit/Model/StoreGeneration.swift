@@ -41,7 +41,7 @@ extension Workout {
     /// that faults every finished workout.
     public static var newestFinishedEdit: FetchDescriptor<Workout> {
         var descriptor = FetchDescriptor<Workout>(
-            predicate: #Predicate { $0.finishedAt != nil },
+            predicate: finishedPredicate,
             sortBy: [SortDescriptor(\.updatedAt, order: .reverse)]
         )
         descriptor.fetchLimit = 1
@@ -51,7 +51,7 @@ extension Workout {
     /// The finished workout `id`, for `Query(_:)`: zero or one row.
     public static func finished(id: UUID) -> FetchDescriptor<Workout> {
         var descriptor = FetchDescriptor<Workout>(
-            predicate: #Predicate { $0.id == id && $0.finishedAt != nil }
+            predicate: finishedPredicate(id: id)
         )
         descriptor.fetchLimit = 1
         return descriptor
@@ -59,6 +59,6 @@ extension Workout {
 
     /// Every finished workout, for a one-shot `context.fetch` inside a derivation task (not an observed `@Query`).
     public static var allFinished: FetchDescriptor<Workout> {
-        FetchDescriptor<Workout>(predicate: #Predicate { $0.finishedAt != nil })
+        FetchDescriptor<Workout>(predicate: finishedPredicate)
     }
 }

@@ -215,15 +215,6 @@ public nonisolated func shortenedName(_ name: String, limit: Int) -> String {
     return String(name.prefix(limit - 1)) + "…"
 }
 
-/// A weight with at most two decimals and no trailing zeros: `27.5`, `100`, `22.25`.
-public nonisolated func formatWeight(_ weight: Double) -> String {
-    let rounded = (weight * 100).rounded() / 100
-    var text = String(format: "%.2f", rounded)
-    while text.hasSuffix("0") { text.removeLast() }
-    if text.hasSuffix(".") { text.removeLast() }
-    return text == "-0" ? "0" : text
-}
-
 /// The value part of a set: `27.5 lb × 8`. A weight of 0 or none is dropped, so a bodyweight set reads `12 reps`. A
 /// duration reads `45 s`, with a weight `20 lb × 45 s`; a weight alone reads `27.5 lb`. Empty when there is nothing
 /// to show.
@@ -233,7 +224,7 @@ public nonisolated func formatSetDetail(
     reps: Int?,
     durationSeconds: Int?
 ) -> String {
-    let load = (weight ?? 0) > 0 ? weight.map { "\(formatWeight($0)) \(unit.rawValue)" } : nil
+    let load = (weight ?? 0) > 0 ? weight.map { WeightFormat.text($0, unit: unit) } : nil
     let amount: String? =
         if let reps, reps > 0 {
             load == nil ? "\(reps) reps" : "\(reps)"

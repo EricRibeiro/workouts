@@ -103,7 +103,7 @@ struct ExerciseChartsView: View {
     }
 
     private func valueText(_ value: Double) -> String {
-        if metric.isWeightValued { return "\(HistoryDashboard.groupedWeight(value)) \(unit)" }
+        if metric.isWeightValued { return WeightFormat.groupedText(value, unit: options.displayUnit) }
         let count = Int(value.rounded())
         return "\(count) \(count == 1 ? "rep" : "reps")"
     }

@@ -41,7 +41,7 @@ struct BlockPreferencesSheet: View {
         self.onSave = onSave
         _unit = State(initialValue: initial.unit)
         _barType = State(initialValue: initial.barType)
-        _barWeightText = State(initialValue: initial.barWeight.map { Self.format($0) } ?? "")
+        _barWeightText = State(initialValue: initial.barWeight.map { WeightFormat.number($0) } ?? "")
     }
 
     /// The custom bar weight as typed: empty, a non-negative number, or something else.
@@ -118,9 +118,5 @@ struct BlockPreferencesSheet: View {
         if barType == .custom, case .value(let value) = barWeight { weight = value }
         onSave(Values(unit: unit, barType: barType, barWeight: weight))
         dismiss()
-    }
-
-    private static func format(_ value: Double) -> String {
-        value.formatted(.number.precision(.fractionLength(0...2)).grouping(.never))
     }
 }

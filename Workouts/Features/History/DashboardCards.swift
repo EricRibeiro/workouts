@@ -262,13 +262,10 @@ struct DashboardColumns: View {
             }
         }
         .onGeometryChange(for: ClosedRange<CGFloat>?.self) { proxy in
-            let width = proxy.size.width
-            return proxy.reservedRegions(kind: .division)
-                .first { $0.isActive && $0.frame.width < $0.frame.height }
-                .flatMap { region -> ClosedRange<CGFloat>? in
-                    let frame = region.frame
-                    return frame.minX > 0 && frame.maxX < width ? frame.minX...frame.maxX : nil
-                }
+            FoldPlacement.columnGap(
+                divisions: proxy.reservedRegions(kind: .division).filter(\.isActive).map(\.frame),
+                width: proxy.size.width
+            )
         } action: {
             division = $0
         }
@@ -284,11 +281,7 @@ private struct TwoColumnLayout: Layout {
 
     /// Left width, gutter width, right width for a total width.
     private func split(_ total: CGFloat) -> (left: CGFloat, gap: CGFloat, right: CGFloat) {
-        if let division, division.upperBound < total {
-            return (division.lowerBound, division.upperBound - division.lowerBound, total - division.upperBound)
-        }
-        let column = max(0, (total - spacing) / 2)
-        return (column, spacing, column)
+        FoldPlacement.columnWidths(total: total, division: division, spacing: spacing)
     }
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {

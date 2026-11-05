@@ -66,7 +66,7 @@ public enum HealthEnrichmentRun {
     ) async -> Outcome {
         let pending =
             workouts
-            .filter { $0.finishedAt != nil && $0.healthWorkoutID == nil && $0.healthCheckedAt == nil }
+            .filter { $0.isFinished && $0.healthWorkoutID == nil && $0.healthCheckedAt == nil }
             .sorted { ($0.finishedAt ?? .distantPast) < ($1.finishedAt ?? .distantPast) }
         return await process(pending, among: workouts, source: source, now: now, progress: progress)
     }
@@ -169,7 +169,7 @@ public enum HealthEnrichmentRun {
     /// Every finished workout, oldest finish first: what the app fetches to feed `backfill`.
     public static func allFinishedDescriptor() -> FetchDescriptor<Workout> {
         FetchDescriptor<Workout>(
-            predicate: #Predicate<Workout> { $0.finishedAt != nil },
+            predicate: Workout.finishedPredicate,
             sortBy: [SortDescriptor(\Workout.finishedAt)]
         )
     }
@@ -180,13 +180,8 @@ public enum HealthEnrichmentRun {
         now: Date,
         within: TimeInterval = 7 * 86400
     ) -> FetchDescriptor<Workout> {
-        let cutoff = now.addingTimeInterval(-within)
-        // Predicates cannot call `Date.distantPast`; a value just before the cutoff stands in for "never finished".
-        let beforeCutoff = cutoff.addingTimeInterval(-1)
-        return FetchDescriptor<Workout>(
-            predicate: #Predicate<Workout> { workout in
-                workout.finishedAt != nil && (workout.finishedAt ?? beforeCutoff) >= cutoff
-            },
+        FetchDescriptor<Workout>(
+            predicate: Workout.finishedPredicate(since: now.addingTimeInterval(-within)),
             sortBy: [SortDescriptor(\Workout.finishedAt)]
         )
     }

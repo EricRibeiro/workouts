@@ -114,12 +114,7 @@ public enum Importer {
             workouts = Self.index(try context.fetch(FetchDescriptor<Workout>()), by: \.id)
             workoutExercises = Self.index(try context.fetch(FetchDescriptor<WorkoutExercise>()), by: \.id)
             workoutSets = Self.index(try context.fetch(FetchDescriptor<WorkoutSet>()), by: \.id)
-            var running = FetchDescriptor<Workout>(
-                predicate: #Predicate { $0.finishedAt == nil },
-                sortBy: [SortDescriptor(\.startedAt, order: .reverse)]
-            )
-            running.fetchLimit = 1
-            inProgressID = try context.fetch(running).first?.id
+            inProgressID = try context.fetch(Workout.inProgress).first?.id
         }
 
         private static func index<T>(_ rows: [T], by id: KeyPath<T, UUID>) -> [UUID: T] {

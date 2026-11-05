@@ -39,7 +39,7 @@ struct FinishSummaryView: View {
                     stat(
                         "Duration",
                         Self.durationText(summary.duration),
-                        spoken: Self.spokenDuration(summary.duration),
+                        spoken: FitnessFormat.spokenDuration(seconds: summary.duration),
                         tint: .statDuration
                     )
                     .accessibilityIdentifier("summary.duration")
@@ -113,7 +113,7 @@ struct FinishSummaryView: View {
                 .font(.title2.bold())
                 .accessibilityAddTraits(.isHeader)
             if summary.workoutNumber >= 1 {
-                Text("Your \(Self.ordinal(summary.workoutNumber)) workout")
+                Text("Your \(OrdinalFormat.string(summary.workoutNumber)) workout")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
@@ -161,24 +161,9 @@ struct FinishSummaryView: View {
 
     // MARK: Text
 
-    /// The ordinal in "Your 615th workout": `615th`.
-    static func ordinal(_ number: Int) -> String {
-        let format = NumberFormatter()
-        format.locale = Locale(identifier: "en_US")
-        format.numberStyle = .ordinal
-        return format.string(from: NSNumber(value: number)) ?? "\(number)"
-    }
-
     /// `1h 12min`, `45min`, `<1min`: the same text History shows.
     static func durationText(_ duration: TimeInterval) -> String {
         HistoryList.durationText(seconds: Int(duration))
-    }
-
-    /// `42 minutes`, `1 hour, 12 minutes`; seconds when under a minute.
-    static func spokenDuration(_ duration: TimeInterval) -> String {
-        let seconds = max(0, Int(duration))
-        let units: Set<Duration.UnitsFormatStyle.Unit> = seconds < 60 ? [.seconds] : [.hours, .minutes]
-        return Duration.seconds(seconds).formatted(.units(allowed: units, width: .wide))
     }
 
     static func spokenVolume(_ volume: Double, unit: WeightUnit) -> String {
@@ -193,9 +178,9 @@ struct FinishSummaryView: View {
 
     /// One record line: `Estimated 1RM 245 lb`, `Heaviest 225 lb`, `Best set 1,125 lb`, `Longest 1:30`, `12 reps at 135 lb`.
     static func recordText(_ record: PersonalRecord, unit: WeightUnit) -> String {
-        let weight = "\(SetInputFormat.weightText(record.weight)) \(unit.rawValue)"
+        let weight = WeightFormat.text(record.weight, unit: unit)
         switch record.kind {
-        case .e1rm: return "Estimated 1RM \(SetInputFormat.weightText(record.value)) \(unit.rawValue)"
+        case .e1rm: return "Estimated 1RM \(WeightFormat.text(record.value, unit: unit))"
         case .heaviest: return "Heaviest \(weight)"
         case .bestVolumeSet: return "Best set \(HistoryList.volumeText(record.value, unit: unit))"
         case .longestDuration: return "Longest \(ClockFormat.clock(seconds: Int(record.value)))"

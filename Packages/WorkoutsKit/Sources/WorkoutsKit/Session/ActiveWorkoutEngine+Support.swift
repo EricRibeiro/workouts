@@ -18,12 +18,7 @@ struct PendingValues {
 
 extension ActiveWorkoutEngine {
     func fetchInProgress() throws -> Workout? {
-        var descriptor = FetchDescriptor<Workout>(
-            predicate: #Predicate { $0.finishedAt == nil },
-            sortBy: [SortDescriptor(\.startedAt, order: .reverse)]
-        )
-        descriptor.fetchLimit = 1
-        return try context.fetch(descriptor).first
+        try context.fetch(Workout.inProgress).first
     }
 
     func refuseIfRunning() throws {
@@ -216,7 +211,7 @@ extension ActiveWorkoutEngine {
         guard !pending.isEmpty else { return }
         let finished = try context.fetch(
             FetchDescriptor<Workout>(
-                predicate: #Predicate { $0.finishedAt != nil },
+                predicate: Workout.finishedPredicate,
                 sortBy: [SortDescriptor(\.startedAt, order: .reverse)]
             )
         )
@@ -248,7 +243,7 @@ extension ActiveWorkoutEngine {
     func finishedCount(excluding workout: Workout) throws -> Int {
         let id = workout.id
         return try context.fetchCount(
-            FetchDescriptor<Workout>(predicate: #Predicate { $0.finishedAt != nil && $0.id != id })
+            FetchDescriptor<Workout>(predicate: Workout.finishedPredicate(excluding: id))
         )
     }
 
@@ -256,7 +251,7 @@ extension ActiveWorkoutEngine {
     private func historySessions(for ids: Set<UUID>, excluding workout: Workout) throws -> [UUID: [Session]] {
         let id = workout.id
         let finished = try context.fetch(
-            FetchDescriptor<Workout>(predicate: #Predicate { $0.finishedAt != nil && $0.id != id })
+            FetchDescriptor<Workout>(predicate: Workout.finishedPredicate(excluding: id))
         )
         var sessions: [UUID: [Session]] = [:]
         for past in finished {

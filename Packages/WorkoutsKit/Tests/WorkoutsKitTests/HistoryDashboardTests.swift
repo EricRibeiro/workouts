@@ -199,7 +199,7 @@ import Testing
     @Test func recordTextByKind() {
         #expect(
             HistoryDashboard.text(for: PersonalRecord(kind: .e1rm, value: 116.7, weight: 100, reps: 5), unit: .kg)
-                == "e1RM \(formatWeight(116.7)) kg"
+                == "e1RM \(WeightFormat.number(116.7)) kg"
         )
         #expect(
             HistoryDashboard.text(for: PersonalRecord(kind: .heaviest, value: 100, weight: 100, reps: 5), unit: .kg)
@@ -220,8 +220,6 @@ import Testing
             HistoryDashboard.text(for: PersonalRecord(kind: .heaviest, value: 1250, weight: 1250, reps: 2), unit: .lb)
                 == "1,250 lb × 2"
         )
-        #expect(HistoryDashboard.groupedWeight(117.5) == "117.5")
-        #expect(HistoryDashboard.groupedWeight(0) == "0")
     }
 
     @MainActor

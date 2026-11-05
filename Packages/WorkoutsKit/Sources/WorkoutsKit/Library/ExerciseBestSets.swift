@@ -13,7 +13,7 @@ public nonisolated enum ExerciseBestSets {
         exerciseIDs: Set<UUID>? = nil
     ) -> [UUID: [Session]] {
         var result: [UUID: [Session]] = [:]
-        for workout in workouts where workout.finishedAt != nil {
+        for workout in workouts where workout.isFinished {
             for row in workout.exercises ?? [] {
                 if let exerciseIDs, !exerciseIDs.contains(row.exerciseID) { continue }
                 result[row.exerciseID, default: []].append(
@@ -41,7 +41,7 @@ public nonisolated enum ExerciseBestSets {
     @MainActor
     public static func sessions(forRows rows: [WorkoutExercise], weightType: WeightType) -> [Session] {
         rows.compactMap { row -> (WorkoutExercise, Workout)? in
-            guard let workout = row.workout, workout.finishedAt != nil else { return nil }
+            guard let workout = row.workout, workout.isFinished else { return nil }
             return (row, workout)
         }
         .sorted {

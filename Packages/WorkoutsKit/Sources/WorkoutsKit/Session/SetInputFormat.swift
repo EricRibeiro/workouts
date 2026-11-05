@@ -52,7 +52,7 @@ public nonisolated enum SetInputFormat {
 
     /// Field text for a stored weight: `27.5`, `100`; empty for nil.
     public static func weightText(_ weight: Double?) -> String {
-        weight.map { formatWeight(max(0, $0)) } ?? ""
+        weight.map { WeightFormat.number(max(0, $0)) } ?? ""
     }
 
     /// Field text for stored reps or seconds; empty for nil.

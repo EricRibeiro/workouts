@@ -14,7 +14,7 @@ public actor WorkoutStatsReader {
     /// The finished workouts, newest first, with their exercise rows prefetched. The sets fault on the way through.
     private func finishedWorkouts(prefetchExercises: Bool = true) throws -> [Workout] {
         var descriptor = FetchDescriptor<Workout>(
-            predicate: #Predicate { $0.finishedAt != nil },
+            predicate: Workout.finishedPredicate,
             sortBy: [SortDescriptor(\.startedAt, order: .reverse)]
         )
         if prefetchExercises { descriptor.relationshipKeyPathsForPrefetching = [\.exercises] }

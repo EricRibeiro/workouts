@@ -105,7 +105,7 @@ public nonisolated enum HistoryDashboard {
         let calendar = mondayFirst(calendar)
         guard let week = calendar.dateInterval(of: .weekOfYear, for: now) else { return nil }
         let values = workouts.compactMap { workout -> Double? in
-            guard workout.finishedAt != nil, workout.startedAt >= week.start, workout.startedAt < week.end else {
+            guard workout.isFinished, workout.startedAt >= week.start, workout.startedAt < week.end else {
                 return nil
             }
             return workout.activeEnergyKcal
@@ -177,7 +177,7 @@ public nonisolated enum HistoryDashboard {
         options: RecordsOptions,
         limit: Int = 3
     ) -> HistorySummary {
-        let finished = workouts.filter { $0.finishedAt != nil }
+        let finished = workouts.filter(\.isFinished)
         let folded = foldSessions(finished, weightType: weightType, options: options)
         return HistorySummary(
             entries: HistoryList.entries(finished: finished, folded: folded, options: options),
@@ -244,13 +244,13 @@ public nonisolated enum HistoryDashboard {
     public static func text(for record: PersonalRecord, unit: WeightUnit) -> String {
         switch record.kind {
         case .e1rm:
-            return "e1RM \(groupedWeight(record.value)) \(unit.rawValue)"
+            return "e1RM \(WeightFormat.groupedText(record.value, unit: unit))"
         case .longestDuration:
-            let load = record.weight > 0 ? "\(groupedWeight(record.weight)) \(unit.rawValue)" : nil
+            let load = record.weight > 0 ? WeightFormat.groupedText(record.weight, unit: unit) : nil
             let time = ClockFormat.compact(seconds: Int(record.value.rounded()))
             return load.map { "\($0) × \(time)" } ?? time
         case .heaviest, .bestVolumeSet, .repsAtWeight:
-            let load = record.weight > 0 ? "\(groupedWeight(record.weight)) \(unit.rawValue)" : nil
+            let load = record.weight > 0 ? WeightFormat.groupedText(record.weight, unit: unit) : nil
             switch (load, record.reps > 0 ? record.reps : nil) {
             case (let load?, let reps?): return "\(load) × \(reps)"
             case (let load?, nil): return load
@@ -259,16 +259,4 @@ public nonisolated enum HistoryDashboard {
             }
         }
     }
-
-    /// A weight with thousands separators and up to two decimals, like `formatWeight` otherwise: `1,929`, `117.5`.
-    public static func groupedWeight(_ weight: Double) -> String {
-        let text = weight.formatted(groupedWeightStyle)
-        return text == "-0" ? "0" : text
-    }
-
-    /// Up to two decimals with thousands separators, always en_US (halves to even, like `NumberFormatter`'s default).
-    private static let groupedWeightStyle = FloatingPointFormatStyle<Double>.number
-        .locale(Locale(identifier: "en_US"))
-        .grouping(.automatic)
-        .precision(.fractionLength(0...2))
 }

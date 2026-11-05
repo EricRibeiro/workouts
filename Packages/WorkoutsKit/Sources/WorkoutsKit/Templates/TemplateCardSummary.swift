@@ -48,7 +48,7 @@ public struct TemplateCardSummary: Sendable, Equatable {
         public init() {}
 
         public init(finishedWorkouts: [Workout]) {
-            for workout in finishedWorkouts where workout.finishedAt != nil {
+            for workout in finishedWorkouts where workout.isFinished {
                 let started = workout.startedAt
                 if let id = workout.template?.id, byTemplate[id].map({ started > $0 }) ?? true {
                     byTemplate[id] = started

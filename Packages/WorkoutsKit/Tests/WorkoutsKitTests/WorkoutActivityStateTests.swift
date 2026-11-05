@@ -256,16 +256,6 @@ import Testing
 
     // MARK: Formatting
 
-    @Test func formatWeightUsesHalfStepsWithoutTrailingZeros() {
-        #expect(formatWeight(27.5) == "27.5")
-        #expect(formatWeight(100) == "100")
-        #expect(formatWeight(0) == "0")
-        #expect(formatWeight(22.25) == "22.25")
-        #expect(formatWeight(12.499) == "12.5")
-        #expect(formatWeight(2.5) == "2.5")
-        #expect(formatWeight(-0.001) == "0")
-    }
-
     @Test func formatSetDetailCoversLoadsRepsAndDurations() {
         #expect(formatSetDetail(weight: 27.5, unit: .lb, reps: 8, durationSeconds: nil) == "27.5 lb × 8")
         #expect(formatSetDetail(weight: 100, unit: .kg, reps: 5, durationSeconds: nil) == "100 kg × 5")

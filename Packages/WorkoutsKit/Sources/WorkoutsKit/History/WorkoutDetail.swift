@@ -104,7 +104,7 @@ nonisolated extension WorkoutDetail {
         now: Date = .now,
         calendar: Calendar = .current
     ) -> WorkoutDetail? {
-        let finished = workouts.filter { $0.finishedAt != nil }
+        let finished = workouts.filter(\.isFinished)
         guard let workout = finished.first(where: { $0.id == id }) else { return nil }
 
         // Only sessions of this workout's own exercises can matter for its records; the rest of the history is skipped.
@@ -256,14 +256,14 @@ nonisolated extension WorkoutDetail {
     public static func prLine(_ record: PersonalRecord, unit: WeightUnit, weightType: WeightType) -> String {
         switch record.kind {
         case .e1rm:
-            return "Est. 1RM: \(HistoryDashboard.groupedWeight(record.value)) \(unit.rawValue)"
+            return "Est. 1RM: \(WeightFormat.groupedText(record.value, unit: unit))"
         case .heaviest:
             let label = weightType.category == .assisted ? "Least assistance" : "Heaviest"
-            return "\(label): \(HistoryDashboard.groupedWeight(record.value)) \(unit.rawValue)"
+            return "\(label): \(WeightFormat.groupedText(record.value, unit: unit))"
         case .bestVolumeSet:
-            return "Set volume: \(HistoryDashboard.groupedWeight(record.value)) \(unit.rawValue)"
+            return "Set volume: \(WeightFormat.groupedText(record.value, unit: unit))"
         case .repsAtWeight:
-            let load = record.weight > 0 ? " at \(HistoryDashboard.groupedWeight(record.weight)) \(unit.rawValue)" : ""
+            let load = record.weight > 0 ? " at \(WeightFormat.groupedText(record.weight, unit: unit))" : ""
             return "Reps: \(record.reps)\(load)"
         case .longestDuration:
             return "Duration: \(ClockFormat.compact(seconds: Int(record.value.rounded())))"
