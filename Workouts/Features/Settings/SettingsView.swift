@@ -161,7 +161,6 @@ struct SettingsView: View {
             Stepper(value: bound.weeklyGoal, in: 1...14) {
                 LabeledContent("Weekly goal", value: "\(settings.weeklyGoal)")
             }
-            .accessibilityElement(children: .combine)
             .accessibilityLabel("Weekly goal")
             .accessibilityValue("\(settings.weeklyGoal) workouts per week")
             .accessibilityIdentifier("settings.weeklyGoal")

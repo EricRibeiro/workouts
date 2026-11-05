@@ -143,6 +143,13 @@ private struct FolderHeader: View {
         .accessibilityLabel("\(name), \(count) \(count == 1 ? "template" : "templates")")
         .accessibilityValue(collapsed ? "Collapsed" : "Expanded")
         .accessibilityAddTraits(.isHeader)
+        // The menu opens on a long press, which VoiceOver cannot do: the same actions, under the same conditions.
+        .accessibilityActions {
+            Button("Rename Folder", action: rename)
+            if canMoveUp { Button("Move Up") { move(.up) } }
+            if canMoveDown { Button("Move Down") { move(.down) } }
+            Button("Delete Folder", action: delete)
+        }
         .accessibilityIdentifier("workout.folder.\(id.uuidString).toggle")
     }
 }

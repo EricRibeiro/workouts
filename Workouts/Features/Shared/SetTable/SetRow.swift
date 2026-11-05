@@ -56,6 +56,7 @@ struct SetRow: View {
         .sensoryFeedback(.error, trigger: refusedCount)
         .animation(.easeOut(duration: 0.2), value: model.isChecked)
         .accessibilityElement(children: .contain)
+        .accessibilityLabel(SetInputFormat.setAccessibilityLabel(number: model.number, kind: model.kind))
         .accessibilityIdentifier("setrow.\(model.id.uuidString)")
     }
 
@@ -117,7 +118,7 @@ struct SetRow: View {
             Button(action: onApplyPrevious) {
                 Text(previous)
                     .font(.subheadline.monospacedDigit())
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.setSecondaryText)
                     .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
                     .minimumScaleFactor(0.8)
                     .frame(minHeight: touch)
@@ -130,7 +131,7 @@ struct SetRow: View {
         } else {
             Text("–")
                 .font(.subheadline)
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(.secondary)
                 .frame(minHeight: touch)
                 .accessibilityLabel("No previous")
                 .accessibilityIdentifier("setrow.\(model.id.uuidString).previous")
@@ -173,6 +174,7 @@ struct SetRow: View {
         guard !onToggleCheck() else { return }
         refusedCount += 1
         showsRefusal = true
+        AccessibilityNotification.Announcement("Enter weight and reps first").post()
         Task {
             try? await Task.sleep(for: .milliseconds(400))
             withAnimation(.easeOut(duration: 0.2)) { showsRefusal = false }

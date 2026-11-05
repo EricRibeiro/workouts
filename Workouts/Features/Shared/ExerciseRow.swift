@@ -70,7 +70,8 @@ extension ExerciseRow {
     }
 }
 
-/// A small capsule tag after the name (`Custom`, `Retired`). Decorative: the row's label already names it.
+/// A small capsule tag after the name (`Custom`, `Retired`). Decorative: the row's label already names it. The text
+/// is primary (11pt text tinted over its own 15% tint misses 4.5:1); only the capsule carries the tint.
 private struct ExerciseTag: View {
     let text: String
     let tint: Color
@@ -78,7 +79,7 @@ private struct ExerciseTag: View {
     var body: some View {
         Text(text)
             .font(.caption2.weight(.medium))
-            .foregroundStyle(tint)
+            .foregroundStyle(.primary)
             .padding(.horizontal, 6)
             .padding(.vertical, 1)
             .background(tint.opacity(0.15), in: .capsule)

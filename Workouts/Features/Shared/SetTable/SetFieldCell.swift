@@ -40,7 +40,7 @@ struct SetFieldCell: View {
             label,
             text: $text,
             selection: $selection,
-            prompt: Text(placeholder).foregroundStyle(Color.secondary)
+            prompt: Text(placeholder).foregroundStyle(Color.setSecondaryText)
         )
         .keyboardType(keyboard)
         .focused(focus, equals: field)
@@ -75,4 +75,10 @@ struct SetFieldCell: View {
         .accessibilityHint(hint)
         .accessibilityIdentifier(identifier)
     }
+}
+
+extension Color {
+    /// Secondary text on a set cell (the unchecked `.quaternary` fill or the checked `okRow`). `.secondary` is only 3.2-3.3:1
+    /// there in light mode; 70 % of the primary label colour is 7.7-8.2:1 in light and 5.9-9.3:1 in dark (WCAG needs 4.5).
+    static let setSecondaryText = Color.primary.opacity(0.7)
 }

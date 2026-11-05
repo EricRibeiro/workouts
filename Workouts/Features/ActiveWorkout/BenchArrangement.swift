@@ -163,6 +163,7 @@ struct RestCountdownHeader: View {
                 .padding(.vertical, 8)
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel("Rest remaining")
+                .accessibilityAddTraits(.updatesFrequently)
                 .accessibilityValue(
                     "\(ElapsedFormat.string(seconds: Int(remaining.rounded(.up)))) of \(ElapsedFormat.string(seconds: total))"
                 )

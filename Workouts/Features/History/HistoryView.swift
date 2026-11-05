@@ -167,6 +167,7 @@ struct HistoryView: View {
         .matchedTransitionSource(id: entry.id, in: zoom)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(HistoryList.accessibilityLabel(for: entry))
+        .accessibilityAddTraits(.isButton)
         .accessibilityIdentifier("history.row.\(entry.id.uuidString)")
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
             deleteButton(entry)

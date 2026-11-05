@@ -121,7 +121,7 @@ struct ExercisesView: View {
                 let title = showRetired ? "Hide Retired" : "Show Retired"
                 Toggle(title, systemImage: showRetired ? "archivebox.fill" : "archivebox", isOn: $showRetired)
                     .toggleStyle(.button)
-                    .accessibilityLabel(title)
+                    .accessibilityLabel("Show Retired Exercises")
                     .accessibilityIdentifier("exercises.showRetired")
             }
         }

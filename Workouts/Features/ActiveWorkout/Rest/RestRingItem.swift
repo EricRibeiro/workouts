@@ -96,6 +96,7 @@ struct RestRingItem: View {
         }
         // The strip drops accessibilityValue, so the remaining time rides in the label.
         .accessibilityLabel("Rest timer, \(time)")
+        .accessibilityAddTraits(.updatesFrequently)
         .accessibilityIdentifier("rest.ring")
         .sheet(isPresented: $isRunningPresented) {
             RestRunningSheet()

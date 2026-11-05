@@ -79,6 +79,7 @@ struct ExerciseChartsView: View {
                         Text(candidate.title(for: category))
                             .font(.subheadline.weight(.medium))
                             .lineLimit(1)
+                            .foregroundStyle(.primary)
                     }
                     .buttonStyle(.bordered)
                     .buttonBorderShape(.capsule)

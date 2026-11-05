@@ -113,8 +113,9 @@ Rules for the loop:
   button on the Workout tab (and in the sidebar's bottom) opening a `Form` sheet, not a tab.
   Folder `collapsed` is per-device state, not synced. Weeks start Monday in the device time zone.
   Exercise media (thumbnails + videos) is wanted; delivery mechanism decided in `docs/port/media.md`.
-  No widgets, Shortcuts, Control Center or HealthKit: Eric starts his Apple Fitness workout in
-  Apple's own app alongside this one.
+  No widgets, Shortcuts or Control Center. Eric starts his Apple Fitness workout in Apple's own app alongside this one;
+  **HealthKit is read-only enrichment** (Eric, 2026-11-04): after both finish, the app reads the overlapping Fitness
+  workout (calories, heart rate) into the history. It never writes to Health and never starts a workout (PLAN 7.1b).
 
 ## Code conventions
 

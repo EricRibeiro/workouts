@@ -45,6 +45,7 @@ struct StickyNoteView: View {
                     systemImage: text == nil ? "note.text.badge.plus" : "pencil"
                 )
                 .font(.subheadline.weight(.medium))
+                .foregroundStyle(.primary)
             }
             .buttonStyle(.borderless)
             .accessibilityIdentifier("exerciseDetail.stickyNote.edit")

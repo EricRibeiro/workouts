@@ -71,7 +71,7 @@ struct WeeklyGoalChart: View {
                     x: .value("Week of", weekLabel(week.weekStart, calendar: calendar)),
                     y: .value("Workouts", week.count)
                 )
-                .foregroundStyle(week.count >= goal ? Color.accentColor : Color.accentColor.opacity(0.35))
+                .foregroundStyle(week.count >= goal ? Color.accentColor : Color.accentColor.opacity(0.75))
                 .cornerRadius(4)
                 .annotation(position: .top, spacing: 2) {
                     if week.count > 0 {

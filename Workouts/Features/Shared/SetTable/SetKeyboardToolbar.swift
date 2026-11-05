@@ -27,10 +27,16 @@ struct SetKeyboardToolbar: ViewModifier {
                 // countdown, Skip and +30), Next and Done never fold.
                 ToolbarItemGroup(placement: .keyboard) {
                     if let rest {
-                        Text(timerInterval: min(.now, rest.endsAt)...rest.endsAt, countsDown: true)
-                            .font(.body.monospacedDigit())
-                            .accessibilityLabel("Rest remaining")
-                            .accessibilityIdentifier("rest.keyboard.countdown")
+                        TimelineView(.periodic(from: .now, by: 1)) { context in
+                            let now = context.date
+                            let remaining = max(0, rest.endsAt.timeIntervalSince(now))
+                            Text(timerInterval: min(now, rest.endsAt)...rest.endsAt, countsDown: true)
+                                .font(.body.monospacedDigit())
+                                .accessibilityLabel("Rest remaining")
+                                .accessibilityValue(ElapsedFormat.string(seconds: Int(remaining.rounded(.up))))
+                                .accessibilityAddTraits(.updatesFrequently)
+                                .accessibilityIdentifier("rest.keyboard.countdown")
+                        }
 
                         Button(action: rest.skip) {
                             Label("Skip", systemImage: "forward.end")

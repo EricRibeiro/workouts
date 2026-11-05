@@ -16,3 +16,4 @@ Builds uploaded with `./dev testflight --upload` (cadence: AGENTS.md "TestFlight
 | 202611050007 | d94003a | Stars behind the finish summary, success haptic on every finish |
 | 202611050017 | 55bac68 | Stars actually fall (dense field, 4.5 s) |
 | 202611050026 | 28affbc | Exercise video starts without a dark frame |
+| 202611050043 | 5bde2fb | Exercise detail splits across the fold when shown full width |

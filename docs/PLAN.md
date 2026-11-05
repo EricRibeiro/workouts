@@ -301,6 +301,26 @@ Live Activity → notifications → logging, then templates, exercises, history.
 
 - [x] **7.1 Team + entitlements**: `DEVELOPMENT_TEAM`, iCloud (container + key-value), push, time-sensitive; no App Group. Proof:
   `./dev build` signs with the team.
+- [ ] **7.1b Fitness enrichment (HealthKit, read-only)** (Eric, 2026-11-04): after a workout, read the overlapping Apple
+  Fitness Functional Strength Training workout and store calories, avg/max heart rate and its duration on the `Workout`
+  (optional fields, so additive; land before 7.2 so the first Production schema has them); show a Fitness card on the
+  workout detail and calories in History; backfill imported history. **Testing infrastructure first** (Eric: "being able
+  to test and iterate is a core premise"), in this order, each its own worker task:
+  - [ ] **a. Research**: what the simulator supports (granting Health authorization without the prompt, e.g.
+    `simctl privacy`; writing `HKWorkout` + heart-rate/energy samples from a DEBUG build; statistics queries behaving as on
+    device; the HealthKit entitlement with development and cloud-managed signing). Proof: a findings doc in `docs/port/`.
+  - [ ] **b. Kit boundary**: `HealthSource` protocol, value types (`HealthWorkoutSummary`), matching (overlap with slack,
+    pick the best candidate, ignore non-strength types) and summarising, all in WorkoutsKit with a fake source. Proof:
+    `./dev kit Health`.
+  - [ ] **c. App fixtures**: a fixture `HealthSource` injected by launch argument for UI tests and the gallery, so no test
+    depends on real HealthKit or a permission prompt. Proof: a `-preview` entry renders fixture data.
+  - [ ] **d. Real-store check** (if a. says it is possible): DEBUG `-seedHealth` writes HealthKit samples matching the
+    sample workouts; one integration test reads them back through the real `HealthKitSource`. Proof: that test.
+  - [ ] **e. Reader + permission**: `HealthKitSource` (entitlement, usage string, read-only authorization at the right
+    moment), enrichment after finish and on foreground for unmatched recent workouts. Proof: kit + the d. test.
+  - [ ] **f. UI**: Fitness card on the workout detail (calories, avg/max HR, small HR chart), calories in History rows and
+    the dashboard. Proof: `-preview` screenshots light/dark, closed/open.
+  - [ ] **g. Backfill**: enrich imported history once (and after 7.4's import). Proof: kit test over a fixture year.
 - [ ] **7.2 CloudKit on**: flip the flag, promote the schema to production. Needs: 7.1. Proof: two simulators sync.
 - [ ] **7.3 Settings on iCloud KVS** (only if a second device appears): `NSUbiquitousKeyValueStore` backend behind the
   `cloudKit` flag. Needs: 7.1. Proof: `./dev kit Settings` runs both backends.

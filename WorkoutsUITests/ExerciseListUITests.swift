@@ -109,15 +109,16 @@ final class ExerciseListUITests: XCTestCase {
         XCTAssertTrue(rows.element(boundBy: 0).waitForExistence(timeout: 5))
         XCTAssertGreaterThanOrEqual(rows.count, unfiltered)
 
-        // Show Retired toggles its label (the toolbar may fold it into the overflow on the closed Duo).
+        // Show Retired keeps one spoken label; the toggle state is its selected trait (the toolbar may fold it into the overflow
+        // on the closed Duo).
         let toggle = app.descendants(matching: .any).matching(identifier: "exercises.showRetired").firstMatch
         XCTAssertTrue(toggle.waitForExistence(timeout: 5))
-        XCTAssertEqual(toggle.label, "Show Retired")
+        XCTAssertEqual(toggle.label, "Show Retired Exercises")
+        XCTAssertFalse(toggle.isSelected, toggle.debugDescription)
         toggle.tap()
-        XCTAssertEqual(
-            app.descendants(matching: .any).matching(identifier: "exercises.showRetired").firstMatch.label,
-            "Hide Retired"
-        )
+        let after = app.descendants(matching: .any).matching(identifier: "exercises.showRetired").firstMatch
+        XCTAssertEqual(after.label, "Show Retired Exercises")
+        XCTAssertTrue(after.isSelected, after.debugDescription)
     }
 
     /// R4-02: the best-set column follows the display unit chosen in Settings (the default unit is lb).

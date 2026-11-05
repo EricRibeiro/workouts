@@ -16,6 +16,10 @@ import WorkoutsKit
 //   Color.danger          destructive text and icons
 //   Color.stickyNote      sticky note band: pale yellow in light, dark warm amber in dark (not a yellow tint at
 //                         opacity, which goes olive on black); primary text reads on it in both
+//   Color.onAccent        text on a filled accent shape: white in light, black in dark (white on #0A84FF is 3.65:1)
+//   Color.statDuration, statVolume, statSets, statExercises, statPRs
+//                         Finish summary stat values (22pt bold): at least 3:1 on white and #F2F2F7 in light and on
+//                         #1C1C1E and black in dark
 //   Color.warmup          warm-up set kind
 //   Color.setKindDrop     drop set kind
 //   Color.setKindFailure  failure set kind

@@ -26,6 +26,7 @@ struct FilterMenu: View {
         } label: {
             Label(current, systemImage: "chevron.up.chevron.down")
                 .labelStyle(PillLabelStyle())
+                .foregroundStyle(.primary)
         }
         .buttonStyle(.bordered)
         .buttonBorderShape(.capsule)

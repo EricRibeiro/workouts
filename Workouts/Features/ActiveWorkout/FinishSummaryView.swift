@@ -40,26 +40,26 @@ struct FinishSummaryView: View {
                         "Duration",
                         Self.durationText(summary.duration),
                         spoken: Self.spokenDuration(summary.duration),
-                        tint: .orange
+                        tint: .statDuration
                     )
                     .accessibilityIdentifier("summary.duration")
                     stat(
                         "Volume",
                         HistoryList.volumeText(summary.volume, unit: summary.volumeUnit),
                         spoken: Self.spokenVolume(summary.volume, unit: summary.volumeUnit),
-                        tint: .blue
+                        tint: .statVolume
                     )
                     .accessibilityIdentifier("summary.volume")
-                    stat("Sets", "\(summary.setCount)", spoken: Self.counted(summary.setCount, "set"), tint: .green)
+                    stat("Sets", "\(summary.setCount)", spoken: Self.counted(summary.setCount, "set"), tint: .statSets)
                         .accessibilityIdentifier("summary.sets")
                     stat(
                         "Exercises",
                         "\(summary.exerciseCount)",
                         spoken: Self.counted(summary.exerciseCount, "exercise"),
-                        tint: .cyan
+                        tint: .statExercises
                     )
                     .accessibilityIdentifier("summary.exercises")
-                    stat("PRs", "\(summary.prCount)", spoken: Self.counted(summary.prCount, "PR"), tint: .pink)
+                    stat("PRs", "\(summary.prCount)", spoken: Self.counted(summary.prCount, "PR"), tint: .statPRs)
                         .accessibilityIdentifier("summary.prs")
                 }
 

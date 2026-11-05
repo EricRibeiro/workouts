@@ -70,6 +70,7 @@ struct RestRunningSheet: View {
             .progressViewStyle(RingProgressStyle(lineWidth: 10))
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Rest remaining")
+            .accessibilityAddTraits(.updatesFrequently)
             .accessibilityValue(
                 "\(ElapsedFormat.string(seconds: Int(remaining.rounded(.up)))) of \(ElapsedFormat.string(seconds: total))"
             )

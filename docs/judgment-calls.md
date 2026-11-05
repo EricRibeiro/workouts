@@ -204,3 +204,7 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
     fight Increase Contrast and the HIG). Same for the system's `.borderedProminent` white-on-accent in dark mode. Fixed
     instead: every custom colour that fails (finish-summary stat tints, set-kind letters on the checked row, tags, filter
     chips, calendar day, below-goal bars, sticky-note button, the Previous value/placeholder in set cells).
+63. **HealthKit, reversed (Eric, 2026-11-04)**: read-only enrichment from Apple Fitness (PLAN 7.1b), testing
+    infrastructure first: research what the simulator supports, a kit `HealthSource` boundary with a fake, launch-arg
+    fixtures for UI tests and the gallery, and a real-store integration check, before the reader and the UI. Lands before
+    7.2 so the new optional `Workout` fields are in the first Production schema.

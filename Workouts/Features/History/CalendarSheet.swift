@@ -125,12 +125,14 @@ struct CalendarSheet: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel(label)
+            .accessibilityAddTraits(selectedDay == day ? .isSelected : [])
             .accessibilityIdentifier(identifier)
         } else {
             // Nothing to open: plain text, not a dead control.
             dayNumber(day, marked: false)
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(label)
+                .accessibilityAddTraits(selectedDay == day ? .isSelected : [])
                 .accessibilityIdentifier(identifier)
         }
     }
@@ -143,7 +145,7 @@ struct CalendarSheet: View {
             .monospacedDigit()
             .lineLimit(1)
             .minimumScaleFactor(0.6)
-            .foregroundStyle(marked ? AnyShapeStyle(.white) : AnyShapeStyle(.primary))
+            .foregroundStyle(marked ? AnyShapeStyle(Color.onAccent) : AnyShapeStyle(.primary))
             .frame(maxWidth: .infinity, minHeight: 44)
             .background {
                 if marked { Circle().fill(.tint) }
