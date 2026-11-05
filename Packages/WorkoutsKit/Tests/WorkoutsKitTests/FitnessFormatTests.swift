@@ -40,14 +40,6 @@ import Testing
         #expect(FitnessFormat.wholeNumber(118.5) == "119")
     }
 
-    @Test func clockTextIsMinutesAndSeconds() {
-        #expect(FitnessFormat.clockText(seconds: 0) == "0:00")
-        #expect(FitnessFormat.clockText(seconds: 39 * 60 + 53) == "39:53")
-        #expect(FitnessFormat.clockText(seconds: 70) == "1:10")
-        #expect(FitnessFormat.clockText(seconds: 3600 + 5 * 60 + 9) == "1:05:09")
-        #expect(FitnessFormat.clockText(seconds: -4) == "0:00")
-    }
-
     // MARK: Zones
 
     @Test func zoneSentenceSpellsTheTimeOut() {

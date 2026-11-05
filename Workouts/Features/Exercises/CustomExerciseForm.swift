@@ -251,10 +251,16 @@ struct CustomExerciseFormView: View {
         guard !loaded else { return }
         loaded = true
         if let editing {
-            if let exercise = CustomExerciseForm.exercise(id: editing, in: modelContext) {
-                draft = CustomExerciseForm.Draft(exercise)
+            do {
+                if let exercise = try CustomExerciseForm.exercise(id: editing, in: modelContext) {
+                    draft = CustomExerciseForm.Draft(exercise)
+                }
+                isReferenced = try CustomExerciseForm.isReferenced(exerciseID: editing, in: modelContext)
+            } catch {
+                // Fail safe: offer Archive (never destroys history) when the references cannot be read.
+                isReferenced = true
+                failure = error.localizedDescription
             }
-            isReferenced = CustomExerciseForm.isReferenced(exerciseID: editing, in: modelContext)
         } else {
             draft.name = prefill.trimmingCharacters(in: .whitespacesAndNewlines)
             nameTouched = !draft.name.isEmpty
@@ -266,7 +272,7 @@ struct CustomExerciseFormView: View {
     private func save() {
         do {
             let id: UUID
-            if let editing, let exercise = CustomExerciseForm.exercise(id: editing, in: modelContext) {
+            if let editing, let exercise = try CustomExerciseForm.exercise(id: editing, in: modelContext) {
                 try CustomExerciseForm.update(exercise, from: draft, in: modelContext, store: store)
                 id = exercise.id
             } else {
@@ -280,8 +286,9 @@ struct CustomExerciseFormView: View {
     }
 
     private func remove(_ kind: Removal) {
-        guard let editing, let exercise = CustomExerciseForm.exercise(id: editing, in: modelContext) else { return }
+        guard let editing else { return }
         do {
+            guard let exercise = try CustomExerciseForm.exercise(id: editing, in: modelContext) else { return }
             switch kind {
             case .archive: try CustomExerciseForm.archive(exercise, in: modelContext, store: store)
             case .delete: try CustomExerciseForm.delete(exercise, in: modelContext, store: store)

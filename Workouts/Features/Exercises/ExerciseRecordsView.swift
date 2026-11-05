@@ -26,7 +26,7 @@ enum RecordFormat {
     static func value(_ record: ExerciseRecord, unit: WeightUnit) -> String {
         switch record.kind {
         case .e1rm, .heaviest, .bestVolumeSet: "\(HistoryDashboard.groupedWeight(record.value)) \(unit.rawValue)"
-        case .longestDuration: ElapsedFormat.string(seconds: Int(record.value))
+        case .longestDuration: ClockFormat.clock(seconds: Int(record.value))
         case .repsAtWeight: "\(record.reps) \(record.reps == 1 ? "rep" : "reps")"
         }
     }

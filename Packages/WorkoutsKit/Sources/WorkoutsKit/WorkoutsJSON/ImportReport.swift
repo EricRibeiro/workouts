@@ -91,6 +91,8 @@ public nonisolated struct ImportReport: Equatable, Sendable {
 public nonisolated enum ImportError: Error, Equatable, Sendable {
     /// The document's `version` is not one this build reads.
     case unsupportedVersion(Int)
+    /// A workout's Apple Fitness field (named here) could not be encoded for storage; nothing was imported.
+    case unstorableHealthData(String)
 }
 
 extension ImportError: LocalizedError {
@@ -98,6 +100,8 @@ extension ImportError: LocalizedError {
         switch self {
         case .unsupportedVersion(let version):
             "This file uses format version \(version), which this version of the app cannot read."
+        case .unstorableHealthData(let field):
+            "The file's Apple Fitness data (\(field)) could not be stored, so nothing was imported."
         }
     }
 }

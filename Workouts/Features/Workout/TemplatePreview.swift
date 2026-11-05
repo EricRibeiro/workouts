@@ -65,8 +65,11 @@ struct TemplatePreview: View {
         }
         .exerciseInfoSheet(exerciseID: $aboutExerciseID)
         .task(id: FinishedWorkoutsStamp(newestEdit: newest.first?.updatedAt, generation: generation?.value ?? 0)) {
-            let finished = (try? context.fetch(Workout.allFinished)) ?? []
-            lastPerformedIndex = TemplateCardSummary.LastPerformedIndex(finishedWorkouts: finished)
+            // The reader's context reads the store: flush edits the main context has not saved yet.
+            context.saveIfChanged(reportingTo: errors)
+            let index = try? await WorkoutStatsReader.loadLastPerformedIndex(in: context.container)
+            guard !Task.isCancelled, let index else { return }
+            lastPerformedIndex = index
         }
         .accessibilityIdentifier("template.preview")
     }

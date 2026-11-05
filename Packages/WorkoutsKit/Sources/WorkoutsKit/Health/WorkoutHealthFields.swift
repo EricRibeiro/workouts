@@ -1,13 +1,41 @@
 import Foundation
+import os
+
+nonisolated enum HealthBlob {
+    /// Decodes a stored blob; a failure is logged and reads as no data.
+    static func decode<T: Decodable>(_ type: T.Type, from data: Data?, field: String) -> T? {
+        guard let data else { return nil }
+        do {
+            return try JSONDecoder().decode(type, from: data)
+        } catch {
+            KitLog.health.error(
+                "Could not decode stored \(field, privacy: .public): \(error.localizedDescription, privacy: .public)"
+            )
+            return nil
+        }
+    }
+
+    /// Encodes a value for storage; a failure is logged and nothing is stored.
+    static func encode<T: Encodable>(_ value: T, field: String) -> Data? {
+        do {
+            return try JSONEncoder().encode(value)
+        } catch {
+            KitLog.health.error(
+                "Could not encode \(field, privacy: .public): \(error.localizedDescription, privacy: .public)"
+            )
+            return nil
+        }
+    }
+}
 
 extension Workout {
     /// The matched Fitness workout, rebuilt from the stored fields; nil unless `healthWorkoutID` is set. Start and end
     /// are this workout's own (the matcher pairs them by overlap, and the details screen only shows the duration of ours).
-    /// A series that fails to decode reads as empty.
+    /// A series that fails to decode reads as empty (and is logged).
     public var healthSummary: HealthWorkoutSummary? {
         guard let healthWorkoutID else { return nil }
         let zones = HeartRateZoneTime.oneBased(heartRateZones ?? [])
-        let series = heartRateSeriesData.flatMap { try? JSONDecoder().decode([HeartRatePoint].self, from: $0) } ?? []
+        let series = HealthBlob.decode([HeartRatePoint].self, from: heartRateSeriesData, field: "heartRateSeries") ?? []
         return HealthWorkoutSummary(
             healthWorkoutID: healthWorkoutID,
             start: startedAt,
@@ -37,14 +65,16 @@ extension Workout {
         totalEnergyKcal = summary.totalEnergyKcal
         avgHeartRate = summary.avgHeartRate
         maxHeartRate = summary.maxHeartRate
-        heartRateSeriesData = summary.heartRateSeries.isEmpty ? nil : try? JSONEncoder().encode(summary.heartRateSeries)
+        heartRateSeriesData =
+            summary.heartRateSeries.isEmpty
+            ? nil : HealthBlob.encode(summary.heartRateSeries, field: "heartRateSeries")
         effortScore = summary.effort?.score
         effortIsEstimated = summary.effort?.isEstimated
-        heartRateZonesData = summary.zones.isEmpty ? nil : try? JSONEncoder().encode(summary.zones)
+        heartRateZonesData = summary.zones.isEmpty ? nil : HealthBlob.encode(summary.zones, field: "heartRateZones")
         weatherTemperatureCelsius = summary.weatherTemperatureCelsius
         weatherHumidityPercent = summary.weatherHumidityPercent
         healthTimeZone = summary.timeZoneIdentifier
-        healthDetailsData = summary.details.flatMap { try? JSONEncoder().encode($0) }
+        healthDetailsData = summary.details.flatMap { HealthBlob.encode($0, field: "healthDetails") }
     }
 
     /// Removes everything Fitness added: the matched workout, its numbers and series, and the lookup stamp, so a later
@@ -82,16 +112,16 @@ extension Workout {
 
     /// The stored zones, for export (nil when none or unreadable).
     var heartRateZones: [HeartRateZoneTime]? {
-        heartRateZonesData.flatMap { try? JSONDecoder().decode([HeartRateZoneTime].self, from: $0) }
+        HealthBlob.decode([HeartRateZoneTime].self, from: heartRateZonesData, field: "heartRateZones")
     }
 
     /// The stored details snapshot, for export (nil when none or unreadable).
     var healthDetails: HealthWorkoutDetails? {
-        healthDetailsData.flatMap { try? JSONDecoder().decode(HealthWorkoutDetails.self, from: $0) }
+        HealthBlob.decode(HealthWorkoutDetails.self, from: healthDetailsData, field: "healthDetails")
     }
 
     /// The stored series, for export (nil when none).
     var heartRateSeries: [HeartRatePoint]? {
-        heartRateSeriesData.flatMap { try? JSONDecoder().decode([HeartRatePoint].self, from: $0) }
+        HealthBlob.decode([HeartRatePoint].self, from: heartRateSeriesData, field: "heartRateSeries")
     }
 }

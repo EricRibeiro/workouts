@@ -653,6 +653,19 @@ import Testing
         #expect(try store.count(Workout.self) == 0)
     }
 
+    @Test func fitnessDataThatCannotBeStoredFailsTheImportAndRollsBack() throws {
+        var doc = Self.fixture()
+        doc.workouts[0].healthWorkoutId = "HK-1"
+        doc.workouts[0].heartRateSeries = [HeartRatePoint(offset: 0, bpm: .nan)]
+        let store = try Store()
+        #expect(throws: ImportError.unstorableHealthData("heartRateSeries")) {
+            try Importer.apply(doc, to: store.context)
+        }
+        #expect(try store.count(Workout.self) == 0)
+        #expect(try store.count(Template.self) == 0)
+        #expect(ImportError.unstorableHealthData("heartRateSeries").localizedDescription.contains("heartRateSeries"))
+    }
+
     @Test func anEmptyDocumentImportsNothing() throws {
         let store = try Store()
         let report = try Importer.apply(WorkoutsJSON(), to: store.context)

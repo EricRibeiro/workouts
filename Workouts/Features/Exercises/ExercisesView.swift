@@ -19,6 +19,7 @@ struct ExercisesView: View {
     /// workout. A delete or an import that updates an older workout bumps the generation.
     @Query(Workout.newestFinishedEdit) private var newest: [Workout]
     @Environment(StoreGeneration.self) private var generation: StoreGeneration?
+    @Environment(SaveErrors.self) private var saveErrors: SaveErrors?
     // Read here only so a unit or formula change in Settings recomputes the best sets.
     @AppStorage(SettingsKey.defaultUnit.rawValue) private var unitRaw = ""
     @AppStorage(SettingsKey.e1rmFormula.rawValue) private var formulaRaw = ""
@@ -149,7 +150,7 @@ struct ExercisesView: View {
     /// The texts already shown stay until the new ones arrive, so a refresh never blanks the rows.
     private func refreshBestSets() async {
         // The reader's context reads the store: flush edits the main context has not saved yet.
-        if context.hasChanges { try? context.save() }
+        context.saveIfChanged(reportingTo: saveErrors)
         let texts = try? await WorkoutStatsReader.loadBestSetTexts(
             in: context.container,
             weightTypes: store.weightTypes,

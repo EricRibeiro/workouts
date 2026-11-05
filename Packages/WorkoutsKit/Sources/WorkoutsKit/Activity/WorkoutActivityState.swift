@@ -224,13 +224,6 @@ public nonisolated func formatWeight(_ weight: Double) -> String {
     return text == "-0" ? "0" : text
 }
 
-/// `45 s` below a minute, `m:ss` from a minute on (`1:30`).
-public nonisolated func formatDuration(seconds: Int) -> String {
-    let seconds = max(0, seconds)
-    if seconds < 60 { return "\(seconds) s" }
-    return "\(seconds / 60):" + String(format: "%02d", seconds % 60)
-}
-
 /// The value part of a set: `27.5 lb × 8`. A weight of 0 or none is dropped, so a bodyweight set reads `12 reps`. A
 /// duration reads `45 s`, with a weight `20 lb × 45 s`; a weight alone reads `27.5 lb`. Empty when there is nothing
 /// to show.
@@ -245,7 +238,7 @@ public nonisolated func formatSetDetail(
         if let reps, reps > 0 {
             load == nil ? "\(reps) reps" : "\(reps)"
         } else if let durationSeconds, durationSeconds > 0 {
-            formatDuration(seconds: durationSeconds)
+            ClockFormat.compact(seconds: durationSeconds)
         } else {
             nil
         }

@@ -99,4 +99,66 @@ import Testing
         let names = try await reader.historySummary(weightTypes: [:], options: RecordsOptions()).entries.map(\.name)
         #expect(names == ["Pull"])
     }
+
+    @Test(arguments: [WeightUnit.kg, .lb])
+    func workoutDetailEqualsTheSynchronousMake(unit: WeightUnit) async throws {
+        let catalog = try Self.realCatalog()
+        let store = ExerciseStore(catalog: catalog)
+        let container = try seededContainer(catalog: catalog)
+        let options = RecordsOptions(formula: .epley, displayUnit: unit)
+
+        let finished = try container.mainContext.fetch(
+            FetchDescriptor<Workout>(predicate: #Predicate { $0.finishedAt != nil })
+        )
+        let target = try #require(finished.sorted { $0.startedAt < $1.startedAt }.last)
+        let expected = try #require(
+            WorkoutDetail.make(
+                id: target.id,
+                from: finished,
+                weightType: { store.exercise(id: $0)?.weightType },
+                options: options,
+                now: Self.now
+            )
+        )
+        let actual = try await WorkoutStatsReader.loadWorkoutDetail(
+            in: container,
+            id: target.id,
+            weightTypes: store.weightTypes,
+            options: options,
+            now: Self.now
+        )
+
+        #expect(!expected.exercises.isEmpty)
+        #expect(actual == expected)
+    }
+
+    @Test func workoutDetailIsNilForAnUnknownOrUnfinishedWorkout() async throws {
+        let catalog = try Self.realCatalog()
+        let container = try seededContainer(catalog: catalog)
+        let open = try #require(
+            container.mainContext.fetch(FetchDescriptor<Workout>(predicate: #Predicate { $0.finishedAt == nil })).first
+        )
+        for id in [UUID(), open.id] {
+            let detail = try await WorkoutStatsReader.loadWorkoutDetail(
+                in: container,
+                id: id,
+                weightTypes: [:],
+                options: RecordsOptions()
+            )
+            #expect(detail == nil)
+        }
+    }
+
+    @Test func lastPerformedIndexEqualsTheSynchronousIndex() async throws {
+        let catalog = try Self.realCatalog()
+        let container = try seededContainer(catalog: catalog)
+        let finished = try container.mainContext.fetch(
+            FetchDescriptor<Workout>(predicate: #Predicate { $0.finishedAt != nil })
+        )
+        let expected = TemplateCardSummary.LastPerformedIndex(finishedWorkouts: finished)
+        let actual = try await WorkoutStatsReader.loadLastPerformedIndex(in: container)
+
+        #expect(expected != TemplateCardSummary.LastPerformedIndex())
+        #expect(actual == expected)
+    }
 }

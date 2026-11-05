@@ -247,7 +247,7 @@ public nonisolated enum HistoryDashboard {
             return "e1RM \(groupedWeight(record.value)) \(unit.rawValue)"
         case .longestDuration:
             let load = record.weight > 0 ? "\(groupedWeight(record.weight)) \(unit.rawValue)" : nil
-            let time = formatDuration(seconds: Int(record.value.rounded()))
+            let time = ClockFormat.compact(seconds: Int(record.value.rounded()))
             return load.map { "\($0) × \(time)" } ?? time
         case .heaviest, .bestVolumeSet, .repsAtWeight:
             let load = record.weight > 0 ? "\(groupedWeight(record.weight)) \(unit.rawValue)" : nil

@@ -1,5 +1,6 @@
 import Foundation
 import SwiftData
+import os
 
 /// Applies a ``WorkoutsJSON`` document to a store. Safe to run any number of times with the same or
 /// an overlapping document.
@@ -27,8 +28,9 @@ public enum Importer {
     ///
     /// - Parameter catalog: the library to check library references against. Without one nothing is
     ///   reported as unknown.
-    /// - Throws: ``ImportError/unsupportedVersion(_:)`` before touching the store, or a SwiftData error
-    ///   (the context is rolled back when the final save fails).
+    /// - Throws: ``ImportError/unsupportedVersion(_:)`` before touching the store, or a SwiftData error or
+    ///   ``ImportError/unstorableHealthData(_:)`` (the context is rolled back when the workouts pass or the final save
+    ///   fails).
     public static func apply(
         _ doc: WorkoutsJSON,
         to context: ModelContext,
@@ -43,8 +45,8 @@ public enum Importer {
         run.importStickyNotes(doc.stickyNotes)
         run.importFolders(doc.folders)
         run.importTemplates(doc.templates)
-        run.importWorkouts(doc.workouts)
         do {
+            try run.importWorkouts(doc.workouts)
             try context.save()
         } catch {
             context.rollback()
@@ -320,7 +322,7 @@ public enum Importer {
 
         // MARK: Workouts
 
-        mutating func importWorkouts(_ dtos: [WorkoutDTO]) {
+        mutating func importWorkouts(_ dtos: [WorkoutDTO]) throws {
             for dto in dtos {
                 // Never a second in-progress workout: an unfinished row that is not the store's own is skipped.
                 if dto.finishedAt == nil, let inProgressID, dto.id != inProgressID {
@@ -353,7 +355,7 @@ public enum Importer {
                 row.restEndsAt = dto.restEndsAt
                 row.restSeconds = dto.restSeconds
                 row.restSetID = dto.restSetId
-                importHealth(dto, into: row)
+                try importHealth(dto, into: row)
                 row.template = resolve(dto.templateId, in: templates)
                 syncExercises(of: row, with: dto.exercises)
             }
@@ -361,7 +363,7 @@ public enum Importer {
 
         /// A document without Fitness data (an older file) never clears what the store already has; `healthCheckedAt`
         /// only moves forward.
-        private func importHealth(_ dto: WorkoutDTO, into row: Workout) {
+        private func importHealth(_ dto: WorkoutDTO, into row: Workout) throws {
             if let checked = dto.healthCheckedAt, checked > (row.healthCheckedAt ?? .distantPast) {
                 row.healthCheckedAt = checked
             }
@@ -372,15 +374,30 @@ public enum Importer {
             row.avgHeartRate = dto.avgHeartRate
             row.maxHeartRate = dto.maxHeartRate
             row.heartRateSeriesData =
-                (dto.heartRateSeries?.isEmpty ?? true) ? nil : try? JSONEncoder().encode(dto.heartRateSeries)
+                try (dto.heartRateSeries?.isEmpty ?? true)
+                ? nil : Self.encodeHealth(dto.heartRateSeries, "heartRateSeries")
             row.effortScore = dto.effortScore
             row.effortIsEstimated = dto.effortIsEstimated
             row.heartRateZonesData =
-                (dto.heartRateZones?.isEmpty ?? true) ? nil : try? JSONEncoder().encode(dto.heartRateZones)
+                try (dto.heartRateZones?.isEmpty ?? true)
+                ? nil : Self.encodeHealth(dto.heartRateZones, "heartRateZones")
             row.weatherTemperatureCelsius = dto.weatherTemperatureCelsius
             row.weatherHumidityPercent = dto.weatherHumidityPercent
             row.healthTimeZone = dto.healthTimeZone
-            row.healthDetailsData = dto.healthDetails.flatMap { try? JSONEncoder().encode($0) }
+            row.healthDetailsData = try dto.healthDetails.map { try Self.encodeHealth($0, "healthDetails") }
+        }
+
+        /// Encodes a Fitness field for storage. A failure aborts the import (rolled back) instead of silently dropping
+        /// data the file is the only copy of.
+        private static func encodeHealth<T: Encodable>(_ value: T, _ field: String) throws -> Data {
+            do {
+                return try JSONEncoder().encode(value)
+            } catch {
+                KitLog.health.error(
+                    "Import could not encode \(field, privacy: .public): \(error.localizedDescription, privacy: .public)"
+                )
+                throw ImportError.unstorableHealthData(field)
+            }
         }
 
         private mutating func syncExercises(of workout: Workout, with dtos: [WorkoutExerciseDTO]) {

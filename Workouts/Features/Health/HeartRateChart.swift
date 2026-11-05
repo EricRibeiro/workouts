@@ -133,7 +133,7 @@ struct HeartRateChart: View {
                 AxisTick()
                 AxisValueLabel {
                     if let seconds = value.as(Double.self) {
-                        Text(FitnessFormat.clockText(seconds: seconds))
+                        Text(ClockFormat.clock(seconds: seconds))
                             .font(.caption2)
                             .monospacedDigit()
                     }

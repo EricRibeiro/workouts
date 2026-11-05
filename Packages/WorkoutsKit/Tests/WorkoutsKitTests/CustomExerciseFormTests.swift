@@ -169,7 +169,7 @@ import Testing
         let id = created.id
         rig.context.insert(StickyNote(exerciseID: id, text: "heavy"))
         try rig.context.save()
-        #expect(!CustomExerciseForm.isReferenced(exerciseID: id, in: rig.context))
+        #expect(try !CustomExerciseForm.isReferenced(exerciseID: id, in: rig.context))
         let deleted = try CustomExerciseForm.delete(created, in: rig.context, store: rig.store)
         #expect(deleted)
         #expect(rig.store.exercise(id: id) == nil)
@@ -184,7 +184,7 @@ import Testing
         rig.context.insert(template)
         rig.context.insert(TemplateExercise(exerciseID: created.id, exerciseName: "Sled Push", template: template))
         try rig.context.save()
-        #expect(CustomExerciseForm.isReferenced(exerciseID: created.id, in: rig.context))
+        #expect(try CustomExerciseForm.isReferenced(exerciseID: created.id, in: rig.context))
         let deleted = try CustomExerciseForm.delete(created, in: rig.context, store: rig.store)
         #expect(!deleted)
         #expect(rig.store.exercise(id: created.id) != nil)
@@ -197,8 +197,8 @@ import Testing
         rig.context.insert(workout)
         rig.context.insert(WorkoutExercise(exerciseID: created.id, exerciseName: "Sled Push", workout: workout))
         try rig.context.save()
-        #expect(CustomExerciseForm.isReferenced(exerciseID: created.id, in: rig.context))
-        #expect(!CustomExerciseForm.isReferenced(exerciseID: UUID(), in: rig.context))
+        #expect(try CustomExerciseForm.isReferenced(exerciseID: created.id, in: rig.context))
+        #expect(try !CustomExerciseForm.isReferenced(exerciseID: UUID(), in: rig.context))
     }
 
     @Test func archiveRetiresButKeepsRowAndLookup() throws {
@@ -209,7 +209,7 @@ import Testing
         #expect(rig.store.exercise(id: created.id)?.isRetired == true)
         #expect(!rig.store.all().contains { $0.id == created.id })
         #expect(rig.store.all(includeRetired: true).contains { $0.id == created.id })
-        #expect(CustomExerciseForm.exercise(id: created.id, in: rig.context) === created)
+        #expect(try CustomExerciseForm.exercise(id: created.id, in: rig.context) === created)
     }
 
     @Test func failedDeleteRollsBackSoNothingIsCommittedLater() throws {

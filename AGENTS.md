@@ -50,6 +50,8 @@ Codable/Sendable state those types wrap and the logic behind them.
 ./dev test [filter]     unit tests on the simulator        — ~25s; filter = Suite or Suite/test()
 ./dev lint | format     swift-format lint --strict / format --in-place
 ./dev ui-test [filter]  XCUITest flows on the simulator    — Suite/test(); the flow proof of record
+./dev coverage [kind]   per-target app coverage of the last passing test (default) or ui-test run (bundle kept in .build/results/latest-*)
+./dev kit-coverage      swift test with coverage; prints the WorkoutsKit line-coverage TOTAL
 ./dev run [-- args]     boot sim, install, launch the app; args go to the app (`-- -preview <Name>` = the gallery)
 ./dev screenshot [p]    PNG of the booted simulator (Duo has two displays; DEV_DISPLAY=primary|…)
 ./dev shot <p> [-- args] run + settle + screenshot under one simulator lock: the parallel-safe screen proof
@@ -161,7 +163,8 @@ far more frequency"), the orchestrator runs `./dev testflight --upload` in the b
 commit gate is unchanged: `./dev check` plus the UI suites the change touches; the full `./dev ui-test` still runs before
 a milestone (a PLAN task or a review's fix batch). Never from a worktree, never with uncommitted changes,
 never by workers. It takes no simulator lock (own DerivedData under `.build/testflight/`). Log each upload's build number
-and commit in `docs/testflight.md`. A failed upload is reported, not retried in a loop.
+and commit in `docs/testflight.md`. `--upload` is gated: it refuses unless a full unfiltered `./dev ui-test` passed on HEAD
+with a clean tree (`.build/ui-test.stamp`); `DEV_SKIP_UI_GATE=1` overrides with a warning. A failed upload is reported, not retried in a loop.
 
 ## Secrets (App Store Connect key)
 

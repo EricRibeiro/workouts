@@ -23,13 +23,9 @@ public nonisolated enum SetTableLayout {
     /// Settings value `defaultSeconds`), `Rest off` for 0 (or a default of 0).
     public static func restCaption(seconds: Int?, defaultSeconds: Int) -> String {
         guard let seconds else {
-            return defaultSeconds > 0 ? "Rest \(clock(defaultSeconds)) (default)" : "Rest off"
+            return defaultSeconds > 0 ? "Rest \(ClockFormat.clock(seconds: defaultSeconds)) (default)" : "Rest off"
         }
-        return seconds > 0 ? "Rest \(clock(seconds))" : "Rest off"
-    }
-
-    private static func clock(_ seconds: Int) -> String {
-        "\(seconds / 60):" + String(format: "%02d", seconds % 60)
+        return seconds > 0 ? "Rest \(ClockFormat.clock(seconds: seconds))" : "Rest off"
     }
 
     /// `order` after moving `moving` (kept in their current relative order) to just before `destination`, or to the end

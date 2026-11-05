@@ -1,15 +1,24 @@
 import Foundation
 import SwiftData
+import os
 
 /// Sticky notes by exercise id (task 4.5): one per exercise, enforced here because CloudKit forbids unique constraints.
 public nonisolated enum StickyNotes {
     /// The longest note, in characters (the web app's limit).
     public static let maxLength = 2000
 
-    /// The note's text for `exerciseID`; nil when there is none (an empty note counts as none).
+    /// The note's text for `exerciseID`; nil when there is none (an empty note counts as none) or the store cannot be
+    /// read (logged).
     @MainActor public static func text(for exerciseID: UUID, in context: ModelContext) -> String? {
-        guard let note = notes(for: exerciseID, in: context).first, !note.text.isEmpty else { return nil }
-        return note.text
+        do {
+            guard let note = try notes(for: exerciseID, in: context).first, !note.text.isEmpty else { return nil }
+            return note.text
+        } catch {
+            KitLog.library.error(
+                "Could not read the sticky note: \(error.localizedDescription, privacy: .public)"
+            )
+            return nil
+        }
     }
 
     /// Saves `text` (trimmed, capped at `maxLength`) as the exercise's note. Blank text clears it. Duplicates left by a
@@ -27,7 +36,7 @@ public nonisolated enum StickyNotes {
     ) throws {
         let trimmed = String(text.trimmingCharacters(in: .whitespacesAndNewlines).prefix(maxLength))
         guard !trimmed.isEmpty else { return try clear(exerciseID, in: context, saveHook: saveHook) }
-        let existing = notes(for: exerciseID, in: context)
+        let existing = try notes(for: exerciseID, in: context)
         if let keep = existing.first {
             keep.text = trimmed
             keep.updatedAt = Date()
@@ -49,7 +58,7 @@ public nonisolated enum StickyNotes {
         in context: ModelContext,
         saveHook: (() throws -> Void)?
     ) throws {
-        let existing = notes(for: exerciseID, in: context)
+        let existing = try notes(for: exerciseID, in: context)
         guard !existing.isEmpty else { return }
         for note in existing { context.delete(note) }
         try save(context, saveHook)
@@ -66,11 +75,12 @@ public nonisolated enum StickyNotes {
         }
     }
 
-    @MainActor private static func notes(for exerciseID: UUID, in context: ModelContext) -> [StickyNote] {
+    /// Throws rather than reading a failed fetch as "no note", which would make `set` insert a duplicate.
+    @MainActor private static func notes(for exerciseID: UUID, in context: ModelContext) throws -> [StickyNote] {
         let descriptor = FetchDescriptor<StickyNote>(
             predicate: #Predicate { $0.exerciseID == exerciseID },
             sortBy: [SortDescriptor(\.updatedAt)]
         )
-        return (try? context.fetch(descriptor)) ?? []
+        return try context.fetch(descriptor)
     }
 }

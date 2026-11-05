@@ -38,16 +38,6 @@ public nonisolated enum FitnessFormat {
         )
     }
 
-    /// `39:53`, or `1:05:09` from an hour on.
-    public static func clockText(seconds: TimeInterval) -> String {
-        let total = max(0, Int(seconds.rounded()))
-        let hours = total / 3600
-        let minutes = (total % 3600) / 60
-        let rest = total % 60
-        if hours > 0 { return String(format: "%d:%02d:%02d", hours, minutes, rest) }
-        return String(format: "%d:%02d", minutes, rest)
-    }
-
     /// `39 minutes, 53 seconds`, for VoiceOver.
     public static func spokenDuration(seconds: TimeInterval) -> String {
         Duration.seconds(max(0, Int(seconds.rounded())))

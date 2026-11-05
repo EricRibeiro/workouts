@@ -375,4 +375,28 @@ import Testing
         #expect(kept.updatedAt == Self.t0.addingTimeInterval(500))
         #expect(kept.healthSummary == Self.richSummary())
     }
+
+    // MARK: Failures are logged, not fatal
+
+    @Test func anUnreadableStoredSeriesReadsAsEmptyAndZonesAsNil() throws {
+        let context = try makeContext()
+        let workout = Self.finished()
+        context.insert(workout)
+        workout.applyHealth(Self.summary(), checkedAt: Self.t0)
+        workout.heartRateSeriesData = Data("not json".utf8)
+        workout.heartRateZonesData = Data("not json".utf8)
+        #expect(workout.healthSummary?.heartRateSeries == [])
+        #expect(workout.heartRateZones == nil)
+    }
+
+    @Test func aSeriesThatCannotBeEncodedStoresNothing() throws {
+        let context = try makeContext()
+        let workout = Self.finished()
+        context.insert(workout)
+        var summary = Self.summary()
+        summary.heartRateSeries = [HeartRatePoint(offset: 0, bpm: .nan)]
+        workout.applyHealth(summary, checkedAt: Self.t0)
+        #expect(workout.heartRateSeriesData == nil)
+        #expect(workout.healthWorkoutID == "HK-1")
+    }
 }

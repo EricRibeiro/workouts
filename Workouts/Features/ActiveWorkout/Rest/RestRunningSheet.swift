@@ -61,7 +61,7 @@ struct RestRunningSheet: View {
                         .font(.largeTitle.weight(.semibold).monospacedDigit())
                         .minimumScaleFactor(0.5)
                         .lineLimit(1)
-                    Text("of \(ElapsedFormat.string(seconds: total))")
+                    Text("of \(ClockFormat.clock(seconds: total))")
                         .font(.title3.monospacedDigit())
                         .foregroundStyle(.secondary)
                 }
@@ -72,7 +72,7 @@ struct RestRunningSheet: View {
             .accessibilityLabel("Rest remaining")
             .accessibilityAddTraits(.updatesFrequently)
             .accessibilityValue(
-                "\(ElapsedFormat.string(seconds: Int(remaining.rounded(.up)))) of \(ElapsedFormat.string(seconds: total))"
+                "\(ClockFormat.clock(seconds: Int(remaining.rounded(.up)))) of \(ClockFormat.clock(seconds: total))"
             )
             .accessibilityIdentifier("rest.sheet.ring")
         }

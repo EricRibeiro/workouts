@@ -18,6 +18,7 @@ struct HistoryView: View {
     @Environment(SettingsStore.self) private var settings
     @Environment(\.modelContext) private var context
     @Environment(StoreGeneration.self) private var generation: StoreGeneration?
+    @Environment(SaveErrors.self) private var saveErrors: SaveErrors?
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Query(
         filter: #Predicate<Workout> { $0.finishedAt != nil },
@@ -87,7 +88,7 @@ struct HistoryView: View {
     /// Recent PRs card here. What is shown stays until the new summary arrives, so a refresh never blanks the list.
     private func refreshSummary() async {
         // The reader's context reads the store: flush edits the main context has not saved yet.
-        if context.hasChanges { try? context.save() }
+        context.saveIfChanged(reportingTo: saveErrors)
         let options = RecordsOptions(formula: settings.e1rmFormula, displayUnit: settings.defaultUnit)
         let summary = try? await WorkoutStatsReader.loadHistorySummary(
             in: context.container,

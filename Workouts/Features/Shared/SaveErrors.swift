@@ -4,6 +4,7 @@
 //
 
 import Observation
+import SwiftData
 import SwiftUI
 
 /// Where a failed save is reported (DECISIONS "Errors": a failed `ModelContext.save()` is an alert with the message; the
@@ -15,6 +16,19 @@ final class SaveErrors {
 
     func report(_ error: Error) {
         message = "Could not save: \(error.localizedDescription)."
+    }
+}
+
+extension ModelContext {
+    /// Saves pending edits, reporting a failure to `errors`. Used before a `WorkoutStatsReader` load: the reader's own
+    /// context reads the store, so unsaved main-context edits must be flushed first.
+    func saveIfChanged(reportingTo errors: SaveErrors?) {
+        guard hasChanges else { return }
+        do {
+            try save()
+        } catch {
+            errors?.report(error)
+        }
     }
 }
 

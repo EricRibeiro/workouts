@@ -257,3 +257,17 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
 76. **Health data has no section of its own** (2026-11-05, Fable spec): values sit in the workout header as peers of
     Duration/Volume; the only branding is "Data from Apple Health" (HealthKit HIG naming). No Activity-ring visuals (Apple
     reserves them for Move/Exercise/Stand). Zones collapse to one line when the workout never left zone 1.
+77. **Quality review fix batch, wave 1** (2026-11-05, after a test-coverage + Swift-practices review): one `ClockFormat`
+    (`Duration.TimeFormatStyle`, en_US) replaces five clock formatters, so a 3600 s rest now reads `1:00:00` everywhere (the
+    set table used to say `60:00`); one `CalendarFormatting` (`VerbatimFormatStyle`) replaces per-call `DateFormatter`s with
+    byte-identical output. A store read that fails is never read as "nothing": `CustomExerciseForm.isReferenced` throws and
+    the form fails safe to Archive; a JSON import whose health data cannot be stored aborts and rolls back (the file is the
+    only copy); a stored health blob that no longer decodes still reads as "no data" but is logged (`KitLog`).
+78. **Full-history reads run on `WorkoutStatsReader`** (2026-11-05): workout detail and last-performed dates no longer
+    fetch every finished workout on the main actor. Every flush before a reader load goes through
+    `ModelContext.saveIfChanged(reportingTo:)`, so a failed save is the alert, never silent; a detail that cannot be read
+    shows "Could Not Load Workout" instead of a spinner.
+79. **TestFlight uploads need a full UI run on the exact commit** (2026-11-05): `./dev ui-test` with no filter stamps HEAD
+    when it passes on a clean tree; `./dev testflight --upload` refuses otherwise (`DEV_SKIP_UI_GATE=1` overrides with a
+    warning). The commit gate stays `./dev check`, because a full UI run per commit is too slow. App coverage is now
+    recorded (`./dev coverage`, `./dev kit-coverage`).

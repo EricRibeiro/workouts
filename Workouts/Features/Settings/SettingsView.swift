@@ -177,7 +177,7 @@ struct SettingsView: View {
         Section("Workout") {
             Picker("Default rest timer", selection: bound.defaultRestSeconds) {
                 ForEach(restChoices, id: \.self) { seconds in
-                    Text(seconds == 0 ? "Off" : ElapsedFormat.string(seconds: seconds)).tag(seconds)
+                    Text(seconds == 0 ? "Off" : ClockFormat.clock(seconds: seconds)).tag(seconds)
                 }
             }
             .pickerStyle(.menu)

@@ -41,7 +41,7 @@ public struct TemplateCardSummary: Sendable, Equatable {
     /// costs one scan (and one relationship read per workout) instead of one per card. The rule: the newest start among
     /// finished workouts done from the template, else among those with the same name (case-insensitive; imported
     /// history is not linked). In-progress workouts never count.
-    public struct LastPerformedIndex: Sendable, Equatable {
+    public nonisolated struct LastPerformedIndex: Sendable, Equatable {
         private var byTemplate: [UUID: Date] = [:]
         private var byName: [String: Date] = [:]
 
@@ -131,12 +131,7 @@ public struct TemplateCardSummary: Sendable, Equatable {
         case 2..<14: return "\(days) days ago"
         case 14..<60: return "\(days / 7) weeks ago"
         default:
-            let format = DateFormatter()
-            format.locale = Locale(identifier: "en_US")
-            format.calendar = calendar
-            format.timeZone = calendar.timeZone
-            format.dateFormat = "MMM d, yyyy"
-            return format.string(from: date)
+            return CalendarFormatting.monthDayYear(date, calendar: calendar)
         }
     }
 }

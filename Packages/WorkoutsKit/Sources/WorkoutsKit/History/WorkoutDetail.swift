@@ -53,12 +53,13 @@ public nonisolated struct WorkoutDetail: Hashable, Sendable {
     public var headerAccessibilityLabel: String
 }
 
-extension WorkoutDetail {
+nonisolated extension WorkoutDetail {
     // MARK: Health
 
     /// The header sentence with the matched Apple Health values appended (`..., 266 active calories, average heart rate
     /// 128, effort 6 Moderate, estimated`); only the values that exist. With no summary it is `headerAccessibilityLabel`
     /// unchanged. The summary is read from the model at display time (Health data lands after the workout was saved).
+    @MainActor
     public func accessibilityLabel(health: HealthWorkoutSummary?, locale: Locale = .current) -> String {
         guard let health else { return headerAccessibilityLabel }
         var parts: [String] = []
@@ -95,7 +96,6 @@ extension WorkoutDetail {
     /// The detail of the finished workout `id`, or nil when it is not among `workouts` (or still running). Records are
     /// judged like the History rows: against sessions of the same exercise strictly before this workout, across every
     /// finished workout in `workouts`. An exercise with no completed set is left out.
-    @MainActor
     public static func make(
         id: UUID,
         from workouts: [Workout],
@@ -163,12 +163,8 @@ extension WorkoutDetail {
 
     /// `Sunday, Nov 1 · 10:05 AM`; the year (`Sunday, Nov 1, 2025 · ...`) only when it is not the year of `now`.
     public static func dateText(_ date: Date, calendar: Calendar = .current, now: Date = .now) -> String {
-        let time = DateFormatter()
-        time.locale = Locale(identifier: "en_US")
-        time.calendar = calendar
-        time.timeZone = calendar.timeZone
-        time.dateFormat = "h:mm a"
-        return "\(HistoryList.dateText(date, now: now, calendar: calendar)) · \(time.string(from: date))"
+        let day = HistoryList.dateText(date, now: now, calendar: calendar)
+        return "\(day) · \(CalendarFormatting.timeOfDay(date, calendar: calendar))"
     }
 
     private static func block(
@@ -270,7 +266,7 @@ extension WorkoutDetail {
             let load = record.weight > 0 ? " at \(HistoryDashboard.groupedWeight(record.weight)) \(unit.rawValue)" : ""
             return "Reps: \(record.reps)\(load)"
         case .longestDuration:
-            return "Duration: \(formatDuration(seconds: Int(record.value.rounded())))"
+            return "Duration: \(ClockFormat.compact(seconds: Int(record.value.rounded())))"
         }
     }
 }

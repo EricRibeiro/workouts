@@ -38,6 +38,6 @@ public nonisolated struct ZoneSummary: Hashable, Sendable {
 
     /// `Zone 2 · 8:45`: one legend entry.
     public static func legendText(_ zone: HeartRateZoneTime) -> String {
-        "Zone \(zone.index) \u{00B7} \(FitnessFormat.clockText(seconds: zone.seconds))"
+        "Zone \(zone.index) \u{00B7} \(ClockFormat.clock(seconds: zone.seconds))"
     }
 }

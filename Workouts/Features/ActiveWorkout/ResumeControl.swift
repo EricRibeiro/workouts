@@ -109,8 +109,8 @@ private struct ResumeRingButton: View {
     private static func state(startedAt: Date, endsAt: Date?, now: Date) -> String {
         if let endsAt {
             let remaining = Int(max(0, endsAt.timeIntervalSince(now)).rounded(.up))
-            return "rest \(ElapsedFormat.string(seconds: remaining))"
+            return "rest \(ClockFormat.clock(seconds: remaining))"
         }
-        return "\(ElapsedFormat.string(seconds: Int(now.timeIntervalSince(startedAt)))) elapsed"
+        return "\(ClockFormat.clock(seconds: Int(now.timeIntervalSince(startedAt)))) elapsed"
     }
 }

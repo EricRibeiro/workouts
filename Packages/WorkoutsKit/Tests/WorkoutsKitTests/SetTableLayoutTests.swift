@@ -14,7 +14,7 @@ import Testing
         #expect(SetTableLayout.supersetNumbers(for: [0, nil, 4, 4]) == [nil, nil, 1, 1])
     }
 
-    @Test(arguments: [(120, "Rest 2:00"), (30, "Rest 0:30"), (90, "Rest 1:30"), (3600, "Rest 60:00")])
+    @Test(arguments: [(120, "Rest 2:00"), (30, "Rest 0:30"), (90, "Rest 1:30"), (3600, "Rest 1:00:00")])
     func restCaption(seconds: Int, expected: String) {
         #expect(SetTableLayout.restCaption(seconds: seconds, defaultSeconds: 45) == expected)
     }

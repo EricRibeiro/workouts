@@ -63,11 +63,11 @@ struct RestTimerPickerSheet: View {
     }
 
     private func title(_ seconds: Int?) -> String {
-        guard let seconds else { return "Default (\(Self.clock(defaultSeconds)))" }
-        return Self.clock(seconds)
+        guard let seconds else { return "Default (\(clock(defaultSeconds)))" }
+        return clock(seconds)
     }
 
-    private static func clock(_ seconds: Int) -> String {
-        seconds == 0 ? "Off" : "\(seconds / 60):" + String(format: "%02d", seconds % 60)
+    private func clock(_ seconds: Int) -> String {
+        seconds == 0 ? "Off" : ClockFormat.clock(seconds: seconds)
     }
 }

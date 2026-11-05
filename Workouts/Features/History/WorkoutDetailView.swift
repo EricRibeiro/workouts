@@ -19,6 +19,7 @@ struct WorkoutDetailView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @Environment(StoreGeneration.self) private var generation: StoreGeneration?
+    @Environment(SaveErrors.self) private var saveErrors: SaveErrors?
     /// This workout alone (zero or one row): Edit, Save as Template and Delete need no more, and it keys the detail.
     @Query private var current: [Workout]
     /// The newest edit among finished workouts: with the store generation it tells the detail that the history its
@@ -33,6 +34,8 @@ struct WorkoutDetailView: View {
     /// Derived in `.task(id:)` when the history or a setting changes, never in `body`.
     @State private var detail: WorkoutDetail?
     @State private var isLoaded = false
+    /// The history could not be read and there is no earlier detail to keep showing.
+    @State private var loadFailed = false
 
     init(workoutID: UUID) {
         self.workoutID = workoutID
@@ -43,6 +46,13 @@ struct WorkoutDetailView: View {
         ZStack {
             if let detail {
                 content(detail)
+            } else if loadFailed {
+                ContentUnavailableView(
+                    "Could Not Load Workout",
+                    systemImage: "exclamationmark.triangle",
+                    description: Text("The workout history could not be read.")
+                )
+                .accessibilityIdentifier("history.detail.loadFailed")
             } else if isLoaded && !isDeleted {
                 ContentUnavailableView(
                     "Workout Not Found",
@@ -53,8 +63,12 @@ struct WorkoutDetailView: View {
             }
         }
         .task(id: inputs) {
-            detail = isDeleted ? nil : makeDetail()
-            isLoaded = true
+            if isDeleted {
+                detail = nil
+                isLoaded = true
+            } else {
+                await refreshDetail()
+            }
         }
         .sensoryFeedback(.success, trigger: savedTemplates)
         .alert("Could not delete the workout.", isPresented: $deleteFailed) {
@@ -72,18 +86,32 @@ struct WorkoutDetailView: View {
         )
     }
 
-    private func makeDetail() -> WorkoutDetail? {
-        // Records are judged against the whole history: one fetch per change of the inputs, not an observed query.
-        let finished = (try? context.fetch(Workout.allFinished)) ?? []
-        return WorkoutDetail.make(
-            id: workoutID,
-            from: finished,
-            weightType: { store.exercise(id: $0)?.weightType },
-            options: RecordsOptions(
-                formula: settings?.e1rmFormula ?? SettingsStore.e1rmFormulaDefault,
-                displayUnit: settings?.defaultUnit ?? SettingsStore.defaultUnitDefault
-            )
+    /// Derives the detail on a `WorkoutStatsReader` (its own context, off the main thread): records are judged against the
+    /// whole history, which is too much to walk here. What is shown stays until the new detail arrives; a failed read
+    /// keeps it, or shows the load-failed state when there is nothing to keep.
+    private func refreshDetail() async {
+        // The reader's context reads the store: flush edits the main context has not saved yet.
+        context.saveIfChanged(reportingTo: saveErrors)
+        let options = RecordsOptions(
+            formula: settings?.e1rmFormula ?? SettingsStore.e1rmFormulaDefault,
+            displayUnit: settings?.defaultUnit ?? SettingsStore.defaultUnitDefault
         )
+        // `try?` would flatten "no such workout" (nil, shown as Not Found) into a failed read; keep them apart.
+        do {
+            let loaded = try await WorkoutStatsReader.loadWorkoutDetail(
+                in: context.container,
+                id: workoutID,
+                weightTypes: store.weightTypes,
+                options: options
+            )
+            guard !Task.isCancelled else { return }
+            detail = loaded
+            isLoaded = true
+            loadFailed = false
+        } catch {
+            // Keep a detail already on screen; with none, say the read failed instead of spinning forever.
+            if detail == nil, !Task.isCancelled { loadFailed = true }
+        }
     }
 
     private var workout: Workout? { current.first }

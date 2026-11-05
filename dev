@@ -9,6 +9,7 @@ BUNDLE_ID="com.ericribeiro.Workouts"
 DERIVED=".build/DerivedData"
 RESULTS=".build/results"
 LOGS=".build/logs"
+UI_STAMP=".build/ui-test.stamp"
 KIT="Packages/WorkoutsKit"
 LINT_PATHS=(Workouts WorkoutsLiveActivity Shared WorkoutsTests WorkoutsUITests Packages)
 NOISE='IDERunDestination|IDESchemeActionDeviceRecord|IDETestOperationsObserverDebug'
@@ -191,9 +192,9 @@ run_tests() { # run_tests <name> <target> [filter]
   sim_resolve
   [[ -n "$filter" ]] && only="$target/$filter"
   mkdir -p "$RESULTS"
-  find "$RESULTS" -maxdepth 1 -name '*.xcresult' -mmin +240 -exec rm -rf {} + 2>/dev/null || true
+  find "$RESULTS" -maxdepth 1 -name '*.xcresult' ! -name 'latest-*' -mmin +240 -exec rm -rf {} + 2>/dev/null || true
   # No parallel testing: it boots a fresh "Clone N of iPhone Duo" per run, and a fresh clone crashed PosterBoard.
-  run_logged "$name" xcb test -parallel-testing-enabled NO -only-testing:"$only" -resultBundlePath "$bundle" || rc=$?
+  run_logged "$name" xcb test -parallel-testing-enabled NO -enableCodeCoverage YES -only-testing:"$only" -resultBundlePath "$bundle" || rc=$?
   # Xcode infrastructure flake (no test ran): retry once, never for a real test failure.
   if ((rc != 0)) && xcrun xcresulttool get test-results summary --path "$bundle" --compact 2>/dev/null |
     grep -q 'hung before establishing connection'; then
@@ -201,13 +202,20 @@ run_tests() { # run_tests <name> <target> [filter]
     echo "dev: test runner hung before connecting; rebooting the simulator and retrying once" >&2
     xcrun simctl shutdown "$SIM_UDID" >/dev/null 2>&1 || true
     rm -rf "$bundle"; rc=0
-    run_logged "$name" xcb test -parallel-testing-enabled NO -only-testing:"$only" -resultBundlePath "$bundle" || rc=$?
+    run_logged "$name" xcb test -parallel-testing-enabled NO -enableCodeCoverage YES -only-testing:"$only" -resultBundlePath "$bundle" || rc=$?
   fi
   if ((rc != 0)); then
     report_failures "$bundle"
     return "$rc"
   fi
-  test_summary "$name" "$only" "$bundle" && rm -rf "$bundle"
+  # Keep only the newest successful bundle per kind, for `./dev coverage`; a bundle that ran nothing is dropped.
+  if test_summary "$name" "$only" "$bundle"; then
+    rm -rf "$RESULTS/latest-$name.xcresult"
+    mv "$bundle" "$RESULTS/latest-$name.xcresult"
+  else
+    rm -rf "$bundle"
+    return 1
+  fi
 }
 
 # One-line totals from an xcresult bundle; fails when no test ran (a filter that matched nothing exits 0).
@@ -229,7 +237,22 @@ cmd_ui_test() {
   # forwards TEST_RUNNER_-prefixed variables to the test runner. Naming the suite in the filter opts in; the full suite and
   # `check` leave it skipped.
   [[ "${1:-}" == HealthKitIntegration* ]] && export TEST_RUNNER_HEALTH_INTEGRATION=1
-  run_tests ui-test WorkoutsUITests "${1:-}"
+  run_tests ui-test WorkoutsUITests "${1:-}" || return
+  # The ship gate: only a full, passing run (no filter) vouches for a commit; `testflight --upload` checks this stamp.
+  if [[ -z "${1:-}" ]]; then
+    local clean=0
+    [[ -z "$(git status --porcelain 2>/dev/null)" ]] && clean=1
+    mkdir -p .build && printf 'commit=%s\nclean=%s\n' "$(git rev-parse HEAD)" "$clean" >"$UI_STAMP"
+  fi
+}
+
+# Per-target code coverage of the newest passing `test` / `ui-test` run (tests record coverage; see run_tests).
+cmd_coverage() {
+  local kind="${1:-test}"
+  case "$kind" in test | ui-test) ;; *) die "coverage: unknown kind '$kind' (usage: coverage [test|ui-test])" ;; esac
+  local bundle="$RESULTS/latest-$kind.xcresult"
+  [[ -d "$bundle" ]] || die "coverage: no $bundle yet; run ./dev $kind first (a passing run keeps its bundle)"
+  xcrun xccov view --report --only-targets "$bundle"
 }
 
 cmd_kit() {
@@ -240,6 +263,23 @@ cmd_kit() {
     run_logged kit bash -c 'cd "$1" && swift test' _ "$KIT"
   fi
   kit_summary "${1:-}"
+}
+
+# Whole-package line coverage: swift test --enable-code-coverage, then the TOTAL row of llvm-cov's report.
+cmd_kit_coverage() {
+  [[ -d "$KIT" ]] || die "$KIT does not exist"
+  run_logged kit-coverage bash -c 'cd "$1" && swift test --enable-code-coverage' _ "$KIT"
+  kit_summary "" || return
+  local json prof bin report
+  json=$(cd "$KIT" && swift test --show-codecov-path)
+  prof="$(dirname "$json")/default.profdata"
+  [[ -f "$prof" ]] || die "kit-coverage: no profdata at $prof"
+  local products; products=$(dirname "$(dirname "$json")") # .../Products/Debug, next to codecov/
+  bin=$(find "$products" -maxdepth 1 -name '*.xctest' | head -n 1)
+  [[ -d "$bin" ]] || die "kit-coverage: no .xctest bundle in $products"
+  [[ -d "$bin/Contents/MacOS" ]] && bin="$bin/Contents/MacOS/$(basename "$bin" .xctest)"
+  report=$(xcrun llvm-cov report "$bin" -instr-profile="$prof" 2>&1) || die "kit-coverage: llvm-cov failed: $report"
+  grep '^TOTAL' <<<"$report" | awk '{ printf "kit coverage: lines %s (%d of %d), regions %s, functions %s\n", $10, $8 - $9, $8, $4, $7 }'
 }
 
 # swift test exits 0 when --filter matches nothing; turn that into a failure, else print the totals line.
@@ -466,6 +506,21 @@ cmd_sims() { # create any missing pool clone, then list the pool; idempotent
 TF_DIR=".build/testflight"
 TF_TEAM="S8Y5FT7937"
 TF_TMP=""
+# `testflight --upload` ships only a commit whose full ./dev ui-test passed (stamp written by cmd_ui_test).
+tf_ui_gate() {
+  if [[ "${DEV_SKIP_UI_GATE:-}" == 1 ]]; then
+    echo "dev: WARNING: DEV_SKIP_UI_GATE=1, uploading without a passing ./dev ui-test on this commit" >&2
+    return 0
+  fi
+  local head stamp_commit="" stamp_clean=""
+  head=$(git rev-parse HEAD)
+  if [[ -f "$UI_STAMP" ]]; then
+    stamp_commit=$(sed -n 's/^commit=//p' "$UI_STAMP")
+    stamp_clean=$(sed -n 's/^clean=//p' "$UI_STAMP")
+  fi
+  [[ "$stamp_commit" == "$head" && "$stamp_clean" == 1 ]] ||
+    die "testflight: refusing to upload: run ./dev ui-test on this commit first (full suite, clean tree; stamp: ${stamp_commit:-none}${stamp_commit:+, clean=$stamp_clean}, HEAD: $head). DEV_SKIP_UI_GATE=1 overrides."
+}
 tf_cleanup() { [[ -z "$TF_TMP" ]] || rm -rf "$TF_TMP"; TF_TMP=""; }
 
 cmd_testflight() {
@@ -476,6 +531,8 @@ cmd_testflight() {
     --upload) upload=1 ;;
     *) die "testflight: unknown argument '$1' (usage: testflight [--upload])" ;;
   esac
+  # The gate runs before anything touches 1Password or the archive.
+  ((upload == 0)) || tf_ui_gate
   command -v op >/dev/null 2>&1 || die "testflight: the 1Password CLI (op) is not installed"
 
   local key_id issuer_id build
@@ -635,8 +692,10 @@ sims               create the missing simulator clones (iPhone Duo 2..$DEV_SIM_P
                    or DEV_SIM_UDID=<udid> overrides)
 build              build the app for this checkout's simulator
 test [filter]      run WorkoutsTests (filter = suite or suite/test); prints totals, fails if none ran
-ui-test [filter]   run WorkoutsUITests; prints totals, fails if none ran (filter HealthKitIntegrationUITests opts in to the real-Health test)
+ui-test [filter]   run WorkoutsUITests (an unfiltered pass stamps HEAD for the testflight --upload gate); prints totals, fails if none ran (filter HealthKitIntegrationUITests opts in to the real-Health test)
+coverage [test|ui-test]  per-target code coverage of the last passing test (default) or ui-test run (xccov); fails if none kept
 kit [filter]       swift test in Packages/WorkoutsKit; prints summary line, fails if filter matched nothing
+kit-coverage       swift test with coverage; prints the whole-package line coverage (llvm-cov TOTAL)
 kit-build          swift build in Packages/WorkoutsKit
 lint               swift-format lint --strict
 format             swift-format in place
@@ -646,7 +705,8 @@ screenshot [path]  simulator screenshot (default .build/screenshots/<timestamp>.
 home               send the app to the background (Home screen); agent-device session closed after
 fold <pose> [png]  Duo hinge: closed|half-open|open (agent-device); png = capture of the lit panel
 orient <o> [png]   portrait|landscape-left|landscape-right|portrait-upside-down; png as for fold
-testflight [--upload]  signed App Store archive + export to .build/testflight/export (no upload unless --upload);
+testflight [--upload]  signed App Store archive + export to .build/testflight/export (no upload unless --upload;
+                   --upload refuses unless a full ./dev ui-test passed on HEAD with a clean tree, DEV_SKIP_UI_GATE=1 skips);
                    key from 1Password via op, build number = UTC yyyymmddHHMM; no simulator lock
 media-upload [--env development|production] [--limit N] [--only <sourceId>]
                    upload exercise videos to CloudKit's public database (Web Services, server-to-server key via op);
@@ -665,6 +725,8 @@ case "$sub" in
   ui-test) sim_guarded cmd_ui_test "$@" ;;
   kit) cmd_kit "$@" ;;
   kit-build) cmd_kit_build ;;
+  kit-coverage) cmd_kit_coverage ;;
+  coverage) cmd_coverage "$@" ;;
   lint) cmd_lint ;;
   format) cmd_format ;;
   run) sim_guarded cmd_run "$@" ;;

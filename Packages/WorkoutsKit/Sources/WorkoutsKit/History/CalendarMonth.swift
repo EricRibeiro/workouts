@@ -56,7 +56,7 @@ public nonisolated enum CalendarMonth {
 
     /// `November 2026`.
     public static func title(for month: Date, calendar: Calendar) -> String {
-        format(month, "LLLL yyyy", calendar: calendar)
+        CalendarFormatting.monthYear(month, calendar: calendar)
     }
 
     /// `month` moved by `months` whole months (negative goes back), landing on the first of that month.
@@ -68,25 +68,16 @@ public nonisolated enum CalendarMonth {
 
     /// `2026-11-03`, the suffix of a day's accessibility identifier.
     public static func identifier(for date: Date, calendar: Calendar) -> String {
-        format(date, "yyyy-MM-dd", calendar: calendar)
+        CalendarFormatting.isoDay(date, calendar: calendar)
     }
 
     /// `Tuesday, November 3, 1 workout` / `Wednesday, November 4` for an empty day.
     public static func accessibilityLabel(for date: Date, workouts: Int, calendar: Calendar) -> String {
-        let text = format(date, "EEEE, MMMM d", calendar: calendar)
+        let text = CalendarFormatting.weekdayMonthDay(date, calendar: calendar)
         switch workouts {
         case ..<1: return text
         case 1: return "\(text), 1 workout"
         default: return "\(text), \(workouts) workouts"
         }
-    }
-
-    private static func format(_ date: Date, _ pattern: String, calendar: Calendar) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.timeZone = calendar.timeZone
-        formatter.dateFormat = pattern
-        return formatter.string(from: date)
     }
 }

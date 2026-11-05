@@ -171,13 +171,13 @@ public nonisolated enum CustomExerciseForm {
 
     // MARK: References
 
-    /// Whether any template or workout row uses the exercise, which decides Archive over Delete.
-    public static func isReferenced(exerciseID: UUID, in context: ModelContext) -> Bool {
+    /// Whether any template or workout row uses the exercise, which decides Archive over Delete. Throws when the store
+    /// cannot be read: a failed count must never make a used exercise look deletable, so callers treat a throw as
+    /// "referenced".
+    public static func isReferenced(exerciseID: UUID, in context: ModelContext) throws -> Bool {
         let inTemplates = FetchDescriptor<TemplateExercise>(predicate: #Predicate { $0.exerciseID == exerciseID })
         let inWorkouts = FetchDescriptor<WorkoutExercise>(predicate: #Predicate { $0.exerciseID == exerciseID })
-        let templates = (try? context.fetchCount(inTemplates)) ?? 0
-        let workouts = (try? context.fetchCount(inWorkouts)) ?? 0
-        return templates > 0 || workouts > 0
+        return try context.fetchCount(inTemplates) > 0 || context.fetchCount(inWorkouts) > 0
     }
 
     // MARK: Changes
@@ -229,7 +229,7 @@ public nonisolated enum CustomExerciseForm {
         saveHook: (() throws -> Void)?
     ) throws -> Bool {
         let id = exercise.id
-        guard !isReferenced(exerciseID: id, in: context) else { return false }
+        guard !(try isReferenced(exerciseID: id, in: context)) else { return false }
         let notes = try context.fetch(FetchDescriptor<StickyNote>(predicate: #Predicate { $0.exerciseID == id }))
         for note in notes { context.delete(note) }
         context.delete(exercise)
@@ -237,11 +237,11 @@ public nonisolated enum CustomExerciseForm {
         return true
     }
 
-    /// The custom exercise with this id, if any.
-    public static func exercise(id: UUID, in context: ModelContext) -> Exercise? {
+    /// The custom exercise with this id, if any. Throws when the store cannot be read.
+    public static func exercise(id: UUID, in context: ModelContext) throws -> Exercise? {
         var descriptor = FetchDescriptor<Exercise>(predicate: #Predicate { $0.id == id })
         descriptor.fetchLimit = 1
-        return (try? context.fetch(descriptor))?.first
+        return try context.fetch(descriptor).first
     }
 
     private static func apply(_ draft: Draft, to exercise: Exercise) {

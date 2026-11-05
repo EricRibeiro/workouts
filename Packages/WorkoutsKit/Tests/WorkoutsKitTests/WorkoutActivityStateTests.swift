@@ -266,15 +266,6 @@ import Testing
         #expect(formatWeight(-0.001) == "0")
     }
 
-    @Test func formatDurationReadsSecondsThenMinutes() {
-        #expect(formatDuration(seconds: 0) == "0 s")
-        #expect(formatDuration(seconds: 45) == "45 s")
-        #expect(formatDuration(seconds: 60) == "1:00")
-        #expect(formatDuration(seconds: 90) == "1:30")
-        #expect(formatDuration(seconds: 605) == "10:05")
-        #expect(formatDuration(seconds: -5) == "0 s")
-    }
-
     @Test func formatSetDetailCoversLoadsRepsAndDurations() {
         #expect(formatSetDetail(weight: 27.5, unit: .lb, reps: 8, durationSeconds: nil) == "27.5 lb × 8")
         #expect(formatSetDetail(weight: 100, unit: .kg, reps: 5, durationSeconds: nil) == "100 kg × 5")

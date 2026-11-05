@@ -62,7 +62,7 @@ struct RestRingItem: View {
     }
 
     private func presetButton(_ seconds: Int, engine: ActiveWorkoutEngine) -> some View {
-        let text = ElapsedFormat.string(seconds: seconds)
+        let text = ClockFormat.clock(seconds: seconds)
         return Button(text, systemImage: "timer") { start(seconds, engine: engine) }
             .accessibilityLabel("Rest \(text)")
             .accessibilityIdentifier("rest.preset.\(seconds)")
@@ -80,7 +80,7 @@ struct RestRingItem: View {
         TimelineView(.periodic(from: .now, by: 1)) { context in
             let remaining = max(0, endsAt.timeIntervalSince(context.date))
             let fraction = min(1, remaining / Double(max(1, total)))
-            let time = ElapsedFormat.string(seconds: Int(remaining.rounded(.up)))
+            let time = ClockFormat.clock(seconds: Int(remaining.rounded(.up)))
             // An over rest stays in the engine for ``RestTimer/expiredGraceSeconds``: the arc is ok-coloured meanwhile, accent-coloured while it runs.
             let tint: Color = remaining <= 0 ? .ok : .accentColor
             Button {

@@ -34,7 +34,7 @@ struct SetKeyboardToolbar: ViewModifier {
                             Text(timerInterval: min(now, rest.endsAt)...rest.endsAt, countsDown: true)
                                 .font(.body.monospacedDigit())
                                 .accessibilityLabel("Rest remaining")
-                                .accessibilityValue(ElapsedFormat.string(seconds: Int(remaining.rounded(.up))))
+                                .accessibilityValue(ClockFormat.clock(seconds: Int(remaining.rounded(.up))))
                                 .accessibilityAddTraits(.updatesFrequently)
                                 .accessibilityIdentifier("rest.keyboard.countdown")
                         }

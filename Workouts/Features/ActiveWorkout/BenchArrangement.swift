@@ -165,7 +165,7 @@ struct RestCountdownHeader: View {
                 .accessibilityLabel("Rest remaining")
                 .accessibilityAddTraits(.updatesFrequently)
                 .accessibilityValue(
-                    "\(ElapsedFormat.string(seconds: Int(remaining.rounded(.up)))) of \(ElapsedFormat.string(seconds: total))"
+                    "\(ClockFormat.clock(seconds: Int(remaining.rounded(.up)))) of \(ClockFormat.clock(seconds: total))"
                 )
                 .accessibilityIdentifier("bench.rest")
             }

@@ -198,7 +198,7 @@ struct FinishSummaryView: View {
         case .e1rm: return "Estimated 1RM \(SetInputFormat.weightText(record.value)) \(unit.rawValue)"
         case .heaviest: return "Heaviest \(weight)"
         case .bestVolumeSet: return "Best set \(HistoryList.volumeText(record.value, unit: unit))"
-        case .longestDuration: return "Longest \(ElapsedFormat.string(seconds: Int(record.value)))"
+        case .longestDuration: return "Longest \(ClockFormat.clock(seconds: Int(record.value)))"
         case .repsAtWeight:
             let reps = Int(record.value)
             return "\(reps) \(reps == 1 ? "rep" : "reps") at \(weight)"

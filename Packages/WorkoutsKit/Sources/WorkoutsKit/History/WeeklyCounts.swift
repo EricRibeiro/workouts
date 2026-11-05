@@ -56,10 +56,5 @@ public nonisolated func axisTop(counts: [WeekCount], goal: Int) -> Int {
 
 /// The x label of a week: its Monday as month/day, such as `10/26`.
 public nonisolated func weekLabel(_ weekStart: Date, calendar: Calendar) -> String {
-    let formatter = DateFormatter()
-    formatter.locale = Locale(identifier: "en_US_POSIX")
-    formatter.calendar = Calendar(identifier: .gregorian)
-    formatter.timeZone = calendar.timeZone
-    formatter.dateFormat = "M/d"
-    return formatter.string(from: weekStart)
+    CalendarFormatting.monthDay(weekStart, calendar: calendar)
 }
