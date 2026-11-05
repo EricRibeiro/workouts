@@ -340,7 +340,7 @@ Live Activity → notifications → logging, then templates, exercises, history.
 
 ### Phase 8 — Final review (Eric, 2026-11-04)
 
-- [ ] **8.1 Whole-app review by Fable** (after everything else, incl. 7.2/7.4): one `model: fable` pass over the entire app,
+- [ ] **8.1 Whole-app review by Fable** (after everything else except 7.2 and 7.4, which follow it; Eric, 2026-11-04): one `model: fable` pass over the entire app,
   code and running screens, reporting P0–P3 findings in five areas: (1) **bugs** (correctness, data loss, sync/import edge
   cases, concurrency); (2) **framework fit**: native SwiftUI/SwiftData/HealthKit/ActivityKit APIs used as Apple documents
   them, no workarounds or private behaviour that would break on the next iOS; (3) **iPhone Duo UX**: closed, open, book
