@@ -5,14 +5,14 @@
 
 import SwiftUI
 
-/// The thin draining arc both ring items draw (the rest timer's running button and the resume control): a faint track
+/// The draining arc the ring items and the bench header draw (the rest timer's running button, the resume control): a faint track
 /// and the remaining fraction from 12 o'clock, clockwise, no digits. Drawn with `Image(size:renderer:)` so the item can
 /// stay a `Label` with an `Image` icon, which is what the closed Duo moves into the trailing strip.
 enum RestArc {
-    /// `tint` colours the arc and track (the ok colour while a finished rest sits in its grace); nil follows the
-    /// foreground style.
+    /// `tint` colours the arc and track: callers pass the accent colour while a rest runs and the ok colour while a
+    /// finished rest sits in its grace; nil follows the foreground style.
     static func image(fraction: Double, size: CGFloat, label: Text, tint: Color? = nil) -> Image {
-        let lineWidth: CGFloat = 2
+        let lineWidth: CGFloat = 2.5
         return Image(size: CGSize(width: size, height: size), label: label) { context in
             let rect = CGRect(origin: .zero, size: context.clipBoundingRect.size)
                 .insetBy(dx: lineWidth / 2, dy: lineWidth / 2)

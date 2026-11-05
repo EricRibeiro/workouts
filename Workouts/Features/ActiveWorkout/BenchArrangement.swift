@@ -144,7 +144,7 @@ struct RestCountdownHeader: View {
             TimelineView(.periodic(from: .now, by: 1)) { context in
                 let now = context.date
                 let remaining = max(0, endsAt.timeIntervalSince(now))
-                let tint: Color? = remaining <= 0 ? .ok : nil
+                let tint: Color = remaining <= 0 ? .ok : .accentColor
                 HStack(spacing: 12) {
                     RestArc.image(
                         fraction: min(1, remaining / Double(max(1, total))),

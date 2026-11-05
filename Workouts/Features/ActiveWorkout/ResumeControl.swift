@@ -66,7 +66,7 @@ private struct ResumeRingButton: View {
                             fraction: min(1, remaining / Double(max(1, total))),
                             size: arcSize,
                             label: Text("Resume workout"),
-                            tint: remaining <= 0 ? .ok : nil
+                            tint: remaining <= 0 ? .ok : .accentColor
                         )
                     } else {
                         Image(systemName: "stopwatch")

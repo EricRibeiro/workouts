@@ -81,8 +81,8 @@ struct RestRingItem: View {
             let remaining = max(0, endsAt.timeIntervalSince(context.date))
             let fraction = min(1, remaining / Double(max(1, total)))
             let time = ElapsedFormat.string(seconds: Int(remaining.rounded(.up)))
-            // An over rest stays in the engine for ``RestTimer/expiredGraceSeconds``: the arc is ok-coloured meanwhile.
-            let tint: Color? = remaining <= 0 ? .ok : nil
+            // An over rest stays in the engine for ``RestTimer/expiredGraceSeconds``: the arc is ok-coloured meanwhile, accent-coloured while it runs.
+            let tint: Color = remaining <= 0 ? .ok : .accentColor
             Button {
                 isRunningPresented = true
             } label: {

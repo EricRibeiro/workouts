@@ -7,6 +7,35 @@ import SwiftUI
 import UIKit
 import WorkoutsKit
 
+/// The exercise the compact-width info sheet presents.
+private struct ExerciseInfoItem: Identifiable {
+    let exerciseID: UUID
+    var id: UUID { exerciseID }
+}
+
+/// The exercise detail (About, History, Charts, Records and the media) in a sheet with a Done button.
+private struct ExerciseInfoSheet: View {
+    let exerciseID: UUID
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ExerciseDetailView(exerciseID: exerciseID)
+                .toolbar {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button {
+                            dismiss()
+                        } label: {
+                            Label("Done", systemImage: "checkmark")
+                        }
+                        .accessibilityLabel("Done")
+                        .accessibilityIdentifier("exerciseInfo.done")
+                    }
+                }
+        }
+    }
+}
+
 /// The logging screen (task 2.4): the in-progress workout's set table under a title with the start date and live elapsed
 /// time, Minimise, Finish and Add Exercise in the toolbar. The rest ring is `RestRingItem` (2.5); the Finish dialogs are `FinishFlow`; the
 /// regular-width secondary pane is `ExercisePane` (2.10).
@@ -30,6 +59,8 @@ struct ActiveWorkoutCover: View {
     @State private var renameText = ""
     @State private var renameError: String?
     @State private var focusedSectionID: UUID?
+    /// The exercise whose detail the compact-width sheet shows (regular width has the pane instead).
+    @State private var infoExercise: ExerciseInfoItem?
     /// The block menu's pending prompts (task 3.6d).
     @State private var blockSheets = BlockActionState()
     /// The last content shown for a running workout, as plain values (never the model, which Finish and Discard delete),
@@ -104,6 +135,10 @@ struct ActiveWorkoutCover: View {
                 )
             )
             .presentationPlacement(.center)
+        }
+        .sheet(item: $infoExercise) { item in
+            ExerciseInfoSheet(exerciseID: item.exerciseID)
+                .presentationDetents([.medium, .large])
         }
         // UIKit: SwiftUI has no idle-timer API.
         .onAppear { applyKeepScreenOn() }
@@ -184,7 +219,13 @@ struct ActiveWorkoutCover: View {
     ) -> some View {
         let showsPane = horizontalSizeClass == .regular && !sections.isEmpty
         return ArrangementView {
-            SetTable(source: source, focusedSection: $focusedSectionID, blockActions: blockActions)
+            SetTable(
+                source: source,
+                onSelectExercise: horizontalSizeClass == .compact
+                    ? { infoExercise = ExerciseInfoItem(exerciseID: $0.exerciseID) } : nil,
+                focusedSection: $focusedSectionID,
+                blockActions: blockActions
+            )
         } secondary: {
             if showsPane {
                 let focused = focusedSection(in: sections)

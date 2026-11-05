@@ -19,8 +19,10 @@ import WorkoutsKit
 /// The table does not provide a navigation container; the keyboard accessory group is a toolbar and needs the caller's.
 struct SetTable: View {
     let source: any SetTableDataSource
-    /// Tapping an exercise name (the logging screen opens its detail and follows it with the exercise pane).
-    var onSelectExercise: (SetTableSection) -> Void = { _ in }
+    /// Opens the exercise's detail: called by a tap on its name and by the block menu's Exercise Info entry. Nil (the
+    /// template and past-workout editors, and the logging screen at regular width, where the exercise pane follows the
+    /// focus) leaves the name a plain focus target and drops the menu entry.
+    var onSelectExercise: ((SetTableSection) -> Void)? = nil
     /// Reports the block (`SetTableSection.id`) of the last focused cell or tapped header, so the logging screen's exercise
     /// pane can follow it. Never reset by the table: a dismissed keyboard keeps the last exercise.
     var focusedSection: Binding<UUID?> = .constant(nil)
@@ -139,7 +141,7 @@ struct SetTable: View {
             HStack(alignment: .top, spacing: 0) {
                 Button {
                     focusedSection.wrappedValue = section.id
-                    onSelectExercise(section)
+                    onSelectExercise?(section)
                 } label: {
                     Text(section.name)
                         .font(.title3.bold())
@@ -150,13 +152,14 @@ struct SetTable: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityAddTraits(.isHeader)
-                .accessibilityHint("Opens the exercise")
+                .accessibilityHint(onSelectExercise == nil ? "" : "Opens the exercise")
                 .accessibilityIdentifier("settable.name.\(section.id.uuidString)")
                 if let blockActions {
                     blockMenu(section, actions: blockActions)
                 }
             }
-            if source.mode != .past {
+            // The template editor shows the rest; during a workout it is only in the block menu's Update Rest Timer.
+            if source.mode == .template {
                 Text(SetTableLayout.restCaption(seconds: section.restSeconds, defaultSeconds: defaultRestSeconds))
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -186,6 +189,10 @@ struct SetTable: View {
     /// The header's trailing options menu. The entries are the owner's; the table only lays them out.
     private func blockMenu(_ section: SetTableSection, actions: SetTableBlockActions) -> some View {
         Menu {
+            if let onSelectExercise {
+                Button("Exercise Info", systemImage: "info.circle") { onSelectExercise(section) }
+                    .accessibilityIdentifier("settable.menu.info")
+            }
             Button("Note…", systemImage: "note.text") { actions.note(section.id) }
                 .accessibilityIdentifier("settable.menu.note")
             Button("Sticky Note…", systemImage: "note.text.badge.plus") { actions.stickyNote(section.id) }
