@@ -24,6 +24,49 @@ private nonisolated struct FlakySource: HealthSource {
     }
 }
 
+/// Lets a test hold a source call open until `release()`: `waitUntilEntered()` returns once a call is suspended inside the
+/// source, so the test can act while a pass is in flight with no timing involved. After `release()` calls pass straight through.
+private actor Gate {
+    private var entered = false
+    private var released = false
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+    private var enteredWaiters: [CheckedContinuation<Void, Never>] = []
+
+    func wait() async {
+        entered = true
+        enteredWaiters.forEach { $0.resume() }
+        enteredWaiters = []
+        if released { return }
+        await withCheckedContinuation { waiters.append($0) }
+    }
+
+    func waitUntilEntered() async {
+        if entered { return }
+        await withCheckedContinuation { enteredWaiters.append($0) }
+    }
+
+    func release() {
+        released = true
+        waiters.forEach { $0.resume() }
+        waiters = []
+    }
+}
+
+/// Suspends every `workouts(in:)` call at the gate, then answers from `base`.
+private nonisolated struct GatedSource: HealthSource {
+    let gate: Gate
+    let base: FakeHealthSource
+
+    func workouts(in interval: DateInterval) async throws -> [HealthWorkoutCandidate] {
+        await gate.wait()
+        return try await base.workouts(in: interval)
+    }
+
+    func summary(for candidate: HealthWorkoutCandidate) async throws -> HealthWorkoutSummary {
+        try await base.summary(for: candidate)
+    }
+}
+
 @Suite struct HealthEnrichmentRunTests {
     private typealias Outcome = HealthEnrichmentRun.Outcome
 
@@ -149,7 +192,9 @@ private nonisolated struct FlakySource: HealthSource {
 
     // MARK: Errors
 
-    @Test func notAuthorizedStopsAndStampsNothing() async {
+    // `.notAuthorized` is fake-only behaviour: the real HealthKit source never throws it (a denied read comes back as an
+    // empty answer, see `resetUnmatched`). These tests pin the run's handling of any source that does.
+    @Test func notAuthorizedFromASourceStopsAndStampsNothing() async {
         let a = Self.workout(startOffset: 0)
         let b = Self.workout(startOffset: 7200)
         let outcome = await HealthEnrichmentRun.run(
@@ -158,7 +203,6 @@ private nonisolated struct FlakySource: HealthSource {
             now: Self.now
         )
         #expect(outcome == Outcome(matched: 0, checked: 0, stopped: .notAuthorized))
-        #expect(outcome.stoppedForAuthorization)
         #expect(a.healthCheckedAt == nil && b.healthCheckedAt == nil)
     }
 
@@ -209,6 +253,120 @@ private nonisolated struct FlakySource: HealthSource {
         #expect(matched.updatedAt == Self.t0)
         #expect(!context.hasChanges)
         #expect(try HealthEnrichmentRun.clearAll(context: context) == 0)
+    }
+
+    // MARK: Deleted mid-pass
+
+    /// Three finished workouts in a real context, each with its own Fitness workout, behind a source whose lookups wait at
+    /// a gate until the test releases it.
+    private func gatedPassFixture() throws -> (
+        context: ModelContext, workouts: [Workout], source: GatedSource, gate: Gate
+    ) {
+        let context = try makeContext()
+        let workouts = [0.0, 7200, 14400].map { Self.workout(startOffset: $0) }
+        for workout in workouts { context.insert(workout) }
+        try context.save()
+        let gate = Gate()
+        let source = GatedSource(gate: gate, base: Self.source([("HK-1", 0), ("HK-2", 7200), ("HK-3", 14400)]))
+        return (context, workouts, source, gate)
+    }
+
+    @Test func aPendingWorkoutDeletedMidPassIsNeverStamped() async throws {
+        let (context, workouts, source, gate) = try gatedPassFixture()
+        let pass = Task { await HealthEnrichmentRun.backfill(workouts: workouts, source: source, now: Self.later) }
+        // The first workout is suspended inside the source; delete the second, which is still pending.
+        await gate.waitUntilEntered()
+        context.delete(workouts[1])
+        try context.save()
+        await gate.release()
+        let outcome = await pass.value
+
+        #expect(outcome == Outcome(matched: 2, checked: 2, stopped: nil))
+        #expect(workouts[0].healthWorkoutID == "HK-1")
+        #expect(workouts[2].healthWorkoutID == "HK-3")
+        #expect(workouts[1].healthWorkoutID == nil && workouts[1].healthCheckedAt == nil)
+    }
+
+    @Test func theWorkoutBeingLookedUpDeletedMidPassIsNeverStamped() async throws {
+        let (context, workouts, source, gate) = try gatedPassFixture()
+        let pass = Task { await HealthEnrichmentRun.run(workouts: workouts, source: source, now: Self.now) }
+        // The first workout's lookup is suspended inside the source; delete it before the answer comes back.
+        await gate.waitUntilEntered()
+        context.delete(workouts[0])
+        try context.save()
+        await gate.release()
+        let outcome = await pass.value
+
+        #expect(outcome == Outcome(matched: 2, checked: 2, stopped: nil))
+        #expect(workouts[0].healthWorkoutID == nil && workouts[0].healthCheckedAt == nil)
+        #expect(workouts[1].healthWorkoutID == "HK-2")
+        #expect(workouts[2].healthWorkoutID == "HK-3")
+    }
+
+    @Test func backfillProgressStillReachesTheTotalWhenAWorkoutWasDeleted() async throws {
+        let (context, workouts, source, gate) = try gatedPassFixture()
+        var done: [Int] = []
+        let pass = Task {
+            await HealthEnrichmentRun.backfill(
+                workouts: workouts,
+                source: source,
+                now: Self.later,
+                progress: { finished, _ in done.append(finished) }
+            )
+        }
+        await gate.waitUntilEntered()
+        context.delete(workouts[2])
+        try context.save()
+        await gate.release()
+        _ = await pass.value
+        #expect(done.last == 3)
+    }
+
+    // MARK: Reset
+
+    @Test func resetUnmatchedClearsOnlyTheStampsOfUnmatchedWorkouts() throws {
+        let context = try makeContext()
+        let matched = Self.workout(startOffset: 0)
+        matched.applyHealth(Self.summary("HK-1"), checkedAt: Self.t0)
+        let stamped = Self.workout(startOffset: 7200)
+        stamped.applyHealth(nil, checkedAt: Self.t0)
+        let untouched = Self.workout(startOffset: 14400)
+        for workout in [matched, stamped, untouched] { context.insert(workout) }
+        try context.save()
+
+        #expect(try HealthEnrichmentRun.resetUnmatched(context: context) == 1)
+        #expect(stamped.healthCheckedAt == nil)
+        #expect(matched.healthWorkoutID == "HK-1" && matched.healthCheckedAt == Self.t0)
+        #expect(matched.activeEnergyKcal == 300)
+        #expect(untouched.healthCheckedAt == nil)
+        #expect(stamped.updatedAt == Self.t0)
+        #expect(!context.hasChanges)
+        #expect(try HealthEnrichmentRun.resetUnmatched(context: context) == 0)
+    }
+
+    @Test func aResetWorkoutIsBackfilledAgainOnceHealthHasItsMatch() async throws {
+        let context = try makeContext()
+        let workout = Self.workout()
+        context.insert(workout)
+        try context.save()
+
+        // A denied store answers "no data": the workout is stamped unmatched and the backfill will not look again.
+        _ = await HealthEnrichmentRun.backfill(workouts: [workout], source: FakeHealthSource(), now: Self.later)
+        let skipped = await HealthEnrichmentRun.backfill(
+            workouts: [workout],
+            source: Self.source([("HK-1", 0)]),
+            now: Self.later
+        )
+        #expect(skipped == Outcome() && workout.healthWorkoutID == nil)
+
+        try HealthEnrichmentRun.resetUnmatched(context: context)
+        let outcome = await HealthEnrichmentRun.backfill(
+            workouts: [workout],
+            source: Self.source([("HK-1", 0)]),
+            now: Self.later
+        )
+        #expect(outcome == Outcome(matched: 1, checked: 1, stopped: nil))
+        #expect(workout.healthWorkoutID == "HK-1")
     }
 
     // MARK: Which workouts are picked
@@ -356,7 +514,8 @@ private nonisolated struct FlakySource: HealthSource {
         #expect(matched.healthWorkoutID == "HK-2")
     }
 
-    @Test func backfillStopsWhenDeniedAndStampsNothing() async {
+    // Fake-only, like `notAuthorizedFromASourceStopsAndStampsNothing`.
+    @Test func backfillStopsWhenASourceReportsNotAuthorizedAndStampsNothing() async {
         let a = Self.workout(startOffset: 0)
         let b = Self.workout(startOffset: 7200)
         let outcome = await HealthEnrichmentRun.backfill(

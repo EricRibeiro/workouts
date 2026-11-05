@@ -108,6 +108,41 @@ struct HealthEnrichmentServiceTests {
         #expect(setup.workout.activeEnergyKcal == 300)
     }
 
+    @Test func optingInAgainLooksAtWorkoutsAnEarlierEmptyPassStamped() async throws {
+        // An earlier pass ran while access was denied (HealthKit answered "no data") and stamped the workout unmatched.
+        let setup = try makeSetup(endedAgo: 30 * 86400)
+        setup.workout.applyHealth(nil, checkedAt: .now.addingTimeInterval(-86400))
+        await setup.gate.release()
+
+        // Premise: the ordinary foreground pass never looks at a stamped workout again.
+        await setup.service.appBecameActive(context: setup.context)
+        #expect(setup.workout.healthWorkoutID == nil)
+
+        // The person turns the toggle on again: the stamp is cleared and the source, which now has the match, is asked.
+        await setup.service.requestAuthorization(context: setup.context)
+        #expect(setup.workout.healthWorkoutID == "HK-1")
+        #expect(setup.workout.activeEnergyKcal == 300)
+    }
+
+    @Test func optingInKeepsExistingMatches() async throws {
+        let setup = try makeSetup(endedAgo: 30 * 86400)
+        let matchedAt = Date.now.addingTimeInterval(-86400)
+        setup.workout.applyHealth(
+            HealthWorkoutSummary(
+                healthWorkoutID: "HK-OLD",
+                start: setup.workout.startedAt,
+                end: setup.workout.finishedAt ?? .now,
+                activeEnergyKcal: 111
+            ),
+            checkedAt: matchedAt
+        )
+        await setup.gate.release()
+        await setup.service.requestAuthorization(context: setup.context)
+        #expect(setup.workout.healthWorkoutID == "HK-OLD")
+        #expect(setup.workout.activeEnergyKcal == 111)
+        #expect(setup.workout.healthCheckedAt == matchedAt)
+    }
+
     @Test func backfillIsANoOpWhileOptedOut() async throws {
         let setup = try makeSetup(endedAgo: 30 * 86400)
         setup.settings.healthEnrichmentEnabled = false

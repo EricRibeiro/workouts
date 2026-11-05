@@ -191,6 +191,11 @@ final class HealthEnrichmentService {
                 return
             }
         }
+        // Health never reports a denied read, it answers "no data", so an earlier pass (or a previous opt-in) may have
+        // stamped workouts as unmatched. Each opt-in looks at them afresh; matches are kept.
+        do { try HealthEnrichmentRun.resetUnmatched(context: context) } catch {
+            logger.error("Fitness reset failed: \(error.localizedDescription)")
+        }
         // The normal refresh first, then the one-time backfill of older workouts, in one serialised round.
         await request(context: context, recheckAfter: Self.defaultRecheck, backfill: true)
     }

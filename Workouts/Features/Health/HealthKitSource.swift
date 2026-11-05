@@ -34,7 +34,9 @@ nonisolated final class HealthKitSource: HealthSource {
     ]
 
     /// Shows the Health read sheet when the person has not answered yet; returns once it is dismissed. A denied read is not
-    /// an error here (Health never reveals read denial); it shows up later as "no data".
+    /// an error here (Health never reveals read denial); it shows up later as "no data". In particular `workouts(in:)`
+    /// returns `[]` for a type the person turned off, so callers must not infer authorization from errors: this source
+    /// never throws `.notAuthorized` in practice.
     func requestReadAuthorization() async throws {
         guard Self.isAvailable else { throw HealthSourceError.unavailable }
         do {
