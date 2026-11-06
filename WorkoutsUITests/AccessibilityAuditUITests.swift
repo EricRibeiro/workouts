@@ -22,7 +22,26 @@ final class AccessibilityAuditUITests: XCTestCase {
         /// The logging pane, whose exercise names truncate by design (`SetTable` applies `exerciseNameLineLimit` in
         /// `.active` mode: one line, two at accessibility sizes).
         var truncatesExerciseNames = false
+        /// A bare screen in a navigation stack with toolbar items (the gallery's editor, picker and set-table hosts):
+        /// on the closed Duo the system draws the vertical status and toolbar strip beside it. The strip's clock and
+        /// status glyphs are text with no accessibility element, and its toolbar container is a zero-size
+        /// `SwiftUI.AccessibilityNode`; the audit reports both with no element at all (checked on a screenshot and
+        /// the accessibility tree of `-preview PastEditor` and `-preview ExercisePicker`).
+        var hasSystemStrip = false
     }
+
+    /// Short single-line labels the audit reports as clipped at the default size although they render in full: the
+    /// History dashboard cards' titles (`DashboardCard`), the filter pills' labels (`FilterPillRow`) and a Workout
+    /// Detail block's `Best Set` caption.
+    private static let shortLabels: Set<String> = [
+        "Best Set", "This Week", "Recent PRs", "Last Workout", "Any Body Part", "Any Category",
+    ]
+
+    /// The sample workout's exercise names (`SampleData`), which the logging pane truncates by design.
+    private static let sampleExerciseNames: Set<String> = [
+        "Barbell Bench Press", "Lever Seated Hammer Grip Shoulder Press", "Incline Dumbbell Bench Press",
+        "Cable Triceps Pushdown",
+    ]
 
     /// Runs the audit with every type in `types`, ignoring only the issues `isKnownIssue` names.
     @MainActor
@@ -68,12 +87,15 @@ final class AccessibilityAuditUITests: XCTestCase {
         case .elementDetection:
             // Text and elements drawn under a presented sheet or cover (the page behind it) that the audit cannot
             // attribute to an element: it reports them with no element at all.
-            return context.behindModal && element == nil
+            // The same goes for the closed Duo's system strip beside a bare screen (the clock and status glyphs).
+            return (context.behindModal || context.hasSystemStrip) && element == nil
 
         case .hitRegion:
+            // The strip's zero-size toolbar container (see `Context.hasSystemStrip`): no element, nothing to resize.
+            guard let element else { return context.hasSystemStrip }
             // The system navigation bar's title menu (`.toolbarTitleMenu`, the workout name in the logging cover) is a
             // UIKit-owned button sized to its title; the app cannot set its hit region.
-            guard let element, element.elementType == .button, !element.label.isEmpty else { return false }
+            guard element.elementType == .button, !element.label.isEmpty else { return false }
             return app.navigationBars.buttons[element.label].exists
 
         case .dynamicType:
@@ -89,17 +111,25 @@ final class AccessibilityAuditUITests: XCTestCase {
             guard let element else { return true }
             // A UIKit `UISearchBarTextField` (the Exercises search): the system field scales and elides its own text.
             if element.elementType == .searchField { return true }
-            if context.largeText {
-                if context.truncatesExerciseNames && element.elementType == .staticText { return true }
-                // The template card's plan lines (`6 × Barbell Bench Press`) wrap fully at accessibility sizes (checked on
-                // a screenshot); the audit reports the cards' wrapped text as clipped at the bottom of the scroll view.
-                return element.label.contains(" × ")
-            }
-            // Single-line text at the default size: exercise names and plan lines truncate by design (`lineLimit(1)`,
-            // `exerciseNameLineLimit`, which grows to two lines at accessibility sizes), and short labels whose frame
-            // equals their glyph bounds (`Best Set`, `This Week`) and system controls (the search field, `Any Category`
-            // menu pills) render in full on a screenshot.
-            return element.frame.height < 40
+            // Applies at every size. Only text elements are ever listed below; a clipped button, field or cell still fails.
+            guard element.elementType == .staticText else { return false }
+            // Exercise names in the logging pane: one line (two at accessibility sizes) by design.
+            if context.truncatesExerciseNames && Self.sampleExerciseNames.contains(element.label) { return true }
+            // The template card's and preview's plan lines (`6 × Barbell Bench Press`): `lineLimit(1)` at the default
+            // size (`exerciseNameLineLimit` in the preview), fully wrapped at accessibility sizes (checked on a
+            // screenshot; the audit reports the wrapped card text as clipped at the bottom of the scroll view). The
+            // same pattern also covers Workout Detail's best-set text (`386 lb × 5`), a plain unlimited `Text` whose
+            // frame equals its glyph bounds.
+            if element.label.contains(" × ") { return true }
+            if context.largeText { return false }
+            // Short single-line labels at the default size whose frame equals their glyph bounds. None sets a line
+            // limit, a fixed frame or a scale factor, so each renders in full:
+            //  - `Best Set` (caption over the best set in a Workout Detail block), `12 reps` (a bodyweight set's
+            //    detail there), the History dashboard cards' titles, the filter pills' `Any ...` labels, and the About
+            //    tab's `Body part, Glutes` line (id `exerciseDetail.about.bodyPart`).
+            if Self.shortLabels.contains(element.label) { return true }
+            if element.label.range(of: #"^\d+ reps?$"#, options: .regularExpression) != nil { return true }
+            return element.identifier == "exerciseDetail.about.bodyPart"
 
         default:
             return false
@@ -175,6 +205,156 @@ final class AccessibilityAuditUITests: XCTestCase {
     func testSettings() throws {
         let app = XCUIApplication.launchedPreview("Settings", waitingFor: "screen.settings")
         try audit(app)
+    }
+
+    // MARK: - Other gallery screens (default text size)
+
+    /// Waits for a screen with no `screen.*` identifier of its own by one of its labelled elements.
+    @MainActor
+    private func waitForElement(_ app: XCUIApplication, labelled label: String) {
+        XCTAssertTrue(
+            app.descendants(matching: .any)[label].waitForExistence(timeout: 10),
+            "no element \(label)"
+        )
+    }
+
+    @MainActor
+    func testRootTabs() throws {
+        let app = XCUIApplication.launchedPreview("Root", waitingFor: "screen.workout")
+        try audit(app)
+    }
+
+    @MainActor
+    func testCalendar() throws {
+        let app = XCUIApplication.launchedPreview("Calendar", waitingFor: "screen.calendar")
+        try audit(app)
+    }
+
+    @MainActor
+    func testSwatches() throws {
+        let app = XCUIApplication.launchedPreview("Swatches")
+        waitForElement(app, labelled: "Accent")
+        try audit(app)
+    }
+
+    @MainActor
+    func testExercisePicker() throws {
+        let app = XCUIApplication.launchedPreview("ExercisePicker", waitingFor: "screen.exercisePicker")
+        try audit(app, Context(hasSystemStrip: true))
+    }
+
+    @MainActor
+    func testExercisePickerMulti() throws {
+        let app = XCUIApplication.launchedPreview(
+            "ExercisePickerMulti",
+            waitingFor: "screen.exercisePicker"
+        )
+        try audit(app, Context(hasSystemStrip: true))
+    }
+
+    @MainActor
+    func testSetRow() throws {
+        let app = XCUIApplication.launchedPreview("SetRow", waitingFor: "screen.setRowDemo")
+        try audit(app)
+    }
+
+    @MainActor
+    func testSetTable() throws {
+        let app = XCUIApplication.launchedPreview("SetTable", waitingFor: "screen.setTable")
+        try audit(app, Context(hasSystemStrip: true))
+    }
+
+    @MainActor
+    func testWorkoutDetailGalleryEntry() throws {
+        let app = XCUIApplication.launchedPreview("WorkoutDetail", waitingFor: "screen.workoutDetail")
+        try audit(app)
+    }
+
+    @MainActor
+    func testPastEditor() throws {
+        let app = XCUIApplication.launchedPreview("PastEditor", waitingFor: "screen.pastEditor")
+        try audit(app, Context(hasSystemStrip: true))
+    }
+
+    @MainActor
+    func testCustomExerciseFormNew() throws {
+        let app = XCUIApplication.launchedPreview("CustomExerciseForm", waitingFor: "screen.newExercise")
+        try audit(app)
+    }
+
+    @MainActor
+    func testCustomExerciseFormEdit() throws {
+        let app = XCUIApplication.launchedPreview(
+            "CustomExerciseFormEdit",
+            waitingFor: "screen.editExercise"
+        )
+        try audit(app)
+    }
+
+    @MainActor
+    func testTemplateEditor() throws {
+        let app = XCUIApplication.launchedPreview("TemplateEditor", waitingFor: "screen.templateEditor")
+        try audit(app, Context(hasSystemStrip: true))
+    }
+
+    @MainActor
+    func testTemplatePreviewGalleryEntry() throws {
+        let app = XCUIApplication.launchedPreview("TemplatePreview", waitingFor: "template.preview")
+        try audit(app, Context(behindModal: true, onMaterialSheet: true))
+    }
+
+    @MainActor
+    func testExercisePane() throws {
+        let app = XCUIApplication.launchedPreview("ExercisePane", waitingFor: "cover.exercisePane")
+        try audit(app)
+    }
+
+    @MainActor
+    func testExerciseInfoSheet() throws {
+        let app = XCUIApplication.launchedPreview(
+            "ExerciseInfoSheet",
+            waitingFor: "screen.exerciseDetail"
+        )
+        try audit(app, Context(behindModal: true, onMaterialSheet: true))
+    }
+
+    @MainActor
+    func testHeartRateChart() throws {
+        let app = XCUIApplication.launchedPreview("HeartRateChart", waitingFor: "screen.heartRateChart")
+        try audit(app)
+    }
+
+    // MARK: - Rest sheets (opened from the logging cover's rest ring)
+
+    @MainActor
+    func testRestRunningSheet() throws {
+        // The launch argument starts a 300 s rest, so the ring opens the running sheet.
+        let app = XCUIApplication.launchedInActiveWorkout()
+        let ring = app.buttons["rest.ring"].firstMatch
+        XCTAssertTrue(ring.waitForExistence(timeout: 10))
+        ring.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["screen.restRunning"].waitForExistence(timeout: 5))
+        try audit(app, Context(behindModal: true, onMaterialSheet: true))
+    }
+
+    @MainActor
+    func testRestCustomSheet() throws {
+        let app = XCUIApplication.launchedInActiveWorkout()
+        let ring = app.buttons["rest.ring"].firstMatch
+        XCTAssertTrue(ring.waitForExistence(timeout: 10))
+        // Skip the running rest to get the idle menu, whose last item is Custom...
+        ring.tap()
+        let skip = app.buttons["rest.skip"].firstMatch
+        XCTAssertTrue(skip.waitForExistence(timeout: 5))
+        skip.tap()
+        XCTAssertTrue(skip.waitForNonExistence(timeout: 5))
+        XCTAssertTrue(ring.waitForExistence(timeout: 5))
+        ring.tap()
+        let custom = app.buttons["rest.custom"].firstMatch
+        XCTAssertTrue(custom.waitForExistence(timeout: 5))
+        custom.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["screen.restCustom"].waitForExistence(timeout: 5))
+        try audit(app, Context(behindModal: true, onMaterialSheet: true))
     }
 
     // MARK: - Accessibility text size
