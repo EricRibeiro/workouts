@@ -60,6 +60,15 @@ struct ChartSeriesTests {
         #expect(points.first?.lowConfidence == false)
     }
 
+    @Test func unweightedSetDoesNotHideLowConfidenceE1RM() {
+        let sets = [LoggedSet(weight: 100, reps: 15), LoggedSet(reps: 5)]
+        let points = chartSeries([session(1, .barbell, sets)], metric: .e1rm, options: options)
+        #expect(points.map(\.value) == [140])  // 100 * (1 + 12/30): reps clamp at 12
+        #expect(points.first?.lowConfidence == true)
+        let later = sets + [LoggedSet(weight: 50, reps: 15)]
+        #expect(chartSeries([session(1, .barbell, later)], metric: .e1rm, options: options).map(\.value) == [140])
+    }
+
     @Test func e1rmDoesNotApplyToRepTypesAndAssisted() {
         let sets = [LoggedSet(weight: 10, reps: 5)]
         for type in [WeightType.bodyweight, .unweighted, .band, .assisted] {

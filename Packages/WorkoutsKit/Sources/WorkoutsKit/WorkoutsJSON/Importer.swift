@@ -17,7 +17,9 @@ import os
 ///   (they count as skipped). Importing the same document twice therefore skips everything.
 /// - **Never a second in-progress workout.** A document workout with `finishedAt == nil` whose id differs from the
 ///   store's in-progress workout is skipped (counted in ``ImportReport/skippedInProgress``) while one exists. With
-///   none running it is imported, and the caller resumes the engine.
+///   none running, only the newest unfinished workout of the document (by `startedAt`) is imported as in progress, and
+///   the caller resumes the engine; any other unfinished workout in the document is imported as finished, ending at its
+///   latest completed set (`completedAt`), else at its `startedAt`.
 /// - **Relationships are wired by id**: template to folder, workout to template. An id that matches no
 ///   row leaves the relationship nil and counts in `danglingReferences`.
 /// - **Exercise references** resolve to ids through ``LibraryID`` (library) or the custom id. A library
@@ -102,6 +104,8 @@ public enum Importer {
         var workoutSets: [UUID: WorkoutSet]
         /// The store's in-progress workout (newest `startedAt`, as the engine resumes it), if any.
         let inProgressID: UUID?
+        /// With no workout running in the store, the one unfinished document workout that stays in progress.
+        var resumedID: UUID?
 
         init(context: ModelContext) throws {
             self.context = context
@@ -318,6 +322,11 @@ public enum Importer {
         // MARK: Workouts
 
         mutating func importWorkouts(_ dtos: [WorkoutDTO]) throws {
+            if inProgressID == nil {
+                resumedID =
+                    dtos.filter { $0.finishedAt == nil }
+                    .max { ($0.startedAt, $0.id.uuidString) < ($1.startedAt, $1.id.uuidString) }?.id
+            }
             for dto in dtos {
                 // Never a second in-progress workout: an unfinished row that is not the store's own is skipped.
                 if dto.finishedAt == nil, let inProgressID, dto.id != inProgressID {
@@ -344,7 +353,7 @@ public enum Importer {
                 row.name = dto.name
                 row.note = dto.note
                 row.startedAt = dto.startedAt
-                row.finishedAt = dto.finishedAt
+                row.finishedAt = dto.finishedAt ?? finishedAtForDemoted(dto)
                 row.createdAt = dto.createdAt
                 row.updatedAt = dto.updatedAt
                 row.restEndsAt = dto.restEndsAt
@@ -354,6 +363,14 @@ public enum Importer {
                 row.template = resolve(dto.templateId, in: templates)
                 syncExercises(of: row, with: dto.exercises)
             }
+        }
+
+        /// The end time for an unfinished document workout that is not the one kept in progress (nil for that one):
+        /// its latest completed set, else its start.
+        private func finishedAtForDemoted(_ dto: WorkoutDTO) -> Date? {
+            guard dto.finishedAt == nil, dto.id != inProgressID, dto.id != resumedID else { return nil }
+            let lastSet = dto.exercises.flatMap(\.sets).filter(\.completed).compactMap(\.completedAt).max()
+            return lastSet.map { max($0, dto.startedAt) } ?? dto.startedAt
         }
 
         /// A document without Fitness data (an older file) never clears what the store already has; `healthCheckedAt`

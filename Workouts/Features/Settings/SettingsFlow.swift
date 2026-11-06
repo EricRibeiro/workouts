@@ -70,11 +70,20 @@ final class SettingsFlow {
 
     /// Turns "Download all videos" off. With nothing downloaded that is all there is to it; otherwise the alert asks
     /// whether to keep the videos (Cancel leaves the setting on). The caller's toggle stays on until this decides.
-    func requestTurnOffVideos(settings: SettingsStore, store: MediaStore = ExerciseMedia.store) {
+    func requestTurnOffVideos(
+        settings: SettingsStore,
+        download: BulkVideoDownload = .shared,
+        store: MediaStore = ExerciseMedia.store
+    ) {
         Task {
-            let bytes = await store.cacheSize()
+            var bytes = await store.cacheSize()
             if bytes == 0 {
-                _ = BulkVideoDownload.shared.cancel()
+                // A running download may be mid-file: let it land (a cancelled prefetch still finishes its current
+                // video), then look again, so that file is offered for removal instead of silently kept.
+                await download.cancel()?.value
+                bytes = await store.cacheSize()
+            }
+            if bytes == 0 {
                 settings.downloadAllVideos = false
             } else {
                 videoCacheBytes = bytes

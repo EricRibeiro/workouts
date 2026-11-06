@@ -50,7 +50,15 @@ public actor MediaStore {
     private nonisolated let bundle: Bundle
     private nonisolated let mediaDirectory: URL
     private nonisolated let capBytes: Int64
-    private var inFlight: [String: Task<URL?, any Error>] = [:]
+    private struct InFlightFetch {
+        let id: UUID
+        let task: Task<URL?, any Error>
+    }
+
+    /// Keyed by file path and network policy (see `video(for:scheme:allowsCellular:)`).
+    private var inFlight: [String: InFlightFetch] = [:]
+    /// Bumped by `clearCache()`; a fetch that started in an older generation never installs its file.
+    private var generation = 0
 
     /// - Parameters:
     ///   - source: Fills the cache on a miss; nil turns videos off (`video(for:scheme:)` returns nil).
@@ -99,26 +107,28 @@ public actor MediaStore {
             return file
         }
         guard let source else { return nil }
-        let key = file.path
-        if let running = inFlight[key] {
-            return try await running.value
+        // A fetch is shared only with one that is at least as permissive: a cellular-allowed request must never wait on a
+        // Wi-Fi-only fetch (which fails on cellular and starves it), while a Wi-Fi-only one may ride a cellular fetch.
+        let cellularKey = "\(file.path)|cellular"
+        let key = allowsCellular ? cellularKey : "\(file.path)|wifi"
+        if let running = inFlight[cellularKey] ?? inFlight[key] {
+            return try await running.task.value
         }
+        let fetchID = UUID()
+        let startedIn = generation
         let task = Task { () async throws -> URL? in
-            do {
-                let fetched = try await source.fetchVideo(
-                    sourceId: sourceID,
-                    scheme: scheme,
-                    allowsCellular: allowsCellular
-                )
-                let url = try fetched.map { try Self.install($0, at: file) }
-                self.finish(key)
-                return url
-            } catch {
-                self.finish(key)
-                throw error
-            }
+            defer { self.finish(key, id: fetchID) }
+            let fetched = try await source.fetchVideo(
+                sourceId: sourceID,
+                scheme: scheme,
+                allowsCellular: allowsCellular
+            )
+            // `clearCache()` ran while this was downloading (Remove must stick): drop the download instead of
+            // installing it. Callers get nil, the same as "no video", since nothing is cached for them.
+            guard generation == startedIn else { return nil }
+            return try fetched.map { try Self.install($0, at: file) }
         }
-        inFlight[key] = task
+        inFlight[key] = InFlightFetch(id: fetchID, task: task)
         let url = try await task.value
         if let url { evict(keeping: url) }
         return url
@@ -146,15 +156,19 @@ public actor MediaStore {
         cachedFiles().reduce(0) { $0 + $1.size }
     }
 
-    /// Deletes every cached video.
+    /// Deletes every cached video. Fetches still downloading are forgotten (a later request starts afresh) and discard
+    /// their file when they finish, so nothing reappears after the clear.
     public func clearCache() {
+        generation += 1
+        inFlight.removeAll()
         try? FileManager.default.removeItem(at: mediaDirectory)
     }
 
     // MARK: Internals
 
-    private func finish(_ key: String) {
-        inFlight[key] = nil
+    /// Clears the entry only if it is still this fetch's (a clear may have replaced it with a newer one).
+    private func finish(_ key: String, id: UUID) {
+        if inFlight[key]?.id == id { inFlight[key] = nil }
     }
 
     private nonisolated func fileURL(for sourceID: String, scheme: MediaScheme) throws -> URL {

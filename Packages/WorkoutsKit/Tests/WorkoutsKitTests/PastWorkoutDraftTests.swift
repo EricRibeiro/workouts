@@ -185,6 +185,55 @@ import Testing
         #expect(setModel.completedAt == start.addingTimeInterval(600 + 3600))  // moved with the start
     }
 
+    private func matched(_ model: Workout) {
+        model.healthWorkoutID = "HK-1"
+        model.healthCheckedAt = start.addingTimeInterval(7200)
+        model.activeEnergyKcal = 300
+        model.avgHeartRate = 120
+        model.heartRateSeriesData = Data([1])
+        model.weatherTemperatureCelsius = 12
+    }
+
+    @Test func changingTheStartOrDurationClearsTheFitnessMatchSoItIsMatchedAgain() throws {
+        for change in [
+            { (draft: inout PastWorkoutDraft) in draft.startedAt = draft.startedAt.addingTimeInterval(3600) },
+            { (draft: inout PastWorkoutDraft) in draft.setDurationMinutes(40) },
+        ] {
+            let holder = try makeTestContainer()
+            defer { withExtendedLifetime(holder) {} }
+            let context = holder.mainContext
+            let model = workout(context)
+            matched(model)
+            var draft = PastWorkoutDraft(model)
+            change(&draft)
+            try draft.save(to: model, in: context, now: start.addingTimeInterval(86_400))
+
+            #expect(model.healthWorkoutID == nil)
+            #expect(model.healthCheckedAt == nil)
+            #expect(model.activeEnergyKcal == nil)
+            #expect(model.avgHeartRate == nil)
+            #expect(model.heartRateSeriesData == nil)
+            #expect(model.weatherTemperatureCelsius == nil)
+        }
+    }
+
+    @Test func unchangedTimesKeepTheFitnessMatch() throws {
+        let holder = try makeTestContainer()
+        defer { withExtendedLifetime(holder) {} }
+        let context = holder.mainContext
+        let model = workout(context)
+        matched(model)
+        var draft = PastWorkoutDraft(model)
+        draft.rename(to: "Renamed")
+        try draft.save(to: model, in: context, now: start.addingTimeInterval(86_400))
+
+        #expect(model.name == "Renamed")
+        #expect(model.healthWorkoutID == "HK-1")
+        #expect(model.healthCheckedAt == start.addingTimeInterval(7200))
+        #expect(model.activeEnergyKcal == 300)
+        #expect(model.heartRateSeriesData == Data([1]))
+    }
+
     @Test func saveDropsEmptySetsEmptyExercisesAndLoneSupersets() throws {
         let holder = try makeTestContainer()
         defer { withExtendedLifetime(holder) {} }

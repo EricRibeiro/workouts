@@ -161,6 +161,32 @@ import Testing
         #expect(try rig.context.fetch(FetchDescriptor<Exercise>()).count == 1)
     }
 
+    @Test func renameReachesTemplatesAndInProgressWorkoutButNotHistory() throws {
+        let rig = try Rig()
+        let created = try CustomExerciseForm.create(.init(name: "Sled Push"), in: rig.context, store: rig.store)
+        let template = Template(name: "Legs")
+        rig.context.insert(template)
+        let planRow = TemplateExercise(exerciseID: created.id, exerciseName: "Sled Push", template: template)
+        let otherRow = TemplateExercise(exerciseID: UUID(), exerciseName: "Sled Push", template: template)
+        let finished = Workout(name: "Old", finishedAt: Date())
+        let live = Workout(name: "Now")
+        rig.context.insert(finished)
+        rig.context.insert(live)
+        let history = WorkoutExercise(exerciseID: created.id, exerciseName: "Sled Push", workout: finished)
+        let current = WorkoutExercise(exerciseID: created.id, exerciseName: "Sled Push", workout: live)
+        rig.context.insert(planRow)
+        rig.context.insert(otherRow)
+        rig.context.insert(history)
+        rig.context.insert(current)
+        var draft = CustomExerciseForm.Draft(created)
+        draft.name = "Sled Pull"
+        try CustomExerciseForm.update(created, from: draft, in: rig.context, store: rig.store)
+        #expect(planRow.exerciseName == "Sled Pull")
+        #expect(otherRow.exerciseName == "Sled Push")
+        #expect(current.exerciseName == "Sled Pull")
+        #expect(history.exerciseName == "Sled Push")
+    }
+
     // MARK: references, archive, delete
 
     @Test func unusedExerciseIsNotReferencedAndDeletes() throws {

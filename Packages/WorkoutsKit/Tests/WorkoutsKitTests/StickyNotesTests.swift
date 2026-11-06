@@ -54,6 +54,16 @@ import Testing
         #expect(StickyNotes.text(for: id, in: context) == "C")
     }
 
+    @Test func duplicatesReadTheNewestAndSetKeepsIt() throws {
+        context.insert(StickyNote(exerciseID: id, text: "Old", updatedAt: Date(timeIntervalSince1970: 1)))
+        context.insert(StickyNote(exerciseID: id, text: "New", updatedAt: Date(timeIntervalSince1970: 2)))
+        try context.save()
+        #expect(StickyNotes.text(for: id, in: context) == "New")
+        try StickyNotes.set("Edited", for: id, in: context)
+        let rows = try context.fetch(FetchDescriptor<StickyNote>())
+        #expect(rows.count == 1 && rows.first?.text == "Edited")
+    }
+
     @Test func textIsCapped() throws {
         try StickyNotes.set(String(repeating: "x", count: 2500), for: id, in: context)
         #expect(StickyNotes.text(for: id, in: context)?.count == StickyNotes.maxLength)

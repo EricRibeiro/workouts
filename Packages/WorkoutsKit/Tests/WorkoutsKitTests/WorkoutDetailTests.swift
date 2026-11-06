@@ -69,6 +69,29 @@ import Testing
         )
     }
 
+    @Test func theSameExerciseTwiceKeepsEachRowsOwnSetsWhateverTheRelationshipOrder() throws {
+        let holder = try makeTestContainer()
+        defer { withExtendedLifetime(holder) {} }
+        let first = workout(
+            holder.mainContext,
+            at: date(11, 1),
+            rows: [
+                (
+                    bench, "Bench Press", nil,
+                    [(.normal, 60, 10, true), (.normal, 60, 10, true), (.normal, 60, 10, true)]
+                ),
+                (bench, "Bench Press", nil, [(.normal, 100, 3, true)]),
+            ]
+        )
+        // To-many order is not guaranteed by SwiftData: put the back-off row (position 1) first.
+        first.exercises = Array((first.exercises ?? []).sorted { $0.position < $1.position }.reversed())
+        let detail = try #require(detail(first.id, [first]))
+        #expect(detail.exercises.count == 2)
+        #expect(detail.exercises.map(\.sets.count) == [3, 1])
+        #expect(detail.exercises[0].sets.map(\.text).allSatisfy { $0.contains("60") })
+        #expect(detail.exercises[1].sets.map(\.text).allSatisfy { $0.contains("100") })
+    }
+
     // MARK: Header
 
     @Test func headerTextsAndSentence() throws {

@@ -22,7 +22,7 @@ public nonisolated enum StickyNotes {
     }
 
     /// Saves `text` (trimmed, capped at `maxLength`) as the exercise's note. Blank text clears it. Duplicates left by a
-    /// CloudKit merge collapse into one row.
+    /// CloudKit merge collapse into one row (the newest is kept).
     @MainActor public static func set(_ text: String, for exerciseID: UUID, in context: ModelContext) throws {
         try set(text, for: exerciseID, in: context, saveHook: nil)
     }
@@ -75,11 +75,12 @@ public nonisolated enum StickyNotes {
         }
     }
 
+    /// Newest first, so a CloudKit duplicate resolves to the latest edit.
     /// Throws rather than reading a failed fetch as "no note", which would make `set` insert a duplicate.
     @MainActor private static func notes(for exerciseID: UUID, in context: ModelContext) throws -> [StickyNote] {
         let descriptor = FetchDescriptor<StickyNote>(
             predicate: #Predicate { $0.exerciseID == exerciseID },
-            sortBy: [SortDescriptor(\.updatedAt)]
+            sortBy: [SortDescriptor(\.updatedAt, order: .reverse)]
         )
         return try context.fetch(descriptor)
     }

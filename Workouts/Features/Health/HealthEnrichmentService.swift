@@ -88,18 +88,23 @@ final class HealthEnrichmentService {
     }
 
     /// The app came to the foreground: the routine refresh, then the backfill, in one serialised round. Backfill only
-    /// touches workouts never checked, so once everything is stamped this costs an in-memory scan; and a grant given
-    /// later (Health settings) still reaches old workouts that an earlier denied pass left unstamped.
+    /// touches workouts never checked, so once everything is stamped this costs an in-memory scan. It does not revisit
+    /// workouts an earlier denied pass stamped unmatched: HealthKit hides a read denial as "no data", so those need
+    /// `requestAuthorization` (opt-in) or `refreshNow` (pull to refresh on History), which clear the stamps first.
     func appBecameActive(context: ModelContext) async {
         await request(context: context, recheckAfter: Self.defaultRecheck, backfill: true)
     }
 
-    /// Pull-to-refresh on History: the routine pass with no re-check throttle (so a workout checked a minute ago and not
-    /// matched is looked up again), then the backfill, and returns only when that has finished, so the system refresh
+    /// Pull-to-refresh on History, the explicit "check again": it first clears the unmatched stamps (as an opt-in does;
+    /// matches are kept), so access granted later in the Health app reaches workouts older than the routine window that
+    /// a denied pass had stamped. Then the routine pass with no re-check throttle, then the backfill, and returns only when that has finished, so the system refresh
     /// spinner stays up for the whole pass. If a refresh is already running it asks for another round and joins the
     /// running loop instead of starting a second one. A no-op while Health is unavailable or not opted in.
     func refreshNow(context: ModelContext) async {
         guard isActive else { return }
+        do { try HealthEnrichmentRun.resetUnmatched(context: context) } catch {
+            logger.error("Fitness reset failed: \(error.localizedDescription)")
+        }
         await request(context: context, recheckAfter: 0, backfill: true)
         // `request` returns at once when a loop is already running (it only queues); wait for that loop, which goes
         // around again for this request before it clears `runningRefresh`.

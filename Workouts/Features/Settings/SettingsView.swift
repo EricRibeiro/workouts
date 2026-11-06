@@ -88,7 +88,9 @@ struct SettingsView: View {
                 flow.turnOffVideos(removeVideos: true, settings: settings, download: download)
             }
             .accessibilityIdentifier("settings.videos.remove")
-            Button("Cancel", role: .cancel) {}
+            // The turn-off request may have stopped the download to see what it left behind; Cancel resumes it (a no-op
+            // when it is still running; videos already cached are skipped).
+            Button("Cancel", role: .cancel) { startDownload() }
                 .accessibilityIdentifier("settings.videos.cancel")
         } message: {
             Text(
@@ -258,7 +260,7 @@ struct SettingsView: View {
                 if isOn {
                     settings.downloadAllVideos = true
                 } else {
-                    flow.requestTurnOffVideos(settings: settings)
+                    flow.requestTurnOffVideos(settings: settings, download: download)
                 }
             }
         )

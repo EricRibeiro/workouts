@@ -468,6 +468,75 @@ import Testing
         #expect(engine.workout?.id == Self.id(50))
     }
 
+    @Test func onlyTheNewestOfTwoUnfinishedWorkoutsStaysInProgressAndTheOtherIsImportedFinished() throws {
+        let store = try Store()
+        var doc = Self.fixture()
+        let newest = try #require(doc.workouts.first { $0.id == Self.id(50) })
+        // An older unfinished workout with fresh child ids; its latest completed set ended at t(5_500).
+        var older = newest
+        older.id = UUID()
+        older.startedAt = Self.t(5_000)
+        older.exercises = newest.exercises.map { exercise in
+            var copy = exercise
+            copy.id = UUID()
+            copy.sets = [
+                WorkoutSetDTO(
+                    id: UUID(),
+                    position: 0,
+                    kind: .normal,
+                    weight: 50,
+                    reps: 5,
+                    durationSeconds: nil,
+                    distanceMeters: nil,
+                    completed: true,
+                    completedAt: Self.t(5_400),
+                    rpe: nil
+                ),
+                WorkoutSetDTO(
+                    id: UUID(),
+                    position: 1,
+                    kind: .normal,
+                    weight: 50,
+                    reps: 5,
+                    durationSeconds: nil,
+                    distanceMeters: nil,
+                    completed: true,
+                    completedAt: Self.t(5_500),
+                    rpe: nil
+                ),
+                WorkoutSetDTO(
+                    id: UUID(),
+                    position: 2,
+                    kind: .normal,
+                    weight: 50,
+                    reps: nil,
+                    durationSeconds: nil,
+                    distanceMeters: nil,
+                    completed: false,
+                    completedAt: nil,
+                    rpe: nil
+                ),
+            ]
+            return copy
+        }
+        // No completed set: falls back to the start.
+        var empty = older
+        empty.id = UUID()
+        empty.startedAt = Self.t(4_000)
+        empty.exercises = []
+        doc.workouts = [older, newest, empty]
+
+        let report = try Importer.apply(doc, to: store.context, catalog: try Self.catalog())
+
+        #expect(report.skippedInProgress == 0)
+        let running = try store.context.fetch(FetchDescriptor<Workout>(predicate: Workout.inProgressPredicate))
+        #expect(running.map(\.id) == [newest.id])
+        let demoted = try #require(try store.context.fetch(FetchDescriptor<Workout>()).first { $0.id == older.id })
+        #expect(demoted.finishedAt == Self.t(5_500))
+        let startOnly = try #require(try store.context.fetch(FetchDescriptor<Workout>()).first { $0.id == empty.id })
+        #expect(startOnly.finishedAt == Self.t(4_000))
+    }
+
     @Test func reimportingTheEnginesOwnMidWorkoutExportIsANoOp() throws {
         let store = try Store()
         let engine = try Self.engine(for: store)

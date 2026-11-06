@@ -90,6 +90,21 @@ import Testing
         #expect(TemplateUpdate.diff(template: template, workout: workout) == .none)
     }
 
+    @Test func barChangeIsValuesOnly() throws {
+        let context = try makeTestContext()
+        let (template, workout) = makePair(context)
+        let done = (workout.exercises ?? []).first { $0.exerciseID == bench }
+        done?.barType = .ez
+        #expect(TemplateUpdate.diff(template: template, workout: workout) == .valuesOnly)
+        done?.barType = .custom
+        done?.barWeight = 15
+        templateRows(template)[0].barType = .custom
+        templateRows(template)[0].barWeight = 20
+        #expect(TemplateUpdate.diff(template: template, workout: workout) == .valuesOnly)
+        templateRows(template)[0].barWeight = 15
+        #expect(TemplateUpdate.diff(template: template, workout: workout) == .none)
+    }
+
     @Test func droppedSetAddedExerciseAndReorderAreStructure() throws {
         let context = try makeTestContext()
         let (template, workout) = makePair(context)

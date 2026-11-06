@@ -45,6 +45,49 @@ nonisolated final class FakeMediaSource: MediaSource, @unchecked Sendable {
     }
 }
 
+/// A source whose fetches block until `release()`, and which fails Wi-Fi-only fetches the way a cellular network does.
+nonisolated final class GatedMediaSource: MediaSource, @unchecked Sendable {
+    struct Offline: Error {}
+
+    private let lock = NSLock()
+    private let directory: URL
+    private var gateOpen = false
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+    private var flags: [Bool] = []
+
+    init(directory: URL) { self.directory = directory }
+
+    var allowsCellularFlags: [Bool] { lock.withLock { flags } }
+
+    func release() {
+        let pending = lock.withLock {
+            gateOpen = true
+            defer { waiters = [] }
+            return waiters
+        }
+        for waiter in pending { waiter.resume() }
+    }
+
+    func fetchVideo(sourceId: String, scheme: MediaScheme) async throws -> URL? {
+        try await fetchVideo(sourceId: sourceId, scheme: scheme, allowsCellular: true)
+    }
+
+    func fetchVideo(sourceId: String, scheme: MediaScheme, allowsCellular: Bool) async throws -> URL? {
+        lock.withLock { flags.append(allowsCellular) }
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            let open = lock.withLock {
+                if !gateOpen { waiters.append(continuation) }
+                return gateOpen
+            }
+            if open { continuation.resume() }
+        }
+        if !allowsCellular { throw Offline() }
+        let file = directory.appendingPathComponent("\(UUID().uuidString).mp4")
+        try Data(repeating: 7, count: 10).write(to: file)
+        return file
+    }
+}
+
 @Suite(.serialized) struct MediaStoreTests {
     func withStore(
         capBytes: Int64 = MediaStore.defaultCapBytes,
@@ -231,6 +274,45 @@ nonisolated final class FakeMediaSource: MediaSource, @unchecked Sendable {
             #expect(await store.cacheSize() == 0)
             #expect(store.cachedVideoURL(for: "a", scheme: .light) == nil)
         }
+    }
+
+    @Test func cellularRequestIsNotStarvedByAHeldWiFiOnlyFetch() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("MediaStoreTests-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let source = GatedMediaSource(directory: root)
+        let store = MediaStore(source: source, bundle: .main, cacheDirectory: root.appendingPathComponent("cache"))
+
+        let bulk = Task { try await store.video(for: "abc", scheme: .light, allowsCellular: false) }
+        while source.allowsCellularFlags.isEmpty { try await Task.sleep(for: .milliseconds(5)) }
+        let onDemand = Task { try await store.video(for: "abc", scheme: .light, allowsCellular: true) }
+        while source.allowsCellularFlags.count < 2 { try await Task.sleep(for: .milliseconds(5)) }
+        // The on-demand request made its own cellular-allowed fetch instead of joining the Wi-Fi-only one.
+        #expect(source.allowsCellularFlags == [false, true])
+        source.release()
+
+        #expect(try await onDemand.value != nil)
+        await #expect(throws: GatedMediaSource.Offline.self) { try await bulk.value }
+    }
+
+    @Test func fetchCompletingAfterClearCacheLeavesTheCacheEmpty() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("MediaStoreTests-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let source = GatedMediaSource(directory: root)
+        let store = MediaStore(source: source, bundle: .main, cacheDirectory: root.appendingPathComponent("cache"))
+
+        let fetch = Task { try await store.video(for: "abc", scheme: .light) }
+        while source.allowsCellularFlags.isEmpty { try await Task.sleep(for: .milliseconds(5)) }
+        await store.clearCache()
+        source.release()
+
+        #expect(try await fetch.value == nil)
+        #expect(await store.cacheSize() == 0)
+        #expect(store.cachedVideoURL(for: "abc", scheme: .light) == nil)
+        // A request after the clear fetches and caches normally.
+        #expect(try await store.video(for: "abc", scheme: .light) != nil)
+        #expect(await store.cacheSize() == 10)
     }
 
     @Test func thumbnailURLIsNilForAMissingID() async throws {

@@ -42,6 +42,26 @@ private nonisolated struct GatedSource: HealthSource {
     }
 }
 
+/// A source that answers "no workouts" (what HealthKit does for a denied read) until `grant()`, then the wrapped one.
+private actor Access {
+    private(set) var granted = false
+    func grant() { granted = true }
+}
+
+private nonisolated struct DeniableSource: HealthSource {
+    let access: Access
+    let base: FakeHealthSource
+
+    func workouts(in interval: DateInterval) async throws -> [HealthWorkoutCandidate] {
+        guard await access.granted else { return [] }
+        return try await base.workouts(in: interval)
+    }
+
+    func summary(for candidate: HealthWorkoutCandidate) async throws -> HealthWorkoutSummary {
+        try await base.summary(for: candidate)
+    }
+}
+
 @MainActor
 struct HealthEnrichmentServiceTests {
     private struct Setup {
@@ -157,6 +177,45 @@ struct HealthEnrichmentServiceTests {
         await setup.service.refreshNow(context: setup.context)
         #expect(setup.workout.healthWorkoutID == "HK-1")
         #expect(setup.workout.activeEnergyKcal == 300)
+    }
+
+    @Test func pullToRefreshFindsAnOldWorkoutAfterAccessIsGrantedLater() async throws {
+        let end = Date.now.addingTimeInterval(-30 * 86400)
+        let start = end.addingTimeInterval(-3000)
+        let candidate = HealthWorkoutCandidate(id: "HK-1", kind: .functionalStrength, start: start, end: end)
+        let summary = HealthWorkoutSummary(
+            healthWorkoutID: "HK-1",
+            start: start,
+            end: end,
+            activeEnergyKcal: 300,
+            totalEnergyKcal: 400
+        )
+        let access = Access()
+        let base = FakeHealthSource(candidates: [candidate], summaries: [summary])
+        let source = DeniableSource(access: access, base: base)
+        let settings = SettingsStore(backend: InMemoryBackend())
+        settings.healthEnrichmentEnabled = true
+        let context = ModelContext(try ModelContainer.workouts(inMemory: true, cloudKit: false))
+        let workout = Workout(name: "Push", startedAt: start, finishedAt: end, updatedAt: start)
+        context.insert(workout)
+        try context.save()
+        let service = HealthEnrichmentService(source: source, settings: settings)
+
+        // Opt-in while denied: the empty answer stamps the old workout unmatched.
+        await service.requestAuthorization(context: context)
+        #expect(workout.healthWorkoutID == nil && workout.healthCheckedAt != nil)
+
+        // Access is granted later in the Health app. The routine pass (7 days) and the foreground backfill (unchecked only)
+        // both leave the stamped workout alone.
+        await access.grant()
+        await service.refresh(context: context)
+        await service.appBecameActive(context: context)
+        #expect(workout.healthWorkoutID == nil)
+
+        // Pull to refresh is the explicit "check again".
+        await service.refreshNow(context: context)
+        #expect(workout.healthWorkoutID == "HK-1")
+        #expect(workout.activeEnergyKcal == 300)
     }
 
     @Test func refreshNowAlsoBackfillsOldWorkouts() async throws {

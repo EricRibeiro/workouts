@@ -66,7 +66,7 @@ public nonisolated func chartSeries(_ sessions: [Session], metric: ChartMetric, 
             guard category == .strength else { continue }
             var best = 0.0
             var bestLow = false
-            for set in withReps {
+            for set in withReps where set.weightKg > 0 {
                 let estimate = e1rm(weight: set.weightKg, reps: set.reps, formula: options.formula)
                 if best <= 0 || e1rmBeats(estimate.value, low: estimate.lowConfidence, best, currentLow: bestLow) {
                     best = estimate.value

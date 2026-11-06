@@ -247,19 +247,29 @@ public final class ActiveWorkoutEngine {
         return true
     }
 
-    /// The template's plan for `set` (same exercise id, same set index), or nil without a template, for exercises
-    /// added later, or for sets past the template's.
+    /// The template's plan for `set`, or nil without a template, for exercises added later, or for sets past the
+    /// template's. The n-th workout row of an exercise takes the n-th template row of that exercise (by position), so
+    /// a template with the same exercise twice plans each row separately. The weight is in the row's current unit
+    /// (converted and rounded to 0.5 from the template row's unit when they differ, as for Previous).
     public func plan(for set: WorkoutSet) -> SetPlan? {
-        guard let row = set.workoutExercise, let template = row.workout?.template,
+        guard let row = set.workoutExercise, let workout = row.workout, let template = workout.template,
             let index = sortedSets(of: row).firstIndex(where: { $0 === set })
         else { return nil }
-        let source = (template.exercises ?? []).sorted { $0.position < $1.position }
-            .first { $0.exerciseID == row.exerciseID }
-        guard let planned = source.map({ ($0.sets ?? []).sorted { $0.position < $1.position } }),
-            planned.indices.contains(index)
-        else { return nil }
+        let sameExercise: (WorkoutExercise) -> Bool = { $0.exerciseID == row.exerciseID }
+        let workoutRows = (workout.exercises ?? []).sorted { $0.position < $1.position }.filter(sameExercise)
+        guard let nth = workoutRows.firstIndex(where: { $0 === row }) else { return nil }
+        let sources = (template.exercises ?? []).sorted { $0.position < $1.position }
+            .filter { $0.exerciseID == row.exerciseID }
+        guard sources.indices.contains(nth) else { return nil }
+        let source = sources[nth]
+        let planned = (source.sets ?? []).sorted { $0.position < $1.position }
+        guard planned.indices.contains(index) else { return nil }
         let value = planned[index]
-        return SetPlan(weight: value.weight, reps: value.reps, durationSeconds: value.durationSeconds)
+        return SetPlan(
+            weight: value.weight.map { convertedWeight($0, from: source.unit, to: row.unit) },
+            reps: value.reps,
+            durationSeconds: value.durationSeconds
+        )
     }
 
     // MARK: - Exercises

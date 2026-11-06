@@ -38,6 +38,7 @@ public enum TemplateUpdate {
         var valuesDiffer = false
         for (plan, row) in zip(planned, done) {
             guard plan.exerciseID == row.exerciseID else { return .structure }
+            if barsDiffer(plan, row) { valuesDiffer = true }
             let plannedSets = orderedSets(of: plan)
             let doneSets = orderedSets(of: row)
             guard plannedSets.count == doneSets.count else { return .structure }
@@ -185,6 +186,14 @@ public enum TemplateUpdate {
             names[group] = name
             return name
         }
+    }
+
+    /// A different bar type, or a different custom bar weight (compared across units), is a change. The unit alone is not:
+    /// the same weights in another unit are the same load.
+    private static func barsDiffer(_ plan: TemplateExercise, _ row: WorkoutExercise) -> Bool {
+        guard plan.barType == row.barType else { return true }
+        guard plan.barType == .custom else { return false }
+        return !weightsEqual(plan.barWeight ?? 0, plan.unit, row.barWeight ?? 0, row.unit)
     }
 
     /// Weights compare across units; a missing weight, reps or duration equals zero.

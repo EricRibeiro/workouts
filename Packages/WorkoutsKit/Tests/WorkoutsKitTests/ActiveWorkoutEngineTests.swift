@@ -152,6 +152,62 @@ import Testing
         #expect((template.exercises ?? []).count == 2)
     }
 
+    @Test func planConvertsTemplateWeightToTheRowsCurrentUnit() throws {
+        let rig = try Rig()
+        let template = Template(name: "Lb")
+        rig.context.insert(template)
+        let source = TemplateExercise(
+            exerciseID: LibraryFixture.squat,
+            exerciseName: "Back Squat",
+            position: 0,
+            unit: .lb
+        )
+        rig.context.insert(source)
+        source.template = template
+        let planned = TemplateSet(position: 0, kind: .normal, weight: 100, reps: 5)
+        rig.context.insert(planned)
+        planned.templateExercise = source
+        try rig.context.save()
+        let engine = try rig.makeEngine()
+        let workout = try engine.start(from: template)
+        let row = rows(workout)[0]
+        let set = sets(row)[0]
+        #expect(engine.plan(for: set)?.weight == 100)
+        try engine.setUnit(.kg, for: row)
+        #expect(engine.plan(for: set)?.weight == 45.5)  // 100 lb = 45.36 kg -> 45.5
+        try engine.check(set)
+        #expect(set.weight == 45.5)
+        #expect(set.reps == 5)
+    }
+
+    @Test func planPairsRepeatedExerciseRowsByOccurrence() throws {
+        let rig = try Rig()
+        let template = Template(name: "Two squats")
+        rig.context.insert(template)
+        for (position, weight) in [100.0, 40.0].enumerated() {
+            let source = TemplateExercise(
+                exerciseID: LibraryFixture.squat,
+                exerciseName: "Back Squat",
+                position: position,
+                unit: .kg
+            )
+            rig.context.insert(source)
+            source.template = template
+            let planned = TemplateSet(position: 0, kind: .normal, weight: weight, reps: 5)
+            rig.context.insert(planned)
+            planned.templateExercise = source
+        }
+        try rig.context.save()
+        let engine = try rig.makeEngine()
+        let workout = try engine.start(from: template)
+        let squats = rows(workout)
+        #expect(engine.plan(for: sets(squats[0])[0]) == SetPlan(weight: 100, reps: 5))
+        #expect(engine.plan(for: sets(squats[1])[0]) == SetPlan(weight: 40, reps: 5))
+        // A third squat added later has no counterpart in the template.
+        let extra = try engine.addExercise(try rig.info(LibraryFixture.squat))
+        #expect(engine.plan(for: sets(extra)[0]) == nil)
+    }
+
     @Test func secondStartIsRefused() throws {
         let rig = try Rig()
         let engine = try rig.makeEngine()

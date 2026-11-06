@@ -201,8 +201,31 @@ public nonisolated enum CustomExerciseForm {
         in context: ModelContext,
         store: ExerciseStore
     ) throws {
+        let renamed = exercise.name != draft.trimmedName
         apply(draft, to: exercise)
+        if renamed { try propagateName(of: exercise, in: context) }
         try commit(context, store: store)
+    }
+
+    /// Rewrites the name snapshot on the exercise's template rows and its in-progress workout rows (a plan in flight).
+    /// Finished workouts keep the name at the time.
+    @MainActor private static func propagateName(of exercise: Exercise, in context: ModelContext) throws {
+        let id = exercise.id
+        let name = exercise.name
+        let templateRows = try context.fetch(
+            FetchDescriptor<TemplateExercise>(predicate: #Predicate { $0.exerciseID == id })
+        )
+        for row in templateRows where row.exerciseName != name {
+            row.exerciseName = name
+            row.updatedAt = Date()
+        }
+        let workoutRows = try context.fetch(
+            FetchDescriptor<WorkoutExercise>(predicate: #Predicate { $0.exerciseID == id })
+        )
+        for row in workoutRows where row.workout?.finishedAt == nil && row.exerciseName != name {
+            row.exerciseName = name
+            row.updatedAt = Date()
+        }
     }
 
     /// Retires `exercise`: hidden unless Show Retired, still in history and fetchable by id.

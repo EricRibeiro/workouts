@@ -59,7 +59,7 @@ public nonisolated enum ExerciseBestSets {
         )
     }
 
-    private static func session(row: WorkoutExercise, workout: Workout, weightType: WeightType) -> Session {
+    static func session(row: WorkoutExercise, workout: Workout, weightType: WeightType) -> Session {
         let sets = (row.sets ?? []).filter(\.completed).sorted { $0.position < $1.position }.map {
             LoggedSet(
                 kind: $0.kind,

@@ -183,10 +183,14 @@ public struct PastWorkoutDraft: Equatable, Sendable {
 
     /// Writes the draft to `workout` without saving. Sets and exercises are matched by id: kept ones are updated in place
     /// (hidden fields survive), new sets are inserted, sets without a value and exercises without a set are deleted. Every
-    /// kept set is completed. `finishedAt` becomes `startedAt + duration`, and `completedAt` stamps move with the start.
+    /// kept set is completed. `finishedAt` becomes `startedAt + duration`, and `completedAt` stamps move with the start. A changed start or end clears
+    /// the workout's Fitness data (and its `healthCheckedAt` stamp) so it is matched again for the new time.
     @MainActor
     public func apply(to workout: Workout, in context: ModelContext, now: Date = .now) {
         let shift = startedAt.timeIntervalSince(workout.startedAt)
+        // A Fitness match (or the stamp that it was looked for) belongs to the old time window; clear it so the next
+        // pass matches for the new one. Unchanged times keep it.
+        if workout.startedAt != startedAt || workout.finishedAt != endedAt { workout.clearHealth() }
         workout.name = name
         workout.startedAt = startedAt
         workout.finishedAt = endedAt

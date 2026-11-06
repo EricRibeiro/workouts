@@ -337,3 +337,14 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
 95. **Health passes skip workouts before the earliest readable date without stamping them** (iOS 27 shares the past 30
     days by default): the later of `earliestPermittedSampleDate` and the workout type's `earliestAuthorizedSampleDate`.
     Widening access later lets the backfill find them.
+96. **Bug review round 1** (Eric: Opus reviewers over the whole project until diminishing returns): six fresh read-only
+    Opus reviewers, one per area, given only the code and "find real bugs". 27 confirmed across all six areas; each fix
+    has a regression test. Decisions within the fixes:
+    - Renaming a custom exercise renames its template rows and in-progress workout rows; finished history keeps the
+      name at the time.
+    - A bar change offers "Update Template?"; a unit switch with an equal load does not (existing rule kept).
+    - An import with several unfinished workouts keeps the newest in progress and imports the others as finished at
+      their last completed set.
+    - Editing a past workout's time clears its Fitness match so the next pass re-matches it.
+    - Pull to refresh on History clears unmatched stamps first: the explicit "check again" after a later Health grant.
+    - A video fetch finishing after Remove is discarded; a cellular-allowed request never waits on a Wi-Fi-only one.

@@ -113,8 +113,6 @@ nonisolated extension WorkoutDetail {
             weightType: weightType,
             exerciseIDs: Set((workout.exercises ?? []).map(\.exerciseID))
         )
-        // This workout's own sessions, consumed one per row (an exercise can appear twice).
-        var own = ExerciseBestSets.sessions(from: [workout], weightType: weightType)
         let rows = (workout.exercises ?? []).sorted { $0.position < $1.position }
         let numbers = SetTableLayout.supersetNumbers(for: rows.map(\.supersetGroup))
 
@@ -122,9 +120,13 @@ nonisolated extension WorkoutDetail {
         var prCount = 0
         var volumeTotal = 0.0
         for (row, number) in zip(rows, numbers) {
-            guard var queue = own[row.exerciseID], !queue.isEmpty else { continue }
-            let session = queue.removeFirst()
-            own[row.exerciseID] = queue
+            // Each row's session comes from that row itself: an exercise can appear twice, and the to-many
+            // relationship order is not guaranteed, so a shared per-exercise queue could pair another row's sets.
+            let session = ExerciseBestSets.session(
+                row: row,
+                workout: workout,
+                weightType: weightType(row.exerciseID) ?? .weighted
+            )
             guard !session.sets.isEmpty else { continue }
 
             let type = session.weightType
