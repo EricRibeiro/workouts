@@ -68,6 +68,50 @@ import Testing
         #expect(nav.historyPath == [.workout(a)])
     }
 
+    @Test func dirtyHistoryEditorBlocksPopToRootAndReselect() {
+        let nav = AppNavigation(
+            selectedTab: .history,
+            historyPath: [.workout(a), .editWorkout(a)],
+            isHistoryEditorDirty: true
+        )
+        nav.popToRoot(.history)
+        #expect(nav.historyPath == [.workout(a), .editWorkout(a)])
+        nav.select(.history)
+        #expect(nav.historyPath == [.workout(a), .editWorkout(a)])
+        nav.isHistoryEditorDirty = false
+        nav.select(.history)
+        #expect(nav.historyPath.isEmpty)
+    }
+
+    @Test func dirtyHistoryEditorKeepsTheStackWhenOpeningAWorkout() {
+        let nav = AppNavigation(
+            selectedTab: .exercises,
+            historyPath: [.workout(a), .editWorkout(a)],
+            isHistoryEditorDirty: true
+        )
+        nav.openWorkout(b)
+        #expect(nav.selectedTab == .history)
+        #expect(nav.historyPath == [.workout(a), .editWorkout(a)])
+    }
+
+    @Test func dirtyHistoryEditorIgnoresShrinkingPathWritesButAllowsPushes() {
+        let nav = AppNavigation(historyPath: [.workout(a), .editWorkout(a)], isHistoryEditorDirty: true)
+        nav.setHistoryPath([])
+        #expect(nav.historyPath == [.workout(a), .editWorkout(a)])
+        nav.setHistoryPath([.workout(a), .editWorkout(a), .workout(b)])
+        #expect(nav.historyPath.count == 3)
+    }
+
+    @Test func staleDirtyFlagWithoutAnEditorOnTheStackDoesNothing() {
+        let nav = AppNavigation(historyPath: [.workout(a)], isHistoryEditorDirty: true)
+        #expect(!nav.isHistoryStackProtected)
+        nav.setHistoryPath([])
+        #expect(nav.historyPath.isEmpty)
+        nav.isHistoryEditorDirty = true
+        nav.openWorkout(b)
+        #expect(nav.historyPath == [.workout(b)])
+    }
+
     @Test func settingsOpensAndCloses() {
         let nav = AppNavigation()
         nav.openSettings()

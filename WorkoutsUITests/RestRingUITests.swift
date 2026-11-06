@@ -108,6 +108,27 @@ final class RestRingUITests: XCTestCase {
         XCTAssertEqual(preset45.label, "Rest 0:45")
     }
 
+    /// The running sheet left open while the rest expires goes away with it and does not reopen at the next rest.
+    @MainActor
+    func testRunningSheetClosesWithTheRestAndStaysClosedForTheNext() throws {
+        let app = XCUIApplication.launchedInActiveWorkout(["-sampleRestSeconds", "8"])
+        let ring = app.buttons["rest.ring"].firstMatch
+        let sheet = app.buttons["rest.plus10"].firstMatch
+        XCTAssertTrue(ring.waitForExistence(timeout: 10))
+        ring.tap()
+        XCTAssertTrue(sheet.waitForExistence(timeout: 5), "the running sheet did not open")
+        // 8 s rest + 3 s grace: the engine forgets the rest and the sheet must close with it.
+        XCTAssertTrue(sheet.waitForNonExistence(timeout: 25), "the sheet stayed open after the rest ended")
+
+        XCTAssertTrue(ring.waitForExistence(timeout: 5))
+        ring.tap()
+        let preset = app.buttons["rest.preset.60"].firstMatch
+        XCTAssertTrue(preset.waitForExistence(timeout: 5))
+        preset.tap()
+        XCTAssertTrue(ring.waitForExistence(timeout: 5))
+        XCTAssertFalse(sheet.waitForExistence(timeout: 2), "the sheet reopened by itself at the next rest")
+    }
+
     /// A 3 s rest ends on its own: the ring returns to idle after the grace. The success haptic and ok tint are
     /// timer-driven but cannot be asserted from XCUITest.
     @MainActor

@@ -114,4 +114,41 @@ final class ExerciseDetailUITests: XCTestCase {
         session.tap()
         XCTAssertTrue(any["history.detail"].waitForExistence(timeout: 5), "the session did not open its workout")
     }
+
+    /// An unsaved past-workout edit survives a History link from the Exercises tab: the link only switches to the History
+    /// tab, so the editor (and its draft) is still there to save or cancel. Needs the whole tab shell (`-preview Root`).
+    @MainActor
+    func testSessionLinkKeepsAnUnsavedPastEditor() throws {
+        let app = XCUIApplication.launchedPreview("Root")
+        let any = app.descendants(matching: .any)
+        let history = any["tab.history"].firstMatch
+        XCTAssertTrue(history.waitForExistence(timeout: 10), "no History tab")
+        history.tap()
+        let first = any.matching(NSPredicate(format: "identifier BEGINSWITH 'history.row.'")).element(boundBy: 0)
+        for _ in 0..<8 {
+            if first.waitForExistence(timeout: 2) && first.isHittable { break }
+            app.swipeUp()
+        }
+        first.tap()
+        XCTAssertTrue(any["history.detail"].waitForExistence(timeout: 5))
+        app.buttons["workoutDetail.edit"].tap()
+        XCTAssertTrue(any["screen.pastEditor"].waitForExistence(timeout: 5), "no past editor")
+        app.steppers["pastEditor.duration.stepper"].buttons.element(boundBy: 0).tap()
+        XCTAssertTrue(app.buttons["pastEditor.save"].isEnabled, "Save is disabled after an edit")
+
+        any["tab.exercises"].firstMatch.tap()
+        try openBenchPress(app)
+        let segment = app.segmentedControls["exerciseDetail.segment"]
+        XCTAssertTrue(segment.waitForExistence(timeout: 5))
+        segment.buttons["History"].tap()
+        let session = app.buttons.matching(
+            NSPredicate(
+                format: "identifier BEGINSWITH 'exerciseDetail.history.session.' AND identifier ENDSWITH '.open'"
+            )
+        ).firstMatch
+        XCTAssertTrue(session.waitForExistence(timeout: 5), "no History session header")
+        session.tap()
+        XCTAssertTrue(any["screen.pastEditor"].waitForExistence(timeout: 5), "the link replaced the unsaved editor")
+        XCTAssertTrue(app.buttons["pastEditor.save"].isEnabled, "the unsaved edit was lost")
+    }
 }

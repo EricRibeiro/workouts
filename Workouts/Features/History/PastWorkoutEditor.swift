@@ -45,6 +45,7 @@ private struct Editor: View {
     @Environment(SaveErrors.self) private var errors: SaveErrors?
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
+    @Environment(AppNavigation.self) private var navigation: AppNavigation?
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
@@ -95,7 +96,7 @@ private struct Editor: View {
                         isPresented: $isDiscardConfirming,
                         titleVisibility: .visible
                     ) {
-                        Button("Discard Changes", role: .destructive) { dismiss() }
+                        Button("Discard Changes", role: .destructive, action: leave)
                             .accessibilityIdentifier("pastEditor.discard")
                         Button("Keep Editing", role: .cancel) {}
                             .accessibilityIdentifier("pastEditor.keepEditing")
@@ -121,6 +122,9 @@ private struct Editor: View {
         // Fires when "Discard changes?" is raised, not when Discard is tapped: confirming dismisses this screen in the
         // same pass, which would cut the haptic off, and the presenters (several) cannot be hooked cheaply.
         .sensoryFeedback(.warning, trigger: isDiscardConfirming) { _, shown in shown }
+        // Unsaved edits block reselecting the History tab and "open workout" links from replacing this screen. No
+        // onDisappear reset: switching tabs fires it while the draft lives on; the kit ignores a stale flag.
+        .onChange(of: isDirty, initial: true) { _, dirty in navigation?.isHistoryEditorDirty = dirty }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("screen.pastEditor")
     }
@@ -258,14 +262,21 @@ private struct Editor: View {
         if isDirty {
             isDiscardConfirming = true
         } else {
-            dismiss()
+            leave()
         }
+    }
+
+    /// Pops this screen. Clears the navigation's dirty flag first: the pop is a shrinking write the protected stack
+    /// would otherwise ignore.
+    private func leave() {
+        navigation?.isHistoryEditorDirty = false
+        dismiss()
     }
 
     private func save() {
         do {
             try draft.save(to: workout, in: context)
-            dismiss()
+            leave()
         } catch {
             // The draft stays as it is, so Save can be tried again.
             errors?.report(error)

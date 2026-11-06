@@ -40,7 +40,9 @@ struct RootView: View {
     var body: some View {
         TabView(selection: Binding(get: { navigation.selectedTab }, set: { navigation.select($0) })) {
             Tab("History", systemImage: "clock.arrow.circlepath", value: AppTab.history) {
-                HistoryView(path: $navigation.historyPath)
+                HistoryView(
+                    path: Binding(get: { navigation.historyPath }, set: { navigation.setHistoryPath($0) })
+                )
             }
             .accessibilityIdentifier("tab.history")
 

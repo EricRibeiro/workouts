@@ -13,15 +13,21 @@ import WorkoutsKit
 /// once-a-second `TimelineView` feeds the ring's arc. It only draws: the cover's ``RestExpiryWatcher`` fires the haptic
 /// and forgets the rest, because this item leaves the toolbar while a set field has focus.
 struct RestRingItem: View {
+    private enum RestSheet: String, Identifiable {
+        case running, custom
+        var id: String { rawValue }
+    }
+
     @Environment(ActiveWorkoutEngine.self) private var engine: ActiveWorkoutEngine?
     @Environment(SaveErrors.self) private var errors: SaveErrors?
     @Environment(SettingsStore.self) private var settings: SettingsStore?
-    @State private var isCustomPresented = false
-    @State private var isRunningPresented = false
+    /// The sheet being shown. One enum-driven presenter on the stable container, because the idle menu and the running
+    /// button replace each other and a presenter that leaves with its sheet open never gets the sheet's own reset.
+    @State private var sheet: RestSheet?
     @ScaledMetric(relativeTo: .body) private var arcSize: CGFloat = 22
 
     var body: some View {
-        Group {
+        ZStack {
             if let engine {
                 let timer = engine.restTimer
                 if let endsAt = timer.endsAt, let total = timer.total {
@@ -30,6 +36,22 @@ struct RestRingItem: View {
                     idleMenu(engine: engine)
                 }
             }
+        }
+        .sheet(item: $sheet) { sheet in
+            switch sheet {
+            case .running:
+                RestRunningSheet()
+                    .presentationPlacement(.trailing)
+                    .presentationDetents([.medium])
+            case .custom:
+                RestCustomSheet()
+                    .presentationPlacement(.center)
+            }
+        }
+        // The custom sheet starts a rest and the running sheet ends with it: either way the sheet is done once the rest
+        // flips state, and a stale value would reopen it at the next rest.
+        .onChange(of: engine?.restTimer.endsAt == nil) {
+            sheet = nil
         }
     }
 
@@ -46,7 +68,7 @@ struct RestRingItem: View {
                 }
             }
             Divider()
-            Button("Custom…", systemImage: "slider.horizontal.3") { isCustomPresented = true }
+            Button("Custom…", systemImage: "slider.horizontal.3") { sheet = .custom }
                 .accessibilityLabel("Custom rest timer")
                 .accessibilityIdentifier("rest.custom")
         } label: {
@@ -54,10 +76,6 @@ struct RestRingItem: View {
         }
         .accessibilityLabel("Rest timer")
         .accessibilityIdentifier("rest.ring")
-        .sheet(isPresented: $isCustomPresented) {
-            RestCustomSheet()
-                .presentationPlacement(.center)
-        }
     }
 
     private func presetButton(_ seconds: Int, engine: ActiveWorkoutEngine) -> some View {
@@ -83,7 +101,7 @@ struct RestRingItem: View {
             // An over rest stays in the engine for ``RestTimer/expiredGraceSeconds``: the arc is ok-coloured meanwhile, accent-coloured while it runs.
             let tint: Color = remaining <= 0 ? .ok : .accentColor
             Button {
-                isRunningPresented = true
+                sheet = .running
             } label: {
                 // A Label with an Image icon is what the closed Duo moves into the trailing strip; a custom view is not.
                 Label {
@@ -96,11 +114,6 @@ struct RestRingItem: View {
             .accessibilityLabel("Rest timer, \(time)")
             .accessibilityAddTraits(.updatesFrequently)
             .accessibilityIdentifier("rest.ring")
-        }
-        .sheet(isPresented: $isRunningPresented) {
-            RestRunningSheet()
-                .presentationPlacement(.trailing)
-                .presentationDetents([.medium])
         }
     }
 

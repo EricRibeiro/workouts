@@ -372,3 +372,8 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
     - "Add Warm-up Sets" keeps checked warm-ups and replaces only unchecked ones.
     - Not fixed: a custom exercise's default bar weight follows the Settings unit (needs a model field; unlikely).
     - The exercise info sheet's vertical-bar opt-out is documented in duo-layout.md (Eric-approved, JC85).
+99. **An unsaved past-workout edit survives a link from Exercises**, and History's own pop-to-root waits while the
+    draft is dirty. Not covered: tapping the History tab again pops the editor through UIKit's native tab reselect,
+    which app code cannot veto (same for the template editor on the Workout tab). Closing that gap means presenting
+    both editors modally instead of pushed: a design call left for Eric. The rest ring's sheets now share one stable
+    presenter and close with the rest, so none reopens by itself.
