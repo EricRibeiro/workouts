@@ -31,8 +31,17 @@ final class AccessibilityAuditUITests: XCTestCase {
         for types: XCUIAccessibilityAuditType = .all,
         _ context: Context = Context()
     ) throws {
-        try app.performAccessibilityAudit(for: types) { issue in
-            Self.isKnownIssue(issue, app: app, context: context)
+        do {
+            try app.performAccessibilityAudit(for: types) { issue in
+                Self.isKnownIssue(issue, app: app, context: context)
+            }
+        } catch let error as NSError where error.domain == "com.apple.accessibilityAudit" && error.code == -902 {
+            // "Invalid target app <pid>": the audit attached while the launch was still settling (seen only with several
+            // simulators busy). It is a harness error, not a finding, so the audit runs once more; a second failure fails.
+            _ = app.wait(for: .runningForeground, timeout: 10)
+            try app.performAccessibilityAudit(for: types) { issue in
+                Self.isKnownIssue(issue, app: app, context: context)
+            }
         }
     }
 
