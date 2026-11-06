@@ -19,10 +19,9 @@ public enum AppTab: Hashable, Sendable {
 
 /// Destinations pushed on the History tab's stack.
 public enum HistoryRoute: Hashable, Codable, Sendable {
-    /// Workout detail (PLAN section 3 History tab, 5.5): rows push it with a zoom transition.
+    /// Workout detail (PLAN section 3 History tab, 5.5): rows push it with a zoom transition. The past-workout editor
+    /// (5.6) is not a route: it is a modal cover over the detail or the list.
     case workout(UUID)
-    /// Past-workout editor, pushed from the detail (PLAN 5.6).
-    case editWorkout(UUID)
 }
 
 /// Destinations pushed on the Workout tab's stack.

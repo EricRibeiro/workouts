@@ -13,17 +13,6 @@ public final class AppNavigation {
     public var workoutPath: [WorkoutRoute]
     public var exercisesPath: [ExercisesRoute]
 
-    /// The past-workout editor on the History stack holds unsaved edits. Kept in sync by the editor (its draft is view
-    /// state); only meaningful while `historyPath` holds an `.editWorkout`, so a stale `true` after the editor is gone
-    /// does nothing. While protected, nothing may replace or pop the History stack: Back is hidden, so the editor's own
-    /// Cancel confirmation is the only way out.
-    public var isHistoryEditorDirty: Bool
-
-    /// Whether unsaved past-workout edits are on screen and the History stack must stay as it is.
-    public var isHistoryStackProtected: Bool {
-        isHistoryEditorDirty && historyPath.contains { if case .editWorkout = $0 { true } else { false } }
-    }
-
     /// The Settings `Form` sheet, opened from the Workout tab's gear.
     public var isSettingsPresented: Bool
 
@@ -44,7 +33,6 @@ public final class AppNavigation {
         historyPath: [HistoryRoute] = [],
         workoutPath: [WorkoutRoute] = [],
         exercisesPath: [ExercisesRoute] = [],
-        isHistoryEditorDirty: Bool = false,
         isSettingsPresented: Bool = false,
         isWorkoutCoverPresented: Bool = false,
         isWorkoutMinimised: Bool = false
@@ -53,7 +41,6 @@ public final class AppNavigation {
         self.historyPath = historyPath
         self.workoutPath = workoutPath
         self.exercisesPath = exercisesPath
-        self.isHistoryEditorDirty = isHistoryEditorDirty
         self.isSettingsPresented = isSettingsPresented
         self.isWorkoutCoverPresented = isWorkoutCoverPresented
         self.isWorkoutMinimised = isWorkoutMinimised
@@ -76,19 +63,9 @@ public final class AppNavigation {
     public func push(_ route: WorkoutRoute) { workoutPath.append(route) }
     public func push(_ route: ExercisesRoute) { exercisesPath.append(route) }
 
-    /// Writes the History stack from the view (the `NavigationStack` path binding, which the system also writes when a
-    /// tab is reselected). While unsaved editor edits are on screen a shrinking write is ignored, so no system pop can
-    /// destroy them; pushes go through.
-    public func setHistoryPath(_ newPath: [HistoryRoute]) {
-        if isHistoryStackProtected && newPath.count < historyPath.count { return }
-        historyPath = newPath
-    }
-
     public func popToRoot(_ tab: AppTab) {
         switch tab {
-        case .history:
-            guard !isHistoryStackProtected else { return }
-            historyPath.removeAll()
+        case .history: historyPath.removeAll()
         case .workout: workoutPath.removeAll()
         case .exercises: exercisesPath.removeAll()
         }
@@ -96,11 +73,9 @@ public final class AppNavigation {
 
     // MARK: Deep links
 
-    /// Opens a past workout's detail: History tab, stack reset to it. With unsaved editor edits on the History stack it
-    /// only switches to the tab, leaving the stack (and the editor) alone so the person can save or cancel first.
+    /// Opens a past workout's detail: History tab, stack reset to it.
     public func openWorkout(_ id: UUID) {
         selectedTab = .history
-        guard !isHistoryStackProtected else { return }
         historyPath = [.workout(id)]
     }
 

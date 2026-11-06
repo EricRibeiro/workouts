@@ -37,15 +37,13 @@ struct WorkoutView: View {
     @State private var previewPush: Template?
     /// A workout was started from the sheet: the cover opens once the sheet has gone (a sheet and a cover cannot overlap).
     @State private var presentAfterSheet = false
-    /// The template whose editor is pushed on this stack (task 3.4), from the preview's Edit item.
-    @State private var editing: Template?
-    /// New Template was chosen in the Add menu: the editor is pushed for a new template.
-    @State private var isCreatingTemplate = false
+    /// The editor cover (task 3.4): an existing template from the preview's Edit item, or a new one from the Add menu.
+    @State private var editing: TemplateEditorTarget?
     /// The card whose Delete was chosen, until the confirmation answers.
     @State private var deletingTemplate: Template?
     /// Bumps when a folder or template is deleted; drives the `.warning` haptic.
     @State private var destructiveCount = 0
-    /// Edit was tapped in the sheet: the editor is pushed once the sheet has gone.
+    /// Edit was tapped in the sheet: the editor cover opens once the sheet has gone (a sheet and a cover cannot overlap).
     @State private var editAfterSheet: Template?
     @State private var startFlow = StartWorkoutFlow()
     @Namespace private var cardZoom
@@ -78,17 +76,16 @@ struct WorkoutView: View {
                     TemplatePreview(template: template, started: workoutStarted, edit: edit)
                         .navigationTransition(.zoom(sourceID: template.id, in: cardZoom))
                 }
-                .navigationDestination(item: $editing) { TemplateEditor(template: $0) }
-                .navigationDestination(isPresented: $isCreatingTemplate) {
-                    TemplateEditor(newIn: FolderOperations.ordered(folders).first)
-                }
+                .templateEditorCover($editing, newIn: FolderOperations.ordered(folders).first)
                 #if DEBUG
-                    // `-openNewTemplate` / `-editFirstTemplate`: push the empty new-template editor or the first template's
+                    // `-openNewTemplate` / `-editFirstTemplate`: open the empty new-template editor or the first template's
                     // editor at launch (screenshots, where nothing can tap).
                     .task {
                         let arguments = ProcessInfo.processInfo.arguments
-                        if arguments.contains("-openNewTemplate") { isCreatingTemplate = true }
-                        if arguments.contains("-editFirstTemplate") { editing = templates.first }
+                        if arguments.contains("-openNewTemplate") { editing = .new }
+                        if arguments.contains("-editFirstTemplate"), let first = templates.first {
+                            editing = .existing(first)
+                        }
                     }
                 #endif
                 .sheet(
@@ -100,7 +97,7 @@ struct WorkoutView: View {
                         }
                         if let template = editAfterSheet {
                             editAfterSheet = nil
-                            editing = template
+                            editing = .existing(template)
                         }
                     }
                 ) { TemplatePreviewSheet(template: $0, started: workoutStarted, edit: edit) }
@@ -117,7 +114,7 @@ struct WorkoutView: View {
                             .accessibilityLabel("Empty Workout")
                             .accessibilityIdentifier("toolbar.add.emptyWorkout")
                             Button("New Template", systemImage: "square.and.pencil") {
-                                isCreatingTemplate = true
+                                editing = .new
                             }
                             .accessibilityLabel("New Template")
                             .accessibilityIdentifier("workout.newTemplate")
@@ -188,7 +185,7 @@ struct WorkoutView: View {
             } description: {
                 Text("Tap New Template to plan your first workout.")
             } actions: {
-                Button("New Template", systemImage: "square.and.pencil") { isCreatingTemplate = true }
+                Button("New Template", systemImage: "square.and.pencil") { editing = .new }
                     .buttonStyle(.borderedProminent)
                     .accessibilityLabel("New Template")
                     .accessibilityIdentifier("workout.empty.newTemplate")
@@ -341,14 +338,14 @@ struct WorkoutView: View {
         }
     }
 
-    /// Edit from the preview: the sheet closes first (then the editor is pushed on this stack); the pushed preview stays
-    /// under the editor, so Save and Cancel return to it.
+    /// Edit from the preview: the sheet closes first (then the editor cover opens); a pushed preview stays under the
+    /// cover, so Save and Cancel return to it.
     private func edit(_ template: Template) {
         if previewSheet != nil {
             editAfterSheet = template
             previewSheet = nil
         } else {
-            editing = template
+            editing = .existing(template)
         }
     }
 

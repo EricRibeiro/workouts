@@ -1,6 +1,6 @@
 import XCTest
 
-/// The past-workout editor (task 5.6) pushed from the first History row's detail on the gallery entry `History`: a weight
+/// The past-workout editor (task 5.6) presented (a full-screen cover) from the first History row's detail on the gallery entry `History`: a weight
 /// edit saves and shows in the detail; the same edit cancelled behind the unsaved-changes dialog leaves it alone.
 final class PastEditorUITests: XCTestCase {
     override func setUpWithError() throws {
@@ -131,5 +131,33 @@ final class PastEditorUITests: XCTestCase {
         XCTAssertTrue(stepper.exists, "no duration stepper")
         stepper.buttons.element(boundBy: 0).tap()
         XCTAssertEqual(field.value as? String, "1,439", "the stepper did not step the field down")
+    }
+
+    /// The editor is modal: an unsaved edit survives a tap on the History tab button (the native reselect pops pushed
+    /// screens, which is why the editor is a cover). On the closed Duo the tab bar is behind the cover, so the button is
+    /// either not hittable or does nothing; either way the editor and its edit are still there. Needs the whole tab shell.
+    @MainActor
+    func testTappingTheHistoryTabKeepsAnUnsavedEdit() throws {
+        let app = XCUIApplication.launchedPreview("Root")
+        let any = app.descendants(matching: .any)
+        let tab = any["tab.history"].firstMatch
+        XCTAssertTrue(tab.waitForExistence(timeout: 10), "no History tab")
+        tab.tap()
+        let first = any.matching(NSPredicate(format: "identifier BEGINSWITH 'history.row.'")).element(boundBy: 0)
+        for _ in 0..<8 {
+            if first.waitForExistence(timeout: 2) && first.isHittable { break }
+            app.swipeUp()
+        }
+        first.tap()
+        XCTAssertTrue(any["history.detail"].waitForExistence(timeout: 5))
+        app.buttons["workoutDetail.edit"].tap()
+        XCTAssertTrue(any["screen.pastEditor"].waitForExistence(timeout: 5), "no past editor")
+        app.steppers["pastEditor.duration.stepper"].buttons.element(boundBy: 0).tap()
+        XCTAssertTrue(app.buttons["pastEditor.save"].isEnabled, "Save is disabled after an edit")
+
+        let tabNow = any["tab.history"].firstMatch
+        if tabNow.exists && tabNow.isHittable { tabNow.tap() }
+        XCTAssertTrue(any["screen.pastEditor"].exists, "the History tab dropped the editor")
+        XCTAssertTrue(app.buttons["pastEditor.save"].isEnabled, "the unsaved edit was lost")
     }
 }

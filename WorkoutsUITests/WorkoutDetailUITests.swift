@@ -47,7 +47,7 @@ final class WorkoutDetailUITests: XCTestCase {
     }
 
     @MainActor
-    func testEditPushesThePastEditorAndCancelReturns() throws {
+    func testEditPresentsThePastEditorAndCancelReturns() throws {
         let (app, _) = openFirstWorkout()
         let any = app.descendants(matching: .any)
         app.buttons["workoutDetail.edit"].tap()

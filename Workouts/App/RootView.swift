@@ -40,9 +40,7 @@ struct RootView: View {
     var body: some View {
         TabView(selection: Binding(get: { navigation.selectedTab }, set: { navigation.select($0) })) {
             Tab("History", systemImage: "clock.arrow.circlepath", value: AppTab.history) {
-                HistoryView(
-                    path: Binding(get: { navigation.historyPath }, set: { navigation.setHistoryPath($0) })
-                )
+                HistoryView(path: $navigation.historyPath)
             }
             .accessibilityIdentifier("tab.history")
 
@@ -105,8 +103,9 @@ struct RootView: View {
             .onAppear { navigation.isWorkoutCoverOnScreen = true }
             .onDisappear { navigation.isWorkoutCoverOnScreen = false }
         }
-        // The cover hosts its own alert; this one stands down while it is up, since a presenter cannot show a second.
-        .saveErrorAlert(isEnabled: !navigation.isWorkoutCoverPresented)
+        // The covers (the workout, the editors) host their own alert; this one stands down while one is up, since a
+        // presenter cannot show a second.
+        .saveErrorAlert(isEnabled: !navigation.isWorkoutCoverPresented && (saveErrors?.editorCovers ?? 0) == 0)
         .onChange(of: navigation.isWorkoutCoverPresented) { _, isPresented in
             coverWasOpen = isPresented
         }

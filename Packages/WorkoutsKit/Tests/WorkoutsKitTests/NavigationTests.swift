@@ -29,10 +29,10 @@ import Testing
     @Test func stacksAreIndependentPerTab() {
         let nav = AppNavigation()
         nav.push(HistoryRoute.workout(a))
-        nav.push(HistoryRoute.editWorkout(a))
+        nav.push(HistoryRoute.workout(b))
         nav.push(WorkoutRoute.editTemplate(b))
         nav.push(ExercisesRoute.exercise(b))
-        #expect(nav.historyPath == [.workout(a), .editWorkout(a)])
+        #expect(nav.historyPath == [.workout(a), .workout(b)])
         #expect(nav.workoutPath == [.editTemplate(b)])
         #expect(nav.exercisesPath == [.exercise(b)])
     }
@@ -62,54 +62,10 @@ import Testing
     }
 
     @Test func openWorkoutSelectsHistoryAndResetsItsStack() {
-        let nav = AppNavigation(historyPath: [.editWorkout(b)])
+        let nav = AppNavigation(historyPath: [.workout(b)])
         nav.openWorkout(a)
         #expect(nav.selectedTab == .history)
         #expect(nav.historyPath == [.workout(a)])
-    }
-
-    @Test func dirtyHistoryEditorBlocksPopToRootAndReselect() {
-        let nav = AppNavigation(
-            selectedTab: .history,
-            historyPath: [.workout(a), .editWorkout(a)],
-            isHistoryEditorDirty: true
-        )
-        nav.popToRoot(.history)
-        #expect(nav.historyPath == [.workout(a), .editWorkout(a)])
-        nav.select(.history)
-        #expect(nav.historyPath == [.workout(a), .editWorkout(a)])
-        nav.isHistoryEditorDirty = false
-        nav.select(.history)
-        #expect(nav.historyPath.isEmpty)
-    }
-
-    @Test func dirtyHistoryEditorKeepsTheStackWhenOpeningAWorkout() {
-        let nav = AppNavigation(
-            selectedTab: .exercises,
-            historyPath: [.workout(a), .editWorkout(a)],
-            isHistoryEditorDirty: true
-        )
-        nav.openWorkout(b)
-        #expect(nav.selectedTab == .history)
-        #expect(nav.historyPath == [.workout(a), .editWorkout(a)])
-    }
-
-    @Test func dirtyHistoryEditorIgnoresShrinkingPathWritesButAllowsPushes() {
-        let nav = AppNavigation(historyPath: [.workout(a), .editWorkout(a)], isHistoryEditorDirty: true)
-        nav.setHistoryPath([])
-        #expect(nav.historyPath == [.workout(a), .editWorkout(a)])
-        nav.setHistoryPath([.workout(a), .editWorkout(a), .workout(b)])
-        #expect(nav.historyPath.count == 3)
-    }
-
-    @Test func staleDirtyFlagWithoutAnEditorOnTheStackDoesNothing() {
-        let nav = AppNavigation(historyPath: [.workout(a)], isHistoryEditorDirty: true)
-        #expect(!nav.isHistoryStackProtected)
-        nav.setHistoryPath([])
-        #expect(nav.historyPath.isEmpty)
-        nav.isHistoryEditorDirty = true
-        nav.openWorkout(b)
-        #expect(nav.historyPath == [.workout(b)])
     }
 
     @Test func settingsOpensAndCloses() {
@@ -155,7 +111,7 @@ import Testing
     }
 
     @Test func routesRoundTripThroughJSON() throws {
-        let history: [HistoryRoute] = [.workout(a), .editWorkout(b)]
+        let history: [HistoryRoute] = [.workout(a), .workout(b)]
         let workout: [WorkoutRoute] = [.template(a), .editTemplate(b)]
         let exercises: [ExercisesRoute] = [.exercise(a)]
         let encoder = JSONEncoder()

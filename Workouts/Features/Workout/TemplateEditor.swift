@@ -7,7 +7,9 @@ import SwiftData
 import SwiftUI
 import WorkoutsKit
 
-/// The template editor (task 3.4), pushed on the Workout tab's stack from the preview's Edit item in both widths: the name
+/// The template editor (task 3.4), presented as a full-screen cover (modal: a self-contained edit with Save and Cancel, so a
+/// tab reselect cannot pop it and lose the edits) over the Workout tab from the preview's Edit item or New Template, in a
+/// `NavigationStack` of its own: the name
 /// (title menu: Rename…, Edit Note…), Add Exercise through the multi picker, and the SetTable in template mode. Every edit goes to a
 /// `TemplateDraft`; Save writes it to the template in one go, Cancel drops it (asking first when something changed).
 /// Regular width puts the table beside, above or across the fold from the exercise pane with an `ArrangementView`, as the
@@ -64,7 +66,6 @@ struct TemplateEditor: View {
         arrangement(source: source, sections: sections)
             .navigationTitle(draft.name)
             .navigationBarTitleDisplayMode(.inline)
-            .navigationBarBackButtonHidden()
             .toolbarTitleMenu {
                 Button("Rename…", systemImage: "pencil") {
                     renameText = draft.name
@@ -244,6 +245,37 @@ struct TemplateEditor: View {
         } catch {
             // The draft stays as it is, so Save can be tried again.
             errors?.report(error)
+        }
+    }
+}
+
+// MARK: - Presenting
+
+/// What the Workout tab's editor cover edits: an existing template, or a new one.
+enum TemplateEditorTarget: Identifiable {
+    case existing(Template)
+    case new
+
+    var id: String {
+        switch self {
+        case .existing(let template): template.id.uuidString
+        case .new: "new"
+        }
+    }
+}
+
+extension View {
+    /// Presents the template editor for `target` as a full-screen cover with its own `NavigationStack`; a new template
+    /// goes into `folder` (nil: unfiled).
+    func templateEditorCover(_ target: Binding<TemplateEditorTarget?>, newIn folder: TemplateFolder?) -> some View {
+        fullScreenCover(item: target) { item in
+            NavigationStack {
+                switch item {
+                case .existing(let template): TemplateEditor(template: template)
+                case .new: TemplateEditor(newIn: folder)
+                }
+            }
+            .editorCoverHost()
         }
     }
 }

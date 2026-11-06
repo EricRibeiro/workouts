@@ -377,6 +377,8 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
     which app code cannot veto (same for the template editor on the Workout tab). Closing that gap means presenting
     both editors modally instead of pushed: a design call left for Eric. The rest ring's sheets now share one stable
     presenter and close with the rest, so none reopens by itself.
+    Superseded: both editors are now full-screen covers with their own `NavigationStack` (Eric-approved, HIG Modality), so
+    a tab reselect cannot pop them; the dirty-flag guards on `AppNavigation` and `HistoryRoute.editWorkout` are gone.
 100. **Bug review round 3** (angles: regressions from rounds 1–2, a gym session walked step by step, hostile imports
     and text): 13 confirmed, two P1 (Update Values Only shifting warm-up weights into working sets; a replaced timed
     exercise keeping the Time column, a round-2 regression), the rest P2 or hostile-file only. Decisions:
@@ -397,3 +399,7 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
     warm-up alert, History totals after a weight-type change, the picker's always-available New). Rounds found
     27 → 19 → 13 → 5, the last mostly minor and partly self-inflicted, so the review loop stops here (diminishing
     returns, per Eric's brief).
+102. **The past-workout and template editors are full-screen covers** (Eric, 2026-11-06, after HIG Modality: a
+    self-contained edit with Save/Cancel is modal): a tab re-tap can no longer pop an editor and drop its unsaved draft.
+    Every other editing surface was already a sheet; pushed screens are read-only. The dirty-editor guards from JC99
+    are removed; each editor cover hosts its own save-error alert.

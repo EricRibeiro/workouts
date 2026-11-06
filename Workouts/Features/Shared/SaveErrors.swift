@@ -14,6 +14,10 @@ final class SaveErrors {
     /// The alert's message while one is showing; `nil` otherwise. A later failure replaces an unacknowledged one.
     var message: String?
 
+    /// How many full-screen editor covers are up. Each hosts its own alert (a presenter under a cover cannot show one), so
+    /// the root's stands down while any is.
+    var editorCovers = 0
+
     func report(_ error: Error) {
         message = "Could not save: \(error.localizedDescription)."
     }
@@ -53,7 +57,23 @@ private struct SaveErrorAlert: ViewModifier {
     }
 }
 
+private struct EditorCoverHost: ViewModifier {
+    @Environment(SaveErrors.self) private var errors: SaveErrors?
+
+    func body(content: Content) -> some View {
+        content
+            .saveErrorAlert()
+            .onAppear { errors?.editorCovers += 1 }
+            .onDisappear { errors?.editorCovers = max(0, (errors?.editorCovers ?? 1) - 1) }
+    }
+}
+
 extension View {
+    /// The root of an editor's full-screen cover: hosts the cover's own save-error alert and makes the root's stand down.
+    func editorCoverHost() -> some View {
+        modifier(EditorCoverHost())
+    }
+
     /// Shows the environment's ``SaveErrors`` message in one alert with OK. Apply it at the root of every presentation
     /// that can report (the root view and the logging cover, which is a full-screen cover of its own). `isEnabled: false`
     /// lets a host stand down while a cover above it shows the alert instead.

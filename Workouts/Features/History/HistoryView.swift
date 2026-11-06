@@ -41,6 +41,8 @@ struct HistoryView: View {
     @State private var pendingOpen: UUID?
     @State private var templateSource: Workout?
     @State private var savedTemplates = 0
+    /// The row whose past-workout editor is up (a full-screen cover).
+    @State private var editing: PastEditorTarget?
     @Namespace private var zoom
 
     var body: some View {
@@ -79,6 +81,7 @@ struct HistoryView: View {
                 .navigationDestination(for: HistoryRoute.self) { route in
                     destination(route)
                 }
+                .pastWorkoutEditorCover($editing)
         }
         .task(
             id: Inputs(
@@ -248,7 +251,7 @@ struct HistoryView: View {
 
     private func editButton(_ entry: HistoryEntry) -> some View {
         Button {
-            path.append(.editWorkout(entry.id))
+            editing = PastEditorTarget(id: entry.id)
         } label: {
             Label("Edit", systemImage: "pencil")
         }
@@ -305,8 +308,6 @@ struct HistoryView: View {
         case .workout(let id):
             WorkoutDetailView(workoutID: id)
                 .navigationTransition(.zoom(sourceID: id, in: zoom))
-        case .editWorkout(let id):
-            PastWorkoutEditor(workoutID: id)
         }
     }
 }

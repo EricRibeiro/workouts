@@ -9,7 +9,7 @@ import WorkoutsKit
 
 /// The workout detail (task 5.5), pushed from a History row with the zoom transition: the date, duration, volume and
 /// PR count, the workout note, then one block per exercise with its completed sets (a trophy on the sets that set a
-/// record) and a line per record. The bar has Edit (pushes the past-workout editor, 5.6), Save as Template and Delete. Everything shown is derived on read by
+/// record) and a line per record. The bar has Edit (presents the past-workout editor, 5.6), Save as Template and Delete. Everything shown is derived on read by
 /// `WorkoutDetail` in the kit.
 struct WorkoutDetailView: View {
     let workoutID: UUID
@@ -26,6 +26,8 @@ struct WorkoutDetailView: View {
     /// records are judged against changed (the whole set is fetched once per change in the task, not observed).
     @Query(Workout.newestFinishedEdit) private var newest: [Workout]
 
+    /// The past-workout editor, a full-screen cover over this screen (Save and Cancel both return here).
+    @State private var editing: PastEditorTarget?
     @State private var isTemplatePresented = false
     @State private var isDeleteConfirming = false
     @State private var deleteFailed = false
@@ -153,11 +155,9 @@ struct WorkoutDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
-                NavigationLink(value: HistoryRoute.editWorkout(workoutID)) {
-                    Label("Edit", systemImage: "pencil")
-                }
-                .accessibilityLabel("Edit")
-                .accessibilityIdentifier("workoutDetail.edit")
+                Button("Edit", systemImage: "pencil") { editing = PastEditorTarget(id: workoutID) }
+                    .accessibilityLabel("Edit")
+                    .accessibilityIdentifier("workoutDetail.edit")
             }
             ToolbarItem(placement: .primaryAction) {
                 Button("Save as Template", systemImage: "doc.on.doc") {
@@ -183,6 +183,7 @@ struct WorkoutDetailView: View {
                     }
             }
         }
+        .pastWorkoutEditorCover($editing)
         .sheet(isPresented: $isTemplatePresented) {
             if let workout {
                 SaveTemplateSheet(workout: workout) { savedTemplates += 1 }
