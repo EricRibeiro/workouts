@@ -147,6 +147,30 @@ import Testing
         #expect(draft.exercises.map(\.id) == ids.reversed())
     }
 
+    @Test func reorderingAMemberAwayFromItsPartnerLeavesTheSuperset() throws {
+        let holder = try makeTestContainer()
+        defer { withExtendedLifetime(holder) {} }
+        var draft = PastWorkoutDraft(workout(holder.mainContext))
+        var third = draft.exercises[0]
+        third = PastWorkoutDraft.ExerciseValues(
+            id: UUID(),
+            exerciseID: UUID(),
+            name: "Fly",
+            supersetGroup: nil,
+            note: "",
+            unit: .kg,
+            isTimed: false,
+            sets: third.sets
+        )
+        draft.exercises.append(third)
+        let ids = draft.exercises.map(\.id)
+        #expect(draft.exercises.map(\.supersetGroup) == [1, 1, nil])
+        // Moving a member past the loner splits the pair: nothing stays grouped.
+        draft.reorder([ids[0], ids[2], ids[1]])
+        #expect(draft.exercises.map(\.id) == [ids[0], ids[2], ids[1]])
+        #expect(draft.exercises.map(\.supersetGroup) == [nil, nil, nil])
+    }
+
     @Test func timedExercisesEditSecondsNotReps() throws {
         let holder = try makeTestContainer()
         defer { withExtendedLifetime(holder) {} }

@@ -119,6 +119,8 @@ struct DashboardCards: View {
         let week = HistoryDashboard.thisWeek(entries: entries, calendar: calendar, now: now)
         let duration = HistoryList.durationText(seconds: week.durationSeconds)
         let volume = HistoryList.volumeText(week.volume, unit: week.unit)
+        let detail = Self.weekDetail(week: week, duration: duration, volume: volume)
+        let detailLabel = detail.map { ", \($0.replacingOccurrences(of: " · ", with: ", "))" } ?? ""
         let calories = weekActiveKcal.map(FitnessFormat.kcalText)
         let calorieLabel = weekActiveKcal.map { ", \(FitnessFormat.wholeNumber($0)) active calories" } ?? ""
         let heartRate = weekAverageBpm.map(HistoryDashboard.heartRateText)
@@ -127,16 +129,18 @@ struct DashboardCards: View {
             title: "This Week",
             systemImage: "calendar",
             label:
-                "This week, \(week.workouts) of \(goal) workouts, \(duration), \(volume)\(calorieLabel)\(heartRateLabel)",
+                "This week, \(week.workouts) of \(goal) workouts\(detailLabel)\(calorieLabel)\(heartRateLabel)",
             identifier: "history.card.thisWeek"
         ) {
             CardValue(text: "\(week.workouts) / \(goal)")
             Text("workouts this week")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
-            Text("\(duration) · \(volume)")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+            if let detail {
+                Text(detail)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
             if let calories {
                 Label(calories + " active", systemImage: "flame.fill")
                     .font(.subheadline)
@@ -148,6 +152,12 @@ struct DashboardCards: View {
                     .foregroundStyle(.secondary)
             }
         }
+    }
+
+    /// `duration · volume`; nothing for a week with no workouts, and the duration alone when nothing was lifted.
+    private static func weekDetail(week: ThisWeekSummary, duration: String, volume: String) -> String? {
+        guard week.workouts > 0 else { return nil }
+        return week.volume > 0 ? "\(duration) · \(volume)" : duration
     }
 
     var recents: some View {

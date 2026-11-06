@@ -74,7 +74,12 @@ struct WorkoutsApp: App {
             } else {
                 Self.endLiveActivities()
             }
-            let handler = EngineActivityIntentHandler(engine: engine)
+            notifier.flushLiveActivity = { [activityController] in await activityController.syncNow() }
+            let handler = EngineActivityIntentHandler(
+                engine: engine,
+                activityController: activityController,
+                notifier: notifier
+            )
             ActivityIntentRouter.handler = handler
             intentHandler = handler
             self.container = container

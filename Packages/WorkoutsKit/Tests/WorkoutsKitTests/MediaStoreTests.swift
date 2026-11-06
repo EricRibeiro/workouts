@@ -241,16 +241,18 @@ nonisolated final class GatedMediaSource: MediaSource, @unchecked Sendable {
     @Test func prefetchFetchesAllSkipsFailuresAndReportsProgress() async throws {
         try await withStore(videos: ["a": 10, "c": 10, "d": 10], failing: ["d"]) { store, source, _ in
             let ticks = ProgressTicks()
-            await store.prefetch(sourceIDs: ["a", "b", "c", "d"], scheme: .light, allowsCellular: false) {
+            let failed = await store.prefetch(sourceIDs: ["a", "b", "c", "d"], scheme: .light, allowsCellular: false) {
                 done,
                 total in
                 ticks.record(done, total)
             }
+            #expect(failed == ["d"])
             #expect(store.cachedVideoURL(for: "a", scheme: .light) != nil)
             #expect(store.cachedVideoURL(for: "b", scheme: .light) == nil)
             #expect(store.cachedVideoURL(for: "c", scheme: .light) != nil)
             #expect(store.cachedVideoURL(for: "d", scheme: .light) == nil)
-            #expect(ticks.values == [1, 2, 3, 4])
+            // The failed fetch (d) is not counted as done.
+            #expect(ticks.values == [1, 2, 3, 3])
             #expect(ticks.totals == [4, 4, 4, 4])
             #expect(source.allowsCellularFlags == [false, false, false, false])
         }

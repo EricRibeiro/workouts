@@ -19,6 +19,9 @@ final class FakeNotificationCenter: NotificationCenterProviding {
     var holdAuthorization = false
     /// When true, `schedule` is refused until status is authorized, as the real center does.
     var refusesUntilAuthorized = false
+    /// When true, schedule/remove calls are only queued, like the real center's queue, and take effect at ``flush()``.
+    var defersUntilFlush = false
+    private var queued: [() -> Void] = []
     private var answer: CheckedContinuation<Void, Never>?
     weak var delegate: (any UNUserNotificationCenterDelegate)?
 
@@ -39,7 +42,20 @@ final class FakeNotificationCenter: NotificationCenterProviding {
         answer = nil
     }
 
-    func schedule(_ request: UNNotificationRequest) {
+    private func perform(_ call: @escaping () -> Void) {
+        if defersUntilFlush { queued.append(call) } else { call() }
+    }
+
+    func flush() async {
+        log.append("flush")
+        let calls = queued
+        queued = []
+        calls.forEach { $0() }
+    }
+
+    func schedule(_ request: UNNotificationRequest) { perform { self.carryOut(request) } }
+
+    private func carryOut(_ request: UNNotificationRequest) {
         // The real center refuses `add` while status is undetermined or denied.
         guard status == .authorized || !refusesUntilAuthorized else {
             log.append("refused")
@@ -50,13 +66,17 @@ final class FakeNotificationCenter: NotificationCenterProviding {
     }
 
     func removePending(identifiers: [String]) {
-        log.append("removePending")
-        identifiers.forEach { pending[$0] = nil }
+        perform {
+            self.log.append("removePending")
+            identifiers.forEach { self.pending[$0] = nil }
+        }
     }
 
     func removeDelivered(identifiers: [String]) {
-        log.append("removeDelivered")
-        identifiers.forEach { delivered.remove($0) }
+        perform {
+            self.log.append("removeDelivered")
+            identifiers.forEach { self.delivered.remove($0) }
+        }
     }
 
     func setDelegate(_ delegate: (any UNUserNotificationCenterDelegate)?) { self.delegate = delegate }
@@ -199,6 +219,77 @@ final class FakeNotificationCenter: NotificationCenterProviding {
 
         notifier.handleAction("skip")
         #expect(engine.restTimer.endsAt == nil)
+    }
+
+    /// The cold launch from the "Rest over" notification: the relaunch restore has already forgotten the over rest.
+    @Test func coldAddThirtyStartsARest() async throws {
+        let container = try ModelContainer.workouts(inMemory: true, cloudKit: false)
+        let store = ExerciseStore(catalog: try LibraryCatalog.bundled(in: .main))
+        let settings = SettingsStore(backend: InMemoryBackend())
+        let clock = clock
+        func makeEngine() throws -> ActiveWorkoutEngine {
+            try ActiveWorkoutEngine(
+                context: container.mainContext,
+                store: store,
+                settings: settings,
+                now: { clock.date }
+            )
+        }
+        let first = try makeEngine()
+        try first.startEmpty()
+        try first.startRest(seconds: 60)
+        clock.date = clock.date.addingTimeInterval(600)
+        let cold = try makeEngine()  // resume() forgets the over rest and saves it idle
+        #expect(cold.restTimer.state == .idle)
+
+        let notifier = notifier()
+        notifier.observe(cold)
+        await notifier.respond(to: "add30")
+
+        #expect(cold.restTimer.endsAt == clock.date.addingTimeInterval(30))
+        let request = try #require(center.pending[RestNotificationPlan.identifier])
+        #expect((request.trigger as? UNTimeIntervalNotificationTrigger)?.timeInterval == 30)
+    }
+
+    @Test func respondFlushesTheScheduleBeforeReturning() async throws {
+        center.defersUntilFlush = true
+        let engine = try engine()
+        let notifier = notifier(debounce: .seconds(60))
+        notifier.observe(engine)
+        try engine.startRest(seconds: 60)
+        await notifier.syncNow()
+        #expect(center.pending[RestNotificationPlan.identifier] != nil)
+
+        // The debounced observer is a minute away: only respond's own flush can have removed the notification.
+        await notifier.respond(to: "skip")
+
+        #expect(center.pending.isEmpty)
+        #expect(center.log.contains("flush"))
+    }
+
+    @Test func respondAwaitsTheLiveActivityFlush() async throws {
+        let engine = try engine()
+        let notifier = notifier()
+        notifier.observe(engine)
+        var flushed = 0
+        notifier.flushLiveActivity = { flushed += 1 }
+        await notifier.respond(to: "skip")
+        #expect(flushed == 1)
+    }
+
+    @Test func syncNowBypassesTheDebounceAndAwaitsTheCenter() async throws {
+        center.defersUntilFlush = true
+        let engine = try engine()
+        let notifier = notifier(debounce: .seconds(60))
+        notifier.observe(engine)
+        await notifier.syncNow()
+        try engine.startRest(seconds: 90)
+        #expect(center.pending.isEmpty)
+
+        await notifier.syncNow()
+
+        let request = try #require(center.pending[RestNotificationPlan.identifier])
+        #expect((request.trigger as? UNTimeIntervalNotificationTrigger)?.timeInterval == 90)
     }
 
     @Test func actionResumesThePersistedWorkoutFirst() throws {

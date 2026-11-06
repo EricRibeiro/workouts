@@ -91,4 +91,41 @@ import Testing
         #expect(groups(result) == [1, 1, nil])
         #expect(groups(SupersetGrouping.removing("zzz", from: items)) == [1, 1, 1, nil])
     }
+
+    // MARK: reordered
+
+    @Test func reorderingAMemberAwayFromItsPartnerLeavesTheGroup() {
+        let items: [Item] = [("a", 1), ("b", 1), ("c", nil), ("d", nil)]
+        // b dragged past c: the pair is split; b is the mover, a is freed, nothing is left grouped.
+        let moved = SupersetGrouping.reordered(items, to: ["a", "c", "b", "d"])
+        #expect(ids(moved) == ["a", "c", "b", "d"])
+        #expect(groups(moved) == [nil, nil, nil, nil])
+        // The other way round: a dragged to the end.
+        #expect(groups(SupersetGrouping.reordered(items, to: ["b", "c", "d", "a"])) == [nil, nil, nil, nil])
+    }
+
+    @Test func reorderingOneMemberOfATripleKeepsTheOtherTwo() {
+        let items: [Item] = [("a", 1), ("b", 1), ("c", 1), ("d", nil)]
+        let moved = SupersetGrouping.reordered(items, to: ["a", "b", "d", "c"])
+        #expect(ids(moved) == ["a", "b", "d", "c"])
+        #expect(groups(moved) == [1, 1, nil, nil])
+        // Moving the first member out takes it, not the remaining pair.
+        #expect(groups(SupersetGrouping.reordered(items, to: ["b", "c", "d", "a"])) == [1, 1, nil, nil])
+    }
+
+    @Test func reorderingThatKeepsGroupsContiguousChangesNothingButOrder() {
+        let items: [Item] = [("a", nil), ("b", 1), ("c", 1), ("d", 2), ("e", 2)]
+        // The whole pair moves (and a member swaps within its pair): still contiguous.
+        let moved = SupersetGrouping.reordered(items, to: ["d", "e", "a", "c", "b"])
+        #expect(ids(moved) == ["d", "e", "a", "c", "b"])
+        #expect(groups(moved) == [1, 1, nil, 2, 2])
+    }
+
+    @Test func aMoveCanSplitOneGroupWhileAnotherStays() {
+        let items: [Item] = [("a", 1), ("b", 1), ("c", 2), ("d", 2)]
+        let moved = SupersetGrouping.reordered(items, to: ["a", "c", "b", "d"])
+        #expect(groups(moved) == [nil, nil, nil, nil])
+        let intact = SupersetGrouping.reordered(items, to: ["c", "d", "a", "b"])
+        #expect(groups(intact) == [1, 1, 2, 2])
+    }
 }

@@ -10,15 +10,14 @@ import WorkoutsKit
 /// a button whose label is the countdown ring; tapping it opens ``RestRunningSheet``.
 ///
 /// Reads the engine from the environment. The countdown is `Text(timerInterval:)` from the persisted end date; a
-/// once-a-second `TimelineView` feeds the ring's arc, and one sleep until the end date fires the haptic and forgets the rest.
+/// once-a-second `TimelineView` feeds the ring's arc. It only draws: the cover's ``RestExpiryWatcher`` fires the haptic
+/// and forgets the rest, because this item leaves the toolbar while a set field has focus.
 struct RestRingItem: View {
     @Environment(ActiveWorkoutEngine.self) private var engine: ActiveWorkoutEngine?
     @Environment(SaveErrors.self) private var errors: SaveErrors?
     @Environment(SettingsStore.self) private var settings: SettingsStore?
     @State private var isCustomPresented = false
     @State private var isRunningPresented = false
-    /// Bumped once when a rest reaches 0 while this view watches; drives the success haptic.
-    @State private var restEndCount = 0
     @ScaledMetric(relativeTo: .body) private var arcSize: CGFloat = 22
 
     var body: some View {
@@ -103,11 +102,6 @@ struct RestRingItem: View {
                 .presentationPlacement(.trailing)
                 .presentationDetents([.medium])
         }
-        // The engine keeps an over rest for a few seconds (the flash); nothing else forgets it afterwards.
-        .sensoryFeedback(.success, trigger: restEndCount)
-        .task(id: endsAt) {
-            await engine.awaitRestExpiry(endsAt: endsAt) { restEndCount += 1 }
-        }
     }
 
     /// A bare draining arc while the rest runs (it sits next to other logging controls); a checkmark once it is over.
@@ -119,38 +113,5 @@ struct RestRingItem: View {
             tint: tint,
             glyph: isOver ? "checkmark" : nil
         )
-    }
-}
-
-extension ActiveWorkoutEngine {
-    /// Sleeps until the rest ending at `endsAt` is over, runs `onEnded` once (the success haptic), then sleeps through
-    /// ``RestTimer/expiredGraceSeconds`` and forgets the rest with ``tickRest()``. Two sleeps on the persisted end date,
-    /// not a per-second poll. A rest that is already over when this starts does not call `onEnded` (relaunch must not
-    /// buzz). Returns early when cancelled (the rest changed or the view went away).
-    func awaitRestExpiry(endsAt: Date, onEnded: () -> Void) async {
-        if endsAt > .now {
-            guard await Self.sleep(until: endsAt) else { return }
-            onEnded()
-        }
-        let forgetAt = endsAt.addingTimeInterval(TimeInterval(RestTimer.expiredGraceSeconds))
-        while true {
-            guard await Self.sleep(until: forgetAt) else { return }
-            // A failed save while forgetting an over rest is harmless: retry once a second (no alert, it would repeat).
-            if (try? tickRest()) == true { return }
-            guard await Self.sleep(until: max(forgetAt, .now.addingTimeInterval(1))) else { return }
-        }
-    }
-
-    /// `Task.sleep` until a wall-clock date, re-checking the date after waking. False when cancelled.
-    private static func sleep(until date: Date) async -> Bool {
-        let clock = ContinuousClock()
-        while date.timeIntervalSinceNow > 0 {
-            do {
-                try await Task.sleep(until: clock.now.advanced(by: .seconds(date.timeIntervalSinceNow)), clock: clock)
-            } catch {
-                return false
-            }
-        }
-        return !Task.isCancelled
     }
 }

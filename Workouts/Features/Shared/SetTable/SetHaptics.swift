@@ -11,7 +11,8 @@ import SwiftUI
 /// are not here: each screen that confirms one owns a `.sensoryFeedback(.warning, trigger:)` on a view that outlives it.
 ///
 /// - `checkedSetCount`: sets checked in the workout; fires `.impact(weight: .light)` only when it goes up, not on uncheck.
-/// - `restEndCount`: bumps when a rest runs out; `.success`.
+/// - `restEndCount`: bumps when a rest runs out; `.success`. The live owners are `RestExpiryWatcher` (cover) and
+///   `ResumeControl` (cover closed).
 /// - `recordCount`: bumps when a set sets a personal record; `.levelChange`.
 /// - `minimiseToggleCount`: bumps on minimise and restore; `.selection`.
 struct SetHaptics: ViewModifier {

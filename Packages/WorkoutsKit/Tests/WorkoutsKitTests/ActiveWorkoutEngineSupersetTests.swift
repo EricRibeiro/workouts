@@ -125,6 +125,63 @@ import Testing
         #expect(try rig.context.fetchCount(FetchDescriptor<WorkoutSet>()) == 12)
     }
 
+    @Test func addWarmupSetsKeepsThePlanAndPreviousOnTheWorkingSets() throws {
+        let rig = try EngineTests.Rig()
+        rig.settings.defaultUnit = .kg
+        rig.finishedWorkout(
+            exercise: LibraryFixture.squat,
+            unit: .kg,
+            sets: [(40, 10, .warmup), (100, 5, .normal), (105, 4, .normal)],
+            startedAt: rig.clock.date.addingTimeInterval(-86_400)
+        )
+        let engine = try rig.makeEngine()
+        let workout = try engine.start(from: try rig.pushTemplate())
+        let squat = try #require((workout.exercises ?? []).first { $0.exerciseID == LibraryFixture.squat })
+        // Template: warm-up 60 x 5, then two working sets of 100 x 5. Previous: warm-up 40 x 10, 100 x 5, 105 x 4.
+        let working = Array(sets(squat).suffix(2))
+        try engine.setValues(working[0], weight: 100, reps: nil, durationSeconds: nil)
+        try engine.addWarmupSets(to: squat)
+        let all = sets(squat)
+        let warmups = all.filter { $0.kind == .warmup }
+        #expect(warmups.count > 2)
+        // Working sets keep their own plan and Previous and stay checkable.
+        #expect(working.map { engine.plan(for: $0) } == [SetPlan(weight: 100, reps: 5), SetPlan(weight: 100, reps: 5)])
+        #expect(engine.previous(for: working[0]) == PreviousSet(kind: .normal, weight: 100, reps: 5))
+        #expect(engine.previous(for: working[1]) == PreviousSet(kind: .normal, weight: 105, reps: 4))
+        #expect(working.allSatisfy { engine.canCheck($0) })
+        // The first warm-up takes the one planned and previous warm-up; the rest have none.
+        #expect(engine.plan(for: warmups[0]) == SetPlan(weight: 60, reps: 5))
+        #expect(engine.previous(for: warmups[0]) == PreviousSet(kind: .warmup, weight: 40, reps: 10))
+        #expect(warmups.dropFirst().allSatisfy { engine.plan(for: $0) == nil && engine.previous(for: $0) == nil })
+    }
+
+    // MARK: - reorderExercises and supersets
+
+    @Test func reorderingAMemberAwayFromItsPartnerLeavesTheSuperset() throws {
+        let (rig, engine, rows3) = try threeRows()
+        defer { withExtendedLifetime(rig) {} }
+        let (a, b, c) = (rows3[0], rows3[1], rows3[2])
+        try engine.makeSuperset([a, b])
+        try engine.reorderExercises([a, c, b])
+        let workout = try #require(engine.workout)
+        #expect(rows(workout).map(\.id) == [a.id, c.id, b.id])
+        #expect(rows(workout).map(\.supersetGroup) == [nil, nil, nil])
+    }
+
+    @Test func reorderingOneOfThreeKeepsTheRestAndRenumbers() throws {
+        let (rig, engine, rows3) = try threeRows()
+        defer { withExtendedLifetime(rig) {} }
+        let (a, b, c) = (rows3[0], rows3[1], rows3[2])
+        let d = try engine.addExercise(try rig.info(LibraryFixture.squat))
+        try engine.makeSuperset([a, b, c])
+        try engine.reorderExercises([a, b, d, c])
+        #expect(rows(try #require(engine.workout)).map(\.id) == [a.id, b.id, d.id, c.id])
+        #expect(rows(try #require(engine.workout)).map(\.supersetGroup) == [1, 1, nil, nil])
+        // Reordering that keeps the group together leaves it.
+        try engine.reorderExercises([d, b, a, c])
+        #expect(rows(try #require(engine.workout)).map(\.supersetGroup) == [nil, 1, 1, nil])
+    }
+
     @Test func addWarmupSetsUsesTheRowsUnitAndBar() throws {
         let (rig, engine, rows3) = try threeRows()
         defer { withExtendedLifetime(rig) {} }

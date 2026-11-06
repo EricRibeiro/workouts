@@ -243,7 +243,8 @@ import Testing
         let resumedSet = try #require(sets(resumedRow).dropFirst().first)
         #expect(resumedSet.completed && resumedSet.weight == 102.5)
         // Previous is loaded again on resume.
-        #expect(relaunched.previous(for: resumedSet)?.weight == 100)
+        // The template's first working set (index 1, after the warm-up) takes the first working set's Previous.
+        #expect(relaunched.previous(for: resumedSet)?.weight == 90)
         // `resume()` is also callable directly and returns the same workout.
         #expect(try relaunched.resume()?.id == workout.id)
 
@@ -345,13 +346,16 @@ import Testing
         let engine = try rig.makeEngine()
         let workout = try engine.start(from: try rig.pushTemplate())
         let squat = sets(rows(workout)[0])
-        // Set 0 has a Previous (90 x 6); it wins over the plan (60 x 5). The typed reps stay.
-        try engine.setValues(squat[0], weight: nil, reps: 8, durationSeconds: nil)
-        try engine.check(squat[0])
-        #expect(squat[0].weight == 90 && squat[0].reps == 8)
-        // Set 1 has no Previous at its index: the plan (100 x 5) fills it.
+        // The first working set (after the warm-up) has a Previous (90 x 6); it wins over the plan (100 x 5). The typed
+        // reps stay.
+        try engine.setValues(squat[1], weight: nil, reps: 8, durationSeconds: nil)
         try engine.check(squat[1])
-        #expect(squat[1].weight == 100 && squat[1].reps == 5)
+        #expect(squat[1].weight == 90 && squat[1].reps == 8)
+        // The warm-up has no Previous (it had no warm-up): the plan (60 x 5) fills it. So does the second working set.
+        try engine.check(squat[0])
+        #expect(squat[0].weight == 60 && squat[0].reps == 5)
+        try engine.check(squat[2])
+        #expect(squat[2].weight == 100 && squat[2].reps == 5)
     }
 
     @Test func isTimedFollowsDurationsPreviousAndPlanAndStaysOnce() throws {
@@ -410,7 +414,7 @@ import Testing
 
     // MARK: Previous
 
-    @Test func previousIsTheSameIndexOfTheMostRecentFinishedWorkout() throws {
+    @Test func previousIsTheSameKindAndIndexOfTheMostRecentFinishedWorkout() throws {
         let rig = try Rig()
         rig.settings.defaultUnit = .kg
         let day = rig.clock.date
@@ -439,10 +443,13 @@ import Testing
         try engine.startEmpty()
         let row = try engine.addExercise(try rig.info(LibraryFixture.squat))
         let rowSets = sets(row)
-        #expect(engine.previous(for: rowSets[0]) == PreviousSet(kind: .warmup, weight: 40, reps: 10))
-        #expect(engine.previous(for: rowSets[1]) == PreviousSet(kind: .normal, weight: 100, reps: 5))
-        #expect(engine.previous(for: rowSets[2]) == PreviousSet(kind: .normal, weight: 105, reps: 4))
-        // A fourth set has no Previous at its index.
+        // Matched by kind: the row's working sets take the working sets (100, 105) and a warm-up takes the warm-up.
+        #expect(engine.previous(for: rowSets[0]) == PreviousSet(kind: .normal, weight: 100, reps: 5))
+        #expect(engine.previous(for: rowSets[1]) == PreviousSet(kind: .normal, weight: 105, reps: 4))
+        #expect(engine.previous(for: rowSets[2]) == nil)
+        try engine.setKind(rowSets[2], to: .warmup)
+        #expect(engine.previous(for: rowSets[2]) == PreviousSet(kind: .warmup, weight: 40, reps: 10))
+        // A fourth set has no Previous.
         let fourth = try engine.addSet(to: row)
         #expect(engine.previous(for: fourth) == nil)
     }
@@ -814,7 +821,7 @@ import Testing
         rig.clock.advance(86_400)
         try engine.startEmpty()
         let row = try engine.addExercise(try rig.info(LibraryFixture.squat))
-        #expect(engine.previous(for: sets(row)[1])?.weight == 105)
+        #expect(engine.previous(for: sets(row)[0])?.weight == 105)
     }
 
     @Test func discardDeletesTheWorkoutAndItsRows() throws {

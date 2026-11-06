@@ -122,4 +122,23 @@ final class RestRingUITests: XCTestCase {
         waitForExpectations(timeout: 12)
         XCTAssertEqual(ring.label, "Rest timer")
     }
+
+    /// A rest that ends while a set field has focus (the ring is out of the toolbar then) is still forgotten: the keyboard
+    /// accessory's countdown goes away and focus stays. The cover's `RestExpiryWatcher` owns this, not the ring.
+    @MainActor
+    func testRestEndsWhileSetFieldHasFocus() throws {
+        let app = XCUIApplication.launchedInActiveWorkout(["-sampleRestSeconds", "10"])
+        XCTAssertTrue(app.buttons["rest.ring"].firstMatch.waitForExistence(timeout: 10), "no rest running")
+        let weight = app.textFields.matching(
+            NSPredicate(format: "identifier BEGINSWITH 'setrow.' AND identifier ENDSWITH '.weight'")
+        )
+        .element(boundBy: 0)
+        XCTAssertTrue(weight.waitForExistence(timeout: 10))
+        weight.tap()
+        let countdown = app.staticTexts["rest.keyboard.countdown"].firstMatch
+        XCTAssertTrue(countdown.waitForExistence(timeout: 5), "no countdown in the keyboard accessory")
+        // Up to 10 s rest + 3 s grace + loop tick.
+        XCTAssertTrue(countdown.waitForNonExistence(timeout: 20), "the over rest stayed in the keyboard accessory")
+        XCTAssertTrue(app.buttons["setkeyboard.done"].firstMatch.exists, "focus left the set field")
+    }
 }

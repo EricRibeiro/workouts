@@ -262,42 +262,66 @@ struct ExerciseMediaHeader: View {
     }
 }
 
-/// Settings' "Download all videos": prefetches every library video for one colour scheme, Wi-Fi only, in the
-/// background. It outlives the Settings sheet (closing it does not stop the download); switching the toggle off does.
+/// "Download all videos": prefetches every library video for one colour scheme, Wi-Fi only, in the background. It
+/// outlives the Settings sheet (closing it does not stop the download); switching the toggle off does. It starts from
+/// Settings and again whenever the app becomes active with the setting on (see `RootView`), so a relaunch after the app
+/// was killed mid-download, or a start on cellular, picks up where it left off: cached videos are skipped at once.
 @MainActor
 @Observable
 final class BulkVideoDownload {
     static let shared = BulkVideoDownload()
 
-    /// Videos handled so far and the total, nil while idle or finished.
+    /// Videos handled so far and the total, nil while idle or finished. A video whose fetch failed is not handled.
     private(set) var progress: (done: Int, total: Int)?
+    /// The ids the last finished run could not fetch; the next `start` retries them with everything else uncached.
+    private(set) var failedSourceIDs: [String] = []
     private var task: Task<Void, Never>?
+    private let store: MediaStore
+
+    init(store: MediaStore = ExerciseMedia.store) {
+        self.store = store
+    }
 
     var isRunning: Bool { task != nil }
 
     /// Starts unless a download is already running or videos are off (UI-test runs). Cached videos count as done at once.
-    func start(sourceIDs: [String], scheme: MediaScheme) {
-        guard task == nil, ExerciseMedia.canStreamVideo, !sourceIDs.isEmpty else { return }
+    /// Returns the running task (new or already running), nil when nothing started; tests await it.
+    @discardableResult
+    func start(sourceIDs: [String], scheme: MediaScheme) -> Task<Void, Never>? {
+        guard task == nil else { return task }
+        guard ExerciseMedia.canStreamVideo, !sourceIDs.isEmpty else { return nil }
         progress = (0, sourceIDs.count)
-        task = Task { [weak self] in
+        let store = store
+        let running = Task { [weak self] in
             // Progress arrives through a stream the task itself reads on the main actor, so no Task is spawned per tick.
             let (ticks, tick) = AsyncStream.makeStream(of: (done: Int, total: Int).self)
-            async let prefetching: Void = {
-                await ExerciseMedia.store.prefetch(sourceIDs: sourceIDs, scheme: scheme, allowsCellular: false) {
+            async let prefetching: [String] = {
+                let failed = await store.prefetch(sourceIDs: sourceIDs, scheme: scheme, allowsCellular: false) {
                     done,
                     total in
                     tick.yield((done, total))
                 }
                 tick.finish()
+                return failed
             }()
             for await (done, total) in ticks {
                 if let self, self.task != nil { self.progress = (done, total) }
             }
-            await prefetching
+            let failed = await prefetching
             guard !Task.isCancelled else { return }
+            self?.failedSourceIDs = failed
             self?.task = nil
             self?.progress = nil
         }
+        task = running
+        return running
+    }
+
+    /// Starts (or resumes) the download for the whole library when the setting is on; a no-op while off, while one runs,
+    /// and in UI-test runs.
+    func resumeIfEnabled(settings: SettingsStore, catalog: LibraryCatalog, scheme: MediaScheme) {
+        guard settings.downloadAllVideos else { return }
+        start(sourceIDs: catalog.exercises.filter(\.hasVideos).map(\.sourceId), scheme: scheme)
     }
 
     /// Stops the download. Returns the cancelled task so a caller that is about to clear the cache can wait for it:

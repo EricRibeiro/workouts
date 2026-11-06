@@ -41,8 +41,9 @@ nonisolated struct CloudKitMediaSource: MediaSource {
         } catch is CancellationError {
             throw CancellationError()
         } catch {
+            // Thrown, not nil: "no video" and "could not reach it" differ to a bulk download, which retries the latter.
             Self.logger.error("Fetching video \(sourceId, privacy: .public) failed: \(error.localizedDescription)")
-            return nil
+            throw error
         }
     }
 

@@ -120,6 +120,8 @@ struct ActiveWorkoutCover: View {
                 }
             }
         }
+        // The rest-end haptic and the forgetting of an over rest: on the cover, not the ring (which leaves the toolbar while editing).
+        .restExpiryWatcher()
         .sheet(isPresented: $isPickerPresented) {
             ExercisePickerView(
                 title: "Add Exercises",

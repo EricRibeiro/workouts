@@ -120,6 +120,21 @@ public struct RestTimer {
         }
     }
 
+    /// ``adjust(by:)``, except that an idle timer starts a rest of `seconds` from now (for no set) when `seconds` is
+    /// positive. The notification's "+30 s" and the Live Activity's button use it: on a cold launch the relaunch
+    /// restore (``clearIfExpired()``) has already forgotten the over rest they were pressed on, and pressing +30 s
+    /// there must do what it does on a warm over rest, which restarts from now. A negative amount on an idle timer
+    /// stays a no-op.
+    /// - Throws: ``RestTimerError/invalidAdjustment(_:)`` for any other amount; nothing changes.
+    public mutating func extendOrRestart(by seconds: Int) throws {
+        guard Self.allowedAdjustments.contains(seconds) else { throw RestTimerError.invalidAdjustment(seconds) }
+        if state == .idle, seconds > 0 {
+            state = .running(endsAt: now().addingTimeInterval(TimeInterval(seconds)), total: seconds, setID: nil)
+            return
+        }
+        try adjust(by: seconds)
+    }
+
     /// Ends the rest now.
     public mutating func skip() {
         state = .idle
@@ -195,6 +210,16 @@ extension ActiveWorkoutEngine {
         let workout = try activeWorkout()
         var timer = restTimer
         try timer.adjust(by: seconds)
+        try apply(timer, to: workout)
+    }
+
+    /// ``adjustRest(by:)`` for the background actions (notification "+30 s", Live Activity button): with no rest
+    /// running, a positive amount starts a rest of that length from now (see ``RestTimer/extendOrRestart(by:)``).
+    /// - Throws: ``RestTimerError/invalidAdjustment(_:)``; ``ActiveWorkoutError/noActiveWorkout``.
+    public func extendOrRestartRest(by seconds: Int) throws {
+        let workout = try activeWorkout()
+        var timer = restTimer
+        try timer.extendOrRestart(by: seconds)
         try apply(timer, to: workout)
     }
 

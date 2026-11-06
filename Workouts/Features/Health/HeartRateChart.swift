@@ -21,6 +21,7 @@ struct HeartRateChart: View {
     var zones: [HeartRateZoneTime] = []
 
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.dynamicTypeSize) private var typeSize
     @State private var selection: Double?
 
     /// A line needs two points; with fewer the caller leaves the chart out.
@@ -58,10 +59,12 @@ struct HeartRateChart: View {
         max(points.last?.offset ?? 0, blocks.map(\.end).max() ?? 0, 1)
     }
 
-    /// Whole-minute-ish tick positions, at most five, that read as m:ss.
+    /// Whole-minute-ish tick positions that read as m:ss: at most six, or three at accessibility sizes, where wider
+    /// labels would truncate.
     private var xTicks: [Double] {
         let steps: [Double] = [60, 120, 300, 600, 900, 1200, 1800, 3600, 7200]
-        let step = steps.first { xMax / $0 <= 5 } ?? 7200
+        let intervals = typeSize.isAccessibilitySize ? 2.0 : 5.0
+        let step = steps.first { xMax / $0 <= intervals } ?? 7200
         return Array(stride(from: 0, through: xMax, by: step))
     }
 
@@ -235,19 +238,34 @@ struct HeartRateChart: View {
         .clipShape(Capsule())
     }
 
+    /// A wrapping grid of items at regular sizes; one item per line at accessibility sizes, where a grid cell would
+    /// wrap "Zone 1 · 30:00" mid-item.
+    @ViewBuilder
     private func zoneLegend(_ zones: [HeartRateZoneTime]) -> some View {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 110), alignment: .leading)], alignment: .leading, spacing: 4) {
-            ForEach(zones, id: \.index) { zone in
-                Label {
-                    Text(ZoneSummary.legendText(zone))
-                        .font(.caption)
-                        .monospacedDigit()
-                } icon: {
-                    Circle()
-                        .fill(Self.zoneColor(zone.index))
-                        .frame(width: 8, height: 8)
-                }
+        if typeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: 4) {
+                ForEach(zones, id: \.index) { zoneLegendItem($0) }
             }
+        } else {
+            LazyVGrid(
+                columns: [GridItem(.adaptive(minimum: 110), alignment: .leading)],
+                alignment: .leading,
+                spacing: 4
+            ) {
+                ForEach(zones, id: \.index) { zoneLegendItem($0) }
+            }
+        }
+    }
+
+    private func zoneLegendItem(_ zone: HeartRateZoneTime) -> some View {
+        Label {
+            Text(ZoneSummary.legendText(zone))
+                .font(.caption)
+                .monospacedDigit()
+        } icon: {
+            Circle()
+                .fill(Self.zoneColor(zone.index))
+                .frame(width: 8, height: 8)
         }
     }
 
@@ -266,7 +284,8 @@ struct HeartRateChart: View {
             seconds.map { origin.addingTimeInterval($0) }
         }
 
-        var body: some View {
+        /// The sample heart-rate series and set timeline, also what the snapshot tests draw.
+        static let sample: (series: [HeartRatePoint], timeline: SetTimeline) = {
             let origin = Date(timeIntervalSinceReferenceDate: 0)
             let count = 90
             let duration: TimeInterval = 2400
@@ -280,21 +299,26 @@ struct HeartRateChart: View {
             let timeline = SetTimeline.make(
                 origin: origin,
                 blocks: [
-                    .init(name: "Bench Press", completions: Self.at(origin, [300, 420, 540, 660])),
+                    .init(name: "Bench Press", completions: at(origin, [300, 420, 540, 660])),
                     .init(
                         name: "Cable Triceps Pushdown",
                         supersetGroup: 1,
-                        completions: Self.at(origin, [800, 920, 1040])
+                        completions: at(origin, [800, 920, 1040])
                     ),
                     .init(
                         name: "Dumbbell Lateral Raise",
                         supersetGroup: 1,
-                        completions: Self.at(origin, [860, 980, 1100])
+                        completions: at(origin, [860, 980, 1100])
                     ),
-                    .init(name: "Seated Cable Row", completions: Self.at(origin, [1250, 1370, 1490])),
-                    .init(name: "Overhead Press", completions: Self.at(origin, [1700, 1820, 1940, 2060])),
+                    .init(name: "Seated Cable Row", completions: at(origin, [1250, 1370, 1490])),
+                    .init(name: "Overhead Press", completions: at(origin, [1700, 1820, 1940, 2060])),
                 ]
             )
+            return (series, timeline)
+        }()
+
+        var body: some View {
+            let (series, timeline) = Self.sample
             ScrollView {
                 VStack(spacing: 24) {
                     HeartRateChart(

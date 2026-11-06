@@ -20,7 +20,19 @@ final class FakeLiveActivity: LiveActivityHandle {
 
     var isEnded: Bool { endedWith != nil }
 
-    func update(_ content: ActivityContent<WorkoutActivityState>) async { contents.append(content) }
+    /// When set, `update` suspends until ``releaseUpdate()``, like ActivityKit taking its time.
+    var holdsUpdates = false
+    private var held: CheckedContinuation<Void, Never>?
+
+    func update(_ content: ActivityContent<WorkoutActivityState>) async {
+        if holdsUpdates { await withCheckedContinuation { held = $0 } }
+        contents.append(content)
+    }
+
+    func releaseUpdate() {
+        held?.resume()
+        held = nil
+    }
 
     func end(dismissalPolicy: ActivityUIDismissalPolicy) async { endedWith = dismissalPolicy }
 }
@@ -217,6 +229,54 @@ final class FakeLiveActivityProvider: LiveActivityProviding {
         let idle = LiveActivityController.content(for: WorkoutActivityState(workoutName: "Push", startedAt: clock.date))
         #expect(idle.staleDate == nil)
         #expect(idle.relevanceScore == 0)
+    }
+
+    // MARK: Syncing now
+
+    @Test func syncNowBypassesTheDebounceAndReturnsAfterTheUpdate() async throws {
+        let debounced = LiveActivityController(provider: provider, debounce: .seconds(60))
+        try engine.startEmpty()
+        debounced.observe(engine)
+        await debounced.syncNow()
+        let activity = try #require(provider.requested.first)
+        try engine.startRest(seconds: 60)
+        #expect(activity.contents.count == 1)
+
+        await debounced.syncNow()
+
+        #expect(activity.contents.count == 2)
+        #expect(activity.contents.last?.state == engine.activityState)
+    }
+
+    /// A run already in flight must not make the caller return early: the caller's own change rides its extra pass.
+    @Test func syncNowDuringARunWaitsForTheExtraPass() async throws {
+        let debounced = LiveActivityController(provider: provider, debounce: .seconds(60))
+        try engine.startEmpty()
+        debounced.observe(engine)
+        await debounced.syncNow()
+        let activity = try #require(provider.requested.first)
+        try engine.startRest(seconds: 60)
+        activity.holdsUpdates = true
+        let first = Task { await debounced.reconcile() }
+        for _ in 0..<5 { await Task.yield() }  // the first run is now suspended inside update
+
+        try engine.adjustRest(by: 30)
+        var returned = false
+        let second = Task {
+            await debounced.syncNow()
+            returned = true
+        }
+        for _ in 0..<5 { await Task.yield() }
+        #expect(!returned)
+
+        activity.holdsUpdates = false
+        activity.releaseUpdate()
+        await first.value
+        await second.value
+
+        #expect(returned)
+        #expect(activity.contents.last?.state == engine.activityState)
+        #expect(activity.contents.last?.staleDate == clock.date.addingTimeInterval(90))
     }
 
     // MARK: Coalescing

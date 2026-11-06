@@ -269,8 +269,7 @@ struct SettingsView: View {
     /// Prefetches the library's videos for the current colour scheme; videos already cached are skipped at once.
     private func startDownload() {
         guard let catalog = exerciseStore?.catalog else { return }
-        let ids = catalog.exercises.filter(\.hasVideos).map(\.sourceId)
-        download.start(sourceIDs: ids, scheme: colorScheme == .dark ? .dark : .light)
+        download.resumeIfEnabled(settings: settings, catalog: catalog, scheme: colorScheme == .dark ? .dark : .light)
     }
 
     @ViewBuilder

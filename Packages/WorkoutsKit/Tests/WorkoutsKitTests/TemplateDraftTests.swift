@@ -153,6 +153,22 @@ import Testing
         #expect(draft.exercises[0].restSeconds == nil)
     }
 
+    @Test func reorderingAMemberAwayFromItsPartnerLeavesTheSuperset() {
+        var draft = TemplateDraft()
+        let ids = draft.addExercises(
+            [info("A"), info("B"), info("C"), info("D")],
+            defaultUnit: .kg
+        )
+        draft.makeSuperset([ids[0], ids[1]])
+        draft.reorder([ids[0], ids[2], ids[1], ids[3]])
+        #expect(draft.exercises.map(\.id) == [ids[0], ids[2], ids[1], ids[3]])
+        #expect(draft.exercises.map(\.supersetGroup) == [nil, nil, nil, nil])
+        // A reorder that keeps the pair together keeps the superset.
+        draft.makeSuperset([ids[0], ids[1]])
+        draft.reorder([ids[3], ids[2], ids[1], ids[0]])
+        #expect(draft.exercises.map(\.supersetGroup) == [nil, nil, 1, 1])
+    }
+
     @Test func supersetGroupsTheNewExercisesOnly() throws {
         let holder = try makeTestContainer()
         defer { withExtendedLifetime(holder) {} }

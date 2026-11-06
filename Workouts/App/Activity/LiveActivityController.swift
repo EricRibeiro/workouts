@@ -92,7 +92,8 @@ final class LiveActivityController {
     private var engine: ActiveWorkoutEngine?
     private var current: (any LiveActivityHandle)?
     private var lastContent: ActivityContent<WorkoutActivityState>?
-    private var isReconciling = false
+    /// The run in flight, nil when idle; it clears itself with no suspension between its last pass and the clear.
+    private var reconcileRun: Task<Void, Never>?
     private var isDirty = false
     /// The workout whose unavailable Live Activity was already logged, so the log is one line per workout.
     private var loggedUnavailableFor: UUID?
@@ -146,18 +147,34 @@ final class LiveActivityController {
         }
     }
 
-    /// Makes the system's activities match the engine: request, adopt, update or end. Safe to call often.
+    /// Makes the system's activities match the engine: request, adopt, update or end. Safe to call often. Runs are
+    /// serialised: a call that lands mid-run marks it dirty and, like every call, returns only when the run (including
+    /// that extra pass) has finished, so the caller may rely on the system having the engine's state.
     func reconcile() async {
-        if isReconciling {
+        if let reconcileRun {
             isDirty = true
+            await reconcileRun.value
             return
         }
-        isReconciling = true
-        defer { isReconciling = false }
-        repeat {
-            isDirty = false
-            await apply()
-        } while isDirty
+        let run = Task { @MainActor [weak self] in
+            guard let self else { return }
+            repeat {
+                isDirty = false
+                await apply()
+            } while isDirty
+            reconcileRun = nil
+        }
+        reconcileRun = run
+        await run.value
+    }
+
+    /// Reconciles right now, bypassing the debounce, and returns once ActivityKit has taken the update. A background
+    /// action (a Live Activity button, a notification button) awaits this before it returns, because the system may
+    /// suspend the app the moment it does. Foreground changes keep the debounce.
+    func syncNow() async {
+        pendingReconcile?.cancel()
+        pendingReconcile = nil
+        await reconcile()
     }
 
     private func apply() async {

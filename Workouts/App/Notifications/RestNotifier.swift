@@ -10,7 +10,8 @@ import UserNotifications
 import WorkoutsKit
 
 /// The slice of `UNUserNotificationCenter` the notifier uses, so tests can substitute a fake. Calls are fire-and-forget
-/// and ordered, which keeps "remove, then add" atomic from the notifier's point of view.
+/// and ordered, which keeps "remove, then add" atomic from the notifier's point of view; ``flush()`` is the one way to
+/// wait for them.
 protocol NotificationCenterProviding: AnyObject {
     func authorizationStatus() async -> UNAuthorizationStatus
     func requestAuthorization() async throws -> Bool
@@ -19,6 +20,9 @@ protocol NotificationCenterProviding: AnyObject {
     func removePending(identifiers: [String])
     func removeDelivered(identifiers: [String])
     func setDelegate(_ delegate: (any UNUserNotificationCenterDelegate)?)
+    /// Returns once every call made so far has been carried out by the system (adds acknowledged, removals done). A
+    /// background action awaits it before returning, since the system may suspend the app right after.
+    func flush() async
 }
 
 /// The real center.
@@ -30,6 +34,8 @@ final class SystemNotificationCenter: NotificationCenterProviding {
     /// launch watchdog (0x8BADF00D). They run here instead: off the main thread, one at a time and in call order, so
     /// "remove, then add" keeps its order.
     private nonisolated static let queue = DispatchQueue(label: "com.ericribeiro.Workouts.notifications")
+    /// Every call enters before it is queued and leaves when the system has answered; ``flush()`` waits for it to empty.
+    private nonisolated static let pendingCalls = DispatchGroup()
 
     func authorizationStatus() async -> UNAuthorizationStatus {
         await center.notificationSettings().authorizationStatus
@@ -40,13 +46,19 @@ final class SystemNotificationCenter: NotificationCenterProviding {
     }
 
     func setCategories(_ categories: Set<UNNotificationCategory>) {
-        Self.queue.async { UNUserNotificationCenter.current().setNotificationCategories(categories) }
+        Self.pendingCalls.enter()
+        Self.queue.async {
+            UNUserNotificationCenter.current().setNotificationCategories(categories)
+            Self.pendingCalls.leave()
+        }
     }
 
     func schedule(_ request: UNNotificationRequest) {
         let identifier = request.identifier
+        Self.pendingCalls.enter()
         Self.queue.async {
             UNUserNotificationCenter.current().add(request) { error in
+                defer { Self.pendingCalls.leave() }
                 if let error {
                     Self.logger.error("Scheduling \(identifier) failed: \(error.localizedDescription)")
                 } else {
@@ -57,14 +69,24 @@ final class SystemNotificationCenter: NotificationCenterProviding {
     }
 
     func removePending(identifiers: [String]) {
+        Self.pendingCalls.enter()
         Self.queue.async {
             UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: identifiers)
+            Self.pendingCalls.leave()
         }
     }
 
     func removeDelivered(identifiers: [String]) {
+        Self.pendingCalls.enter()
         Self.queue.async {
             UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: identifiers)
+            Self.pendingCalls.leave()
+        }
+    }
+
+    func flush() async {
+        await withCheckedContinuation { continuation in
+            Self.pendingCalls.notify(queue: Self.queue) { continuation.resume() }
         }
     }
 
@@ -75,8 +97,8 @@ final class SystemNotificationCenter: NotificationCenterProviding {
 
 /// Schedules the rest-end notification (`DECISIONS.md`, "Active workout behaviour"): a `.timeSensitive` local
 /// notification at `restEndsAt` with the next set in the body and **Skip** / **+30 s** actions. In the foreground the
-/// system banner is suppressed (``willPresent`` returns `[]`); the rest ring and the resume control play the haptic
-/// themselves when the countdown reaches zero (`restEndCount`).
+/// system banner is suppressed (``willPresent`` returns `[]`); the cover's ``RestExpiryWatcher`` and the resume control
+/// play the haptic themselves when the countdown reaches zero (`restEndCount`).
 ///
 /// It is also the `UNUserNotificationCenterDelegate`, so the owner must keep it alive (the center holds it weakly).
 ///
@@ -96,6 +118,9 @@ final class RestNotifier: NSObject {
     private var didRequestAuthorization = false
     private let debounce: Duration
     private var pendingSync: Task<Void, Never>?
+    /// Awaited after a notification button's effect, to bring the rest of the app's system state (the Live Activity)
+    /// up to date before the response handler returns. The app sets it; tests may leave it nil.
+    var flushLiveActivity: (@MainActor () async -> Void)?
 
     /// `debounce` is how long the engine must stay quiet before the schedule is re-synced; tests pass `.zero` or a short
     /// value.
@@ -221,6 +246,17 @@ final class RestNotifier: NSObject {
         }
     }
 
+    /// Brings the center in step with the engine's rest plan right now, bypassing the debounce, and returns once the
+    /// system has carried the calls out. Background actions (the intents, a notification button) await it: the system
+    /// may suspend the app as soon as they return, which would leave a skipped rest's notification armed or a new
+    /// rest's unscheduled. Does not ask for permission (nothing can answer a prompt in the background).
+    func syncNow() async {
+        pendingSync?.cancel()
+        pendingSync = nil
+        if let engine { sync(plan: engine.restNotificationPlan) }
+        await center.flush()
+    }
+
     /// Syncs the latest plan, whatever it is when this runs.
     private func syncNow(_ engine: ActiveWorkoutEngine) {
         sync(plan: engine.restNotificationPlan)
@@ -247,11 +283,21 @@ final class RestNotifier: NSObject {
             if engine.workout == nil { try engine.resume() }
             switch action {
             case .skip: try engine.skipRest()
-            case .add30: try engine.adjustRest(by: RestNotificationAction.addSeconds)
+            // Restarts when the rest is over or already forgotten (a cold launch restores to idle first), as the
+            // warm path does for an over rest.
+            case .add30: try engine.extendOrRestartRest(by: RestNotificationAction.addSeconds)
             }
         } catch {
             logger.error("Rest action \(actionIdentifier) failed: \(error.localizedDescription)")
         }
+    }
+
+    /// ``handleAction(_:)``, then everything the action changed pushed to the system (this notification schedule and
+    /// the Live Activity) before returning, so the response handler's return does not outrun the side effects.
+    func respond(to actionIdentifier: String) async {
+        handleAction(actionIdentifier)
+        await syncNow()
+        await flushLiveActivity?()
     }
 
 }
@@ -261,7 +307,7 @@ extension RestNotifier: UNUserNotificationCenterDelegate {
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification
     ) async -> UNNotificationPresentationOptions {
-        // Nothing in the foreground: the rest ring plays the haptic itself.
+        // Nothing in the foreground: the cover's RestExpiryWatcher (or the resume control) plays the haptic itself.
         []
     }
 
@@ -270,6 +316,6 @@ extension RestNotifier: UNUserNotificationCenterDelegate {
         didReceive response: UNNotificationResponse
     ) async {
         let action = response.actionIdentifier
-        await MainActor.run { handleAction(action) }
+        await respond(to: action)
     }
 }

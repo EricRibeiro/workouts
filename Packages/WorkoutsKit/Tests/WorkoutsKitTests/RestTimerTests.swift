@@ -109,6 +109,39 @@ import Testing
         #expect(rest.state == .idle)
     }
 
+    @Test func extendOrRestartExtendsARunningRestLikeAdjust() throws {
+        let clock = EngineTests.Clock()
+        var rest = timer(clock)
+        try rest.start(seconds: 60)
+        clock.advance(20)
+        try rest.extendOrRestart(by: 30)
+        #expect(rest.total == 90 && rest.remaining(at: clock.date) == 70)
+        #expect(throws: RestTimerError.invalidAdjustment(45)) { try rest.extendOrRestart(by: 45) }
+        #expect(rest.total == 90)
+    }
+
+    @Test func extendOrRestartOnAnOverRestKeepsItsSet() throws {
+        let clock = EngineTests.Clock()
+        let id = UUID()
+        var rest = timer(clock)
+        try rest.start(seconds: 30, for: id)
+        clock.advance(31)
+        try rest.extendOrRestart(by: 30)
+        #expect(rest.state == .running(endsAt: clock.date.addingTimeInterval(30), total: 30, setID: id))
+    }
+
+    @Test func extendOrRestartOnAnIdleTimerStartsARestFromNow() throws {
+        let clock = EngineTests.Clock()
+        var rest = timer(clock)
+        try rest.extendOrRestart(by: 30)
+        #expect(rest.state == .running(endsAt: clock.date.addingTimeInterval(30), total: 30, setID: nil))
+        var idle = timer(clock)
+        try idle.extendOrRestart(by: -10)  // nothing to shorten
+        #expect(idle.state == .idle)
+        #expect(throws: RestTimerError.invalidAdjustment(5)) { try idle.extendOrRestart(by: 5) }
+        #expect(idle.state == .idle)
+    }
+
     @Test func skipAndTickClear() throws {
         let clock = EngineTests.Clock()
         var rest = timer(clock)
@@ -377,6 +410,30 @@ import Testing
         let restored = try #require(relaunched.workout?.exercises?.first { $0.exerciseID == LibraryFixture.squat })
         try relaunched.uncheck(try #require(sets(restored).first { $0.id == first.id }))
         #expect(relaunched.restTimer.state == .idle)
+    }
+
+    /// The cold-launch "+30 s" on the rest-over notification: the relaunch restore forgot the over rest first.
+    @Test func extendOrRestartAfterAColdRelaunchStartsARestAndPersistsIt() throws {
+        let rig = try Rig()
+        let (engine, squat, _) = try running(rig)
+        try engine.check(sets(squat)[0])
+        rig.clock.advance(600)
+        let relaunched = try rig.makeEngine()
+        #expect(relaunched.restTimer.state == .idle)
+
+        try relaunched.extendOrRestartRest(by: 30)
+
+        let endsAt = rig.clock.date.addingTimeInterval(30)
+        #expect(relaunched.restTimer.state == .running(endsAt: endsAt, total: 30, setID: nil))
+        let workout = try #require(relaunched.workout)
+        #expect(workout.restEndsAt == endsAt && workout.restSeconds == 30)
+        #expect(try rig.makeEngine().restTimer.endsAt == endsAt)
+        #expect(throws: RestTimerError.invalidAdjustment(5)) { try relaunched.extendOrRestartRest(by: 5) }
+    }
+
+    @Test func extendOrRestartThrowsWithoutAWorkout() throws {
+        let rig = try Rig()
+        #expect(throws: ActiveWorkoutError.noActiveWorkout) { try rig.makeEngine().extendOrRestartRest(by: 30) }
     }
 
     @Test func relaunchClearsAnExpiredRestAndPersistsIt() throws {

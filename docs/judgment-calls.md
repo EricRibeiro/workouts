@@ -348,3 +348,16 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
     - Editing a past workout's time clears its Fitness match so the next pass re-matches it.
     - Pull to refresh on History clears unmatched stamps first: the explicit "check again" after a later Health grant.
     - A video fetch finishing after Remove is discarded; a cellular-allowed request never waits on a Wi-Fi-only one.
+97. **Round 1, remaining fixes**:
+    - Plan and Previous match sets by kind (n-th warm-up ↔ n-th warm-up, n-th working ↔ n-th working), so adding
+      warm-ups no longer shifts the working values.
+    - A reorder that separates a superset member takes the mover out of the group (engine, template editor,
+      past-workout editor).
+    - "+30 s" from the notification or the Island starts a 30 s rest when the rest is already over or was cleared
+      on a cold launch.
+    - Background actions (Island buttons, notification actions) flush the Live Activity and notification changes
+      before returning.
+    - The rest-expiry haptic and clearing live on the logging cover, not on the toolbar ring, so they work while a
+      set is being typed.
+    - Download all videos resumes on every activation while on and retries failed fetches.
+    - An import that saved is never reported as failed.

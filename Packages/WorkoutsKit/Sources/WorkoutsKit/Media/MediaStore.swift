@@ -134,19 +134,30 @@ public actor MediaStore {
         return url
     }
 
-    /// Best-effort sequential fetch of many videos; failures and missing videos are skipped, cancellation stops early.
-    /// `progress` is called after each id with (ids handled so far, total), cached ones included.
+    /// Best-effort sequential fetch of many videos; cancellation stops early. A video the source does not have (nil) is
+    /// handled, since there is nothing to fetch; one whose fetch **threw** (offline, Wi-Fi-only on cellular) is not: its
+    /// id is returned so the caller can retry it later. `progress` is called after each id with (ids handled so far,
+    /// total), cached and missing ones included, failed ones not.
+    @discardableResult
     public func prefetch(
         sourceIDs: [String],
         scheme: MediaScheme,
         allowsCellular: Bool = true,
         progress: (@Sendable (_ done: Int, _ total: Int) -> Void)? = nil
-    ) async {
+    ) async -> [String] {
+        var failed: [String] = []
         for (offset, sourceID) in sourceIDs.enumerated() {
-            if Task.isCancelled { return }
-            _ = try? await video(for: sourceID, scheme: scheme, allowsCellular: allowsCellular)
-            progress?(offset + 1, sourceIDs.count)
+            if Task.isCancelled { return failed }
+            do {
+                _ = try await video(for: sourceID, scheme: scheme, allowsCellular: allowsCellular)
+            } catch is CancellationError {
+                return failed
+            } catch {
+                failed.append(sourceID)
+            }
+            progress?(offset + 1 - failed.count, sourceIDs.count)
         }
+        return failed
     }
 
     // MARK: Cache management

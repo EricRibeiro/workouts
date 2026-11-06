@@ -3,6 +3,7 @@
 //  Workouts
 //
 
+import OSLog
 import SwiftData
 import SwiftUI
 import WorkoutsKit
@@ -46,22 +47,61 @@ final class SettingsFlow {
         isImporting = true
         Task {
             defer { isImporting = false }
-            do {
-                let document = try await DataTransfer.readDocument(at: url)
-                let report = try DataTransfer.apply(document, to: context, catalog: catalog)
-                generation?.bump()
-                // Imported custom exercises must reach the pickers and detail screens.
-                exerciseStore?.setCustom(try context.fetch(FetchDescriptor<Exercise>()))
-                // A legitimately imported unfinished workout (no other running) shows at once, not after relaunch.
-                if engine?.workout == nil { try engine?.resume() }
-                outcome = TransferOutcome(title: report.headline, message: report.summary)
-                // Imported history needs its Fitness look-up: ask the view to run it (see `backfillRequest`).
-                backfillRequest += 1
-            } catch {
-                outcome = TransferOutcome(title: "Could Not Import", message: DataTransfer.message(for: error))
-            }
+            await performImport(
+                url,
+                context: context,
+                catalog: catalog,
+                generation: generation,
+                refresh: { try Self.refreshAfterImport(context: context, exerciseStore: exerciseStore, engine: engine) }
+            )
         }
     }
+
+    /// The import itself, then the follow-up. Only reading and applying the file decide success: once `apply` has saved,
+    /// the import happened, so a failure in `refresh` (re-reading the store for the pickers, resuming an imported
+    /// unfinished workout) is logged and noted on the alert but never reported as "Could Not Import", and the Fitness
+    /// look-up still runs.
+    func performImport(
+        _ url: URL,
+        context: ModelContext,
+        catalog: LibraryCatalog?,
+        generation: StoreGeneration?,
+        refresh: () throws -> Void
+    ) async {
+        let report: ImportReport
+        do {
+            let document = try await DataTransfer.readDocument(at: url)
+            report = try DataTransfer.apply(document, to: context, catalog: catalog)
+        } catch {
+            outcome = TransferOutcome(title: "Could Not Import", message: DataTransfer.message(for: error))
+            return
+        }
+        generation?.bump()
+        var message = report.summary
+        do {
+            try refresh()
+        } catch {
+            Self.logger.error("Refreshing after an import failed: \(error.localizedDescription)")
+            message +=
+                "\n\nThe data was imported, but the app could not refresh everything. Restart Workouts to see it all."
+        }
+        outcome = TransferOutcome(title: report.headline, message: message)
+        // Imported history needs its Fitness look-up: ask the view to run it (see `backfillRequest`).
+        backfillRequest += 1
+    }
+
+    /// Imported custom exercises must reach the pickers and detail screens, and a legitimately imported unfinished
+    /// workout (no other running) shows at once, not after relaunch.
+    private static func refreshAfterImport(
+        context: ModelContext,
+        exerciseStore: ExerciseStore?,
+        engine: ActiveWorkoutEngine?
+    ) throws {
+        exerciseStore?.setCustom(try context.fetch(FetchDescriptor<Exercise>()))
+        if engine?.workout == nil { try engine?.resume() }
+    }
+
+    private static let logger = Logger(subsystem: "com.ericribeiro.Workouts", category: "SettingsFlow")
 
     /// True while the "Turn Off Video Downloads?" alert shows.
     var isConfirmingVideoRemoval = false

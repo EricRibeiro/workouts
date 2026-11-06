@@ -1,6 +1,8 @@
+import ActivityKit
 import Foundation
 import SwiftData
 import Testing
+import UserNotifications
 import WorkoutsKit
 
 @testable import Workouts
@@ -18,7 +20,6 @@ final class ActivityIntentTests {
     let container: ModelContainer
     let store: ExerciseStore
     let engine: ActiveWorkoutEngine
-
     init() throws {
         container = try ModelContainer.workouts(inMemory: true, cloudKit: false)
         store = ExerciseStore(catalog: try LibraryCatalog.bundled(in: .main))
@@ -99,12 +100,27 @@ final class ActivityIntentTests {
         #expect(engine.restTimer.total == 60)
     }
 
-    @Test func skipAndAddWithoutARestChangeNothing() async throws {
+    @Test func skipWithoutARestChangesNothing() async throws {
         try startWorkout(on: engine)
         try await SkipRestIntent().perform()
-        try await AddRestIntent(seconds: 30).perform()
         #expect(!engine.restTimer.isActive)
         #expect(engine.workout != nil)
+    }
+
+    /// With no rest left (an over rest a cold launch already forgot), +30 starts one from now, as on a warm over rest.
+    @Test func addThirtyWithoutARestStartsOne() async throws {
+        try startWorkout(on: engine)
+        try await AddRestIntent(seconds: 30).perform()
+        #expect(engine.restTimer.endsAt == clock.date.addingTimeInterval(30))
+        #expect(engine.restTimer.total == 30)
+    }
+
+    @Test func addThirtyOnAnOverRestRestartsFromNow() async throws {
+        try startWorkout(on: engine)
+        try engine.startRest(seconds: 60)
+        clock.date = clock.date.addingTimeInterval(61)
+        try await AddRestIntent(seconds: 30).perform()
+        #expect(engine.restTimer.endsAt == clock.date.addingTimeInterval(30))
     }
 
     // MARK: Done
@@ -203,6 +219,22 @@ final class ActivityIntentTests {
         #expect(cold.restTimer.total == 120)
     }
 
+    /// The cold launch: `resume()` already forgot the over rest the button was pressed on.
+    @Test func addRestAfterAColdLaunchStartsARest() async throws {
+        try startWorkout(on: engine)
+        try engine.startRest(seconds: 60)
+        clock.date = clock.date.addingTimeInterval(600)
+        let cold = try makeEngine()
+        #expect(!cold.restTimer.isActive)
+        ActivityIntentRouter.handler = EngineActivityIntentHandler(engine: cold)
+
+        try await AddRestIntent(seconds: 30).perform()
+
+        #expect(cold.restTimer.endsAt == clock.date.addingTimeInterval(30))
+        #expect(cold.restTimer.total == 30)
+        #expect(try makeEngine().restTimer.endsAt == clock.date.addingTimeInterval(30))
+    }
+
     @Test func doneResumesThePersistedWorkoutFirst() async throws {
         let (cold, sets) = try coldHandlerEngine()
         let first = try #require(sets.first)
@@ -212,6 +244,83 @@ final class ActivityIntentTests {
         #expect(cold.workout != nil)
         #expect(first.completed)
         #expect(cold.restTimer.setID == first.id)
+    }
+
+    // MARK: Flushing side effects
+
+    /// A handler wired to fakes whose debounce is a minute: nothing the observers do on their own can land during a
+    /// test, so whatever the fakes hold after `perform()` returns was flushed by the intent.
+    private func flushingRig(for engine: ActiveWorkoutEngine) async -> (
+        center: FakeNotificationCenter, provider: FakeLiveActivityProvider
+    ) {
+        let center = FakeNotificationCenter()
+        center.status = .authorized
+        let clock = clock
+        let notifier = RestNotifier(center: center, now: { clock.date }, debounce: .seconds(60))
+        let provider = FakeLiveActivityProvider()
+        let controller = LiveActivityController(provider: provider, debounce: .seconds(60))
+        notifier.observe(engine)
+        controller.observe(engine)
+        await notifier.syncNow()
+        await controller.reconcile()
+        center.defersUntilFlush = true
+        ActivityIntentRouter.handler = EngineActivityIntentHandler(
+            engine: engine,
+            activityController: controller,
+            notifier: notifier
+        )
+        return (center, provider)
+    }
+
+    @Test func skipRemovesTheNotificationAndUpdatesTheActivityBeforeReturning() async throws {
+        try startWorkout(on: engine)
+        try engine.startRest(seconds: 90)
+        let (center, provider) = await flushingRig(for: engine)
+        let activity = try #require(provider.requested.first)
+        #expect(center.pending[RestNotificationPlan.identifier] != nil)
+        #expect(activity.contents.last?.state.restEndsAt != nil)
+
+        try await SkipRestIntent().perform()
+
+        #expect(center.pending.isEmpty)
+        #expect(activity.contents.last?.state.restEndsAt == nil)
+        #expect(center.log.contains("flush"))
+    }
+
+    @Test func doneSchedulesTheRestNotificationAndUpdatesTheActivityBeforeReturning() async throws {
+        let sets = try startWorkout(on: engine)
+        let (center, provider) = await flushingRig(for: engine)
+        let activity = try #require(provider.requested.first)
+        #expect(center.pending.isEmpty)
+
+        try await DoneSetIntent(setID: try #require(sets.first).id).perform()
+
+        let request = try #require(center.pending[RestNotificationPlan.identifier])
+        #expect((request.trigger as? UNTimeIntervalNotificationTrigger)?.timeInterval == 60)
+        #expect(activity.contents.last?.state.restEndsAt == clock.date.addingTimeInterval(60))
+    }
+
+    @Test func addRestMovesTheNotificationAndTheActivityBeforeReturning() async throws {
+        try startWorkout(on: engine)
+        try engine.startRest(seconds: 60)
+        let (center, provider) = await flushingRig(for: engine)
+        let activity = try #require(provider.requested.first)
+
+        try await AddRestIntent(seconds: 30).perform()
+
+        let request = try #require(center.pending[RestNotificationPlan.identifier])
+        #expect((request.trigger as? UNTimeIntervalNotificationTrigger)?.timeInterval == 90)
+        #expect(activity.contents.last?.state.restEndsAt == clock.date.addingTimeInterval(90))
+    }
+
+    @Test func aRefusedActionStillFlushesWhatChanged() async throws {
+        let sets = try startWorkout(on: engine)
+        let (center, _) = await flushingRig(for: engine)
+        let flushes = center.log.filter { $0 == "flush" }.count
+
+        _ = try await DoneSetIntent(setID: sets[1].id).perform()  // an empty set: refused
+
+        #expect(center.log.filter { $0 == "flush" }.count == flushes + 1)
     }
 
     @Test func intentsWithNoWorkoutAtAllDoNothing() async throws {

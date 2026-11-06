@@ -22,6 +22,10 @@ struct RootView: View {
     @Environment(ActiveWorkoutEngine.self) private var engine: ActiveWorkoutEngine?
     @Environment(SaveErrors.self) private var saveErrors: SaveErrors?
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.colorScheme) private var colorScheme
+    /// Optional so previews without the services still build; nil behaves like "videos not downloaded".
+    @Environment(SettingsStore.self) private var settings: SettingsStore?
+    @Environment(ExerciseStore.self) private var exerciseStore: ExerciseStore?
     /// Optional so previews without the services still build; nil behaves like "no Health here".
     @Environment(HealthEnrichmentService.self) private var health: HealthEnrichmentService?
     /// Whether the cover was open when the app last changed it: per device, so a relaunch can reopen it (task 2.7). A
@@ -85,7 +89,16 @@ struct RootView: View {
         .onChange(of: scenePhase, initial: true) { _, phase in
             // Inactive comes before background and before the app can be killed: write what was typed in the focused field.
             if phase != .active { commitTypedValues() }
-            guard phase == .active, let health else { return }
+            guard phase == .active else { return }
+            // "Download all videos" survives a kill or a cellular start: pick it up again (cached videos are skipped).
+            if let settings, let exerciseStore {
+                BulkVideoDownload.shared.resumeIfEnabled(
+                    settings: settings,
+                    catalog: exerciseStore.catalog,
+                    scheme: colorScheme == .dark ? .dark : .light
+                )
+            }
+            guard let health else { return }
             Task { await health.appBecameActive(context: context) }
         }
     }
