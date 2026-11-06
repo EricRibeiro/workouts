@@ -70,10 +70,6 @@ struct HistoryView: View {
                         .presentationPlacement(.center)
                 }
                 .sensoryFeedback(.success, trigger: savedTemplates)
-                .dismissSheetsOnWorkoutOpen {
-                    isCalendarPresented = false
-                    templateSource = nil
-                }
                 .searchable(text: $query, prompt: "Search workouts")
                 .searchScopes($scope, activation: .onSearchPresentation) {
                     ForEach(HistoryScope.allCases, id: \.self) { scope in

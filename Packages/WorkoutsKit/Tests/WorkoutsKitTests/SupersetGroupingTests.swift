@@ -178,4 +178,13 @@ import Testing
         #expect(ids(moved) == ["x", "a", "b", "y", "c", "d"])
         #expect(groups(moved) == [nil, 1, 1, nil, nil, nil])
     }
+
+    @Test func aGroupAlreadySplitBeforeTheMoveDoesNotHijackAnUnrelatedDrag() {
+        // a and b share a group without being adjacent (an import or a CloudKit merge).
+        let items: [Item] = [("a", 1), ("c", nil), ("b", 1), ("x", nil), ("d", nil)]
+        let moved = SupersetGrouping.reordered(items, to: ["d", "a", "c", "b", "x"], moving: ["d"])
+        #expect(ids(moved) == ["d", "a", "c", "b", "x"])
+        // The drop stands; the split group keeps its longest run (one row) and so dissolves.
+        #expect(groups(moved) == [nil, nil, nil, nil, nil])
+    }
 }

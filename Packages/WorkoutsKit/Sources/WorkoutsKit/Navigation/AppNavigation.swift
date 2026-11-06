@@ -35,10 +35,6 @@ public final class AppNavigation {
     /// resume ring keys off this, so the person always has the cover or the ring.
     public var isWorkoutCoverOnScreen = false
 
-    /// Bumped by ``openActiveWorkout()``: every screen that owns a sheet closes it when this changes, so the cover (which
-    /// cannot present over a sheet) can open.
-    public private(set) var dismissSheetsRequest = 0
-
     /// A workout is running but its cover is dismissed (DECISIONS: Minimise "dismisses the cover; the resume
     /// control restores it; a running workout survives any tab change"). Drives the ring `ToolbarItem`.
     public private(set) var isWorkoutMinimised: Bool
@@ -114,10 +110,9 @@ public final class AppNavigation {
     }
 
     /// Brings the running workout forward from outside the app (the Live Activity): Workout tab, cover presented. The
-    /// caller closes the root sheets (Settings, the finish summary) first, since a cover cannot present over a sheet; the
-    /// tabs' own sheets close on ``dismissSheetsRequest``.
+    /// caller closes the root sheets (Settings, the finish summary) first, since a cover cannot present over a sheet. A
+    /// tab's own sheet is left alone (it may hold typed input); if it blocks the cover, the resume ring covers the gap.
     public func openActiveWorkout() {
-        dismissSheetsRequest += 1
         selectedTab = .workout
         presentWorkout()
     }

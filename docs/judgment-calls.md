@@ -390,3 +390,10 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
       actually on screen.
     - The importer renumbers extreme positions, drops impossible Fitness values, never re-parents an existing row, refuses
       custom ids that collide with the library, and reports a newer file version as such.
+101. **Round 4 and the stop** (two fresh reviewers: round-3 regressions, and the screens around the workout read
+    with fresh eyes). Confirmed: one regression (closing tab sheets when the workout link opens could discard a form
+    being typed; it was added for a failure never reproduced, so it is removed and only the resume-ring safety net
+    stays), a superset-drag edge case on already-split groups, and three small screen bugs (template editor's
+    warm-up alert, History totals after a weight-type change, the picker's always-available New). Rounds found
+    27 → 19 → 13 → 5, the last mostly minor and partly self-inflicted, so the review loop stops here (diminishing
+    returns, per Eric's brief).

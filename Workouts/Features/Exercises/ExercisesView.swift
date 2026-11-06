@@ -124,7 +124,6 @@ struct ExercisesView: View {
             CustomExerciseFormView()
                 .presentationPlacement(.center)
         }
-        .dismissSheetsOnWorkoutOpen { isCreating = false }
         .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search exercises")
         .naturalLanguageSearch(text: query, includeRetired: showRetired, match: $naturalMatch)
         .task(id: fingerprint) {

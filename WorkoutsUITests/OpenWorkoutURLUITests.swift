@@ -33,10 +33,10 @@ final class OpenWorkoutURLUITests: XCTestCase {
         )
     }
 
-    /// A tab's own sheet (History's Calendar) is up when the link arrives: the sheet closes and the cover opens, instead of
-    /// leaving neither the cover nor the resume ring.
+    /// A tab's own sheet (History's Calendar) is up when the link arrives: the sheet is left alone (it may hold typed
+    /// input), and the person is never left with neither the cover nor the resume ring.
     @MainActor
-    func testWorkoutLinkClosesATabSheetAndOpensTheCover() throws {
+    func testWorkoutLinkWithATabSheetOpenLeavesTheCoverOrTheRing() throws {
         let app = XCUIApplication.launchedForTesting(["-startSampleWorkout"], waitingFor: "screen.workout", timeout: 15)
         let any = app.descendants(matching: .any)
         XCTAssertTrue(app.buttons["resume.ring"].firstMatch.waitForExistence(timeout: 10), "no minimised workout")
@@ -49,8 +49,6 @@ final class OpenWorkoutURLUITests: XCTestCase {
         let cover = any["screen.activeWorkout"].waitForExistence(timeout: 10)
         // Whatever happens to the cover, the person is never left with neither it nor the ring.
         XCTAssertTrue(cover || app.buttons["resume.ring"].firstMatch.exists, "neither the cover nor the resume ring")
-        XCTAssertTrue(cover, "workouts://workout did not open the cover over the calendar sheet")
-        XCTAssertFalse(any["screen.calendar"].exists, "the calendar sheet stayed up")
     }
 
     @MainActor

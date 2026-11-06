@@ -46,6 +46,8 @@ public nonisolated enum SupersetGrouping {
     /// - a non-member dropped inside a group's run is placed right after the run instead, so the group stays whole
     ///   (the returned order differs from `newOrder` then; callers must apply it).
     ///
+    /// A group that was already split in `old` is not repaired by parking: the drop stands and the longest run stays.
+    ///
     /// Without `moving`, an ambiguous move (several rows qualify) is read as the member leaving. When no single row
     /// explains the move, only the longest run of neighbours (earliest on a tie) stays grouped. Groups left with one
     /// member dissolve and the rest renumber 1, 2, 3 by first appearance. Ids missing from `old` are dropped.
@@ -76,9 +78,13 @@ public nonisolated enum SupersetGrouping {
                 let inside = Set(items[first...last].map(\.id)).subtracting(members)
                 mover = candidates.first(where: members.contains) ?? candidates.first(where: inside.contains)
             }
+            // Parking only repairs a run this move split: a group already split before the move (an import, a CloudKit
+            // merge) takes the drop as made and the longest run below.
+            let oldPositions = oldIDs.indices.filter { old[$0].group == group }
+            let wasContiguous = oldPositions.last.map { $0 - oldPositions[0] + 1 == oldPositions.count } ?? false
             if let mover, members.contains(mover) {
                 if let index = items.firstIndex(where: { $0.id == mover }) { items[index].group = nil }
-            } else if let mover, let from = items.firstIndex(where: { $0.id == mover }) {
+            } else if wasContiguous, let mover, let from = items.firstIndex(where: { $0.id == mover }) {
                 // A non-member sits inside the run: park it right after the run's last member.
                 let row = items.remove(at: from)
                 let end = items.lastIndex(where: { $0.group == group }) ?? items.endIndex - 1
