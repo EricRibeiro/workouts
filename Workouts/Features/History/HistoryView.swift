@@ -80,7 +80,15 @@ struct HistoryView: View {
                     destination(route)
                 }
         }
-        .task(id: Inputs(finished, generation: generation?.value ?? 0, unit: unitRaw, formula: formulaRaw)) {
+        .task(
+            id: Inputs(
+                finished,
+                generation: generation?.value ?? 0,
+                unit: unitRaw,
+                formula: formulaRaw,
+                weightTypes: store.weightTypes
+            )
+        ) {
             await refreshSummary()
         }
         .accessibilityIdentifier("screen.history")
@@ -345,7 +353,8 @@ private struct HistoryRow: View {
     }
 }
 
-/// Changes when a finished workout is added, removed or edited, or a setting that changes the numbers does, so the
+/// Changes when a finished workout is added, removed or edited, or a setting or an exercise's weight type that changes
+/// the numbers does, so the
 /// rows are recomputed then and not per render.
 private struct Inputs: Hashable {
     let ids: [UUID]
@@ -354,13 +363,16 @@ private struct Inputs: Hashable {
     let generation: Int
     let unit: String
     let formula: String
+    /// A custom exercise's weight type edit changes its volume and PRs without touching any workout.
+    let weightTypes: [UUID: WeightType]
 
-    init(_ workouts: [Workout], generation: Int, unit: String, formula: String) {
+    init(_ workouts: [Workout], generation: Int, unit: String, formula: String, weightTypes: [UUID: WeightType]) {
         ids = workouts.map(\.id)
         self.generation = generation
         newestEdit = workouts.map(\.updatedAt).max()
         self.unit = unit
         self.formula = formula
+        self.weightTypes = weightTypes
     }
 }
 

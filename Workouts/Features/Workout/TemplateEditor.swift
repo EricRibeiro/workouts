@@ -157,7 +157,7 @@ struct TemplateEditor: View {
             idPrefix: "templateEditor",
             removeMessage: "Its sets are removed from the template. Nothing is saved until you tap Save.",
             setNote: { draft.setNote($1, for: $0) },
-            addWarmups: { draft.addWarmupSets(to: $0) != 0 },
+            addWarmups: { draft.addWarmupSets(to: $0) },
             setRest: { draft.updateRestTimers($1, for: $0) },
             remove: { draft.removeExercise($0) },
             replace: { id, info in

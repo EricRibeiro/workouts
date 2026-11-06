@@ -32,9 +32,10 @@ final class AccessibilityAuditUITests: XCTestCase {
 
     /// Short single-line labels the audit reports as clipped at the default size although they render in full: the
     /// History dashboard cards' titles (`DashboardCard`), the filter pills' labels (`FilterPillRow`) and a Workout
-    /// Detail block's `Best Set` caption.
+    /// Detail block's `Best Set` caption and the exercise picker's `New Exercise` row.
     private static let shortLabels: Set<String> = [
         "Best Set", "This Week", "Recent PRs", "Last Workout", "Any Body Part", "Any Category",
+        "New Exercise",
     ]
 
     /// The sample workout's exercise names (`SampleData`), which the logging pane truncates by design.

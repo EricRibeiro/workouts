@@ -352,7 +352,8 @@ import Testing
         let working = draft.exercises[0].sets.map(\.id)
 
         // 200 lb on the Olympic bar: bar x 10, 80 x 8, 120 x 5, 160 x 3.
-        #expect(draft.addWarmupSets(to: ids[0]) == 4)
+        let applied = draft.addWarmupSets(to: ids[0])
+        #expect(applied)
         let sets = draft.exercises[0].sets
         #expect(sets.map(\.kind) == [.warmup, .warmup, .warmup, .warmup, .normal, .normal, .normal])
         #expect(sets.prefix(4).map(\.weight) == [45, 80, 120, 160])
@@ -379,7 +380,8 @@ import Testing
     @Test func addWarmupSetsWithoutAWeightDoesNothing() {
         var (draft, ids) = blocks(["Squat"])
         let before = draft
-        #expect(draft.addWarmupSets(to: ids[0]) == 0)
+        let without = draft.addWarmupSets(to: ids[0])
+        #expect(without == false)
         #expect(draft == before)
         // A warm-up set's own weight is not a working weight.
         draft.cycleKind(of: draft.exercises[0].sets[0].id)
@@ -387,6 +389,29 @@ import Testing
         let withWarmupOnly = draft
         draft.addWarmupSets(to: ids[0])
         #expect(draft == withWarmupOnly)
+    }
+
+    @Test func addWarmupSetsWithALightWeightReportsAWeightAndKeepsExistingWarmups() {
+        var (draft, ids) = blocks(["Squat"])
+        for set in draft.exercises[0].sets { draft.setWeight(200, for: set.id) }
+        let applied = draft.addWarmupSets(to: ids[0])
+        #expect(applied)
+        #expect(draft.exercises[0].sets.filter { $0.kind == .warmup }.count == 4)
+
+        // 45 lb on the 45 lb Olympic bar has an empty ramp, but it is a working weight: true, and nothing is deleted.
+        for set in draft.exercises[0].sets where set.kind != .warmup { draft.setWeight(45, for: set.id) }
+        let light = draft
+        let lightApplied = draft.addWarmupSets(to: ids[0])
+        #expect(lightApplied)
+        #expect(draft == light)
+
+        // A fresh block with a light weight also reports true and adds nothing.
+        var (fresh, freshIDs) = blocks(["Curl"])
+        for set in fresh.exercises[0].sets { fresh.setWeight(45, for: set.id) }
+        let before = fresh
+        let freshApplied = fresh.addWarmupSets(to: freshIDs[0])
+        #expect(freshApplied)
+        #expect(fresh == before)
     }
 
     @Test func updateRestTimersSetsOnlyThatBlock() {
@@ -534,7 +559,8 @@ import Testing
         let ghost = UUID()
 
         draft.setNote("x", for: ghost)
-        #expect(draft.addWarmupSets(to: ghost) == 0)
+        let onGhost = draft.addWarmupSets(to: ghost)
+        #expect(onGhost == false)
         draft.updateRestTimers(30, for: ghost)
         draft.setUnit(.kg, for: ghost)
         draft.setBar(.ez, weight: 10, for: ghost)

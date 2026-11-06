@@ -150,11 +150,45 @@ final class CustomExerciseUITests: XCTestCase {
         save.tap()
         XCTAssertFalse(any["screen.newExercise"].waitForExistence(timeout: 2))
 
-        // The new exercise is in the results and ticked; the Create row is gone.
+        // The new exercise is in the results and ticked (the New row stays: it is always available).
         let row = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'picker.row.'")).firstMatch
         XCTAssertTrue(row.waitForExistence(timeout: 5), "the new exercise is not in the results")
         XCTAssertTrue(row.label.contains("Zz Nonexistent"), "row was \(row.label)")
         XCTAssertTrue(row.isSelected, "the new exercise is not ticked")
-        XCTAssertFalse(create.exists)
+    }
+
+    @MainActor
+    func testPickerNewIsReachableWithResultsAndTicksTheNewExercise() throws {
+        let app = XCUIApplication.launchedPreview("ExercisePickerMulti", waitingFor: "screen.exercisePicker")
+        let any = app.descendants(matching: .any)
+        let rows = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'picker.row.'"))
+
+        // With the full list showing (no search), New is there.
+        let create = any["picker.createCustom"].firstMatch
+        XCTAssertTrue(create.waitForExistence(timeout: 5), "no New control with results showing")
+        XCTAssertTrue(rows.firstMatch.exists)
+
+        // And while a search has results, prefilled with the search text.
+        search(app, "squat\n")
+        XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: 5))
+        XCTAssertTrue(create.waitForExistence(timeout: 5), "no New control while a search has results")
+        create.tap()
+
+        XCTAssertTrue(any["screen.newExercise"].waitForExistence(timeout: 5))
+        let name = app.textFields["customExercise.name"].firstMatch
+        XCTAssertTrue(name.waitForExistence(timeout: 5))
+        XCTAssertEqual(name.value as? String, "squat")
+        name.tap()
+        // Rename so the new exercise sorts first and is rendered by the lazy list among the many squat results.
+        name.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 5) + "Aaa Squat Zz")
+        any["customExercise.save"].firstMatch.tap()
+        XCTAssertFalse(any["screen.newExercise"].waitForExistence(timeout: 2))
+
+        let created = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH 'picker.row.' AND label CONTAINS 'Aaa Squat Zz'")
+        )
+        .firstMatch
+        XCTAssertTrue(created.waitForExistence(timeout: 5), "the new exercise is not in the results")
+        XCTAssertTrue(created.isSelected, "the new exercise is not ticked")
     }
 }

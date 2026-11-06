@@ -213,21 +213,25 @@ public struct TemplateDraft: Equatable, Sendable {
 
     /// Add Warm-up Sets, as the logging engine does: the block's warm-up sets are replaced by the ``WarmupRamp`` for its
     /// first non-warm-up set with a weight above 0, in the block's unit and bar. The ramp sits ahead of the working sets
-    /// (kind warm-up, weight and reps filled). Without such a working weight nothing changes (existing warm-ups stay); a
-    /// working weight whose ramp is empty (45 lb on the 45 lb bar) still removes the old warm-ups. Returns the number of
-    /// warm-up sets the block now has from the ramp.
+    /// (kind warm-up, weight and reps filled).
+    ///
+    /// Returns whether the block has a working weight (the UI asks for one first when it does not), not whether any
+    /// warm-up was built. Without a working weight nothing changes. A working weight so light its ramp is empty (45 lb on
+    /// the 45 lb bar, a 5 lb dumbbell) also changes nothing: the existing warm-ups stay, since there is no ramp to
+    /// replace them with (the logging engine, which tracks completed sets, instead drops its unchecked old warm-ups).
     @discardableResult
-    public mutating func addWarmupSets(to blockID: UUID, makeID: () -> UUID = UUID.init) -> Int {
-        guard let e = index(of: blockID) else { return 0 }
+    public mutating func addWarmupSets(to blockID: UUID, makeID: () -> UUID = UUID.init) -> Bool {
+        guard let e = index(of: blockID) else { return false }
         let block = exercises[e]
         guard let weight = block.sets.first(where: { $0.kind != .warmup && ($0.weight ?? 0) > 0 })?.weight
-        else { return 0 }
+        else { return false }
         let ramp = WarmupRamp.steps(
             workingWeight: weight,
             unit: block.unit,
             barType: block.barType,
             customBarWeight: block.barWeight
         )
+        guard !ramp.isEmpty else { return true }
         let warmups = ramp.map {
             SetValues(
                 id: makeID(),
@@ -239,7 +243,7 @@ public struct TemplateDraft: Equatable, Sendable {
             )
         }
         exercises[e].sets = warmups + block.sets.filter { $0.kind != .warmup }
-        return warmups.count
+        return true
     }
 
     /// Update Rest Timers: the block's rest in seconds: 0 = Off, nil = Default (the Settings rest). The engine has no "whole

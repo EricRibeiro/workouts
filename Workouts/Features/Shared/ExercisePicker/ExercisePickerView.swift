@@ -66,9 +66,7 @@ struct ExercisePickerView: View {
                     bodyPart: $bodyPart,
                     category: $category
                 )
-                if results.isEmpty, !trimmedQuery.isEmpty {
-                    createRow
-                }
+                createRow
                 ForEach(results) { info in
                     ExercisePickerRow(
                         info: info,
@@ -142,10 +140,15 @@ struct ExercisePickerView: View {
 
     private var trimmedQuery: String { query.trimmingCharacters(in: .whitespacesAndNewlines) }
 
-    /// Shown when the search finds nothing: opens the custom exercise form with the search text as the name.
+    /// The spec's **New** control, always available: opens the custom exercise form, with the search text as the name when
+    /// there is one, and the saved exercise is ticked (multi) or picked (single). It is a list row, not a toolbar item,
+    /// because the toolbar is hidden while a search is active, which is exactly when the text to prefill exists (and on
+    /// the closed Duo the trailing strip is already full with Add and Superset). With no results it is the row to reach for,
+    /// above the "No Results" overlay (which never takes touches).
     private var createRow: some View {
-        Button("Create “\(trimmedQuery)”", systemImage: "plus.circle") { isCreating = true }
-            .accessibilityLabel("Create “\(trimmedQuery)”")
+        let label = trimmedQuery.isEmpty ? "New Exercise" : "Create “\(trimmedQuery)”"
+        return Button(label, systemImage: "plus.circle") { isCreating = true }
+            .accessibilityLabel(label)
             .accessibilityIdentifier("picker.createCustom")
     }
 
