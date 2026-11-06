@@ -4,6 +4,7 @@
 //
 
 import SwiftUI
+import WorkoutsKit
 
 /// The exercise whose info sheet is presented.
 struct ExerciseInfoItem: Identifiable {
@@ -36,6 +37,9 @@ struct ExerciseInfoSheet: View {
             ExerciseDetailView(exerciseID: exerciseID)
                 .environment(\.exerciseHeroCapped, false)
                 .environment(\.exerciseInfoSheetContent, true)
+                // A sheet over the tab shell cannot navigate it: opening a workout would switch tabs behind the sheet.
+                // Without `AppNavigation` the history sessions and records render as plain rows (as in the cover).
+                .environment(AppNavigation?.none)
                 .environment(\.onExerciseSegmentChange) { detent = .large }
                 // The closed Duo gives a sheet a vertical bar strip by default, which reserves the trailing column
                 // for one Close button. This sheet is better with the full width, so its bar stays horizontal

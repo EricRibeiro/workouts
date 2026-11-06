@@ -22,3 +22,15 @@ extension XCUIApplication {
         start.press(forDuration: 0.1, thenDragTo: end, withVelocity: .fast, thenHoldForDuration: 0)
     }
 }
+
+extension XCTestCase {
+    /// Waits until `condition` holds (evaluated on the main actor, so it may read elements); true once it does, false on timeout.
+    @MainActor @discardableResult
+    func waitUntil(timeout: TimeInterval = 5, _ condition: @escaping @MainActor () -> Bool) -> Bool {
+        let holds = XCTNSPredicateExpectation(
+            predicate: NSPredicate { _, _ in MainActor.assumeIsolated { condition() } },
+            object: nil
+        )
+        return XCTWaiter().wait(for: [holds], timeout: timeout) == .completed
+    }
+}

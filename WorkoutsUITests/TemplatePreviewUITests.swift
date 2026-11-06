@@ -68,6 +68,38 @@ final class TemplatePreviewUITests: XCTestCase {
         XCTAssertTrue(any["template.preview"].exists, "closing the info sheet returns to the preview")
     }
 
+    /// The info sheet sits over the tab shell, so its History sessions are plain rows: opening a workout would switch
+    /// tabs behind the sheet.
+    @MainActor
+    func testInfoSheetHistorySessionsDoNotNavigate() throws {
+        let app = launch("-seedSampleData")
+        let any = app.descendants(matching: .any)
+        let card = app.firstTemplateCard
+        XCTAssertTrue(card.waitForExistence(timeout: 10))
+        card.tap()
+        let about = app.buttons["template.exercise.about"].firstMatch
+        XCTAssertTrue(about.waitForExistence(timeout: 5))
+        about.tap()
+
+        let segment = app.segmentedControls["exerciseDetail.segment"]
+        XCTAssertTrue(segment.waitForExistence(timeout: 5))
+        segment.buttons["History"].tap()
+        let sessions = any.matching(
+            NSPredicate(
+                format: "identifier BEGINSWITH 'exerciseDetail.history.session.' AND NOT identifier CONTAINS '.set.'"
+            )
+        )
+        XCTAssertTrue(
+            sessions.firstMatch.waitForExistence(timeout: 5),
+            "no session of this exercise in the sample data"
+        )
+        XCTAssertFalse(
+            app.buttons.matching(NSPredicate(format: "identifier ENDSWITH '.open'")).firstMatch.exists,
+            "a session header in the info sheet is a navigation button"
+        )
+        XCTAssertTrue(any["screen.exerciseDetail"].exists, "the info sheet is still up")
+    }
+
     @MainActor
     func testEmptyWorkoutWhileOneRunsAsksAndResumes() throws {
         let app = launch("-startSampleWorkout")

@@ -354,6 +354,60 @@ import Testing
         #expect(squat[1].weight == 100 && squat[1].reps == 5)
     }
 
+    @Test func isTimedFollowsDurationsPreviousAndPlanAndStaysOnce() throws {
+        let rig = try Rig()
+        let template = Template(name: "Core")
+        rig.context.insert(template)
+        let planned = TemplateExercise(
+            exerciseID: LibraryFixture.squat,
+            exerciseName: "Plank",
+            position: 0,
+            supersetGroup: nil,
+            note: "",
+            restSeconds: nil,
+            unit: .kg
+        )
+        rig.context.insert(planned)
+        planned.template = template
+        let plannedSet = TemplateSet(position: 0, kind: .normal, weight: nil, reps: nil, durationSeconds: 60)
+        rig.context.insert(plannedSet)
+        plannedSet.templateExercise = planned
+        let repsRow = TemplateExercise(
+            exerciseID: LibraryFixture.curl,
+            exerciseName: "Curl",
+            position: 1,
+            supersetGroup: nil,
+            note: "",
+            restSeconds: nil,
+            unit: .kg
+        )
+        rig.context.insert(repsRow)
+        repsRow.template = template
+        let repsSet = TemplateSet(position: 0, kind: .normal, weight: 10, reps: 10)
+        rig.context.insert(repsSet)
+        repsSet.templateExercise = repsRow
+        try rig.context.save()
+
+        let engine = try rig.makeEngine()
+        let workout = try engine.start(from: template)
+        let plank = rows(workout)[0]
+        let curl = rows(workout)[1]
+        // The plan alone makes the first row timed; the second stays reps.
+        #expect(engine.isTimed(plank))
+        #expect(!engine.isTimed(curl))
+        // Clearing the only duration (after one was typed) does not flip the row back.
+        let set = sets(plank)[0]
+        try engine.setValues(set, weight: nil, reps: nil, durationSeconds: 45)
+        try engine.setValues(set, weight: nil, reps: nil, durationSeconds: nil)
+        #expect(engine.isTimed(plank))
+        // A duration typed into a reps row with no plan or Previous duration makes it timed for good.
+        let curlSet = sets(curl)[0]
+        try engine.setValues(curlSet, weight: nil, reps: nil, durationSeconds: 30)
+        #expect(engine.isTimed(curl))
+        try engine.setValues(curlSet, weight: nil, reps: nil, durationSeconds: nil)
+        #expect(engine.isTimed(curl))
+    }
+
     // MARK: Previous
 
     @Test func previousIsTheSameIndexOfTheMostRecentFinishedWorkout() throws {

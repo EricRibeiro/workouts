@@ -70,7 +70,14 @@ final class NaturalSearchUITests: XCTestCase {
         let rows = rows(app)
         let first = rows.element(boundBy: 0)
         XCTAssertTrue(first.waitForExistence(timeout: 5))
-        sleep(1)  // past the debounce, so a wrongly triggered parse would have landed
+        // Nothing on screen marks a parse in flight, so watch for the leak itself for a bit past the debounce (400 ms): it
+        // fails the moment a non-"bench" row appears and otherwise passes once the window closes.
+        let leaked = waitUntil(timeout: 1) {
+            (0..<min(rows.count, 6)).contains {
+                !rows.element(boundBy: $0).label.localizedCaseInsensitiveContains("bench")
+            }
+        }
+        XCTAssertFalse(leaked, "a plain match was replaced by parsed results")
         let count = rows.count
         XCTAssertGreaterThan(count, 0)
         for index in 0..<min(count, 6) {

@@ -31,6 +31,8 @@ public final class ActiveWorkoutEngine {
     /// Typed values (``setValues(_:weight:reps:durationSeconds:)``) that are in the models but not yet saved, by set id.
     /// Cleared by every successful save; re-applied after a rollback so a failed structural edit cannot eat them.
     @ObservationIgnored var pendingEdits: [UUID: PendingValues] = [:]
+    /// Workout exercises (by id) already decided to be timed; see ``isTimed(_:)``.
+    @ObservationIgnored var timedExercises: Set<UUID> = []
 
     /// Creates the engine and resumes the in-progress workout, if the store has one (relaunch).
     public init(
@@ -270,6 +272,21 @@ public final class ActiveWorkoutEngine {
             reps: value.reps,
             durationSeconds: value.durationSeconds
         )
+    }
+
+    /// Whether `row` records a duration instead of reps: any of its sets has one, or the Previous or the template plan
+    /// behind a set has one (a plank planned at 60 s with no history is already timed).
+    ///
+    /// Once true it stays true for the life of the engine, like `TemplateDraft.isTimed` is fixed at row creation:
+    /// clearing the only set that has a duration must not turn the column back into reps mid-edit.
+    public func isTimed(_ row: WorkoutExercise) -> Bool {
+        if timedExercises.contains(row.id) { return true }
+        let timed = sortedSets(of: row).contains {
+            $0.durationSeconds != nil || previous(for: $0)?.durationSeconds != nil
+                || plan(for: $0)?.durationSeconds != nil
+        }
+        if timed { timedExercises.insert(row.id) }
+        return timed
     }
 
     // MARK: - Exercises

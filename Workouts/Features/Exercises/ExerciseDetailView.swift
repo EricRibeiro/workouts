@@ -84,7 +84,15 @@ struct ExerciseDetailView: View {
                 CustomExerciseFormView(editing: exerciseID, onRemoved: { removals += 1 })
                     .presentationPlacement(.center)
             }
-            .task(id: Fingerprint(rows, generation: generation?.value ?? 0, unit: unit, formula: options.formula)) {
+            .task(
+                id: Fingerprint(
+                    rows,
+                    generation: generation?.value ?? 0,
+                    unit: unit,
+                    formula: options.formula,
+                    weightType: info.weightType
+                )
+            ) {
                 let found = ExerciseBestSets.sessions(forRows: rows, weightType: info.weightType)
                 sessions = found
                 records = WorkoutsKit.records(found, weightType: info.weightType, options: options)
@@ -226,7 +234,8 @@ private struct DetailChrome: ViewModifier {
     }
 }
 
-/// Changes when a finished workout with this exercise is added, removed or edited, or the display unit or formula changes.
+/// Changes when a finished workout with this exercise is added, removed or edited, or the display unit, the formula or
+/// the exercise's weight type (a custom exercise's edit) changes.
 private struct Fingerprint: Hashable {
     let count: Int
     let newestEdit: Date?
@@ -234,14 +243,16 @@ private struct Fingerprint: Hashable {
     let generation: Int
     let unit: WeightUnit
     let formula: E1RMFormula
+    let weightType: WeightType
 
-    init(_ rows: [WorkoutExercise], generation: Int, unit: WeightUnit, formula: E1RMFormula) {
+    init(_ rows: [WorkoutExercise], generation: Int, unit: WeightUnit, formula: E1RMFormula, weightType: WeightType) {
         count = rows.count
         self.generation = generation
         // A row's own stamp, or its workout's (a rename or a date change stamps only the workout).
         newestEdit = rows.flatMap { [$0.updatedAt, $0.workout?.updatedAt] }.compactMap { $0 }.max()
         self.unit = unit
         self.formula = formula
+        self.weightType = weightType
     }
 }
 

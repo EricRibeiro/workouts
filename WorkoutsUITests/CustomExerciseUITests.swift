@@ -82,6 +82,54 @@ final class CustomExerciseUITests: XCTestCase {
         XCTAssertFalse(row.waitForExistence(timeout: 2), "the deleted exercise is still listed")
     }
 
+    /// Editing a custom exercise's weight type refreshes its open detail: the chart offers the new type's metrics and
+    /// selects one of them, instead of keeping the old type's metric with no chip selected.
+    @MainActor
+    func testChangingWeightTypeUpdatesTheChartMetrics() throws {
+        let app = XCUIApplication.launchedPreview("Exercises", waitingFor: "screen.exercises")
+        let any = app.descendants(matching: .any)
+
+        any["exercises.new"].firstMatch.tap()
+        let name = app.textFields["customExercise.name"].firstMatch
+        XCTAssertTrue(name.waitForExistence(timeout: 5))
+        name.tap()
+        name.typeText("Zz Type Curl")
+        any["customExercise.save"].firstMatch.tap()
+        XCTAssertFalse(any["screen.newExercise"].waitForExistence(timeout: 2))
+
+        search(app, "Zz Type Curl\n")
+        let row = any.matching(
+            NSPredicate(format: "identifier BEGINSWITH 'exercises.row.' AND label BEGINSWITH 'Zz Type Curl'")
+        )
+        .firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        row.tap()
+        let segment = app.segmentedControls["exerciseDetail.segment"]
+        XCTAssertTrue(segment.waitForExistence(timeout: 5))
+        segment.buttons["Charts"].tap()
+        let est1RM = app.buttons["exerciseDetail.chart.metric.e1rm"].firstMatch
+        XCTAssertTrue(est1RM.waitForExistence(timeout: 5))
+        XCTAssertTrue(est1RM.isSelected, "Weight and reps starts on Est. 1RM")
+
+        let edit = any["exerciseDetail.edit"].firstMatch
+        XCTAssertTrue(edit.waitForExistence(timeout: 5))
+        edit.tap()
+        XCTAssertTrue(any["screen.editExercise"].waitForExistence(timeout: 5))
+        let weightType = any["customExercise.weightType"].firstMatch
+        XCTAssertTrue(weightType.waitForExistence(timeout: 5))
+        weightType.tap()
+        let assisted = app.buttons["Assisted bodyweight (less is better)"].firstMatch
+        XCTAssertTrue(assisted.waitForExistence(timeout: 5))
+        assisted.tap()
+        any["customExercise.save"].firstMatch.tap()
+        XCTAssertFalse(any["screen.editExercise"].waitForExistence(timeout: 2))
+
+        let leastAssistance = app.buttons["exerciseDetail.chart.metric.maxWeight"].firstMatch
+        XCTAssertTrue(leastAssistance.waitForExistence(timeout: 5))
+        XCTAssertFalse(est1RM.exists, "Est. 1RM is not offered for an assisted exercise")
+        XCTAssertTrue(leastAssistance.isSelected, "the chart did not move to a metric the new type offers")
+    }
+
     @MainActor
     func testPickerCreateTicksTheNewExercise() throws {
         let app = XCUIApplication.launchedPreview("ExercisePickerMulti", waitingFor: "screen.exercisePicker")

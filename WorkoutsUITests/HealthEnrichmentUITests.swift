@@ -3,206 +3,27 @@ import XCTest
 /// The opt-in Fitness enrichment wired into the app (PLAN 7.1b e3b): off by default; the Settings toggle turns it on, a
 /// finished workout then picks up the canned Fitness workout from `-healthFixture full` (its History row then shows the
 /// active calories: the row's label says "N active calories", the text on screen "N kcal"); turning it off can remove what
-/// was added. Nothing here touches the real
-/// Health store: plain `-uiTesting` has no source at all.
+/// was added. Nothing here touches the real Health store: plain `-uiTesting` has no source at all. Shared helpers:
+/// `Support/XCTestCase+HealthEnrichment.swift`.
+///
+/// This suite: the defaults (off, no lookup, the Settings section only where Health is available).
 final class HealthEnrichmentUITests: XCTestCase {
     override func setUpWithError() throws {
         continueAfterFailure = false
     }
 
-    /// Launches with a running (minimised) sample workout and the full Health fixture.
-    @MainActor
-    private func launchWithRunningWorkout() -> XCUIApplication {
-        let app = XCUIApplication.launchedForTesting(["-healthFixture", "full", "-startSampleWorkout"])
-        return app
-    }
-
-    /// The Settings sheet from the Workout tab's gear; `body` runs while it is up, then Done closes it.
-    @MainActor
-    private func inSettings(_ app: XCUIApplication, _ body: () -> Void) {
-        let gear = app.anyControl("toolbar.settings")
-        XCTAssertTrue(gear.waitForExistence(timeout: 15), "no settings button")
-        gear.tap()
-        XCTAssertTrue(app.descendants(matching: .any)["screen.settings"].waitForExistence(timeout: 10))
-        body()
-        let done = app.anyControl("settings.done")
-        XCTAssertTrue(done.waitForExistence(timeout: 5))
-        done.tap()
-        XCTAssertTrue(app.descendants(matching: .any)["screen.settings"].waitForNonExistence(timeout: 10))
-    }
-
-    /// The Apple Fitness toggle, scrolled into view.
-    @MainActor
-    private func fitnessToggle(_ app: XCUIApplication) -> XCUIElement {
-        let toggle = app.switches["settings.health.enabled"]
-        for _ in 0..<5 where !toggle.exists || !toggle.isHittable {
-            app.swipeUp()
-        }
-        XCTAssertTrue(toggle.waitForExistence(timeout: 5), "no Apple Fitness toggle")
-        return toggle
-    }
-
-    /// Taps the switch itself (near the right end of the row), not the label beside it.
-    @MainActor
-    private func flip(_ toggle: XCUIElement) {
-        toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.86, dy: 0.5)).tap()
-    }
-
-    /// The switch settles on `value` ("1" on, "0" off) within a few seconds.
-    @MainActor
-    private func expectValue(_ toggle: XCUIElement, _ value: String, line: UInt = #line) {
-        let deadline = Date.now.addingTimeInterval(4)
-        while Date.now < deadline, toggle.value as? String != value { usleep(200_000) }
-        XCTAssertEqual(toggle.value as? String, value, "\(toggle.debugDescription)", line: line)
-    }
-
-    /// Reopens the running workout, checks one set and finishes it, then dismisses the summary.
-    @MainActor
-    private func finishWorkout(_ app: XCUIApplication) {
-        let any = app.descendants(matching: .any)
-        let ring = app.buttons["resume.ring"].firstMatch
-        XCTAssertTrue(ring.waitForExistence(timeout: 10), "no resume ring")
-        ring.tap()
-        XCTAssertTrue(any["screen.activeWorkout"].waitForExistence(timeout: 15))
-
-        // Check one set, then finish: the unchecked sets have no values, so the lighter dialog asks to finish.
-        let check = app.switches.matching(
-            NSPredicate(format: "identifier BEGINSWITH 'setrow.' AND identifier ENDSWITH '.check'")
-        ).element(boundBy: 0)
-        XCTAssertTrue(check.waitForExistence(timeout: 10))
-        check.tap()
-        let finish = app.anyControl("cover.finish")
-        XCTAssertTrue(finish.waitForExistence(timeout: 10))
-        finish.tap()
-        let confirm = app.buttons["finish.finish"].firstMatch
-        XCTAssertTrue(confirm.waitForExistence(timeout: 5), "finish confirmation missing")
-        confirm.tap()
-
-        XCTAssertTrue(any["screen.finishSummary"].waitForExistence(timeout: 10), "finish summary missing")
-        let done = app.buttons["summary.done"].firstMatch
-        XCTAssertTrue(done.waitForExistence(timeout: 5))
-        done.tap()
-        XCTAssertTrue(any["screen.finishSummary"].waitForNonExistence(timeout: 10))
-        // The workout came from a template and ended differently, so "Update Template?" follows the summary.
-        let keepTemplate = app.buttons["updateTemplate.keep"].firstMatch
-        if keepTemplate.waitForExistence(timeout: 3) { keepTemplate.tap() }
-    }
-
-    /// A History row matching `format`, scrolling past the dashboard cards (the list is lazy, so rows below do not exist yet).
-    @MainActor
-    private func historyRow(_ app: XCUIApplication, _ format: String, timeout: TimeInterval = 10) -> XCUIElement {
-        let row = app.descendants(matching: .any).matching(NSPredicate(format: format)).firstMatch
-        if row.waitForExistence(timeout: timeout) { return row }
-        for _ in 0..<8 where !row.exists { app.swipeUp() }
-        return row
-    }
-
-    @MainActor
-    private func fitnessRow(_ app: XCUIApplication, timeout: TimeInterval = 10) -> XCUIElement {
-        historyRow(app, "identifier BEGINSWITH 'history.row.' AND label CONTAINS 'active calories'", timeout: timeout)
-    }
-
-    @MainActor
-    private func anyRow(_ app: XCUIApplication) -> XCUIElement {
-        historyRow(app, "identifier BEGINSWITH 'history.row.'")
-    }
-
     @MainActor
     func testOffByDefaultNothingIsAdded() throws {
-        let app = launchWithRunningWorkout()
-        inSettings(app) {
-            XCTAssertEqual(fitnessToggle(app).value as? String, "0")
+        let app = healthLaunchWithRunningWorkout()
+        healthInSettings(app) {
+            XCTAssertEqual(healthFitnessToggle(app).value as? String, "0")
         }
-        finishWorkout(app)
+        healthFinishWorkout(app)
         app.selectTab("tab.history", label: "History")
-        XCTAssertTrue(anyRow(app).exists, "the finished workout is missing from History")
-        // Give a (wrongly) triggered lookup time to land before asserting its absence.
-        sleep(3)
-        XCTAssertFalse(fitnessRow(app, timeout: 3).exists, "Fitness data was added while the setting is off")
-    }
-
-    @MainActor
-    func testTurningOnThenFinishingAddsFitnessAndRemoveClearsIt() throws {
-        let app = launchWithRunningWorkout()
-        inSettings(app) {
-            let toggle = fitnessToggle(app)
-            flip(toggle)
-            expectValue(toggle, "1")
-        }
-        finishWorkout(app)
-        app.selectTab("tab.history", label: "History")
-        XCTAssertTrue(fitnessRow(app).exists, "the finished workout never got its Fitness data")
-
-        // Off, then Cancel: stays on and keeps the data.
-        app.selectTab("tab.workout", label: "Workout")
-        inSettings(app) {
-            let toggle = fitnessToggle(app)
-            flip(toggle)
-            XCTAssertTrue(app.alerts["Turn Off Apple Fitness?"].waitForExistence(timeout: 5))
-            app.alerts.buttons["Cancel"].firstMatch.tap()
-            XCTAssertTrue(app.alerts["Turn Off Apple Fitness?"].waitForNonExistence(timeout: 5))
-            expectValue(toggle, "1")
-        }
-
-        // Off, then Remove: the data goes.
-        inSettings(app) {
-            let toggle = fitnessToggle(app)
-            flip(toggle)
-            XCTAssertTrue(app.alerts["Turn Off Apple Fitness?"].waitForExistence(timeout: 5))
-            app.alerts.buttons["settings.health.remove"].firstMatch.tap()
-            XCTAssertTrue(app.alerts["Turn Off Apple Fitness?"].waitForNonExistence(timeout: 5))
-            expectValue(toggle, "0")
-        }
-        app.selectTab("tab.history", label: "History")
-        XCTAssertTrue(anyRow(app).exists)
-        XCTAssertFalse(fitnessRow(app, timeout: 3).exists, "Remove Fitness Data left the data in place")
-    }
-
-    @MainActor
-    func testTurningOffAndKeepingLeavesTheData() throws {
-        let app = launchWithRunningWorkout()
-        inSettings(app) { flip(fitnessToggle(app)) }
-        finishWorkout(app)
-        app.selectTab("tab.history", label: "History")
-        XCTAssertTrue(fitnessRow(app).exists)
-
-        app.selectTab("tab.workout", label: "Workout")
-        inSettings(app) {
-            let toggle = fitnessToggle(app)
-            flip(toggle)
-            XCTAssertTrue(app.alerts["Turn Off Apple Fitness?"].waitForExistence(timeout: 5))
-            app.alerts.buttons["settings.health.keep"].firstMatch.tap()
-            expectValue(toggle, "0")
-        }
-        app.selectTab("tab.history", label: "History")
-        XCTAssertTrue(fitnessRow(app).exists, "Keep Fitness Data dropped the data")
-    }
-
-    /// PLAN 7.1b g: a workout that finished 30 days ago (past the routine lookup's 7-day give-up) gets its Fitness data when
-    /// the toggle goes on, through the one-time backfill. The row's label then says "N active calories".
-    @MainActor
-    func testTurningOnBackfillsAnOldWorkout() throws {
-        let app = XCUIApplication.launchedForTesting(["-healthFixture", "full", "-seedOldWorkout"])
-
-        app.selectTab("tab.history", label: "History")
-        let oldRow = "identifier BEGINSWITH 'history.row.' AND label BEGINSWITH 'Old Backfill Workout'"
-        XCTAssertTrue(historyRow(app, oldRow).exists, "the seeded old workout is missing from History")
-        XCTAssertFalse(
-            historyRow(app, oldRow + " AND label CONTAINS 'active calories'", timeout: 2).exists,
-            "the old workout had Fitness data before the toggle went on"
-        )
-
-        app.selectTab("tab.workout", label: "Workout")
-        inSettings(app) {
-            let toggle = fitnessToggle(app)
-            flip(toggle)
-            expectValue(toggle, "1")
-        }
-        app.selectTab("tab.history", label: "History")
-        XCTAssertTrue(
-            historyRow(app, oldRow + " AND label CONTAINS 'active calories'", timeout: 15).exists,
-            "the backfill never gave the old workout its Fitness data"
-        )
+        XCTAssertTrue(healthAnyRow(app).exists, "the finished workout is missing from History")
+        // Nothing on screen says "the lookup finished", so absence is a bounded wait: a (wrongly) triggered lookup has this long
+        // to put its calories on the row.
+        XCTAssertFalse(healthFitnessRow(app, timeout: 5).exists, "Fitness data was added while the setting is off")
     }
 
     @MainActor

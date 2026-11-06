@@ -62,6 +62,11 @@ struct ExerciseChartsView: View {
                 .detailCardStyle()
             }
         }
+        // A custom exercise's weight type can change while this view lives: keep the metric among the offered ones.
+        .onChange(of: weightType) {
+            let offered = ChartMetric.available(for: category)
+            if !offered.contains(metric) { metric = offered[0] }
+        }
         .onChange(of: metric) { selectedDate = nil }
         .onChange(of: range) { selectedDate = nil }
     }

@@ -164,7 +164,8 @@ struct ExercisesView: View {
         Fingerprint(
             history: FinishedWorkoutsStamp(newestEdit: newest.first?.updatedAt, generation: generation?.value ?? 0),
             unit: unitRaw,
-            formula: formulaRaw
+            formula: formulaRaw,
+            weightTypes: store.weightTypes
         )
     }
 
@@ -173,7 +174,7 @@ struct ExercisesView: View {
     }
 }
 
-/// Changes when a finished workout is added, removed or edited, or a setting that changes the numbers does, so the best
+/// Changes when a finished workout is added, removed or edited, or a setting or an exercise's weight type that changes the numbers does, so the best
 /// sets are recomputed then and not per render. Built from the newest `updatedAt` and the `StoreGeneration` so no
 /// per-workout read runs per body evaluation; every editor stamps `updatedAt` (`PastWorkoutDraft.apply`, the engine's
 /// finish) and the bulk writes (import, delete) bump the generation.
@@ -181,6 +182,8 @@ private struct Fingerprint: Hashable {
     let history: FinishedWorkoutsStamp
     let unit: String
     let formula: String
+    /// A custom exercise's weight type edit changes what its best set is.
+    let weightTypes: [UUID: WeightType]
 }
 
 #if DEBUG

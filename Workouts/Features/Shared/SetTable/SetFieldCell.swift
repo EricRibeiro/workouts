@@ -27,6 +27,10 @@ struct SetFieldCell: View {
     @State private var text = ""
     @State private var selection: TextSelection?
     @ScaledMetric(relativeTo: .body) private var minHeight = 40.0
+    /// The width the cell asks for when `SetRow`'s `ViewThatFits` measures it. Fixed (it scales with Dynamic Type only), so the
+    /// one-line or two-line choice cannot follow what is typed: a text-sized ideal width flipped the branch mid-typing,
+    /// rebuilt the field and dropped focus. The cell still grows to fill the row.
+    @ScaledMetric(relativeTo: .body) private var idealWidth = 56.0
 
     private var isFocused: Bool { focus.wrappedValue == field }
 
@@ -47,7 +51,7 @@ struct SetFieldCell: View {
         .multilineTextAlignment(.center)
         .font(.body.monospacedDigit())
         .lineLimit(1)
-        .frame(maxWidth: .infinity, minHeight: minHeight)
+        .frame(idealWidth: idealWidth, maxWidth: .infinity, minHeight: minHeight)
         .background(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(fill)

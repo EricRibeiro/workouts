@@ -43,11 +43,8 @@ final class SetTableUITests: XCTestCase {
         addSet.tap()
         // The table is lazy: the new row can push the next block's first row out of the tree (a sticky note under the
         // first name does that), so look for the new row rather than for one more row.
-        let deadline = Date().addingTimeInterval(5)
-        while Date() < deadline,
-            !checks.allElementsBoundByIndex.contains(where: { !knownChecks.contains($0.identifier) })
-        {
-            Thread.sleep(forTimeInterval: 0.2)
+        waitUntil(timeout: 5) {
+            checks.allElementsBoundByIndex.contains(where: { !knownChecks.contains($0.identifier) })
         }
 
         // Checking the new, empty row is refused: nothing to record, so it stays "Not done".
@@ -76,12 +73,8 @@ final class SetTableUITests: XCTestCase {
         XCTAssertEqual(checks.count, initialCount)
     }
 
+    @MainActor
     private func waitForCount(_ query: XCUIElementQuery, _ count: Int) -> Bool {
-        let deadline = Date().addingTimeInterval(5)
-        while Date() < deadline {
-            if query.count == count { return true }
-            Thread.sleep(forTimeInterval: 0.2)
-        }
-        return false
+        waitUntil(timeout: 5) { query.count == count }
     }
 }

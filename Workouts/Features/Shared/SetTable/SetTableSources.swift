@@ -29,11 +29,7 @@ struct EngineSetTableSource: SetTableDataSource {
         exercises.map { row in
             let sets = sorted(row.sets)
             let weightType = store.exercise(id: row.exerciseID)?.weightType ?? .weighted
-            let timed =
-                sets.contains { $0.durationSeconds != nil }
-                || sets.contains {
-                    engine.previous(for: $0)?.durationSeconds != nil
-                }
+            let timed = engine.isTimed(row)
             return SetTableSection(
                 id: row.id,
                 exerciseID: row.exerciseID,
@@ -101,7 +97,7 @@ struct EngineSetTableSource: SetTableDataSource {
 
     func commitReps(_ value: Int?, for setID: UUID) {
         guard let set = set(setID), let row = set.workoutExercise else { return }
-        let timed = set.durationSeconds != nil || isTimed(row)
+        let timed = engine.isTimed(row)
         perform {
             try engine.setValues(
                 set,
@@ -163,15 +159,6 @@ struct EngineSetTableSource: SetTableDataSource {
 
     private func set(_ id: UUID) -> WorkoutSet? {
         exercises.lazy.flatMap { $0.sets ?? [] }.first { $0.id == id }
-    }
-
-    /// An exercise is timed when any of its sets, or the Previous behind them, recorded a duration.
-    private func isTimed(_ row: WorkoutExercise) -> Bool {
-        let sets = sorted(row.sets)
-        return sets.contains { $0.durationSeconds != nil }
-            || sets.contains {
-                engine.previous(for: $0)?.durationSeconds != nil
-            }
     }
 }
 

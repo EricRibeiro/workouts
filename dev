@@ -204,7 +204,7 @@ run_tests() { # run_tests <name> <target> [filter]
   mkdir -p "$RESULTS"
   find "$RESULTS" -maxdepth 1 -name '*.xcresult' ! -name 'latest-*' -mmin +240 -exec rm -rf {} + 2>/dev/null || true
   # No parallel testing: it boots a fresh "Clone N of iPhone Duo" per run, and a fresh clone crashed PosterBoard.
-  run_logged "$name" xcb test -parallel-testing-enabled NO -enableCodeCoverage YES -only-testing:"$only" -resultBundlePath "$bundle" || rc=$?
+  run_logged "$name" xcb test -parallel-testing-enabled NO -enableCodeCoverage YES -collect-test-diagnostics on-failure -only-testing:"$only" -resultBundlePath "$bundle" || rc=$?
   # Xcode infrastructure flake (no test ran): retry once, never for a real test failure.
   if ((rc != 0)) && xcrun xcresulttool get test-results summary --path "$bundle" --compact 2>/dev/null |
     grep -q 'hung before establishing connection'; then
@@ -212,7 +212,7 @@ run_tests() { # run_tests <name> <target> [filter]
     echo "dev: test runner hung before connecting; rebooting the simulator and retrying once" >&2
     xcrun simctl shutdown "$SIM_UDID" >/dev/null 2>&1 || true
     rm -rf "$bundle"; rc=0
-    run_logged "$name" xcb test -parallel-testing-enabled NO -enableCodeCoverage YES -only-testing:"$only" -resultBundlePath "$bundle" || rc=$?
+    run_logged "$name" xcb test -parallel-testing-enabled NO -enableCodeCoverage YES -collect-test-diagnostics on-failure -only-testing:"$only" -resultBundlePath "$bundle" || rc=$?
   fi
   if ((rc != 0)); then
     report_failures "$bundle"
@@ -353,7 +353,7 @@ ui_shard_retry() { # ui_shard_retry <index> <udid> <xctestrun> <bundle>
   done
   rm -rf "$retry"
   run_logged "ui-test-shard$idx-retry" xcodebuild test-without-building -xctestrun "$xr" \
-    -destination "platform=iOS Simulator,id=$udid" -parallel-testing-enabled NO -enableCodeCoverage YES "${only[@]}" \
+    -destination "platform=iOS Simulator,id=$udid" -parallel-testing-enabled NO -enableCodeCoverage YES -collect-test-diagnostics on-failure "${only[@]}" \
     -resultBundlePath "$retry" -quiet >/dev/null 2>&1 || rrc=$?
   json=$(xcrun xcresulttool get test-results summary --path "$retry" --compact 2>/dev/null) || return 1
   ((rrc == 0)) || return 1
@@ -369,7 +369,7 @@ ui_shard() { # ui_shard <index> <udid> <xctestrun> <suite...>; runs in a backgro
   for attempt in 1 2; do
     rm -rf "$bundle"; rc=0
     run_logged "ui-test-shard$idx" xcodebuild test-without-building -xctestrun "$xr" \
-      -destination "platform=iOS Simulator,id=$udid" -parallel-testing-enabled NO -enableCodeCoverage YES \
+      -destination "platform=iOS Simulator,id=$udid" -parallel-testing-enabled NO -enableCodeCoverage YES -collect-test-diagnostics on-failure \
       "${only[@]}" -resultBundlePath "$bundle" -quiet >/dev/null 2>&1 || rc=$?
     # Xcode infrastructure flake (no test ran): retry once on a cold boot, as run_tests does.
     ((rc != 0 && attempt == 1)) || break
