@@ -5,7 +5,9 @@
 //  Created by Eric Ribeiro on 2026-11-03.
 //
 
+import AVFAudio
 import ActivityKit
+import OSLog
 import SwiftData
 import SwiftUI
 import WorkoutsKit
@@ -35,6 +37,7 @@ struct WorkoutsApp: App {
 
     @MainActor
     init() {
+        Self.mixWithOtherAudio()
         #if DEBUG
             // UI tests start from default settings too (the store is in-memory, see makeContainer): earlier runs' taps
             // otherwise persist in UserDefaults. Launch arguments still override through the argument domain.
@@ -228,4 +231,17 @@ struct WorkoutsApp: App {
             try engine.startRest(seconds: seconds > 0 ? seconds : 300)
         }
     #endif
+}
+
+extension WorkoutsApp {
+    /// Exercise videos are silent loops. Under the default `.soloAmbient` category any playing `AVPlayer` interrupts the
+    /// person's music or podcast; `.ambient` + `.mixWithOthers` plays alongside it and still respects the silent switch.
+    fileprivate static func mixWithOtherAudio() {
+        do {
+            try AVAudioSession.sharedInstance().setCategory(.ambient, options: [.mixWithOthers])
+        } catch {
+            Logger(subsystem: "com.ericribeiro.Workouts", category: "Audio")
+                .error("Could not set the ambient audio category: \(error.localizedDescription, privacy: .public)")
+        }
+    }
 }
