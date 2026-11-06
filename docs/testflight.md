@@ -33,3 +33,4 @@ Builds uploaded with `./dev testflight --upload` (cadence: AGENTS.md "TestFlight
 | 202611060122 | 6580187 | Out of band (Eric, gate skipped; last full UI run 91/93, both failures fixed since): quality-review fixes, 1:00 default rest, appearance setting, exercise video card + full-width info sheet without ✕, Tools/duo |
 | 202611060155 | f0c3a0e | Out of band (Eric, gate skipped): exercise videos mix with other audio (no more pausing music) |
 | 202611060253 | 652ff32 | Gated (sharded full UI run, 16 min, no flaky): self-maintaining simulator pool, sharded UI suite, audit stability fixes (tooling + tests; app unchanged since 202611060155) |
+| 202611060339 | 9dda747 | Gated (full UI run 93 passed, 4 skipped; 1 shard under load): the workout strip shows only Minimise and Finish while a set is being edited |
