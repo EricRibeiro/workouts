@@ -20,6 +20,8 @@ struct HistoryView: View {
     @Environment(StoreGeneration.self) private var generation: StoreGeneration?
     @Environment(SaveErrors.self) private var saveErrors: SaveErrors?
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    /// Optional so previews without the services still build; nil behaves like "no Health here".
+    @Environment(HealthEnrichmentService.self) private var health: HealthEnrichmentService?
     @Query(
         filter: Workout.finishedPredicate,
         sort: \Workout.startedAt,
@@ -159,6 +161,7 @@ struct HistoryView: View {
                 }
             }
             .listStyle(.plain)
+            .fitnessRefresh(health, context: context)
             .overlay {
                 if sections.isEmpty && !entries.isEmpty {
                     if query.isEmpty {
@@ -381,3 +384,27 @@ private struct Inputs: Hashable {
             .dynamicTypeSize(.accessibility3)
     }
 #endif
+
+/// Pull to refresh on the History list forces an Apple Fitness lookup now, past the 15-minute throttle. With Health off or
+/// unavailable there is nothing to refresh, so no refresh control is attached and the list does not pull at all. (SwiftUI
+/// has no way to switch `refreshable` off in place, since `EnvironmentValues.refresh` is read-only, so toggling Health
+/// rebuilds the list once, which only happens from the Settings sheet.)
+private struct FitnessRefresh: ViewModifier {
+    let health: HealthEnrichmentService?
+    let context: ModelContext
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if let health, health.isActive {
+            content.refreshable { await health.refreshNow(context: context) }
+        } else {
+            content
+        }
+    }
+}
+
+extension View {
+    fileprivate func fitnessRefresh(_ health: HealthEnrichmentService?, context: ModelContext) -> some View {
+        modifier(FitnessRefresh(health: health, context: context))
+    }
+}

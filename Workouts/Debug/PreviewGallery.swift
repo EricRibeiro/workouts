@@ -33,6 +33,7 @@
         case templateEditor = "TemplateEditor"
         case exercisePane = "ExercisePane"
         case exerciseInfoSheet = "ExerciseInfoSheet"
+        case heartRateChart = "HeartRateChart"
 
         var id: String { rawValue }
 
@@ -68,6 +69,7 @@
             case .templateEditor: TemplateEditorDemo()
             case .exercisePane: ExercisePaneDemo()
             case .exerciseInfoSheet: ExerciseInfoSheetDemo()
+            case .heartRateChart: HeartRateChartDemo()
             case .exercisePickerMulti:
                 ExercisePickerView(title: "Add Exercises", mode: .multiple(add: { _ in }, superset: { _ in }))
             }

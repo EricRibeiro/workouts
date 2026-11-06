@@ -324,3 +324,9 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
     after the scroll settles (no API re-expands a minimised bar) and back to `.automatic` on the next scroll.
 91. **Turning off "Download all videos" asks Keep / Remove / Cancel**, like the Fitness toggle; with nothing cached it
     just turns off. Remove clears the whole video cache, including videos only watched.
+92. **Pull to refresh on History forces a Fitness lookup** (Eric, 2026-11-05): the native `.refreshable`, attached only
+    while Fitness reading is on (toggling it rebuilds the list once; `refreshable` cannot be switched off in place). It
+    re-checks recent workouts past the 15-minute throttle and runs the backfill; it does not touch iCloud sync, which
+    has no public trigger. Its UI test asserts the effect (calories appear), since XCUITest cannot see the spinner live.
+93. **A superset is one band in the heart-rate chart**, named "Superset N" and tinted with that superset's colour;
+    selection still names the exercise of the set. A band label is drawn only when the band spans ≥ 8% of the axis.

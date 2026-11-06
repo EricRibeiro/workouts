@@ -75,6 +75,65 @@ import Testing
         #expect(timeline.block(at: 450)?.name == "Row")
     }
 
+    @Test func supersetExercisesMergeIntoOneBlockAmongPlainOnes() {
+        let timeline = SetTimeline.make(
+            origin: Self.origin,
+            blocks: [
+                .init(name: "Squat", completions: [Self.at(60), Self.at(120)]),
+                .init(
+                    name: "Lateral Raise",
+                    supersetGroup: 9,
+                    completions: [Self.at(200), Self.at(320), Self.at(440)]
+                ),
+                .init(name: "Pushdown", supersetGroup: 9, completions: [Self.at(260), Self.at(380), Self.at(500)]),
+                .init(name: "Curl", completions: [Self.at(600)]),
+            ]
+        )
+        #expect(
+            timeline.blocks == [
+                .init(name: "Squat", start: 60, end: 120),
+                .init(
+                    name: "Superset 1",
+                    start: 200,
+                    end: 500,
+                    supersetNumber: 1,
+                    exerciseNames: ["Lateral Raise", "Pushdown"]
+                ),
+                .init(name: "Curl", start: 600, end: 600),
+            ]
+        )
+        #expect(timeline.blocks.map(\.isSuperset) == [false, true, false])
+        #expect(timeline.setTicks.count == 9)
+    }
+
+    @Test func secondSupersetIsNumberedTwoAndSingleMemberGroupIsPlain() {
+        let timeline = SetTimeline.make(
+            origin: Self.origin,
+            blocks: [
+                .init(name: "A", supersetGroup: 4, completions: [Self.at(10)]),
+                .init(name: "B", supersetGroup: 4, completions: [Self.at(20)]),
+                .init(name: "C", supersetGroup: 7, completions: [Self.at(30)]),
+                .init(name: "D", supersetGroup: 7, completions: [Self.at(40)]),
+                .init(name: "Lone", supersetGroup: 2, completions: [Self.at(50)]),
+            ]
+        )
+        #expect(timeline.blocks.map(\.name) == ["Superset 1", "Superset 2", "Lone"])
+        #expect(timeline.blocks.map(\.isSuperset) == [true, true, false])
+    }
+
+    @Test func selectionInsideSupersetNamesTheExerciseOfThatSet() {
+        let timeline = SetTimeline.make(
+            origin: Self.origin,
+            blocks: [
+                .init(name: "Raise", supersetGroup: 1, completions: [Self.at(100), Self.at(300)]),
+                .init(name: "Pushdown", supersetGroup: 1, completions: [Self.at(200), Self.at(400)]),
+            ]
+        )
+        #expect(timeline.blocks.count == 1)
+        #expect(timeline.set(at: 205) == .init(offset: 200, blockName: "Pushdown", setNumber: 1))
+        #expect(timeline.set(at: 290) == .init(offset: 300, blockName: "Raise", setNumber: 2))
+    }
+
     @Test func offsetsBeforeTheOriginAreNegative() {
         let timeline = SetTimeline.make(origin: Self.origin, blocks: [.init(name: "A", completions: [Self.at(-30)])])
         #expect(timeline.setTicks.first?.offset == -30)

@@ -46,7 +46,12 @@ struct HeartRateChart: View {
     }
 
     private var blocks: [SetTimeline.Block] {
-        timeline.blocks.map { .init(name: $0.name, start: max(0, $0.start), end: max(0, $0.end)) }
+        timeline.blocks.map {
+            var block = $0
+            block.start = max(0, $0.start)
+            block.end = max(0, $0.end)
+            return block
+        }
     }
 
     private var xMax: Double {
@@ -58,6 +63,19 @@ struct HeartRateChart: View {
         let steps: [Double] = [60, 120, 300, 600, 900, 1200, 1800, 3600, 7200]
         let step = steps.first { xMax / $0 <= 5 } ?? 7200
         return Array(stride(from: 0, through: xMax, by: step))
+    }
+
+    /// Narrowest share of the axis a band may cover and still carry its label; thinner bands would clip or collide.
+    private static let minLabelFraction = 0.08
+
+    private func labelFits(_ block: SetTimeline.Block) -> Bool {
+        (block.end - block.start) / xMax >= Self.minLabelFraction
+    }
+
+    /// Supersets are tinted with their number's colour (as on the logging screen); other exercises alternate shades.
+    private static func bandFill(_ block: SetTimeline.Block, position: Int) -> Color {
+        if let number = block.supersetNumber { return Color.superset(number).opacity(0.18) }
+        return position.isMultiple(of: 2) ? Color(.quaternarySystemFill) : Color(.quaternarySystemFill).opacity(0.5)
     }
 
     private var selectedPoint: HeartRatePoint? {
@@ -79,12 +97,9 @@ struct HeartRateChart: View {
         Chart {
             ForEach(Array(blocks.enumerated()), id: \.offset) { position, block in
                 RectangleMark(xStart: .value("Start", block.start), xEnd: .value("End", block.end))
-                    .foregroundStyle(
-                        position.isMultiple(of: 2)
-                            ? Color(.quaternarySystemFill) : Color(.quaternarySystemFill).opacity(0.5)
-                    )
+                    .foregroundStyle(Self.bandFill(block, position: position))
                     .annotation(position: .overlay, alignment: .topLeading, spacing: 2) {
-                        if horizontalSizeClass == .regular {
+                        if horizontalSizeClass == .regular, labelFits(block) {
                             Text(block.name)
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
@@ -243,46 +258,71 @@ struct HeartRateChart: View {
     }
 }
 
-#Preview("Heart rate chart") {
-    let origin = Date(timeIntervalSinceReferenceDate: 0)
-    let count = 90
-    let duration: TimeInterval = 2400
-    let series = (0..<count).map { index -> HeartRatePoint in
-        let progress = Double(index) / Double(count - 1)
-        let ramp = 70 + 45 * min(1, progress * 4)
-        let waves = 18 * sin(progress * 14 * .pi)
-        let peak = 25 * max(0, 1 - abs(progress - 0.85) * 10)
-        return HeartRatePoint(offset: progress * duration, bpm: (ramp + waves + peak).rounded())
-    }
-    let timeline = SetTimeline.make(
-        origin: origin,
-        blocks: [
-            .init(name: "Bench Press", completions: [300, 420, 540, 660].map { origin.addingTimeInterval($0) }),
-            .init(name: "Seated Cable Row", completions: [900, 1020, 1140].map { origin.addingTimeInterval($0) }),
-            .init(name: "Overhead Press", completions: [1500, 1620, 1740, 1860].map { origin.addingTimeInterval($0) }),
-        ]
-    )
-    return ScrollView {
-        VStack(spacing: 24) {
-            HeartRateChart(
-                series: series,
-                timeline: timeline,
-                average: 118,
-                maximum: 161,
-                zones: [
-                    HeartRateZoneTime(index: 1, upperBPM: 138, seconds: 1800),
-                    HeartRateZoneTime(index: 2, lowerBPM: 139, upperBPM: 150, seconds: 525),
-                    HeartRateZoneTime(index: 3, lowerBPM: 151, upperBPM: 162, seconds: 75),
+#if DEBUG
+    /// Sample charts for the gallery (`-preview HeartRateChart`) and the preview: plain exercises around an interleaved
+    /// superset (Lateral Raise and Triceps Pushdown alternate set by set), once on a full axis and once on a short one.
+    struct HeartRateChartDemo: View {
+        private static func at(_ origin: Date, _ seconds: [TimeInterval]) -> [Date?] {
+            seconds.map { origin.addingTimeInterval($0) }
+        }
+
+        var body: some View {
+            let origin = Date(timeIntervalSinceReferenceDate: 0)
+            let count = 90
+            let duration: TimeInterval = 2400
+            let series = (0..<count).map { index -> HeartRatePoint in
+                let progress = Double(index) / Double(count - 1)
+                let ramp = 70 + 45 * min(1, progress * 4)
+                let waves = 18 * sin(progress * 14 * .pi)
+                let peak = 25 * max(0, 1 - abs(progress - 0.85) * 10)
+                return HeartRatePoint(offset: progress * duration, bpm: (ramp + waves + peak).rounded())
+            }
+            let timeline = SetTimeline.make(
+                origin: origin,
+                blocks: [
+                    .init(name: "Bench Press", completions: Self.at(origin, [300, 420, 540, 660])),
+                    .init(
+                        name: "Cable Triceps Pushdown",
+                        supersetGroup: 1,
+                        completions: Self.at(origin, [800, 920, 1040])
+                    ),
+                    .init(
+                        name: "Dumbbell Lateral Raise",
+                        supersetGroup: 1,
+                        completions: Self.at(origin, [860, 980, 1100])
+                    ),
+                    .init(name: "Seated Cable Row", completions: Self.at(origin, [1250, 1370, 1490])),
+                    .init(name: "Overhead Press", completions: Self.at(origin, [1700, 1820, 1940, 2060])),
                 ]
             )
-            HeartRateChart(
-                series: series,
-                timeline: timeline,
-                average: 96,
-                maximum: 121,
-                zones: [HeartRateZoneTime(index: 1, upperBPM: 139, seconds: 2400)]
-            )
+            ScrollView {
+                VStack(spacing: 24) {
+                    HeartRateChart(
+                        series: series,
+                        timeline: timeline,
+                        average: 118,
+                        maximum: 161,
+                        zones: [
+                            HeartRateZoneTime(index: 1, upperBPM: 138, seconds: 1800),
+                            HeartRateZoneTime(index: 2, lowerBPM: 139, upperBPM: 150, seconds: 525),
+                            HeartRateZoneTime(index: 3, lowerBPM: 151, upperBPM: 162, seconds: 75),
+                        ]
+                    )
+                    HeartRateChart(
+                        series: series,
+                        timeline: timeline,
+                        average: 96,
+                        maximum: 121,
+                        zones: [HeartRateZoneTime(index: 1, upperBPM: 139, seconds: 2400)]
+                    )
+                }
+                .padding()
+            }
+            .accessibilityIdentifier("screen.heartRateChart")
         }
-        .padding()
     }
-}
+
+    #Preview("Heart rate chart") {
+        HeartRateChartDemo()
+    }
+#endif

@@ -74,8 +74,8 @@ final class HealthEnrichmentService {
 
     var isAvailable: Bool { source != nil }
 
-    /// Available and opted in.
-    private var isActive: Bool { source != nil && settings.healthEnrichmentEnabled }
+    /// Available and opted in. History offers pull-to-refresh only while this holds.
+    var isActive: Bool { source != nil && settings.healthEnrichmentEnabled }
 
     /// One lookup pass over the recent finished workouts, saved when it changed anything. A call while a pass runs does not
     /// overlap it: the running pass goes around once more when it finishes.
@@ -92,6 +92,18 @@ final class HealthEnrichmentService {
     /// later (Health settings) still reaches old workouts that an earlier denied pass left unstamped.
     func appBecameActive(context: ModelContext) async {
         await request(context: context, recheckAfter: Self.defaultRecheck, backfill: true)
+    }
+
+    /// Pull-to-refresh on History: the routine pass with no re-check throttle (so a workout checked a minute ago and not
+    /// matched is looked up again), then the backfill, and returns only when that has finished, so the system refresh
+    /// spinner stays up for the whole pass. If a refresh is already running it asks for another round and joins the
+    /// running loop instead of starting a second one. A no-op while Health is unavailable or not opted in.
+    func refreshNow(context: ModelContext) async {
+        guard isActive else { return }
+        await request(context: context, recheckAfter: 0, backfill: true)
+        // `request` returns at once when a loop is already running (it only queues); wait for that loop, which goes
+        // around again for this request before it clears `runningRefresh`.
+        await runningRefresh?.value
     }
 
     /// One lookup over every finished workout that was never checked, however old (PLAN 7.1b g): imported history and

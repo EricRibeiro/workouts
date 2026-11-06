@@ -143,6 +143,52 @@ struct HealthEnrichmentServiceTests {
         #expect(setup.workout.healthCheckedAt == matchedAt)
     }
 
+    @Test func refreshNowRechecksAWorkoutTheRoutinePassThrottles() async throws {
+        let setup = try makeSetup()
+        // Checked a minute ago, no match then: inside the 15-minute throttle.
+        setup.workout.applyHealth(nil, checkedAt: .now.addingTimeInterval(-60))
+        await setup.gate.release()
+
+        await setup.service.refresh(context: setup.context)
+        #expect(setup.workout.healthWorkoutID == nil)
+
+        await setup.service.refreshNow(context: setup.context)
+        #expect(setup.workout.healthWorkoutID == "HK-1")
+        #expect(setup.workout.activeEnergyKcal == 300)
+    }
+
+    @Test func refreshNowAlsoBackfillsOldWorkouts() async throws {
+        let setup = try makeSetup(endedAgo: 30 * 86400)
+        await setup.gate.release()
+        await setup.service.refreshNow(context: setup.context)
+        #expect(setup.workout.healthWorkoutID == "HK-1")
+    }
+
+    @Test func refreshNowJoinsARunningPassAndReturnsOnlyWhenItIsDone() async throws {
+        let setup = try makeSetup()
+        let routine = Task { await setup.service.refresh(context: setup.context) }
+        await waitUntilInFlight(setup.gate)
+        var finished = false
+        let forced = Task {
+            await setup.service.refreshNow(context: setup.context)
+            finished = true
+        }
+        await Task.yield()
+        #expect(!finished)  // the source is still held open
+        await setup.gate.release()
+        await forced.value
+        await routine.value
+        #expect(setup.workout.healthWorkoutID == "HK-1")
+    }
+
+    @Test func refreshNowDoesNothingWhileOptedOut() async throws {
+        let setup = try makeSetup()
+        setup.settings.healthEnrichmentEnabled = false
+        await setup.gate.release()
+        await setup.service.refreshNow(context: setup.context)
+        #expect(setup.workout.healthWorkoutID == nil && setup.workout.healthCheckedAt == nil)
+    }
+
     @Test func backfillIsANoOpWhileOptedOut() async throws {
         let setup = try makeSetup(endedAgo: 30 * 86400)
         setup.settings.healthEnrichmentEnabled = false
