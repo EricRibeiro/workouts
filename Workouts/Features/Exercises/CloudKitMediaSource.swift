@@ -24,9 +24,7 @@ nonisolated struct CloudKitMediaSource: MediaSource {
     }
 
     func fetchVideo(sourceId: String, scheme: MediaScheme, allowsCellular: Bool) async throws -> URL? {
-        var configuration = CKOperation.Configuration()
-        configuration.allowsCellularAccess = allowsCellular
-        configuration.qualityOfService = allowsCellular ? .userInitiated : .utility
+        let configuration = Self.operationConfiguration(allowsCellular: allowsCellular)
         let database = CKContainer(identifier: Self.containerIdentifier).publicCloudDatabase
         let recordID = CKRecord.ID(recordName: sourceId)
         do {
@@ -46,6 +44,14 @@ nonisolated struct CloudKitMediaSource: MediaSource {
             Self.logger.error("Fetching video \(sourceId, privacy: .public) failed: \(error.localizedDescription)")
             return nil
         }
+    }
+
+    /// The CloudKit configuration for one video fetch: Wi-Fi-only fetches are also lower priority.
+    static func operationConfiguration(allowsCellular: Bool) -> CKOperation.Configuration {
+        var configuration = CKOperation.Configuration()
+        configuration.allowsCellularAccess = allowsCellular
+        configuration.qualityOfService = allowsCellular ? .userInitiated : .utility
+        return configuration
     }
 
     private static func assetKey(_ scheme: MediaScheme) -> String {

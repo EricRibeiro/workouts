@@ -330,3 +330,7 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
     has no public trigger. Its UI test asserts the effect (calories appear), since XCUITest cannot see the spinner live.
 93. **A superset is one band in the heart-rate chart**, named "Superset N" and tinted with that superset's colour;
     selection still names the exercise of the set. A band label is drawn only when the band spans ≥ 8% of the axis.
+94. **Test-gap research adopted where simple** (Eric: "adopt where it makes sense, not if too complicated or hacky"):
+    in-process tests for the Live Activity intents, a CloudKit model-rules check on the schema, a unit test of the
+    Wi-Fi-only media configuration, the header-return rule as a kit state machine, in-flight refresh tests. Skipped as
+    too fragile: driving the real Island / notification banners through SpringBoard, moving the hinge from the test runner.

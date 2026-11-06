@@ -40,13 +40,10 @@ struct ActiveWorkoutCover: View {
     /// A set cell has keyboard focus (`SetTableEditingKey`): the number pad leaves the closed display's trailing strip about
     /// three items tall, so only Minimise and Finish stay; the rest timer lives in the keyboard accessory meanwhile.
     @State private var isEditingSet = false
-    /// Set 1.5 s after a scroll ends: the system's own title minimisation (`.automatic` hides the header while the table is
-    /// scrolled down) is switched to `.never`, which brings the header back with the system's animation; the next scroll
-    /// switches it back so the header can hide again. There is no API to re-expand a minimised bar directly.
-    @State private var isHeaderPinned = false
-    /// Counts scroll endings; the `.task(id:)` below restarts (and so cancels the pending restore) whenever it changes.
-    @State private var scrollEndCount = 0
-    @State private var isHeaderRestorePending = false
+    /// The header-return rule (`HeaderRevealState`): `.automatic` title minimisation hides the header while the table is
+    /// scrolled down; `restoreDelay` after a scroll ends it is pinned (`.never`), which brings the header back with the
+    /// system's animation, and the next scroll unpins it. There is no API to re-expand a minimised bar directly.
+    @State private var headerReveal = HeaderRevealState()
 
     var body: some View {
         NavigationStack {
@@ -63,25 +60,16 @@ struct ActiveWorkoutCover: View {
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarMinimizationBehavior(isHeaderPinned ? .never : .automatic, for: .navigationBar)
+            .toolbarMinimizationBehavior(headerReveal.isPinned ? .never : .automatic, for: .navigationBar)
             .onScrollPhaseChange { old, new in
-                // A scroll starting cancels the pending restore and lets the header hide again; one ending (finger lifted,
-                // or the fling settled) starts the timer.
-                if new == .idle {
-                    guard old == .decelerating || old == .interacting else { return }
-                    isHeaderRestorePending = true
-                    scrollEndCount += 1
-                } else {
-                    isHeaderRestorePending = false
-                    scrollEndCount += 1
-                    if isHeaderPinned { isHeaderPinned = false }
-                }
+                headerReveal.phaseChanged(from: old.headerPhase, to: new.headerPhase)
             }
-            .task(id: scrollEndCount) {
-                guard isHeaderRestorePending else { return }
-                try? await Task.sleep(for: .milliseconds(1500))
+            .task(id: headerReveal.generation) {
+                guard headerReveal.isRestorePending else { return }
+                let generation = headerReveal.generation
+                try? await Task.sleep(for: HeaderRevealState.restoreDelay)
                 guard !Task.isCancelled else { return }
-                withAnimation { isHeaderPinned = true }
+                withAnimation { _ = headerReveal.restoreTimerFired(generation: generation) }
             }
             .onPreferenceChange(SetTableEditingKey.self) { isEditingSet = $0 }
             .toolbar {
@@ -391,4 +379,18 @@ private struct FrozenSetTableSource: SetTableDataSource {
     func addSet(to sectionID: UUID) {}
     func deleteSet(_ setID: UUID) {}
     func reorder(_ order: [UUID]) {}
+}
+
+extension ScrollPhase {
+    /// The kit's model of this phase, so the header rule can be tested without SwiftUI.
+    fileprivate var headerPhase: HeaderScrollPhase {
+        switch self {
+        case .idle: .idle
+        case .tracking: .tracking
+        case .interacting: .interacting
+        case .decelerating: .decelerating
+        case .animating: .animating
+        @unknown default: .interacting
+        }
+    }
 }

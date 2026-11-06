@@ -9,10 +9,12 @@ import WorkoutsKit
 private actor Gate {
     private var entered = false
     private var released = false
+    private(set) var lookups = 0
     private var waiters: [CheckedContinuation<Void, Never>] = []
 
     func wait() async {
         entered = true
+        lookups += 1
         if released { return }
         await withCheckedContinuation { waiters.append($0) }
     }
@@ -179,6 +181,86 @@ struct HealthEnrichmentServiceTests {
         await forced.value
         await routine.value
         #expect(setup.workout.healthWorkoutID == "HK-1")
+    }
+
+    @Test func refreshNowStartedAloneStaysSuspendedWhileTheLookupRuns() async throws {
+        // The pull-to-refresh spinner lasts exactly as long as `refreshNow` is suspended, so a lone call must not return
+        // while the source is still answering, and must return, with the workout enriched, once it has.
+        let setup = try makeSetup()
+        var finished = false
+        let pull = Task {
+            await setup.service.refreshNow(context: setup.context)
+            finished = true
+        }
+        await waitUntilInFlight(setup.gate)
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(!finished)
+        #expect(setup.workout.healthWorkoutID == nil)
+
+        await setup.gate.release()
+        await pull.value
+        #expect(finished)
+        #expect(setup.workout.healthWorkoutID == "HK-1")
+        #expect(setup.workout.activeEnergyKcal == 300)
+    }
+
+    @Test func overlappingRefreshNowCallsShareOnePassAndBothWaitForIt() async throws {
+        let setup = try makeSetup()
+        var finished = (first: false, second: false)
+        let first = Task {
+            await setup.service.refreshNow(context: setup.context)
+            finished.first = true
+        }
+        await waitUntilInFlight(setup.gate)
+        let second = Task {
+            await setup.service.refreshNow(context: setup.context)
+            finished.second = true
+        }
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(!finished.first && !finished.second)
+        // The second call joined: only the first call's lookup is open, no concurrent second one.
+        #expect(await setup.gate.lookups == 1)
+
+        await setup.gate.release()
+        await first.value
+        await second.value
+        #expect(finished.first && finished.second)
+        #expect(setup.workout.healthWorkoutID == "HK-1")
+        // At most the one extra round the joiner asks for (its fetch may predate the request); never a third.
+        #expect(await setup.gate.lookups <= 2)
+    }
+
+    @Test func refreshNowAcrossTurnOffReturnsAndNothingIsWrittenAfterwards() async throws {
+        let setup = try makeSetup()
+        let routine = Task { await setup.service.refresh(context: setup.context) }
+        await waitUntilInFlight(setup.gate)
+        let pull = Task { await setup.service.refreshNow(context: setup.context) }  // joins and queues another round
+        let off = Task { try await setup.service.turnOff(remove: true, context: setup.context) }
+        await Task.yield()
+        #expect(!setup.settings.healthEnrichmentEnabled)
+
+        await setup.gate.release()
+        try await off.value
+        await pull.value
+        await routine.value
+        let lookups = await setup.gate.lookups
+
+        // The queued round was dropped (setting off, nothing re-queued), and the removal was not undone.
+        try await Task.sleep(for: .milliseconds(200))
+        #expect(await setup.gate.lookups == lookups)
+        #expect(lookups == 1)
+        #expect(setup.workout.healthWorkoutID == nil)
+        #expect(setup.workout.healthCheckedAt == nil)
+        #expect(setup.workout.activeEnergyKcal == nil)
+    }
+
+    @Test func refreshNowStartedAfterTurnOffDoesNothing() async throws {
+        let setup = try makeSetup()
+        await setup.gate.release()
+        try await setup.service.turnOff(remove: true, context: setup.context)
+        await setup.service.refreshNow(context: setup.context)
+        #expect(await setup.gate.lookups == 0)
+        #expect(setup.workout.healthWorkoutID == nil && setup.workout.healthCheckedAt == nil)
     }
 
     @Test func refreshNowDoesNothingWhileOptedOut() async throws {
