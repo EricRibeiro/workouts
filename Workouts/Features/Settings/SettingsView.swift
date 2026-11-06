@@ -209,7 +209,7 @@ struct SettingsView: View {
                 LabeledContent("Weekly goal", value: "\(settings.weeklyGoal)")
             }
             .accessibilityLabel("Weekly goal")
-            .accessibilityValue("\(settings.weeklyGoal) workouts per week")
+            .accessibilityValue("\(settings.weeklyGoal) \(settings.weeklyGoal == 1 ? "workout" : "workouts") per week")
             .accessibilityIdentifier("settings.weeklyGoal")
 
             Toggle("Keep screen on during a workout", isOn: bound.keepScreenOn)
@@ -232,13 +232,13 @@ struct SettingsView: View {
             if let progress = download.progress {
                 VStack(alignment: .leading) {
                     ProgressView(value: Double(progress.done), total: Double(max(progress.total, 1)))
-                    Text("\(progress.done) of \(progress.total) videos")
+                    Text("\(progress.done) of \(progress.total) \(progress.total == 1 ? "video" : "videos")")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel("Video download progress")
-                .accessibilityValue("\(progress.done) of \(progress.total) videos")
+                .accessibilityValue("\(progress.done) of \(progress.total) \(progress.total == 1 ? "video" : "videos")")
                 .accessibilityIdentifier("settings.downloadProgress")
             }
         } header: {

@@ -14,11 +14,14 @@ fileprivate func perSessionPRCounts(
     let finished = workouts.filter { $0.finishedAt != nil }
     var counts: [UUID: Int] = [:]
     for (_, sessions) in ExerciseBestSets.sessions(from: finished, weightType: weightType) {
-        for session in sessions {
+        // Rows of one exercise in one workout are one session, as the Finish screen judges them.
+        var counted = Set<UUID>()
+        for session in sessions where counted.insert(session.workoutID).inserted {
+            let merged = mergedSession(sessions.filter { $0.workoutID == session.workoutID })
             counts[session.workoutID, default: 0] +=
                 prsInSession(
                     history: sessions,
-                    session: session,
+                    session: merged,
                     weightType: session.weightType,
                     options: options
                 ).count

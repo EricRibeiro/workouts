@@ -122,6 +122,12 @@ final class HealthEnrichmentService {
     /// runs only queues what it asked for: the running loop goes around again, since its fetch may predate the request.
     private func request(context: ModelContext, recheckAfter: TimeInterval?, backfill: Bool) async {
         guard isActive, let source else { return }
+        // A loop `turnOff` cancelled is on its way out and will not look at anything again, so queuing onto it would drop
+        // this request (an opt-in right after a Remove). Wait for it to finish, then start a loop of our own.
+        while let cancelled = runningRefresh, cancelled.isCancelled {
+            await cancelled.value
+        }
+        guard isActive else { return }
         if runningRefresh != nil {
             if let recheckAfter { queuedRecheck = min(queuedRecheck ?? recheckAfter, recheckAfter) }
             if backfill { queuedBackfill = true }
@@ -244,6 +250,7 @@ final class HealthEnrichmentService {
         // saved before this resumes.
         runningRefresh?.cancel()
         await runningRefresh?.value
-        if remove { try HealthEnrichmentRun.clearAll(context: context) }
+        // The person may have turned Fitness back on while the cancelled pass wound down; then the data is wanted again.
+        if remove, !settings.healthEnrichmentEnabled { try HealthEnrichmentRun.clearAll(context: context) }
     }
 }

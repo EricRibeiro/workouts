@@ -38,11 +38,12 @@ extension ActiveWorkoutEngine {
     /// Sleeps until the rest ending at `endsAt` is over, runs `onEnded` once (the success haptic), then sleeps through
     /// ``RestTimer/expiredGraceSeconds`` and forgets the rest with ``tickRest()``. Two sleeps on the persisted end date,
     /// not a per-second poll. A rest that is already over when this starts does not call `onEnded` (relaunch must not
-    /// buzz). Returns early when cancelled (the rest changed or the view went away).
+    /// buzz), nor does one this wakes for more than ``RestTimer/buzzToleranceSeconds`` late. Returns early when cancelled (the rest changed or the view went away).
     func awaitRestExpiry(endsAt: Date, onEnded: () -> Void) async {
         if endsAt > .now {
             guard await Self.sleep(until: endsAt) else { return }
-            onEnded()
+            // A wake-up long after the end (suspended in the background) clears silently instead of buzzing.
+            if RestTimer.shouldBuzz(endsAt: endsAt, wokeAt: .now) { onEnded() }
         }
         let forgetAt = endsAt.addingTimeInterval(TimeInterval(RestTimer.expiredGraceSeconds))
         while true {

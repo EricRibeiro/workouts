@@ -245,9 +245,13 @@ public struct TemplateDraft: Equatable, Sendable {
         exercises[e].restSeconds = seconds
     }
 
-    /// Preferences: the block's weight unit. Set values are not converted (the engine's rule too).
+    /// Preferences: the block's weight unit. Set values are not converted (the engine's rule too), but a custom bar's
+    /// weight is, rounded to 0.5 like the engine.
     public mutating func setUnit(_ unit: WeightUnit, for blockID: UUID) {
         guard let e = index(of: blockID) else { return }
+        if exercises[e].unit != unit, exercises[e].barType == .custom, let bar = exercises[e].barWeight {
+            exercises[e].barWeight = round05(convert(bar, from: exercises[e].unit, to: unit))
+        }
         exercises[e].unit = unit
     }
 

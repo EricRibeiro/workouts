@@ -104,13 +104,21 @@ public enum HealthEnrichmentRun {
                 continue
             }
             guard let finishedAt = workout.finishedAt else { continue }
+            // What the lookup is about: the window and the health fields as they were when it began. The past-workout
+            // editor clears the health fields when it moves the times, so a result for the old window must not land.
+            let startedAt = workout.startedAt
+            let checkedAtBefore = workout.healthCheckedAt
+            let healthIDBefore = workout.healthWorkoutID
             do {
                 let summary = try await enrichment.enrich(
-                    workoutStart: workout.startedAt,
+                    workoutStart: startedAt,
                     workoutEnd: finishedAt,
                     claimed: claimed
                 )
-                guard Self.isLive(workout, wasStored: stored[index]) else {
+                guard Self.isLive(workout, wasStored: stored[index]),
+                    workout.startedAt == startedAt, workout.finishedAt == finishedAt,
+                    workout.healthCheckedAt == checkedAtBefore, workout.healthWorkoutID == healthIDBefore
+                else {
                     progress?(index + 1, total)
                     continue
                 }

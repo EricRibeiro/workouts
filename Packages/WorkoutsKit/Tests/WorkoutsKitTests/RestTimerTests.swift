@@ -461,4 +461,12 @@ import Testing
         #expect(throws: ActiveWorkoutError.noActiveWorkout) { try engine.adjustRest(by: 10) }
         #expect(throws: ActiveWorkoutError.noActiveWorkout) { try engine.tickRest() }
     }
+
+    @Test func buzzOnlyWhenWakeIsNearTheEnd() {
+        let end = Date(timeIntervalSinceReferenceDate: 1_000)
+        #expect(RestTimer.shouldBuzz(endsAt: end, wokeAt: end))
+        #expect(RestTimer.shouldBuzz(endsAt: end, wokeAt: end.addingTimeInterval(2)))
+        #expect(!RestTimer.shouldBuzz(endsAt: end, wokeAt: end.addingTimeInterval(2.5)))
+        #expect(!RestTimer.shouldBuzz(endsAt: end, wokeAt: end.addingTimeInterval(300)))
+    }
 }

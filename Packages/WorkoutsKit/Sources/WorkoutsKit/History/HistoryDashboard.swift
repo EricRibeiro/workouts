@@ -254,7 +254,7 @@ public nonisolated enum HistoryDashboard {
             switch (load, record.reps > 0 ? record.reps : nil) {
             case (let load?, let reps?): return "\(load) × \(reps)"
             case (let load?, nil): return load
-            case (nil, let reps?): return "\(reps) reps"
+            case (nil, let reps?): return "\(reps) \(reps == 1 ? "rep" : "reps")"
             case (nil, nil): return ""
             }
         }

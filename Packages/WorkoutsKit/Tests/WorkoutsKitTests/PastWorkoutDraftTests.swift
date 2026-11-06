@@ -258,6 +258,43 @@ import Testing
         #expect(model.heartRateSeriesData == Data([1]))
     }
 
+    @Test func editingASetOnAFractionalDurationWorkoutKeepsFitnessDataAndTheExactEnd() throws {
+        let holder = try makeTestContainer()
+        defer { withExtendedLifetime(holder) {} }
+        let context = holder.mainContext
+        let model = workout(context)
+        let end = start.addingTimeInterval(3600.6)
+        model.finishedAt = end
+        matched(model)
+        var draft = PastWorkoutDraft(model)
+        draft.setWeight(105, for: draft.exercises[0].sets[0].id)
+        try draft.save(to: model, in: context, now: start.addingTimeInterval(86_400))
+
+        #expect(model.finishedAt == end)
+        #expect(model.startedAt == start)
+        #expect(model.healthWorkoutID == "HK-1")
+        #expect(model.activeEnergyKcal == 300)
+        #expect(model.avgHeartRate == 120)
+        #expect(model.heartRateSeriesData == Data([1]))
+    }
+
+    @Test func changingTheDurationOfAFractionalWorkoutClearsFitnessDataAndSetsTheNewEnd() throws {
+        let holder = try makeTestContainer()
+        defer { withExtendedLifetime(holder) {} }
+        let context = holder.mainContext
+        let model = workout(context)
+        model.finishedAt = start.addingTimeInterval(3600.6)
+        matched(model)
+        var draft = PastWorkoutDraft(model)
+        draft.setDurationMinutes(draft.durationMinutes + 1)
+        try draft.save(to: model, in: context, now: start.addingTimeInterval(86_400))
+
+        #expect(model.finishedAt == start.addingTimeInterval(61 * 60))
+        #expect(model.healthWorkoutID == nil)
+        #expect(model.activeEnergyKcal == nil)
+        #expect(model.avgHeartRate == nil)
+    }
+
     @Test func saveDropsEmptySetsEmptyExercisesAndLoneSupersets() throws {
         let holder = try makeTestContainer()
         defer { withExtendedLifetime(holder) {} }

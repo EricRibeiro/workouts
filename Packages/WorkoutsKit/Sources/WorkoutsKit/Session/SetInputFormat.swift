@@ -35,18 +35,34 @@ public nonisolated enum SetInputFormat {
         kind == .normal ? "Set \(number)" : "Set \(number), \(formatKind(kind))"
     }
 
-    /// Weight typed by the user: `.` or `,` as the decimal separator, surrounding spaces ignored. Empty or unparsable
-    /// text is nil (clears the field); negatives clamp to 0; at most 2 decimals.
-    public static func parseWeight(_ text: String) -> Double? {
+    /// The largest weight a field accepts (in the row's unit); anything above is rejected as a typo.
+    public static let maxWeight = 10_000.0
+
+    /// Plain decimal text only: an optional sign, digits, at most one `.` (commas are already mapped to it). Rejects
+    /// exponents (`1e307`), hex (`0x10`), `inf` and `nan`, which `Double(_:)` would otherwise accept.
+    private static func plainDecimal(_ text: String) -> Double? {
         let cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: ",", with: ".")
-        guard !cleaned.isEmpty, let value = Double(cleaned), value.isFinite else { return nil }
+        guard !cleaned.isEmpty else { return nil }
+        let body = cleaned.hasPrefix("-") || cleaned.hasPrefix("+") ? cleaned.dropFirst() : cleaned[...]
+        guard body.allSatisfy({ $0.isASCII && ($0.isNumber || $0 == ".") }),
+            body.contains(where: \.isNumber), body.filter({ $0 == "." }).count <= 1,
+            let value = Double(cleaned), value.isFinite
+        else { return nil }
+        return value
+    }
+
+    /// Weight typed by the user: `.` or `,` as the decimal separator, surrounding spaces ignored. Empty or unparsable
+    /// text is nil (clears the field); negatives clamp to 0; at most 2 decimals. Plain decimals only (no exponent or
+    /// hex), and a value above ``maxWeight`` is nil.
+    public static func parseWeight(_ text: String) -> Double? {
+        guard let value = plainDecimal(text), value <= maxWeight else { return nil }
         return (max(0, value) * 100).rounded() / 100
     }
 
-    /// Reps or seconds typed by the user: a whole number ≥ 0. A decimal is rounded; empty or unparsable text is nil.
+    /// Reps or seconds typed by the user: a whole number ≥ 0. A decimal is rounded; empty text, an exponent, hex or
+    /// other unparsable text is nil. Huge values clamp to 1,000,000.
     public static func parseCount(_ text: String) -> Int? {
-        let cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: ",", with: ".")
-        guard !cleaned.isEmpty, let value = Double(cleaned), value.isFinite else { return nil }
+        guard let value = plainDecimal(text) else { return nil }
         return Int(min(max(0, value.rounded()), 1_000_000))
     }
 

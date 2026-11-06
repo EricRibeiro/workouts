@@ -93,21 +93,23 @@ import Testing
     }
 
     @Test(arguments: [Calendar.Identifier.buddhist, .japanese, .iso8601])
-    func dateTextsFollowOtherCalendarsLikeTheDateFormatter(identifier: Calendar.Identifier) {
+    func dateTextsStayGregorianInOtherCalendars(identifier: Calendar.Identifier) {
         var calendar = Calendar(identifier: identifier)
         calendar.timeZone = TimeZone(identifier: "America/Toronto") ?? .gmt
+        var gregorian = Calendar(identifier: .gregorian)
+        gregorian.timeZone = calendar.timeZone
         let now = Date(timeIntervalSince1970: 1_793_000_000)
         for step in stride(from: 0, to: 4 * 365 * 24 * 3_600, by: 97 * 3_600) {
             let date = Date(timeIntervalSince1970: 1_577_836_800 + Double(step))
-            let sameYear = calendar.isDate(date, equalTo: now, toGranularity: .year)
+            let sameYear = gregorian.isDate(date, equalTo: now, toGranularity: .year)
             let pattern = sameYear ? "EEEE, MMM d" : "EEEE, MMM d, yyyy"
             #expect(
                 HistoryList.dateText(date, now: now, calendar: calendar)
-                    == Self.referenceDate(pattern, date, calendar: calendar)
+                    == Self.referenceDate(pattern, date, calendar: gregorian)
             )
             #expect(
                 HistoryList.monthTitle(date, calendar: calendar)
-                    == Self.referenceDate("LLLL yyyy", date, calendar: calendar)
+                    == Self.referenceDate("LLLL yyyy", date, calendar: gregorian)
             )
         }
     }

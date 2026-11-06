@@ -188,14 +188,21 @@ public struct PastWorkoutDraft: Equatable, Sendable {
 
     /// Writes the draft to `workout` without saving. Sets and exercises are matched by id: kept ones are updated in place
     /// (hidden fields survive), new sets are inserted, sets without a value and exercises without a set are deleted. Every
-    /// kept set is completed. `finishedAt` becomes `startedAt + duration`, and `completedAt` stamps move with the start. A changed start or end clears
-    /// the workout's Fitness data (and its `healthCheckedAt` stamp) so it is matched again for the new time.
+    /// kept set is completed. `finishedAt` becomes `startedAt + duration`, and `completedAt` stamps move with the start. A changed start or
+    /// duration clears the workout's Fitness data (and its `healthCheckedAt` stamp) so it is matched again for the new time.
+    /// The draft holds whole seconds, so a duration the person did not change keeps the workout's exact (fractional)
+    /// length rather than the truncated one.
     @MainActor
     public func apply(to workout: Workout, in context: ModelContext, now: Date = .now) {
         let shift = startedAt.timeIntervalSince(workout.startedAt)
         // A Fitness match (or the stamp that it was looked for) belongs to the old time window; clear it so the next
-        // pass matches for the new one. Unchanged times keep it.
-        if workout.startedAt != startedAt || workout.finishedAt != endedAt { workout.clearHealth() }
+        // pass matches for the new one. Unchanged times keep it. The duration is compared at the draft's whole-second
+        // precision (a real workout's length has a fraction), and an unchanged one keeps its exact value.
+        let originalLength = max(0, (workout.finishedAt ?? workout.startedAt).timeIntervalSince(workout.startedAt))
+        let startChanged = workout.startedAt != startedAt
+        let durationChanged = Int(originalLength) != durationSeconds
+        if startChanged || durationChanged { workout.clearHealth() }
+        let endedAt = durationChanged ? self.endedAt : startedAt.addingTimeInterval(originalLength)
         workout.name = name
         workout.startedAt = startedAt
         workout.finishedAt = endedAt

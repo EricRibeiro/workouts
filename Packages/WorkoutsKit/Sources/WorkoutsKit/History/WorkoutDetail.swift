@@ -116,29 +116,40 @@ nonisolated extension WorkoutDetail {
         let rows = (workout.exercises ?? []).sorted { $0.position < $1.position }
         let numbers = SetTableLayout.supersetNumbers(for: rows.map(\.supersetGroup))
 
-        var blocks: [ExerciseBlock] = []
-        var prCount = 0
-        var volumeTotal = 0.0
+        // Each row's session comes from that row itself: an exercise can appear twice, and the to-many
+        // relationship order is not guaranteed, so a shared per-exercise queue could pair another row's sets.
+        var shown: [(row: WorkoutExercise, number: Int?, session: Session)] = []
         for (row, number) in zip(rows, numbers) {
-            // Each row's session comes from that row itself: an exercise can appear twice, and the to-many
-            // relationship order is not guaranteed, so a shared per-exercise queue could pair another row's sets.
             let session = ExerciseBestSets.session(
                 row: row,
                 workout: workout,
                 weightType: weightType(row.exerciseID) ?? .weighted
             )
-            guard !session.sets.isEmpty else { continue }
-
-            let type = session.weightType
-            let prs = prsInSession(
-                history: sessionsByExercise[row.exerciseID] ?? [],
-                session: session,
-                weightType: type,
+            if !session.sets.isEmpty { shown.append((row, number, session)) }
+        }
+        // Rows of the same exercise are one session for records, as the Finish screen and History judge them.
+        var recordsByRow = [[PersonalRecord]](repeating: [], count: shown.count)
+        var handled = Set<UUID>()
+        for item in shown where handled.insert(item.row.exerciseID).inserted {
+            let indices = shown.indices.filter { shown[$0].row.exerciseID == item.row.exerciseID }
+            let split = prsInWorkout(
+                history: sessionsByExercise[item.row.exerciseID] ?? [],
+                rows: indices.map { shown[$0].session },
+                weightType: item.session.weightType,
                 options: options
             )
+            for (index, prs) in zip(indices, split) { recordsByRow[index] = prs }
+        }
+
+        var blocks: [ExerciseBlock] = []
+        var prCount = 0
+        var volumeTotal = 0.0
+        for (index, item) in shown.enumerated() {
+            let type = item.session.weightType
+            let prs = recordsByRow[index]
             prCount += prs.count
-            volumeTotal += volume(of: session.sets, weightType: type, displayUnit: options.displayUnit)
-            blocks.append(block(row: row, session: session, prs: prs, number: number, options: options))
+            volumeTotal += volume(of: item.session.sets, weightType: type, displayUnit: options.displayUnit)
+            blocks.append(block(row: item.row, session: item.session, prs: prs, number: item.number, options: options))
         }
 
         let seconds = HistoryList.duration(from: workout.startedAt, to: workout.finishedAt)

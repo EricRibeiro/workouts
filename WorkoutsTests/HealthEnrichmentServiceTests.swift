@@ -365,6 +365,42 @@ struct HealthEnrichmentServiceTests {
         #expect(setup.workout.activeEnergyKcal == nil)
     }
 
+    @Test func optingBackInDuringARemoveKeepsTheDataAndLooksAgain() async throws {
+        let setup = try makeSetup()
+        // An old workout only the opt-in's backfill reaches: the cancelled routine pass never gets to it.
+        let oldEnd = Date.now.addingTimeInterval(-30 * 86400)
+        let old = Workout(
+            name: "Pull",
+            startedAt: oldEnd.addingTimeInterval(-3000),
+            finishedAt: oldEnd,
+            updatedAt: oldEnd
+        )
+        setup.context.insert(old)
+        try setup.context.save()
+        let refresh = Task { await setup.service.refresh(context: setup.context) }
+        await waitUntilInFlight(setup.gate)
+
+        // Remove while a lookup is held, then the person turns Fitness straight back on before the pass has wound down.
+        let off = Task { try await setup.service.turnOff(remove: true, context: setup.context) }
+        await Task.yield()
+        #expect(!setup.settings.healthEnrichmentEnabled)
+        setup.settings.healthEnrichmentEnabled = true
+        let optIn = Task { await setup.service.requestAuthorization(context: setup.context) }
+        await Task.yield()
+
+        await setup.gate.release()
+        try await off.value
+        await optIn.value
+        await refresh.value
+
+        // The removal saw the setting back on and cleared nothing; the opt-in's own round ran a fresh lookup.
+        #expect(setup.settings.healthEnrichmentEnabled)
+        #expect(await setup.gate.lookups >= 2)
+        #expect(setup.workout.healthWorkoutID == "HK-1")
+        #expect(setup.workout.activeEnergyKcal == 300)
+        #expect(old.healthCheckedAt != nil)
+    }
+
     @Test func keepLeavesWhatTheInFlightPassApplied() async throws {
         let setup = try makeSetup()
         let refresh = Task { await setup.service.refresh(context: setup.context) }

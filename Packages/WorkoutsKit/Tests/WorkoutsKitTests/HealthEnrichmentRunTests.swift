@@ -299,6 +299,24 @@ private nonisolated struct GatedSource: HealthSource {
         #expect(workouts[2].healthWorkoutID == "HK-3")
     }
 
+    @Test func aWorkoutWhoseTimesChangeDuringTheLookupIsNeitherAppliedNorStamped() async throws {
+        let (context, workouts, source, gate) = try gatedPassFixture()
+        let pass = Task { await HealthEnrichmentRun.run(workouts: [workouts[0]], source: source, now: Self.now) }
+        // The lookup for the original window is suspended inside the source; the past-workout editor then moves the
+        // times and clears the health fields, as it does for real.
+        await gate.waitUntilEntered()
+        workouts[0].startedAt = Self.t0.addingTimeInterval(3 * 86400)
+        workouts[0].finishedAt = Self.t0.addingTimeInterval(3 * 86400 + 3000)
+        workouts[0].healthWorkoutID = nil
+        workouts[0].healthCheckedAt = nil
+        try context.save()
+        await gate.release()
+        let outcome = await pass.value
+
+        #expect(outcome == Outcome(matched: 0, checked: 0, stopped: nil))
+        #expect(workouts[0].healthWorkoutID == nil && workouts[0].healthCheckedAt == nil)
+    }
+
     @Test func backfillProgressStillReachesTheTotalWhenAWorkoutWasDeleted() async throws {
         let (context, workouts, source, gate) = try gatedPassFixture()
         var done: [Int] = []

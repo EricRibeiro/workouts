@@ -104,16 +104,17 @@ import Testing
     }
 
     @Test(arguments: [Calendar.Identifier.buddhist, .japanese, .iso8601])
-    func localizedTextsFollowOtherCalendarsLikeTheDateFormatter(identifier: Calendar.Identifier) {
+    func localizedTextsStayGregorianInOtherCalendars(identifier: Calendar.Identifier) {
+        // English text is Gregorian whatever the device calendar; only the time zone follows the caller.
         let calendar = Self.calendar(identifier, zone: "America/Toronto")
         for date in Self.dates.prefix(300) {
             #expect(
                 CalendarFormatting.timeOfDay(date, calendar: calendar)
-                    == Self.reference("h:mm a", date, locale: "en_US", calendar: calendar, zone: calendar.timeZone)
+                    == Self.reference("h:mm a", date, locale: "en_US", calendar: nil, zone: calendar.timeZone)
             )
             #expect(
                 CalendarFormatting.monthDayYear(date, calendar: calendar)
-                    == Self.reference("MMM d, yyyy", date, locale: "en_US", calendar: calendar, zone: calendar.timeZone)
+                    == Self.reference("MMM d, yyyy", date, locale: "en_US", calendar: nil, zone: calendar.timeZone)
             )
         }
     }

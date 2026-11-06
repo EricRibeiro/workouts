@@ -29,10 +29,11 @@ extension ActiveWorkoutEngine {
         try commitRollingBack(workout, nil)
     }
 
-    /// Add Warm-up Sets: replaces the row's warm-up sets with the ``WarmupRamp`` for its first non-warm-up set that has
-    /// a weight above 0, in the row's unit and bar. The ramp sits ahead of the working sets (kind warm-up, unchecked,
-    /// weight and reps filled) and set positions are renumbered. Without such a working weight nothing changes; a
-    /// working weight whose ramp is empty (45 lb on the 45 lb bar) still removes the old warm-ups.
+    /// Add Warm-up Sets: replaces the row's incomplete warm-up sets with the ``WarmupRamp`` for its first non-warm-up
+    /// set that has a weight above 0, in the row's unit and bar. Completed warm-ups are kept as they are and stay first;
+    /// the new ramp (kind warm-up, unchecked, weight and reps filled) follows them, ahead of the working sets, and set
+    /// positions are renumbered. Without such a working weight nothing changes; a working weight whose ramp is empty
+    /// (45 lb on the 45 lb bar) still removes the old incomplete warm-ups.
     /// Returns false, changing nothing, when there is no such working weight (the UI asks for one first).
     /// - Throws: ``ActiveWorkoutError/notInActiveWorkout`` when the row is not in the workout.
     @discardableResult
@@ -48,16 +49,18 @@ extension ActiveWorkoutEngine {
             barType: row.barType,
             customBarWeight: row.barWeight
         )
-        let old = existing.filter { $0.kind == .warmup }
+        let old = existing.filter { $0.kind == .warmup && !$0.completed }
+        let kept = existing.filter { $0.kind == .warmup && $0.completed }
         cancelRest(ownedBy: Set(old.map(\.id)), workout: workout)
         for set in old { context.delete(set) }
-        for (position, step) in ramp.enumerated() {
-            let set = insertSet(into: row, position: position, kind: .warmup)
+        for (position, set) in kept.enumerated() { set.position = position }
+        for (index, step) in ramp.enumerated() {
+            let set = insertSet(into: row, position: kept.count + index, kind: .warmup)
             set.weight = step.weight
             set.reps = step.reps
         }
         for (index, set) in existing.filter({ $0.kind != .warmup }).enumerated() {
-            set.position = ramp.count + index
+            set.position = kept.count + ramp.count + index
         }
         try commitRollingBack(workout, row)
         return true

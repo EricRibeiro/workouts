@@ -5,7 +5,7 @@ import SwiftData
 ///
 /// Output is deterministic: folders, templates and their children by `position` (then id), custom
 /// exercises by name, sticky notes by update time, workouts by start time; ties break on the id.
-public enum Exporter {
+public nonisolated enum Exporter {
     /// Builds the document for everything in `context`.
     ///
     /// - Parameters:
@@ -180,7 +180,7 @@ public enum Exporter {
 }
 
 /// Children that sort by `position` then `id`.
-private protocol Positioned {
+private nonisolated protocol Positioned {
     var id: UUID { get }
     var position: Int { get }
 }

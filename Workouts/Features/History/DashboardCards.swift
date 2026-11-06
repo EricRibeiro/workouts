@@ -129,7 +129,7 @@ struct DashboardCards: View {
             title: "This Week",
             systemImage: "calendar",
             label:
-                "This week, \(week.workouts) of \(goal) workouts\(detailLabel)\(calorieLabel)\(heartRateLabel)",
+                "This week, \(week.workouts) of \(goal) \(goal == 1 ? "workout" : "workouts")\(detailLabel)\(calorieLabel)\(heartRateLabel)",
             identifier: "history.card.thisWeek"
         ) {
             CardValue(text: "\(week.workouts) / \(goal)")

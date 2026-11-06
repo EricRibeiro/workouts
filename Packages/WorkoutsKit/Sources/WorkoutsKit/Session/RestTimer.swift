@@ -30,6 +30,14 @@ public struct RestTimer {
     public static let allowedAdjustments = [-10, 10, 30]
     /// How long an over rest stays visible (pill flashes `0:00`) before ``tick()`` forgets it (`FLASH_MS`).
     public static let expiredGraceSeconds = 3
+    /// How late (seconds) a wake-up may be after the rest ended and still buzz. Later means the app was suspended
+    /// through the end, and the haptic would be for a rest that ended long ago.
+    public static let buzzToleranceSeconds = 2.0
+
+    /// Whether the success haptic should play for a rest ending at `endsAt` when the watcher woke at `wokeAt`.
+    public static func shouldBuzz(endsAt: Date, wokeAt: Date) -> Bool {
+        wokeAt.timeIntervalSince(endsAt) <= buzzToleranceSeconds
+    }
 
     public private(set) var state: State
     private let now: () -> Date

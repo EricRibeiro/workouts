@@ -65,14 +65,90 @@ nonisolated func prsForEachSession(
         if end - start == 1 {
             out.append((ordered[start], tracker.add(ordered[start])))
         } else {
+            // Rows of one exercise in one workout are one session, as the Finish screen judges them: they are
+            // scored together against the history before the run, and each record goes to the row holding its set.
+            let run = Array(ordered[start..<end])
             let before = tracker
-            for session in ordered[start..<end] {
-                var copy = before
-                out.append((session, copy.add(session)))
+            var groups: [[Int]] = []
+            var groupOf: [WorkoutExerciseKey: Int] = [:]
+            for (index, session) in run.enumerated() {
+                let key = WorkoutExerciseKey(workoutID: session.workoutID, exerciseID: session.exerciseID)
+                if let group = groupOf[key] {
+                    groups[group].append(index)
+                } else {
+                    groupOf[key] = groups.count
+                    groups.append([index])
+                }
             }
-            for session in ordered[start..<end] { _ = tracker.add(session) }
+            var results = [[PersonalRecord]](repeating: [], count: run.count)
+            for members in groups {
+                var copy = before
+                if members.count == 1 {
+                    results[members[0]] = copy.add(run[members[0]])
+                } else {
+                    let rows = members.map { run[$0] }
+                    let split = splitRecords(copy.add(mergedSession(rows)), among: rows, options: options)
+                    for (member, prs) in zip(members, split) { results[member] = prs }
+                }
+            }
+            for (session, prs) in zip(run, results) { out.append((session, prs)) }
+            for members in groups {
+                _ = tracker.add(members.count == 1 ? run[members[0]] : mergedSession(members.map { run[$0] }))
+            }
         }
         start = end
     }
     return out
+}
+
+private nonisolated struct WorkoutExerciseKey: Hashable {
+    var workoutID: UUID
+    var exerciseID: UUID
+}
+
+/// The rows of one exercise in one workout as a single session (sets concatenated in row order), the way the Finish
+/// screen judges them.
+nonisolated func mergedSession(_ rows: [Session]) -> Session {
+    guard var merged = rows.first else {
+        return Session(workoutID: UUID(), time: .distantPast, exerciseID: UUID(), weightType: .weighted, sets: [])
+    }
+    merged.sets = rows.flatMap(\.sets)
+    return merged
+}
+
+/// Hands each record of a merged session to the first row that holds a matching counted set (same displayed weight and
+/// reps, or the duration), else to the first row, so the per-row counts add up to `prs.count`.
+nonisolated func splitRecords(
+    _ prs: [PersonalRecord],
+    among rows: [Session],
+    options: RecordsOptions
+) -> [[PersonalRecord]] {
+    var out = [[PersonalRecord]](repeating: [], count: rows.count)
+    let counted = rows.map { countedSets($0.sets) }
+    for pr in prs {
+        let owner = counted.firstIndex { sets in
+            sets.contains { candidate in
+                if pr.kind == .longestDuration { return candidate.duration == Int(pr.value) }
+                return candidate.reps == pr.reps && displayedWeight(candidate, unit: options.displayUnit) == pr.weight
+            }
+        }
+        out[owner ?? 0].append(pr)
+    }
+    return out
+}
+
+/// The records the rows of one exercise in one workout newly set against `history`, per row. Same total as
+/// ``prsInSession`` over the rows merged into one session (what the Finish screen shows); `history` entries of this
+/// workout are ignored.
+nonisolated func prsInWorkout(
+    history: [Session],
+    rows: [Session],
+    weightType: WeightType,
+    options: RecordsOptions
+) -> [[PersonalRecord]] {
+    guard rows.count > 1 else {
+        return rows.map { prsInSession(history: history, session: $0, weightType: weightType, options: options) }
+    }
+    let merged = prsInSession(history: history, session: mergedSession(rows), weightType: weightType, options: options)
+    return splitRecords(merged, among: rows, options: options)
 }

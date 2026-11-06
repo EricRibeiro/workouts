@@ -35,6 +35,23 @@ import Testing
         #expect(SetInputFormat.parseWeight("inf") == nil)
     }
 
+    @Test func weightRejectsExponentHexAndAbsurdValues() {
+        for text in [
+            "1e307", "1e3", "1E2", "0x10", "0b1", "nan", "-inf", "1_000", "٣", "--5", "+-5", ".", "-", "10000.01",
+            "99999",
+        ] {
+            #expect(SetInputFormat.parseWeight(text) == nil, "\(text)")
+        }
+        #expect(SetInputFormat.parseWeight("10000") == 10_000)
+        #expect(SetInputFormat.parseWeight("+5") == 5)
+    }
+
+    @Test func countRejectsExponentAndHex() {
+        for text in ["1e3", "0x10", "inf", "nan", "1.2.3", "."] {
+            #expect(SetInputFormat.parseCount(text) == nil, "\(text)")
+        }
+    }
+
     @Test func parsesCount() {
         #expect(SetInputFormat.parseCount("8") == 8)
         #expect(SetInputFormat.parseCount(" 12 ") == 12)

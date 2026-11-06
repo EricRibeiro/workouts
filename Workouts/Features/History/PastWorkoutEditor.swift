@@ -216,7 +216,7 @@ private struct Editor: View {
                 .labelsHidden()
                 .fixedSize()
                 .accessibilityLabel("Duration")
-                .accessibilityValue("\(draft.durationMinutes) minutes")
+                .accessibilityValue("\(draft.durationMinutes) \(draft.durationMinutes == 1 ? "minute" : "minutes")")
                 .accessibilityIdentifier("pastEditor.duration.stepper")
         }
         return layout {

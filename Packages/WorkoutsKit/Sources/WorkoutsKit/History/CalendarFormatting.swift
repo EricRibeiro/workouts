@@ -1,8 +1,9 @@
 import Foundation
 
 /// The kit's fixed-pattern date texts, built from `Date.VerbatimFormatStyle` instead of a `DateFormatter` per call.
-/// Two families: `en_US_POSIX` texts on the Gregorian calendar (stable identifiers and labels, only the time zone follows
-/// the caller), and `en_US` texts that follow the caller's whole calendar.
+/// Two families: `en_US_POSIX` texts and `en_US` texts. Both are Gregorian whatever the caller's calendar system (a
+/// Japanese or Buddhist device would otherwise print "November 0008"/"2569" in English text); only the time zone
+/// follows the caller. No pattern here depends on the first weekday.
 public nonisolated enum CalendarFormatting {
     // MARK: en_US_POSIX, Gregorian, the caller's time zone
 
@@ -26,7 +27,7 @@ public nonisolated enum CalendarFormatting {
         posix(monthYearFormat, calendar).format(date)
     }
 
-    // MARK: en_US, the caller's calendar and time zone
+    // MARK: en_US, Gregorian, the caller's time zone
 
     /// `10:05 AM` / `9:30 PM`.
     public static func timeOfDay(_ date: Date, calendar: Calendar) -> String {
@@ -90,7 +91,6 @@ public nonisolated enum CalendarFormatting {
 
     private static func localized(_ style: Date.VerbatimFormatStyle, _ calendar: Calendar) -> Date.VerbatimFormatStyle {
         var style = style
-        style.calendar = calendar
         style.timeZone = calendar.timeZone
         return style
     }

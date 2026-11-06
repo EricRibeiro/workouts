@@ -125,6 +125,35 @@ import Testing
         #expect(try rig.context.fetchCount(FetchDescriptor<WorkoutSet>()) == 12)
     }
 
+    @Test func addWarmupSetsKeepsCompletedWarmupsAndReplacesOnlyTheRest() throws {
+        let (rig, engine, rows3) = try threeRows()
+        defer { withExtendedLifetime(rig) {} }
+        let squat = rows3[0]
+        try setUpWorkingSets(engine, squat, weight: 100)
+        let done = Array(sets(squat).prefix(2))
+        for set in done {
+            try engine.setKind(set, to: .warmup)
+            try engine.setValues(set, weight: 20, reps: 15, durationSeconds: nil)
+            try engine.check(set)
+        }
+        let working = try #require(sets(squat).last)
+        // An unchecked warm-up added by hand is replaced like before.
+        let extra = try engine.addSet(to: squat)
+        try engine.setKind(extra, to: .warmup)
+        try engine.addWarmupSets(to: squat)
+        let all = sets(squat)
+        #expect(all.map(\.kind) == [.warmup, .warmup, .warmup, .warmup, .warmup, .normal])
+        #expect(all.prefix(2).map(\.id) == done.map(\.id))
+        #expect(all.prefix(2).allSatisfy { $0.completed && $0.completedAt != nil && $0.weight == 20 && $0.reps == 15 })
+        #expect(all.map(\.weight) == [20, 20, 45, 60, 80, 100])
+        #expect(all.map(\.position) == [0, 1, 2, 3, 4, 5])
+        #expect(all.suffix(3).allSatisfy { !$0.completed })
+        #expect(all.last?.id == working.id)
+        #expect(!all.contains { $0.id == extra.id })
+        // Plan and Previous still match by kind: the working set is the first non-warm-up.
+        #expect(engine.canCheck(working))
+    }
+
     @Test func addWarmupSetsKeepsThePlanAndPreviousOnTheWorkingSets() throws {
         let rig = try EngineTests.Rig()
         rig.settings.defaultUnit = .kg
@@ -314,6 +343,23 @@ import Testing
         try engine.setUnit(to, for: squat)
         #expect(squat.unit == to)
         #expect(sets(squat).allSatisfy { $0.weight == 100 })
+    }
+
+    @Test func setUnitConvertsACustomBarWeight() throws {
+        let (rig, engine, rows3) = try threeRows()
+        defer { withExtendedLifetime(rig) {} }
+        let row = rows3[0]
+        try engine.setUnit(.kg, for: row)
+        try engine.setBar(.custom, weight: 20, for: row)
+        try engine.setUnit(.lb, for: row)
+        #expect(row.barWeight == round05(convert(20, from: .kg, to: .lb)))  // 44
+        try engine.setUnit(.lb, for: row)
+        #expect(row.barWeight == 44)
+        try engine.setUnit(.kg, for: row)
+        #expect(row.barWeight == 20)
+        try engine.setBar(.ez, weight: nil, for: row)
+        try engine.setUnit(.lb, for: row)
+        #expect(row.barWeight == nil)
     }
 
     @Test func setBarWritesTypeAndCustomWeight() throws {

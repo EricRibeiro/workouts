@@ -43,7 +43,8 @@ status bar, toolbar items, tab bar. Rules that follow:
   the safe area; backgrounds may `.ignoresSafeArea()`; `.backgroundExtensionEffect()` extends a
   hero image under a vertical bar.
 - Keyboard accessory bars stay horizontal. Sheets on the outer display get vertical bars by
-  default; a sheet with a single Close button may opt out.
+  default; a sheet with a single Close button may opt out, and so may a read-only sheet with no toolbar items
+  that is dismissed by swiping (the exercise info sheet, JC85).
 
 ## The inner display
 

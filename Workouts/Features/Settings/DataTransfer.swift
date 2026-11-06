@@ -10,8 +10,8 @@ import UniformTypeIdentifiers
 import WorkoutsKit
 
 /// The Settings Import / Export work around the kit's `WorkoutsJSON` codec. File reading, decoding, encoding and writing
-/// run off the main actor; applying and reading the store stay on it, because the `@Model` classes are `MainActor`
-/// (the project's default isolation) and so are `Importer` and `Exporter`.
+/// run off the main actor, and so does reading the store for Export (a background `ModelContext` on the same container);
+/// applying an import stays on the main actor.
 nonisolated enum DataTransfer {
     /// Reads and decodes the picked file. Holds the security-scoped access the file picker grants while it reads.
     @concurrent
@@ -39,17 +39,16 @@ nonisolated enum DataTransfer {
         }
     }
 
-    /// The whole store as a document, read on the main actor.
-    @MainActor
-    static func exportDocument(container: ModelContainer, catalog: LibraryCatalog?, now: Date) throws -> WorkoutsJSON {
-        try Exporter.document(from: container.mainContext, catalog: catalog, exportedAt: now)
-    }
-
     /// Writes the whole store as JSON to a new file named `workouts-export-YYYY-MM-DD.json` in a fresh temporary folder.
     @concurrent
     static func writeExport(container: ModelContainer, catalog: LibraryCatalog?, now: Date = Date()) async throws -> URL
     {
-        let document = try await exportDocument(container: container, catalog: catalog, now: now)
+        // The background context reads the store, not the main context's pending edits: save those first.
+        try await MainActor.run {
+            if container.mainContext.hasChanges { try container.mainContext.save() }
+        }
+        // A context of its own, so faulting every workout does not freeze the main actor.
+        let document = try Exporter.document(from: ModelContext(container), catalog: catalog, exportedAt: now)
         let data = try document.encoded()
         let folder = FileManager.default.temporaryDirectory.appending(
             path: UUID().uuidString,

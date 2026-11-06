@@ -175,7 +175,10 @@ struct HeartRateChart: View {
         if let average { parts.append("average \(FitnessFormat.wholeNumber(average))") }
         if let maximum { parts.append("max \(FitnessFormat.wholeNumber(maximum))") }
         if !parts.isEmpty { text += ", " + parts.joined(separator: ", ") + " beats per minute" }
-        if !timeline.isEmpty { text += ", \(timeline.setTicks.count) sets across \(timeline.blocks.count) exercises" }
+        if !timeline.isEmpty {
+            text +=
+                ", \(timeline.setTicks.count) \(timeline.setTicks.count == 1 ? "set" : "sets") across \(timeline.blocks.count) \(timeline.blocks.count == 1 ? "exercise" : "exercises")"
+        }
         return text
     }
 

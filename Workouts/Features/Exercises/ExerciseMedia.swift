@@ -256,6 +256,8 @@ struct ExerciseMediaHeader: View {
         guard ExerciseMedia.canStreamVideo, let library, library.hasVideos else { return }
         let scheme: MediaScheme = colorScheme == .dark ? .dark : .light
         guard let url = try? await ExerciseMedia.store.video(for: library.sourceId, scheme: scheme) else { return }
+        // The store's fetch is not cancelled with this task: a stale scheme's result must not replace the current one.
+        guard !Task.isCancelled else { return }
         let looping = LoopingPlayer(url: url)
         video = looping
         if !reduceMotion { looping.player.play() }

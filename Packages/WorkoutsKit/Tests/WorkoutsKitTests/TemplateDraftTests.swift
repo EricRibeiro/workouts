@@ -380,6 +380,23 @@ import Testing
         #expect(draft.exercises[0].restSeconds == nil)
     }
 
+    @Test func changingTheUnitConvertsACustomBarOnly() {
+        var (draft, ids) = blocks(["Squat", "Row"])
+        draft.setUnit(.kg, for: ids[1])
+        draft.setBar(.custom, weight: 20, for: ids[1])
+        draft.setUnit(.lb, for: ids[1])
+        #expect(draft.exercises[1].unit == .lb)
+        #expect(draft.exercises[1].barWeight == round05(convert(20, from: .kg, to: .lb)))  // 44
+        draft.setUnit(.lb, for: ids[1])  // same unit: untouched
+        #expect(draft.exercises[1].barWeight == 44)
+        draft.setUnit(.kg, for: ids[1])
+        #expect(draft.exercises[1].barWeight == 20)
+        // A named bar has no custom weight to convert.
+        draft.setBar(.ez, weight: nil, for: ids[1])
+        draft.setUnit(.lb, for: ids[1])
+        #expect(draft.exercises[1].barWeight == nil)
+    }
+
     @Test func unitAndBarPreferencesApplyToTheBlock() {
         var (draft, ids) = blocks(["Squat", "Row"])
         draft.setUnit(.kg, for: ids[1])

@@ -22,10 +22,14 @@ extension ActiveWorkoutEngine {
         try commit(workout, row)
     }
 
-    /// Preferences: the row's weight unit. Set values are not converted. A single-value edit.
+    /// Preferences: the row's weight unit. Set values are not converted, but a custom bar's weight is (rounded to 0.5,
+    /// like a converted set weight). A single-value edit.
     /// - Throws: ``ActiveWorkoutError/notInActiveWorkout`` when the row is not in the workout.
     public func setUnit(_ unit: WeightUnit, for row: WorkoutExercise) throws {
         let workout = try owned(row)
+        if row.unit != unit, row.barType == .custom, let bar = row.barWeight {
+            row.barWeight = convertedWeight(bar, from: row.unit, to: unit)
+        }
         row.unit = unit
         try commit(workout, row)
     }

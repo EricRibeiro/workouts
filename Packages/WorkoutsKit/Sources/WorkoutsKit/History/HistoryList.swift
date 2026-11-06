@@ -154,7 +154,9 @@ public nonisolated enum HistoryList {
 
     /// `Sunday, Nov 1`; the year (`Sunday, Nov 1, 2025`) only when it is not the year of `now`.
     public static func dateText(_ date: Date, now: Date = .now, calendar: Calendar = .current) -> String {
-        let sameYear = calendar.isDate(date, equalTo: now, toGranularity: .year)
+        var gregorian = Calendar(identifier: .gregorian)
+        gregorian.timeZone = calendar.timeZone
+        let sameYear = gregorian.isDate(date, equalTo: now, toGranularity: .year)
         return date.formatted(sameYear ? dayStyle(in: calendar) : dayWithYearStyle(in: calendar))
     }
 
@@ -237,7 +239,6 @@ public nonisolated enum HistoryList {
 
     private static func applying(_ calendar: Calendar, to style: Date.VerbatimFormatStyle) -> Date.VerbatimFormatStyle {
         var style = style
-        style.calendar = calendar
         style.timeZone = calendar.timeZone
         return style
     }

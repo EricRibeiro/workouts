@@ -227,7 +227,7 @@ public nonisolated func formatSetDetail(
     let load = (weight ?? 0) > 0 ? weight.map { WeightFormat.text($0, unit: unit) } : nil
     let amount: String? =
         if let reps, reps > 0 {
-            load == nil ? "\(reps) reps" : "\(reps)"
+            load == nil ? "\(reps) \(reps == 1 ? "rep" : "reps")" : "\(reps)"
         } else if let durationSeconds, durationSeconds > 0 {
             ClockFormat.compact(seconds: durationSeconds)
         } else {

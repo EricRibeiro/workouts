@@ -361,3 +361,14 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
       set is being typed.
     - Download all videos resumes on every activation while on and retries failed fetches.
     - An import that saved is never reported as failed.
+98. **Bug review round 2** (cross-cutting angles: data integrity, concurrency, Duo navigation, numbers/dates, system
+    integrations; five fresh Opus reviewers). 19 new confirmed, smaller than round 1's 27; the only data-loss one was
+    a round-1 regression (editing any set of a past workout cleared its Fitness data because of fractional seconds),
+    fixed here. Decisions:
+    - PRs count rows of the same exercise in one workout as one session everywhere (History, detail, exercise
+      history), matching the Finish screen.
+    - Dates format in the Gregorian calendar with the device time zone regardless of the device calendar system.
+    - Weight entry accepts plain decimals only, up to 10,000; a custom bar converts with the row's unit.
+    - "Add Warm-up Sets" keeps checked warm-ups and replaces only unchecked ones.
+    - Not fixed: a custom exercise's default bar weight follows the Settings unit (needs a model field; unlikely).
+    - The exercise info sheet's vertical-bar opt-out is documented in duo-layout.md (Eric-approved, JC85).

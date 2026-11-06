@@ -59,7 +59,7 @@ final class ExerciseQueryParser: ExerciseQueryParsing {
     }
 
     func parse(_ text: String) async -> ExerciseQuery? {
-        guard isAvailable, let session = takeSession() else { return nil }
+        guard isAvailable, let session = takeSession() ?? freshSession() else { return nil }
         defer { makeSession()?.prewarm() }
         do {
             let response = try await session.respond(to: text, generating: GeneratedExerciseQuery.self)
@@ -73,10 +73,15 @@ final class ExerciseQueryParser: ExerciseQueryParsing {
     /// Replaces the stored session with a fresh one and returns it; nil until `prewarm` has supplied the vocabulary.
     @discardableResult
     private func makeSession() -> LanguageModelSession? {
-        guard let instructions else { return nil }
-        let fresh = LanguageModelSession(instructions: instructions)
+        let fresh = freshSession()
         session = fresh
         return fresh
+    }
+
+    /// A new session that is not stored, for a parse that finds the prewarmed one in use.
+    private func freshSession() -> LanguageModelSession? {
+        guard let instructions else { return nil }
+        return LanguageModelSession(instructions: instructions)
     }
 
     private func takeSession() -> LanguageModelSession? {
