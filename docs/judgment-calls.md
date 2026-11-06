@@ -334,3 +334,6 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
     in-process tests for the Live Activity intents, a CloudKit model-rules check on the schema, a unit test of the
     Wi-Fi-only media configuration, the header-return rule as a kit state machine, in-flight refresh tests. Skipped as
     too fragile: driving the real Island / notification banners through SpringBoard, moving the hinge from the test runner.
+95. **Health passes skip workouts before the earliest readable date without stamping them** (iOS 27 shares the past 30
+    days by default): the later of `earliestPermittedSampleDate` and the workout type's `earliestAuthorizedSampleDate`.
+    Widening access later lets the backfill find them.

@@ -47,7 +47,7 @@ Legend: **[observed]** = I ran it on the iPhone Duo simulator (iOS 27.2, Xcode 2
   between runs I did not verify.
 - [doc] iOS 27 adds "Past 30 Days and Future Data" as the default scope and
   `HKHealthStore.getEarliestAuthorizedSampleDateForTypes(_:completion:)` (iOS 27, SDK header) to read the lower bound.
-  Irrelevant for a just-finished workout; relevant if we ever backfill older workouts.
+  Irrelevant for a just-finished workout; the backfill and routine passes read it (`HealthSource.earliestReadableDate()`) and skip, without stamping, workouts that started before it, so they are looked up once access widens.
 - Purpose-string trap **[observed]**: `requestAuthorization` throws an uncaught `NSInvalidArgumentException` (SIGABRT) from
   `_validateHealthDataPurposeStringsForSharingTypes:readingTypes:` when a needed usage string is missing or invalid.
   `The string "Spike write" is an invalid value for NSHealthUpdateUsageDescription` (an 11-character placeholder);

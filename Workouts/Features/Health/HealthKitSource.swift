@@ -46,6 +46,17 @@ nonisolated final class HealthKitSource: HealthSource {
         }
     }
 
+    /// The later of the platform's earliest permitted date and, when the person shared a limited range (iOS 27's default
+    /// is the past 30 days), the earliest date they authorized for workouts. `.distantPast` when neither applies or the
+    /// lookup fails, so an unknown limit never blocks a pass.
+    func earliestReadableDate() async -> Date {
+        guard Self.isAvailable else { return .distantPast }
+        let permitted = store.earliestPermittedSampleDate()
+        let workoutType = HKObjectType.workoutType()
+        let authorized = try? await store.earliestAuthorizedSampleDate(for: [workoutType])
+        return max(permitted, authorized?[workoutType] ?? .distantPast)
+    }
+
     func workouts(in interval: DateInterval) async throws -> [HealthWorkoutCandidate] {
         guard Self.isAvailable else { throw HealthSourceError.unavailable }
         let window = HKQuery.predicateForSamples(withStart: interval.start, end: interval.end)

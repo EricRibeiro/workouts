@@ -72,13 +72,19 @@ public enum HealthEnrichmentRun {
     }
 
     /// The loop `run` and `backfill` share. `all` supplies the Fitness workouts already attached, which count as claimed.
+    ///
+    /// Workouts that started before `source.earliestReadableDate()` are dropped first and never stamped: Health cannot show
+    /// them (iOS 27 shares only the past 30 days by default), so a lookup would stamp them "unmatched" and a later, wider
+    /// grant would never revisit them.
     private static func process(
-        _ pending: [Workout],
+        _ candidates: [Workout],
         among all: [Workout],
         source: any HealthSource,
         now: Date,
         progress: ((_ done: Int, _ total: Int) -> Void)?
     ) async -> Outcome {
+        let earliest = await source.earliestReadableDate()
+        let pending = candidates.filter { $0.startedAt >= earliest }
         var claimed = Set(all.compactMap(\.healthWorkoutID))
         let enrichment = HealthEnrichment(source: source)
         var outcome = Outcome()

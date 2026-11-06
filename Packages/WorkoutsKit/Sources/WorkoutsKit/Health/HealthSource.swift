@@ -18,6 +18,15 @@ public nonisolated protocol HealthSource: Sendable {
     func workouts(in interval: DateInterval) async throws -> [HealthWorkoutCandidate]
     /// Energy and heart-rate details for a candidate returned by `workouts(in:)`.
     func summary(for candidate: HealthWorkoutCandidate) async throws -> HealthWorkoutSummary
+    /// The oldest date Health lets this app read from. iOS 27's permission sheet defaults to "Past 30 Days and Future
+    /// Data", so older workouts look empty rather than denied. A pass skips (without stamping) workouts that started
+    /// before it, so they are looked up once access widens. `.distantPast` when unrestricted or unknown.
+    func earliestReadableDate() async -> Date
+}
+
+extension HealthSource {
+    /// Sources without a read window are unrestricted.
+    public nonisolated func earliestReadableDate() async -> Date { .distantPast }
 }
 
 /// An in-memory `HealthSource` for tests, previews and the app's `-healthFixture` launch argument.
@@ -29,12 +38,15 @@ public nonisolated struct FakeHealthSource: HealthSource {
     public var error: HealthSourceError?
     /// Simulated latency before each call answers.
     public var delay: Duration?
+    /// What `earliestReadableDate()` answers; the default is no restriction. Tests move it to model a narrow grant.
+    public var earliestReadable: Date
 
     public init(
         candidates: [HealthWorkoutCandidate] = [],
         summaries: [HealthWorkoutSummary] = [],
         error: HealthSourceError? = nil,
-        delay: Duration? = nil
+        delay: Duration? = nil,
+        earliestReadable: Date = .distantPast
     ) {
         self.candidates = candidates
         self.summaries = Dictionary(
@@ -43,6 +55,7 @@ public nonisolated struct FakeHealthSource: HealthSource {
         )
         self.error = error
         self.delay = delay
+        self.earliestReadable = earliestReadable
     }
 
     /// A source whose every call throws `error`.
@@ -60,6 +73,8 @@ public nonisolated struct FakeHealthSource: HealthSource {
         guard let summary = summaries[candidate.id] else { throw HealthSourceError.notFound }
         return summary
     }
+
+    public func earliestReadableDate() async -> Date { earliestReadable }
 
     private func simulate() async throws {
         if let delay { try await Task.sleep(for: delay) }

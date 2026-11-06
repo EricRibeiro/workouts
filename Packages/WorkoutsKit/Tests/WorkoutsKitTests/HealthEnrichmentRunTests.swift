@@ -461,6 +461,48 @@ private nonisolated struct GatedSource: HealthSource {
         #expect(old.healthCheckedAt == Self.later)
     }
 
+    @Test func backfillSkipsWithoutStampingWorkoutsBeforeTheEarliestReadableDateThenMatchesOnceItWidens() async {
+        let old = Self.workout()
+        let recent = Self.workout(startOffset: 40 * 86400, name: "Pull")
+        var source = Self.source([("HK-1", 0), ("HK-2", 40 * 86400)])
+        source.earliestReadable = Self.t0.addingTimeInterval(30 * 86400)
+        var progress: [Int] = []
+
+        let narrow = await HealthEnrichmentRun.backfill(
+            workouts: [old, recent],
+            source: source,
+            now: Self.later,
+            progress: { _, total in progress.append(total) }
+        )
+        #expect(narrow == Outcome(matched: 1, checked: 1, stopped: nil))
+        #expect(old.healthWorkoutID == nil)
+        #expect(old.healthCheckedAt == nil)
+        #expect(recent.healthWorkoutID == "HK-2")
+        #expect(Set(progress) == [1])
+
+        source.earliestReadable = .distantPast
+        let wide = await HealthEnrichmentRun.backfill(workouts: [old, recent], source: source, now: Self.later)
+        #expect(wide == Outcome(matched: 1, checked: 1, stopped: nil))
+        #expect(old.healthWorkoutID == "HK-1")
+        #expect(old.healthCheckedAt == Self.later)
+    }
+
+    @Test func routinePassSkipsWithoutStampingWorkoutsBeforeTheEarliestReadableDate() async {
+        let workout = Self.workout()
+        let now = Self.t0.addingTimeInterval(86400)
+        var source = Self.source([("HK-1", 0)])
+        source.earliestReadable = Self.t0.addingTimeInterval(1)
+
+        let narrow = await HealthEnrichmentRun.run(workouts: [workout], source: source, now: now)
+        #expect(narrow == Outcome())
+        #expect(workout.healthCheckedAt == nil)
+
+        source.earliestReadable = .distantPast
+        let wide = await HealthEnrichmentRun.run(workouts: [workout], source: source, now: now)
+        #expect(wide == Outcome(matched: 1, checked: 1, stopped: nil))
+        #expect(workout.healthWorkoutID == "HK-1")
+    }
+
     @Test func backfillStampsAnOldWorkoutWithNoMatchSoItIsNotChasedAgain() async {
         let old = Self.workout()
         let outcome = await HealthEnrichmentRun.backfill(
