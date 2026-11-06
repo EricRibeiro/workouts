@@ -90,3 +90,38 @@ struct ActivityTimerCaption: View {
             .accessibilityHidden(true)  // the timer element's label already says it
     }
 }
+
+/// The narrow Island's time line under the glyph: the rest countdown while one runs (accent), else the workout's
+/// elapsed time. Both are `Text(timerInterval:)`, so the system ticks them with no ActivityKit pushes. Hours are folded
+/// into minutes ("65:20", never "1:05:20") to stay about five characters wide.
+///
+/// Apple Fitness's "45min" is deliberately not used: it is whole minutes, and the only text the system updates on its
+/// own in whole minutes is `SystemFormatStyle.DateOffset`, which renders the words ("45 minutes", "1 hour, 5 minutes";
+/// no abbreviation option) and wraps or truncates in this strip. A static "45min" would go stale between activity
+/// updates, which the app cannot send while suspended.
+struct ActivityCompactTimerText: View {
+    let state: WorkoutActivityState
+
+    var body: some View {
+        Group {
+            if state.isRestRunning(restOver: false), let range = state.countdownRange() {
+                Text(timerInterval: range, countsDown: true, showsHours: false)
+                    .foregroundStyle(ActivityStyle.accent)
+            } else {
+                // Counts up from the start; the far end only bounds the range (a year, far beyond any workout).
+                Text(
+                    timerInterval: state.startedAt...state.startedAt.addingTimeInterval(31_536_000),
+                    countsDown: false,
+                    showsHours: false
+                )
+                .foregroundStyle(.primary)
+            }
+        }
+        .font(.caption2.weight(.semibold))
+        .monospacedDigit()
+        .lineLimit(1)
+        .minimumScaleFactor(0.6)
+        .multilineTextAlignment(.center)
+        .activityTimerAccessibility(for: state)
+    }
+}

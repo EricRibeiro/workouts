@@ -81,6 +81,20 @@ struct SettingsView: View {
                 "Workouts stops reading Fitness workouts. Keep the calories and heart rate already added, or remove them?"
             )
         }
+        .alert("Turn Off Video Downloads?", isPresented: $flow.isConfirmingVideoRemoval) {
+            Button("Keep Videos") { flow.turnOffVideos(removeVideos: false, settings: settings, download: download) }
+                .accessibilityIdentifier("settings.videos.keep")
+            Button("Remove Videos", role: .destructive) {
+                flow.turnOffVideos(removeVideos: true, settings: settings, download: download)
+            }
+            .accessibilityIdentifier("settings.videos.remove")
+            Button("Cancel", role: .cancel) {}
+                .accessibilityIdentifier("settings.videos.cancel")
+        } message: {
+            Text(
+                "Videos already downloaded stay available offline. Remove them to free up \(flow.videoCacheBytes.formatted(.byteCount(style: .file)))?"
+            )
+        }
         // Imported history never got Fitness data when it was recorded; look it up once (no-op while off). A task of the
         // sheet, so closing Settings cancels it.
         .task(id: flow.backfillRequest) {
@@ -210,7 +224,7 @@ struct SettingsView: View {
 
     private var media: some View {
         Section {
-            Toggle("Download all videos", isOn: bound.downloadAllVideos)
+            Toggle("Download all videos", isOn: downloadAllVideosBinding)
                 .accessibilityLabel("Download all videos")
                 .accessibilityIdentifier("settings.downloadAllVideos")
             if let progress = download.progress {
@@ -231,8 +245,23 @@ struct SettingsView: View {
             Text("Downloads over Wi-Fi only.")
         }
         .onChange(of: settings.downloadAllVideos, initial: true) { _, isOn in
-            if isOn { startDownload() } else { download.cancel() }
+            if isOn { startDownload() } else { _ = download.cancel() }
         }
+    }
+
+    /// On turns downloading on. Off does not change anything yet when videos are already downloaded: it asks whether to
+    /// keep them, and Cancel leaves the toggle on with the download running.
+    private var downloadAllVideosBinding: Binding<Bool> {
+        Binding(
+            get: { settings.downloadAllVideos },
+            set: { isOn in
+                if isOn {
+                    settings.downloadAllVideos = true
+                } else {
+                    flow.requestTurnOffVideos(settings: settings)
+                }
+            }
+        )
     }
 
     /// Prefetches the library's videos for the current colour scheme; videos already cached are skipped at once.

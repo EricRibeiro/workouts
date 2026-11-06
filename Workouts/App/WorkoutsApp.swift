@@ -46,6 +46,7 @@ struct WorkoutsApp: App {
             }
             // `-seedHealth`: writes a sample Fitness workout into the simulator's Health store (docs/port/healthkit.md).
             HealthSeeder.seedIfRequested()
+            Self.prepareVideoCacheIfRequested()
         #endif
         let settings = SettingsStore()
         self.settings = settings
@@ -168,6 +169,19 @@ struct WorkoutsApp: App {
     }
 
     #if DEBUG
+        /// `-videoCache empty|seeded`: starts the media cache empty, or with one small dummy video in it, so a UI test can
+        /// prove the "Turn Off Video Downloads?" alert (UI-test runs have no network and download nothing).
+        private static func prepareVideoCacheIfRequested() {
+            let arguments = ProcessInfo.processInfo.arguments
+            guard let flag = arguments.firstIndex(of: "-videoCache"), flag + 1 < arguments.count else { return }
+            let media = URL.cachesDirectory.appendingPathComponent("media", isDirectory: true)
+            try? FileManager.default.removeItem(at: media)
+            guard arguments[flag + 1] == "seeded" else { return }
+            let folder = media.appendingPathComponent("seeded-exercise", isDirectory: true)
+            try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            try? Data(count: 64 * 1024).write(to: folder.appendingPathComponent("video-light.mp4"))
+        }
+
         /// `-seedOldWorkout`: inserts one finished workout "Old Backfill Workout" that ended 30 days ago and was never
         /// checked against Health, so a UI test can prove the Fitness backfill (the routine lookup gives up after 7 days).
         @MainActor
@@ -200,7 +214,8 @@ struct WorkoutsApp: App {
         /// `-seedSampleData`: seeds the sample data when the store has no templates and stops there.
         /// `-sampleWorkouts <n>`: seeds n finished workouts over ~2 years instead of the default 50 (and stops there).
         /// `-startSampleWorkout`: seeds the sample data when the store has no templates, then starts a workout from the
-        /// first template (if none runs), then always starts a 5-minute rest, so the Live Activity can be shown without any UI.
+        /// first template (if none runs), then starts a 5-minute rest, so the Live Activity can be shown without any UI.
+        /// `-sampleElapsedSeconds N` backdates the workout's start; `-sampleNoRest` skips the rest.
         @MainActor
         private static func startSampleWorkoutIfRequested(engine: ActiveWorkoutEngine, context: ModelContext) throws {
             let arguments = ProcessInfo.processInfo.arguments
@@ -225,6 +240,14 @@ struct WorkoutsApp: App {
                 guard let template = try context.fetch(descriptor).first else { return }
                 try engine.start(from: template)
             }
+            // `-sampleElapsedSeconds N` backdates the workout's start (the Island's elapsed time past an hour).
+            let elapsed = UserDefaults.standard.integer(forKey: "sampleElapsedSeconds")
+            if elapsed > 0, let workout = engine.workout {
+                workout.startedAt = .now.addingTimeInterval(-TimeInterval(elapsed))
+                try context.save()
+            }
+            // `-sampleNoRest` leaves the workout without a rest (the Island's elapsed-time state).
+            guard !arguments.contains("-sampleNoRest") else { return }
             // `-sampleRestSeconds N` (launch arguments land in UserDefaults) shortens it, e.g. to prove the rest-end
             // notification.
             let seconds = UserDefaults.standard.integer(forKey: "sampleRestSeconds")

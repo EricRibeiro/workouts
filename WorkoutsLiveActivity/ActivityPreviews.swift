@@ -65,6 +65,13 @@
             )
         }
 
+        /// Past an hour: the expanded Island's elapsed time must show "1:00:20" whole.
+        static var sampleHourLogging: WorkoutActivityState {
+            var state = WorkoutActivityState.sampleLogging
+            state.startedAt = .now.addingTimeInterval(-3_620)
+            return state
+        }
+
         static var sampleAllDone: WorkoutActivityState {
             WorkoutActivityState(
                 workoutName: "Push Day",
@@ -107,10 +114,12 @@
         WorkoutActivityState.sampleLogging
         WorkoutActivityState.sampleAllDone
         WorkoutActivityState.sampleLongNames
+        WorkoutActivityState.sampleHourLogging
     }
 
     // `isDynamicIslandLimitedInWidth` is read-only, so the closed Duo's narrow Island cannot be previewed; it is
-    // proven on the Duo with a Live Activity running.
+    // proven on the Duo with a Live Activity running (`./dev home`). A widget extension hosts only widget previews, so the
+    // narrow stack cannot be a plain-view preview either.
     #Preview("Compact", as: .dynamicIsland(.compact), using: previewAttributes) {
         WorkoutLiveActivity()
     } contentStates: {

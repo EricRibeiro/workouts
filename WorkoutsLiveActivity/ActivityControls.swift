@@ -57,3 +57,52 @@ struct ActivityControlLabel: View {
             .frame(maxWidth: .infinity, minHeight: 28)
     }
 }
+
+/// The expanded Island's controls, drawn like Apple's Workout app: round buttons with a white symbol. Skip and +30 s
+/// (dark gray) while a rest runs; otherwise one Done set in the accent colour. The same `LiveActivityIntent`s as
+/// ``ActivityControls``.
+struct IslandControls: View {
+    let state: WorkoutActivityState
+    let restOver: Bool
+
+    var body: some View {
+        HStack(spacing: 10) {
+            if state.isRestRunning(restOver: restOver) {
+                Button(intent: SkipRestIntent()) {
+                    IslandCircleLabel(symbol: "forward.end", fill: Self.gray)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Skip rest")
+                Button(intent: AddRestIntent(seconds: 30)) {
+                    IslandCircleLabel(symbol: "goforward.30", fill: Self.gray)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Add 30 seconds of rest")
+            } else {
+                Button(intent: DoneSetIntent(setID: state.current?.setID ?? UUID())) {
+                    IslandCircleLabel(symbol: "checkmark", fill: ActivityStyle.accent)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Done set")
+                .disabled(state.current?.isEmpty ?? true)
+            }
+        }
+    }
+
+    private static let gray = Color(white: 0.22)
+}
+
+/// A filled circle with a centred white symbol.
+struct IslandCircleLabel: View {
+    let symbol: String
+    let fill: Color
+
+    var body: some View {
+        Image(systemName: symbol)
+            .font(.title3.weight(.semibold))
+            .foregroundStyle(.white)
+            .frame(width: 48, height: 48)
+            .background(fill, in: Circle())
+            .contentShape(Circle())
+    }
+}

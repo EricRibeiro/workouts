@@ -40,6 +40,13 @@ struct ActiveWorkoutCover: View {
     /// A set cell has keyboard focus (`SetTableEditingKey`): the number pad leaves the closed display's trailing strip about
     /// three items tall, so only Minimise and Finish stay; the rest timer lives in the keyboard accessory meanwhile.
     @State private var isEditingSet = false
+    /// Set 1.5 s after a scroll ends: the system's own title minimisation (`.automatic` hides the header while the table is
+    /// scrolled down) is switched to `.never`, which brings the header back with the system's animation; the next scroll
+    /// switches it back so the header can hide again. There is no API to re-expand a minimised bar directly.
+    @State private var isHeaderPinned = false
+    /// Counts scroll endings; the `.task(id:)` below restarts (and so cancels the pending restore) whenever it changes.
+    @State private var scrollEndCount = 0
+    @State private var isHeaderRestorePending = false
 
     var body: some View {
         NavigationStack {
@@ -56,6 +63,26 @@ struct ActiveWorkoutCover: View {
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarMinimizationBehavior(isHeaderPinned ? .never : .automatic, for: .navigationBar)
+            .onScrollPhaseChange { old, new in
+                // A scroll starting cancels the pending restore and lets the header hide again; one ending (finger lifted,
+                // or the fling settled) starts the timer.
+                if new == .idle {
+                    guard old == .decelerating || old == .interacting else { return }
+                    isHeaderRestorePending = true
+                    scrollEndCount += 1
+                } else {
+                    isHeaderRestorePending = false
+                    scrollEndCount += 1
+                    if isHeaderPinned { isHeaderPinned = false }
+                }
+            }
+            .task(id: scrollEndCount) {
+                guard isHeaderRestorePending else { return }
+                try? await Task.sleep(for: .milliseconds(1500))
+                guard !Task.isCancelled else { return }
+                withAnimation { isHeaderPinned = true }
+            }
             .onPreferenceChange(SetTableEditingKey.self) { isEditingSet = $0 }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

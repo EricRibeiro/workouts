@@ -7,13 +7,14 @@ final class SettingsUITests: XCTestCase {
     }
 
     @MainActor
-    private func launch() -> XCUIApplication {
+    private func launch(_ extra: [String] = []) -> XCUIApplication {
         let app = XCUIApplication()
         // Launch-argument defaults override the stored values, so a run never depends on an earlier one.
-        app.launchArguments += [
-            "-uiTesting", "-preview", "Settings",
-            "-defaultUnit", "lb", "-defaultRestSeconds", "90", "-weeklyGoal", "3", "-e1rmFormula", "epley",
-        ]
+        app.launchArguments +=
+            [
+                "-uiTesting", "-preview", "Settings",
+                "-defaultUnit", "lb", "-defaultRestSeconds", "90", "-weeklyGoal", "3", "-e1rmFormula", "epley",
+            ] + extra
         app.launch()
         return app
     }
@@ -89,6 +90,80 @@ final class SettingsUITests: XCTestCase {
         let icloud = any["settings.iCloudStatus"]
         for _ in 0..<4 where !icloud.exists { app.swipeUp() }
         XCTAssertTrue(icloud.exists, "iCloudStatus")
+    }
+
+    // MARK: Turning off video downloads
+
+    /// Launches with "Download all videos" on and the media cache empty or holding one dummy video; returns the toggle.
+    @MainActor
+    private func launchWithVideoDownloads(cache: String) -> (app: XCUIApplication, toggle: XCUIElement) {
+        let app = launch(["-downloadAllVideos", "YES", "-videoCache", cache])
+        XCTAssertTrue(app.descendants(matching: .any)["screen.settings"].waitForExistence(timeout: 10))
+        let toggle = app.switches["settings.downloadAllVideos"]
+        for _ in 0..<5 where !toggle.exists || !toggle.isHittable { app.swipeUp() }
+        XCTAssertTrue(toggle.waitForExistence(timeout: 5), "no Download all videos toggle")
+        XCTAssertEqual(toggle.value as? String, "1")
+        return (app, toggle)
+    }
+
+    /// Taps the switch itself (near the right end of the row), not the label beside it.
+    @MainActor
+    private func flip(_ toggle: XCUIElement) {
+        toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.86, dy: 0.5)).tap()
+    }
+
+    @MainActor
+    private func expectValue(_ toggle: XCUIElement, _ value: String, line: UInt = #line) {
+        let deadline = Date.now.addingTimeInterval(5)
+        while Date.now < deadline, toggle.value as? String != value { usleep(200_000) }
+        XCTAssertEqual(toggle.value as? String, value, line: line)
+    }
+
+    @MainActor
+    func testTurningOffVideosWithNothingDownloadedAsksNothing() throws {
+        let (app, toggle) = launchWithVideoDownloads(cache: "empty")
+        flip(toggle)
+        expectValue(toggle, "0")
+        XCTAssertFalse(app.alerts["Turn Off Video Downloads?"].exists)
+    }
+
+    @MainActor
+    func testCancellingTheVideoAlertKeepsDownloadsOn() throws {
+        let (app, toggle) = launchWithVideoDownloads(cache: "seeded")
+        flip(toggle)
+        XCTAssertTrue(app.alerts["Turn Off Video Downloads?"].waitForExistence(timeout: 5))
+        app.alerts.buttons["settings.videos.cancel"].firstMatch.tap()
+        XCTAssertTrue(app.alerts["Turn Off Video Downloads?"].waitForNonExistence(timeout: 5))
+        expectValue(toggle, "1")
+    }
+
+    @MainActor
+    func testKeepingVideosTurnsDownloadsOffAndAsksAgainNextTime() throws {
+        let (app, toggle) = launchWithVideoDownloads(cache: "seeded")
+        flip(toggle)
+        XCTAssertTrue(app.alerts["Turn Off Video Downloads?"].waitForExistence(timeout: 5))
+        app.alerts.buttons["settings.videos.keep"].firstMatch.tap()
+        expectValue(toggle, "0")
+        // The kept video is still there: turning on and off again raises the alert once more.
+        flip(toggle)
+        expectValue(toggle, "1")
+        flip(toggle)
+        XCTAssertTrue(app.alerts["Turn Off Video Downloads?"].waitForExistence(timeout: 5), "Keep removed the videos")
+    }
+
+    @MainActor
+    func testRemovingVideosTurnsDownloadsOffAndEmptiesTheCache() throws {
+        let (app, toggle) = launchWithVideoDownloads(cache: "seeded")
+        flip(toggle)
+        XCTAssertTrue(app.alerts["Turn Off Video Downloads?"].waitForExistence(timeout: 5))
+        app.alerts.buttons["settings.videos.remove"].firstMatch.tap()
+        expectValue(toggle, "0")
+        // The cache is empty now: turning on and off again asks nothing.
+        flip(toggle)
+        expectValue(toggle, "1")
+        flip(toggle)
+        expectValue(toggle, "0")
+        XCTAssertFalse(app.alerts["Turn Off Video Downloads?"].exists, "Remove left videos behind")
     }
 
     /// The file pickers cannot be driven reliably, so this only proves the rows exist and Export opens the share sheet

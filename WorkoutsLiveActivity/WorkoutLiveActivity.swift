@@ -24,16 +24,10 @@ struct WorkoutLiveActivity: Widget {
             let restOver = state.isRestOver(stale: context.isStale)
             return DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    ExpandedGlyphView(state: state, restOver: restOver)
+                    ExpandedControlsView(state: state, restOver: restOver)
                 }
-                DynamicIslandExpandedRegion(.trailing) {
+                DynamicIslandExpandedRegion(.trailing, priority: 1) {
                     ExpandedTimerView(state: state, restOver: restOver)
-                }
-                DynamicIslandExpandedRegion(.center) {
-                    ExpandedDetailView(state: state, restOver: restOver)
-                }
-                DynamicIslandExpandedRegion(.bottom) {
-                    ExpandedBottomView(state: state, restOver: restOver)
                 }
             } compactLeading: {
                 CompactLeadingView(state: state, restOver: restOver)

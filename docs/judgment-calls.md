@@ -314,3 +314,13 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
     ⋯ pill beside the keyboard bar (Finish itself got folded on Eric's device, where the Island also shows the Live
     Activity). The rest ring, Skip, +30 s and Add Exercise leave the strip while a set cell has focus (a preference from
     SetTable); the rest countdown, Skip and +30 are in the keyboard accessory meanwhile, and everything returns on Done.
+88. **Live Activity like Apple Fitness** (Eric, 2026-11-05): the closed Duo's narrow Island stacks the ring over a ticking
+    time (rest countdown while resting, else elapsed; Eric: "Do ticking then", since a "45min" label cannot self-update).
+    The lock screen keeps one progress bar (sets); the second blue rest bar is gone.
+89. **Expanded Island is one row** (Eric: "polluted compared to Apple's workout app", then "remove the grey text"):
+    round buttons leading (Skip and +30 while resting, a blue Done otherwise), one large tinted time trailing. No app
+    glyph, no exercise caption, no "n of m sets", no "Elapsed" label.
+90. **The workout header comes back 1.5 s after a scroll stops**: the system's own minimisation is switched to `.never`
+    after the scroll settles (no API re-expands a minimised bar) and back to `.automatic` on the next scroll.
+91. **Turning off "Download all videos" asks Keep / Remove / Cancel**, like the Fitness toggle; with nothing cached it
+    just turns off. Remove clears the whole video cache, including videos only watched.

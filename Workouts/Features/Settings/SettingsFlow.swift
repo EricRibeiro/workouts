@@ -63,6 +63,44 @@ final class SettingsFlow {
         }
     }
 
+    /// True while the "Turn Off Video Downloads?" alert shows.
+    var isConfirmingVideoRemoval = false
+    /// What the alert offers to free: the size of the media cache when it was raised.
+    private(set) var videoCacheBytes: Int64 = 0
+
+    /// Turns "Download all videos" off. With nothing downloaded that is all there is to it; otherwise the alert asks
+    /// whether to keep the videos (Cancel leaves the setting on). The caller's toggle stays on until this decides.
+    func requestTurnOffVideos(settings: SettingsStore, store: MediaStore = ExerciseMedia.store) {
+        Task {
+            let bytes = await store.cacheSize()
+            if bytes == 0 {
+                _ = BulkVideoDownload.shared.cancel()
+                settings.downloadAllVideos = false
+            } else {
+                videoCacheBytes = bytes
+                isConfirmingVideoRemoval = true
+            }
+        }
+    }
+
+    /// The alert's Keep / Remove: flips the setting, stops the download and, for Remove, clears the media cache once the
+    /// cancelled download has finished its current file (so none lands after the clear). Runs to completion on purpose:
+    /// the setting has flipped and a removal cut short would leave the videos the person asked to drop.
+    func turnOffVideos(
+        removeVideos: Bool,
+        settings: SettingsStore,
+        download: BulkVideoDownload,
+        store: MediaStore = ExerciseMedia.store
+    ) {
+        let stopping = download.cancel()
+        settings.downloadAllVideos = false
+        guard removeVideos else { return }
+        Task {
+            await stopping?.value
+            await store.clearCache()
+        }
+    }
+
     /// Shows the Health read sheet and looks up what is waiting. Runs to completion on purpose: the setting is already on.
     func requestAuthorization(health: HealthEnrichmentService, context: ModelContext) {
         Task { await health.requestAuthorization(context: context) }

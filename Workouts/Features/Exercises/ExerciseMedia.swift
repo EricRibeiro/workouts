@@ -300,9 +300,14 @@ final class BulkVideoDownload {
         }
     }
 
-    func cancel() {
-        task?.cancel()
+    /// Stops the download. Returns the cancelled task so a caller that is about to clear the cache can wait for it:
+    /// a cancelled prefetch still finishes the file it is fetching.
+    @discardableResult
+    func cancel() -> Task<Void, Never>? {
+        let running = task
+        running?.cancel()
         task = nil
         progress = nil
+        return running
     }
 }

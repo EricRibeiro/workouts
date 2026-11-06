@@ -3,8 +3,8 @@ import WidgetKit
 import WorkoutsKit
 
 /// The Lock Screen / StandBy banner, as plain rows so nothing competes for width: the exercise name and set line, the
-/// timer row (with the rest's linear progress; "Rest over" in the ok colour once it ends), the workout's set progress,
-/// then the controls.
+/// timer row (the caption and time; "Rest over" in the ok colour once it ends), the workout's set progress (the
+/// banner's one linear bar), then the controls.
 struct LockScreenActivityView: View {
     let state: WorkoutActivityState
     let restOver: Bool
@@ -49,10 +49,7 @@ struct LockScreenActivityView: View {
                 Label("Rest over", systemImage: "checkmark.circle.fill")
                     .font(.title3.weight(.semibold))
                     .foregroundStyle(ActivityStyle.ok)
-                ProgressView(value: 1)
-                    .progressViewStyle(.linear)
-                    .tint(ActivityStyle.ok)
-                    .accessibilityHidden(true)
+                Spacer(minLength: 0)
                 ActivityTimerText(state: state, restOver: true, alignment: .trailing)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
@@ -60,16 +57,6 @@ struct LockScreenActivityView: View {
                 ActivityTimerCaption(state: state)
                 ActivityTimerText(state: state, alignment: .leading)
                     .font(.title3.weight(.semibold))
-                if let range = state.restRange() {
-                    ProgressView(timerInterval: range, countsDown: true) {
-                        EmptyView()
-                    } currentValueLabel: {
-                        EmptyView()
-                    }
-                    .progressViewStyle(.linear)
-                    .tint(ActivityStyle.accent)
-                    .accessibilityHidden(true)  // ActivityTimerText already conveys the rest
-                }
                 Spacer(minLength: 0)
             }
         }
