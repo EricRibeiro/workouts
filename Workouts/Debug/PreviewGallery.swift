@@ -54,7 +54,11 @@
             case .exercisePicker: ExercisePickerView(title: "Add Exercise") { _ in }
             case .setRow: SetRowDemo()
             case .setTable: SetTableDemo()
-            case .finishSummary: FinishSummaryView(summary: .sample)
+            case .finishSummary:
+                // `-staticCelebration` draws the Reduce Motion scatter instead of the falling stars, so the
+                // accessibility audit measures the same pixels on every run.
+                FinishSummaryView(summary: .sample)
+                    .environment(\.staticCelebration, ProcessInfo.processInfo.arguments.contains("-staticCelebration"))
             case .exerciseDetail: ExerciseDetailDemo()
             case .workoutDetail: WorkoutDetailDemo()
             case .pastEditor: PastEditorDemo()

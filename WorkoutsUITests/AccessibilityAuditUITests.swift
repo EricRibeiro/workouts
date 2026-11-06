@@ -133,7 +133,14 @@ final class AccessibilityAuditUITests: XCTestCase {
 
     @MainActor
     func testFinishSummary() throws {
-        let app = XCUIApplication.launchedPreview("FinishSummary", waitingFor: "screen.finishSummary")
+        let app = XCUIApplication.launchedPreview(
+            "FinishSummary",
+            // The falling stars pass behind the section headers for 4.5 s after launch; the audit samples pixels
+            // under the text, so an animated frame makes contrast nondeterministic. The Reduce Motion scatter is
+            // a legitimate, fixed state of the same screen.
+            extraArguments: ["-staticCelebration"],
+            waitingFor: "screen.finishSummary"
+        )
         try audit(app)
     }
 
