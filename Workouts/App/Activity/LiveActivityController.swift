@@ -15,6 +15,9 @@ protocol LiveActivityHandle: AnyObject {
     /// Identity of the underlying activity (the same activity may be wrapped more than once).
     var id: String { get }
     var workoutID: UUID { get }
+    /// `.ended` once the system ended it (Live Activities turned off, the time limit), `.dismissed` once the person
+    /// swiped it away; only `.active` and `.stale` activities can still be updated.
+    var activityState: ActivityState { get }
     func update(_ content: ActivityContent<WorkoutActivityState>) async
     func end(dismissalPolicy: ActivityUIDismissalPolicy) async
 }
@@ -60,6 +63,7 @@ final class SystemLiveActivity: LiveActivityHandle {
 
     var id: String { activity.id }
     var workoutID: UUID { activity.attributes.workoutID }
+    var activityState: ActivityState { activity.activityState }
 
     func update(_ content: ActivityContent<WorkoutActivityState>) async {
         await activity.update(content)
@@ -75,8 +79,12 @@ final class SystemLiveActivity: LiveActivityHandle {
 /// `.immediate` dismissal when the workout is gone (Finish or Discard). `staleDate` is the rest's end and
 /// `relevanceScore` is 1 while resting.
 ///
-/// At launch it adopts a leftover activity of the same workout instead of requesting a duplicate, and ends any
-/// activity that belongs to a different (or no) workout.
+/// At launch it adopts a leftover activity of the same workout (only one that is still `.active` or `.stale`)
+/// instead of requesting a duplicate, and ends any activity that belongs to a different (or no) workout.
+///
+/// The system can end an activity on its own (Live Activities turned off in Settings, the 8-hour limit): the held
+/// activity is then dropped and the next pass requests a new one. When the person swipes it away it is `.dismissed`
+/// instead, and that workout does not get another one.
 ///
 /// ### Keeping in step
 /// ``observe(_:)`` mirrors `RestNotifier`: `withObservationTracking` over the activity state, and on every change a
@@ -97,6 +105,8 @@ final class LiveActivityController {
     private var isDirty = false
     /// The workout whose unavailable Live Activity was already logged, so the log is one line per workout.
     private var loggedUnavailableFor: UUID?
+    /// Workouts whose activity the person dismissed; no new one is requested for them. Cleared when no workout is left.
+    private var dismissedWorkouts: Set<UUID> = []
     private let debounce: Duration
     private var pendingReconcile: Task<Void, Never>?
 
@@ -180,10 +190,28 @@ final class LiveActivityController {
     private func apply() async {
         guard let engine else { return }
         guard let info = engine.activityStaticInfo, let state = engine.activityState else {
+            dismissedWorkouts.removeAll()
             await endAll(keeping: nil)
             return
         }
         let content = Self.content(for: state)
+
+        if let activity = current, activity.workoutID == info.workoutID {
+            switch activity.activityState {
+            case .active, .stale:
+                break
+            case .dismissed:
+                // The person swiped it away: remember, and do not bring it back.
+                dismissedWorkouts.insert(info.workoutID)
+                current = nil
+                lastContent = nil
+                return
+            default:
+                // Ended by the system: updates would go nowhere. Drop it; the request below makes a new one.
+                current = nil
+                lastContent = nil
+            }
+        }
 
         if let activity = current, activity.workoutID == info.workoutID {
             guard !Self.isSame(content, lastContent) else { return }
@@ -194,6 +222,7 @@ final class LiveActivityController {
 
         // A different workout than the one we hold, or nothing held yet (launch, first workout).
         await endAll(keeping: info.workoutID)
+        if dismissedWorkouts.contains(info.workoutID) { return }
         if let adopted = current {
             lastContent = content
             await adopted.update(content)
@@ -226,14 +255,21 @@ final class LiveActivityController {
         var all = provider.existing
         if let current, !all.contains(where: { $0.id == current.id }) { all.append(current) }
         for activity in all {
-            if let keep, activity.workoutID == keep, adopted == nil {
+            if let keep, activity.workoutID == keep, adopted == nil, Self.isLive(activity.activityState) {
                 adopted = activity
             } else {
+                if let keep, activity.workoutID == keep, activity.activityState == .dismissed {
+                    dismissedWorkouts.insert(keep)
+                }
                 await activity.end(dismissalPolicy: .immediate)
             }
         }
         current = adopted
         lastContent = nil
+    }
+
+    private static func isLive(_ state: ActivityState) -> Bool {
+        state == .active || state == .stale
     }
 
     private static func isSame(

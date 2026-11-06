@@ -74,6 +74,18 @@ public final class AppNavigation {
         historyPath = [.workout(id)]
     }
 
+    /// Whether `url` is the link the Live Activity (banner and Dynamic Island) opens: `workouts://workout`.
+    public static func isActiveWorkoutLink(_ url: URL) -> Bool {
+        url.scheme?.lowercased() == "workouts" && url.host(percentEncoded: false)?.lowercased() == "workout"
+    }
+
+    /// Brings the running workout forward from outside the app (the Live Activity): Workout tab, cover presented. The
+    /// caller closes the Settings sheet first when it is up, since a cover cannot present over a sheet.
+    public func openActiveWorkout() {
+        selectedTab = .workout
+        presentWorkout()
+    }
+
     // MARK: Settings
 
     public func openSettings() { isSettingsPresented = true }

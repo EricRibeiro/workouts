@@ -120,6 +120,8 @@ final class RestNotifier: NSObject {
     private var pendingSync: Task<Void, Never>?
     /// Awaited after a notification button's effect, to bring the rest of the app's system state (the Live Activity)
     /// up to date before the response handler returns. The app sets it; tests may leave it nil.
+    /// Called for a tap on the notification body (not a button): the app shows the running workout.
+    var openWorkout: (@MainActor () -> Void)?
     var flushLiveActivity: (@MainActor () async -> Void)?
 
     /// `debounce` is how long the engine must stay quiet before the schedule is re-synced; tests pass `.zero` or a short
@@ -276,8 +278,13 @@ final class RestNotifier: NSObject {
     // MARK: - Responses
 
     /// The user tapped a notification button. A cold launch from the action may reach here before the engine resumed,
-    /// so it resumes the persisted workout first. Unknown actions (including a plain tap) do nothing.
+    /// so it resumes the persisted workout first. A plain tap on the body opens the workout; other unknown actions do
+    /// nothing.
     func handleAction(_ actionIdentifier: String) {
+        if actionIdentifier == UNNotificationDefaultActionIdentifier {
+            openWorkout?()
+            return
+        }
         guard let action = RestNotificationAction(rawValue: actionIdentifier), let engine else { return }
         do {
             if engine.workout == nil { try engine.resume() }

@@ -120,4 +120,20 @@ import Testing
         #expect(try decoder.decode([WorkoutRoute].self, from: encoder.encode(workout)) == workout)
         #expect(try decoder.decode([ExercisesRoute].self, from: encoder.encode(exercises)) == exercises)
     }
+
+    @Test func onlyTheWorkoutLinkIsAnActiveWorkoutLink() throws {
+        #expect(AppNavigation.isActiveWorkoutLink(try #require(URL(string: "workouts://workout"))))
+        #expect(AppNavigation.isActiveWorkoutLink(try #require(URL(string: "Workouts://Workout"))))
+        #expect(!AppNavigation.isActiveWorkoutLink(try #require(URL(string: "workouts://history"))))
+        #expect(!AppNavigation.isActiveWorkoutLink(try #require(URL(string: "https://workout"))))
+        #expect(!AppNavigation.isActiveWorkoutLink(try #require(URL(string: "workouts:///workout"))))
+    }
+
+    @Test func openingTheActiveWorkoutSelectsTheWorkoutTabAndPresentsTheCover() {
+        let nav = AppNavigation(selectedTab: .history, isWorkoutMinimised: true)
+        nav.openActiveWorkout()
+        #expect(nav.selectedTab == .workout)
+        #expect(nav.isWorkoutCoverPresented)
+        #expect(!nav.isWorkoutMinimised)
+    }
 }

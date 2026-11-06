@@ -17,7 +17,21 @@
     },
   ],
   "files": [
-    { "kind": "folder", "path": "Workouts", "target-membership": [ "Workouts" ] },
+    {
+      "kind": "folder",
+      "path": "Workouts",
+      "target-membership": [
+        "Workouts",
+      ],
+      "membership-exceptions": [
+        {
+          "target": "Workouts",
+          "exclusions": [
+            "Info.plist",
+          ],
+        },
+      ],
+    },
     { "kind": "folder", "path": "WorkoutsTests", "target-membership": [ "WorkoutsTests" ] },
     { "kind": "folder", "path": "WorkoutsUITests", "target-membership": [ "WorkoutsUITests" ] },
     {
@@ -82,6 +96,7 @@
         "CURRENT_PROJECT_VERSION": "1",
         "ENABLE_PREVIEWS": "YES",
         "GENERATE_INFOPLIST_FILE": "YES",
+        "INFOPLIST_FILE": "Workouts/Info.plist",
         "INFOPLIST_KEY_CFBundleDisplayName": "Workouts",
         "INFOPLIST_KEY_ITSAppUsesNonExemptEncryption": "NO",
         "INFOPLIST_KEY_NSHealthShareUsageDescription": "Workouts reads the Apple Fitness strength workout you record alongside each session to add its calories and heart rate to your history.",

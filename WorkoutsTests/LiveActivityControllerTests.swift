@@ -12,6 +12,8 @@ final class FakeLiveActivity: LiveActivityHandle {
     let workoutID: UUID
     var contents: [ActivityContent<WorkoutActivityState>]
     var endedWith: ActivityUIDismissalPolicy?
+    /// What ActivityKit reports; tests set `.ended` (system) or `.dismissed` (swiped away).
+    var activityState: ActivityState = .active
 
     init(workoutID: UUID, content: ActivityContent<WorkoutActivityState>? = nil) {
         self.workoutID = workoutID
@@ -183,6 +185,83 @@ final class FakeLiveActivityProvider: LiveActivityProviding {
         #expect(duplicate.endedWith == .immediate)
         #expect(!mine.isEnded)
         #expect(provider.requested.isEmpty)
+    }
+
+    // MARK: System-ended and dismissed activities
+
+    @Test func requestsANewActivityWhenTheSystemEndedTheHeldOne() async throws {
+        try engine.startEmpty()
+        await controller.reconcile()
+        let first = try #require(provider.requested.first)
+
+        first.activityState = .ended
+        try engine.startRest(seconds: 60)
+        await controller.reconcile()
+
+        #expect(provider.requested.count == 2)
+        let second = try #require(provider.requested.last)
+        #expect(second !== first)
+        #expect(first.contents.count == 1)  // nothing sent to the dead one
+        #expect(second.contents.last?.state == engine.activityState)
+
+        // The new one keeps getting the updates.
+        try engine.adjustRest(by: 30)
+        await controller.reconcile()
+        #expect(second.contents.count == 2)
+        #expect(provider.requested.count == 2)
+    }
+
+    @Test func doesNotRequestAgainAfterThePersonDismissedIt() async throws {
+        try engine.startEmpty()
+        await controller.reconcile()
+        let first = try #require(provider.requested.first)
+
+        first.activityState = .dismissed
+        try engine.startRest(seconds: 60)
+        await controller.reconcile()
+        try engine.adjustRest(by: 30)
+        await controller.reconcile()
+        #expect(provider.requested.count == 1)
+        #expect(first.contents.count == 1)
+
+        // A later workout starts fresh.
+        try engine.discard()
+        await controller.reconcile()
+        try engine.startEmpty()
+        await controller.reconcile()
+        #expect(provider.requested.count == 2)
+    }
+
+    @Test func doesNotAdoptLeftoversThatAreNoLongerLive() async throws {
+        let workout = try engine.startEmpty()
+        let ended = FakeLiveActivity(workoutID: workout.id)
+        ended.activityState = .ended
+        provider.activities = [ended]
+        await controller.reconcile()
+        #expect(ended.contents.isEmpty)
+        #expect(provider.requested.count == 1)
+        #expect(provider.requested.first?.workoutID == workout.id)
+    }
+
+    @Test func aStaleLeftoverIsAdopted() async throws {
+        let workout = try engine.startEmpty()
+        let stale = FakeLiveActivity(workoutID: workout.id)
+        stale.activityState = .stale
+        provider.activities = [stale]
+        await controller.reconcile()
+        #expect(provider.requested.isEmpty)
+        #expect(stale.contents.count == 1)
+    }
+
+    @Test func aDismissedLeftoverIsNotReplaced() async throws {
+        let workout = try engine.startEmpty()
+        let dismissed = FakeLiveActivity(workoutID: workout.id)
+        dismissed.activityState = .dismissed
+        provider.activities = [dismissed]
+        await controller.reconcile()
+        await controller.reconcile()
+        #expect(provider.requested.isEmpty)
+        #expect(dismissed.contents.isEmpty)
     }
 
     @Test func endsAllWhenThereIsNoWorkoutAtLaunch() async {

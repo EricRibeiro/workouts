@@ -34,6 +34,8 @@ struct WorkoutsApp: App {
     /// Looks up the Apple Fitness workout behind each finished workout; its source is chosen once, here at launch.
     private let healthService: HealthEnrichmentService
     private let intentHandler: EngineActivityIntentHandler?
+    /// A tap on the rest notification's body asks the root view, through this, to show the workout.
+    private let workoutLinks = WorkoutLinkRouter()
 
     @MainActor
     init() {
@@ -54,6 +56,8 @@ struct WorkoutsApp: App {
         let notifier = RestNotifier()
         notifier.activate()
         restNotifier = notifier
+        let links = workoutLinks
+        notifier.openWorkout = { links.request() }
         let activityController = LiveActivityController()
         self.activityController = activityController
         do {
@@ -91,6 +95,9 @@ struct WorkoutsApp: App {
             engine = nil
             store = nil
             intentHandler = nil
+            // Nothing drives them any more: a leftover activity or rest notification would show buttons that do nothing.
+            Self.endLiveActivities()
+            notifier.sync(plan: nil)
             containerError = error.localizedDescription
         }
     }
@@ -138,6 +145,7 @@ struct WorkoutsApp: App {
             RootView()
                 .modelContainer(container)
                 .environment(engine)
+                .environment(workoutLinks)
                 .environment(store)
                 .environment(settings)
                 .environment(saveErrors)

@@ -216,9 +216,28 @@ final class FakeNotificationCenter: NotificationCenterProviding {
 
         notifier.handleAction(UNNotificationDefaultActionIdentifier)
         #expect(engine.restTimer.endsAt == end.addingTimeInterval(30))
+        notifier.handleAction("unknown")
+        #expect(engine.restTimer.endsAt == end.addingTimeInterval(30))
 
         notifier.handleAction("skip")
         #expect(engine.restTimer.endsAt == nil)
+    }
+
+    @Test func tappingTheBodyOpensTheWorkoutAndChangesNothing() async throws {
+        let engine = try engine()
+        let notifier = notifier()
+        notifier.observe(engine)
+        try engine.startRest(seconds: 60)
+        let end = try #require(engine.restTimer.endsAt)
+        var opened = 0
+        notifier.openWorkout = { opened += 1 }
+
+        await notifier.respond(to: UNNotificationDefaultActionIdentifier)
+        #expect(opened == 1)
+        #expect(engine.restTimer.endsAt == end)
+
+        notifier.handleAction("skip")
+        #expect(opened == 1)
     }
 
     /// The cold launch from the "Rest over" notification: the relaunch restore has already forgotten the over rest.

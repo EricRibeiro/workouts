@@ -18,8 +18,13 @@ struct RootView: View {
     /// The finished workout behind the pending summary, for the "Update Template?" question once the summary is gone.
     @State private var summaryWorkoutID: UUID?
     @State private var templateUpdate: TemplateUpdatePrompt?
+    /// A Live Activity or notification tap that arrived while a root sheet (Settings, the finish summary) was up: the
+    /// cover opens once the sheet is gone.
+    @State private var openWorkoutAfterSheet = false
     @Environment(\.modelContext) private var context
     @Environment(ActiveWorkoutEngine.self) private var engine: ActiveWorkoutEngine?
+    /// Optional so previews without the services still build; a notification-body tap arrives through it.
+    @Environment(WorkoutLinkRouter.self) private var links: WorkoutLinkRouter?
     @Environment(SaveErrors.self) private var saveErrors: SaveErrors?
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.colorScheme) private var colorScheme
@@ -52,11 +57,27 @@ struct RootView: View {
         .environment(navigation)
         // The scrolling lists (History, Exercises) let the tab bar collapse; the Workout tab keeps it (DECISIONS).
         .tabBarMinimizeBehavior(navigation.selectedTab == .workout ? .never : .onScrollDown)
-        .sheet(isPresented: $navigation.isSettingsPresented) {
+        .onOpenURL { url in
+            if AppNavigation.isActiveWorkoutLink(url) { openWorkoutLink() }
+        }
+        // The rest notification's body: the same path as the Live Activity link (also a request made before this appeared).
+        .onChange(of: links?.isPending ?? false, initial: true) { _, pending in
+            if pending, links?.consume() == true { openWorkoutLink() }
+        }
+        .sheet(
+            isPresented: $navigation.isSettingsPresented,
+            onDismiss: openPendingWorkout
+        ) {
             SettingsView()
                 .presentationPlacement(.center)
         }
-        .sheet(item: $finishSummary, onDismiss: askToUpdateTemplate) { item in
+        .sheet(
+            item: $finishSummary,
+            onDismiss: {
+                askToUpdateTemplate()
+                openPendingWorkout()
+            }
+        ) { item in
             FinishSummaryView(summary: item.summary)
                 .presentationPlacement(.center)
         }
@@ -105,6 +126,27 @@ struct RootView: View {
 }
 
 extension RootView {
+    /// `workouts://workout` (the Live Activity banner or Dynamic Island) and the rest notification's body: the running
+    /// workout's cover on the Workout tab. Does nothing without a running workout.
+    private func openWorkoutLink() {
+        guard engine?.workout != nil else { return }
+        // A cover cannot present over a sheet: close the root sheet, then open the cover from its onDismiss.
+        if navigation.isSettingsPresented || finishSummary != nil {
+            openWorkoutAfterSheet = true
+            navigation.isSettingsPresented = false
+            finishSummary = nil
+        } else {
+            navigation.openActiveWorkout()
+        }
+    }
+
+    private func openPendingWorkout() {
+        guard openWorkoutAfterSheet else { return }
+        openWorkoutAfterSheet = false
+        guard engine?.workout != nil else { return }
+        navigation.openActiveWorkout()
+    }
+
     /// Saves the set values typed since the last save (the engine's `setValues` does not save per keystroke).
     private func commitTypedValues() {
         do {

@@ -9,6 +9,6 @@ enum ActivityStyle {
     static let glyph = "dumbbell.fill"
     /// The Lock Screen banner uses the system secondary background so text styles adapt to light and dark.
     static let backgroundTint = Color(.secondarySystemBackground).opacity(0.85)
-    /// Opened by tapping the banner or the Island. The app registers the scheme in a later task (1.5 or navigation).
+    /// Opened by tapping the banner or the Island. The app registers the `workouts` scheme (Workouts/Info.plist) and `RootView.onOpenURL` shows the active workout.
     static let openURL = URL(string: "workouts://workout")
 }
