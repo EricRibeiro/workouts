@@ -17,6 +17,13 @@ import WorkoutsKit
 /// content keeps a readable width and is centred.
 ///
 /// The table does not provide a navigation container; the keyboard accessory group is a toolbar and needs the caller's.
+/// True while a set cell has keyboard focus. The logging screen reads it to thin its trailing toolbar strip, which the number
+/// pad leaves too short for every item (see `ActiveWorkoutCover`).
+struct SetTableEditingKey: PreferenceKey {
+    static let defaultValue = false
+    static func reduce(value: inout Bool, nextValue: () -> Bool) { value = value || nextValue() }
+}
+
 struct SetTable: View {
     let source: any SetTableDataSource
     /// Opens the exercise's detail: called by a tap on its name and by the block menu's Exercise Info entry. Nil (the
@@ -83,6 +90,7 @@ struct SetTable: View {
             rest: source.rest
         )
         .setHaptics(checkedSetCount: source.mode == .active ? source.checkedSetCount : 0)
+        .preference(key: SetTableEditingKey.self, value: focus != nil)
         .accessibilityIdentifier("settable")
     }
 

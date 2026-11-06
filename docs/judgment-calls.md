@@ -309,3 +309,8 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
     enumerated from the test bundle on up to 3 free simulators (~14 min instead of ~40), one shard when the load average
     is above 4 × CPUs. A failed test is retried once; the retry must run exactly the failed tests and pass, is logged to
     `.build/ui-flaky.log`, shows in the totals and the ship stamp, and a test flaky two full runs in a row fails hard.
+87. **While a set field is being edited, the closed Duo's strip shows only Minimise and Finish** (Eric, 2026-11-05):
+    with the number pad up the trailing strip is about three items tall, and the six workout items overflowed into a
+    ⋯ pill beside the keyboard bar (Finish itself got folded on Eric's device, where the Island also shows the Live
+    Activity). The rest ring, Skip, +30 s and Add Exercise leave the strip while a set cell has focus (a preference from
+    SetTable); the rest countdown, Skip and +30 are in the keyboard accessory meanwhile, and everything returns on Done.

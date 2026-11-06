@@ -37,6 +37,9 @@ struct ActiveWorkoutCover: View {
     /// The last content shown for a running workout, as plain values (never the model, which Finish and Discard delete),
     /// so the cover keeps drawing it while it animates away instead of flashing the empty state.
     @State private var lastShown: LastShown?
+    /// A set cell has keyboard focus (`SetTableEditingKey`): the number pad leaves the closed display's trailing strip about
+    /// three items tall, so only Minimise and Finish stay; the rest timer lives in the keyboard accessory meanwhile.
+    @State private var isEditingSet = false
 
     var body: some View {
         NavigationStack {
@@ -53,6 +56,7 @@ struct ActiveWorkoutCover: View {
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
+            .onPreferenceChange(SetTableEditingKey.self) { isEditingSet = $0 }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Minimise", systemImage: "chevron.down") {
@@ -75,10 +79,12 @@ struct ActiveWorkoutCover: View {
                     }
                     // With the number pad up the closed strip is short: Finish stays, Add Exercise folds first.
                     .visibilityPriority(.high)
-                    ToolbarItem(placement: .primaryAction) {
-                        RestRingItem()
+                    if !isEditingSet {
+                        ToolbarItem(placement: .primaryAction) {
+                            RestRingItem()
+                        }
                     }
-                    if let engine, engine.restTimer.isActive {
+                    if let engine, engine.restTimer.isActive, !isEditingSet {
                         ToolbarItemGroup(placement: .primaryAction) {
                             Button("Skip", systemImage: "forward.end") { perform { try engine.skipRest() } }
                                 .accessibilityLabel("Skip rest")
@@ -88,12 +94,14 @@ struct ActiveWorkoutCover: View {
                                 .accessibilityIdentifier("rest.toolbar.plus30")
                         }
                     }
-                    ToolbarItem(placement: .primaryAction) {
-                        Button("Add Exercise", systemImage: "plus") { isPickerPresented = true }
-                            .accessibilityLabel("Add Exercise")
-                            .accessibilityIdentifier("cover.addExercise")
+                    if !isEditingSet {
+                        ToolbarItem(placement: .primaryAction) {
+                            Button("Add Exercise", systemImage: "plus") { isPickerPresented = true }
+                                .accessibilityLabel("Add Exercise")
+                                .accessibilityIdentifier("cover.addExercise")
+                        }
+                        .visibilityPriority(.low)
                     }
-                    .visibilityPriority(.low)
                 }
             }
         }

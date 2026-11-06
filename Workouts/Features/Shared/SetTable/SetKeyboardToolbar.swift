@@ -23,8 +23,8 @@ struct SetKeyboardToolbar: ViewModifier {
     func body(content: Content) -> some View {
         content
             .toolbar {
-                // Four groups so the overflow order is ours: Skip and +30 fold first (the toolbar strip already has them),
-                // then −/+/Previous; the countdown, Next and Done never fold, so the remaining time stays visible on the
+                // Four groups so the overflow order is ours: Skip and +30 fold first (the logging screen's strip drops them while a cell
+                // has focus, so this bar is where they live then), then −/+/Previous; the countdown, Next and Done never fold, so the remaining time stays visible on the
                 // closed display while the user types the next set.
                 ToolbarItemGroup(placement: .keyboard) {
                     if let rest {
