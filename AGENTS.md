@@ -50,7 +50,11 @@ Codable/Sendable state those types wrap and the logic behind them.
 ./dev test [filter]     unit tests on the simulator        — ~25s; filter = Suite or Suite/test()
 SNAPSHOT_RECORD=1 ./dev test SnapshotTests   re-record the visual references (WorkoutsTests/__Snapshots__); fails once on purpose
 ./dev lint | format     swift-format lint --strict / format --in-place
-./dev ui-test [filter]  XCUITest flows on the simulator    — Suite/test(); the flow proof of record
+./dev ui-test [filter]  XCUITest flows on the simulator    — Suite/test(); the flow proof of record. No filter = the full suite, sharded across
+                        up to DEV_UI_SHARDS (3) free pool sims (build-for-testing once; one combined totals line; shard bundles/logs under
+                        .build/results/ui-test-shards/ and .build/logs/; 1 = single sim; fewer when sims are scarce or the load average
+                        is high). A test that fails and passes alone on one retry is reported as flaky (`.build/ui-flaky.log`, stamp
+                        `flaky=`); flaky twice in a row fails. DEV_UI_RETRY=0 = strict. A filtered run uses one sim
 ./dev coverage [kind]   per-target app coverage of the last passing test (default) or ui-test run (bundle kept in .build/results/latest-*)
 ./dev kit-coverage      swift test with coverage; prints the WorkoutsKit line-coverage TOTAL
 ./dev run [-- args]     boot sim, install, launch the app; args go to the app (`-- -preview <Name>` = the gallery)
@@ -61,7 +65,9 @@ SNAPSHOT_RECORD=1 ./dev test SnapshotTests   re-record the visual references (Wo
 ./dev home [p]          Home screen (the app keeps running); ./dev duo <verb> = Tools/duo pass-through (panels, hinge, screenshot)
 ./dev duo-test          swift test for Tools/duo (~1s; part of check)
 ./dev check             lint → kit → duo-test → build → test; the pre-commit gate (~30s warm)
-./dev sims              create missing simulator clones and list the pool (who holds which lock, which is yours)
+./dev sims [--prune]    create missing simulator clones and list the pool (who holds which lock, which is yours); read-only otherwise.
+                        --prune also erases a clone whose PosterKit temp holds > DEV_SIM_POSTER_MAX (1000) entries and shuts down idle sims.
+                        Every sim command shuts down other pool clones that are idle > DEV_SIM_IDLE_MIN (30) min with no app running (never the original)
 ```
 
 Every test command prints one totals line on success (`kit: Test run with 100 tests …`, `test: 2 passed, …`) and
@@ -102,7 +108,8 @@ Rules for the loop:
   never depend on the MCP. Skill: `verify-ui`.
 - **Never toggle the simulator's displays** (`simctl io … screenConfig`, display power, device defaults): it crash-loops
   SpringBoard and floods Eric's Mac with crash dialogs. `./dev` fails any simulator command during which SpringBoard
-  crashed; treat that as a stop, `xcrun simctl shutdown all`, and report. Change Duo poses only with `./dev fold` /
+  crashed; treat that as a stop and report (never `simctl shutdown all`: it kills other agents' simulators; a pool clone
+  with 2+ PosterBoard/SpringBoard/backboardd reports is shut down and erased by `dev` itself, the original never). Change Duo poses only with `./dev fold` /
   `./dev orient` (skill `verify-ui`), and leave the sim closed and portrait.
 - **Do not change** the deployment target, supported platforms, signing, or add a remote package
   without being asked.
@@ -172,7 +179,7 @@ orchestrator after review. Workers do not commit.
 
 After **every push to `main` that changes the app** (any fix, not only milestones; Eric, 2026-11-04: "we can update with
 far more frequency"), the orchestrator runs `./dev testflight --upload` in the background from the main checkout. The
-commit gate is unchanged: `./dev check` plus the UI suites the change touches; the full `./dev ui-test` still runs before
+commit gate is unchanged: `./dev check` plus the UI suites the change touches; the full `./dev ui-test` (sharded over the pool, so wall time is roughly a third) still runs before
 a milestone (a PLAN task or a review's fix batch). Never from a worktree, never with uncommitted changes,
 never by workers. It takes no simulator lock (own DerivedData under `.build/testflight/`). Log each upload's build number
 and commit in `docs/testflight.md`. `--upload` is gated: it refuses unless a full unfiltered `./dev ui-test` passed on HEAD

@@ -64,7 +64,9 @@ outer display), open tall and open wide (regular/regular, inner display, hinge i
 `iPhone Duo 2`…`iPhone Duo 5`), remembered in `.build/dev-sim-udid`, so parallel workers rarely queue. Every command in a
 checkout hits that one simulator, so its fold pose and text size belong to your checkout; still leave it closed and
 portrait. Each simulator has its own lock; the crash guard stays global. Booting is headless (no Simulator.app window), and
-a cold boot settles 15 s before `shot` captures. `./dev sims` lists the pool.
+a cold boot settles 15 s before `shot` captures. `./dev sims` lists the pool. Any simulator command shuts down other pool
+clones that are booted, unlocked, unused for `DEV_SIM_IDLE_MIN` (30) minutes and not running the app (`dev: shut down idle iPhone Duo 3`), so a
+simulator you left booted and walked away from cold-boots again next time.
 
 Change poses with `./dev fold closed|half-open|open [png]` and `./dev orient portrait|landscape-left|landscape-right [png]`
 (`Tools/duo`, our own tool: it sends the same HID hinge and orientation events as Xcode's Device Hub from a helper inside the
@@ -95,7 +97,9 @@ linear `ProgressView(timerInterval:)` in a Live Activity) crashes PreviewShell a
 stop rendering and fix the view (it would crash on device too). Never re-render the same code hoping it passes.
 
 `./dev run|test|ui-test|screenshot|check` fail when a new `SpringBoard-*.ips` crash report appears while
-they run. If that happens: stop, `xcrun simctl shutdown all`, and report it. Never retry past it.
+they run. If that happens: stop and report it; never `simctl shutdown all` (it kills other agents' simulators) and never retry
+past it. If it was a pool clone with 2+ PosterBoard/SpringBoard/backboardd reports, `dev` has already shut down and erased that
+clone itself (the original is never erased automatically); the next run boots it clean.
 
 ## Live Activity on the simulator (proven 2026-11-03, task 1.5)
 

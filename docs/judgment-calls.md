@@ -302,3 +302,10 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
     full width, and drops its ✕: it is a read-only, resizable sheet with a grabber, dismissed by swiping (HIG Modality:
     "a button in the top toolbar or swipe down"). This replaces the close-button half of JC75. The medium detent keeps
     the full-size video; the rest of the content is one swipe or a segment tap away.
+86. **The simulator pool looks after itself, and the full UI suite runs sharded** (2026-11-05, two Fable reviews):
+    `./dev` shuts down pool clones idle 30 min (never the original, never one running the app), erases a clone after two
+    system-process crashes on it (PosterBoard crash-looped on clones with thousands of leftover poster records), and
+    `./dev sims --prune` erases clones over 1,000 poster records. The full `./dev ui-test` builds once and runs suites
+    enumerated from the test bundle on up to 3 free simulators (~14 min instead of ~40), one shard when the load average
+    is above 4 × CPUs. A failed test is retried once; the retry must run exactly the failed tests and pass, is logged to
+    `.build/ui-flaky.log`, shows in the totals and the ship stamp, and a test flaky two full runs in a row fails hard.
