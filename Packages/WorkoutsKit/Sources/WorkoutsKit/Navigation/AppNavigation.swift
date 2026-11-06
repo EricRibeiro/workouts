@@ -30,6 +30,15 @@ public final class AppNavigation {
     /// The active workout's `fullScreenCover` on the root `TabView`, not tied to any tab.
     public var isWorkoutCoverPresented: Bool
 
+    /// Whether the cover is actually on screen (set from its `onAppear`/`onDisappear`). `isWorkoutCoverPresented` is only
+    /// the request: a cover cannot present while a sheet is up, and then the request stays true with nothing showing. The
+    /// resume ring keys off this, so the person always has the cover or the ring.
+    public var isWorkoutCoverOnScreen = false
+
+    /// Bumped by ``openActiveWorkout()``: every screen that owns a sheet closes it when this changes, so the cover (which
+    /// cannot present over a sheet) can open.
+    public private(set) var dismissSheetsRequest = 0
+
     /// A workout is running but its cover is dismissed (DECISIONS: Minimise "dismisses the cover; the resume
     /// control restores it; a running workout survives any tab change"). Drives the ring `ToolbarItem`.
     public private(set) var isWorkoutMinimised: Bool
@@ -105,8 +114,10 @@ public final class AppNavigation {
     }
 
     /// Brings the running workout forward from outside the app (the Live Activity): Workout tab, cover presented. The
-    /// caller closes the Settings sheet first when it is up, since a cover cannot present over a sheet.
+    /// caller closes the root sheets (Settings, the finish summary) first, since a cover cannot present over a sheet; the
+    /// tabs' own sheets close on ``dismissSheetsRequest``.
     public func openActiveWorkout() {
+        dismissSheetsRequest += 1
         selectedTab = .workout
         presentWorkout()
     }

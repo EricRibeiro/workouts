@@ -169,6 +169,26 @@ import Testing
         #expect(draft.exercises.map(\.supersetGroup) == [nil, nil, 1, 1])
     }
 
+    @Test func droppingAnExerciseInsideASupersetParksItAfterTheSuperset() {
+        var draft = TemplateDraft()
+        let ids = draft.addExercises([info("A"), info("B"), info("D"), info("C")], defaultUnit: .kg)
+        draft.makeSuperset([ids[0], ids[1], ids[2]])
+        // C dragged between A and B: the returned order wins, the superset stays whole.
+        draft.reorder([ids[0], ids[3], ids[1], ids[2]], moving: [ids[3]])
+        #expect(draft.exercises.map(\.id) == [ids[0], ids[1], ids[2], ids[3]])
+        #expect(draft.exercises.map(\.supersetGroup) == [1, 1, 1, nil])
+        // The adjacent pair case: hinting the loner keeps the pair, hinting the member pulls it out.
+        var pair = TemplateDraft()
+        let p = pair.addExercises([info("A"), info("B"), info("C")], defaultUnit: .kg)
+        pair.makeSuperset([p[0], p[1]])
+        pair.reorder([p[0], p[2], p[1]], moving: [p[2]])
+        #expect(pair.exercises.map(\.id) == [p[0], p[1], p[2]])
+        #expect(pair.exercises.map(\.supersetGroup) == [1, 1, nil])
+        pair.reorder([p[0], p[2], p[1]], moving: [p[1]])
+        #expect(pair.exercises.map(\.id) == [p[0], p[2], p[1]])
+        #expect(pair.exercises.map(\.supersetGroup) == [nil, nil, nil])
+    }
+
     @Test func supersetGroupsTheNewExercisesOnly() throws {
         let holder = try makeTestContainer()
         defer { withExtendedLifetime(holder) {} }

@@ -66,8 +66,8 @@ protocol SetTableDataSource {
     func toggleCheck(of setID: UUID) -> Bool
     func addSet(to sectionID: UUID)
     func deleteSet(_ setID: UUID)
-    /// Rewrites the exercise order; `order` holds every section id exactly once.
-    func reorder(_ order: [UUID])
+    /// Rewrites the exercise order; `order` holds every section id exactly once, `moving` the dragged section ids.
+    func reorder(_ order: [UUID], moving: [UUID])
     /// The rest running now, or nil; the keyboard group shows it with Skip and +30 s.
     var rest: SetTableRest? { get }
 }

@@ -377,3 +377,16 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
     which app code cannot veto (same for the template editor on the Workout tab). Closing that gap means presenting
     both editors modally instead of pushed: a design call left for Eric. The rest ring's sheets now share one stable
     presenter and close with the rest, so none reopens by itself.
+100. **Bug review round 3** (angles: regressions from rounds 1–2, a gym session walked step by step, hostile imports
+    and text): 13 confirmed, two P1 (Update Values Only shifting warm-up weights into working sets; a replaced timed
+    exercise keeping the Time column, a round-2 regression), the rest P2 or hostile-file only. Decisions:
+    - Update Values Only pairs sets by kind and copies only checked sets; the template's structure never changes.
+    - The Live Activity's current set is the first unchecked set after the most recently checked one (a skipped set
+      no longer holds it back), wrapping to the first unchecked.
+    - Previous pairs the n-th row of an exercise with the n-th row last time (falling back to the first).
+    - Add Warm-up Sets ramps from the typed, planned or Previous weight.
+    - Dropping a non-member inside a superset places it after the superset (the drag's source ids disambiguate).
+    - Opening the workout from the Lock Screen closes tab sheets first; the resume ring hides only while the cover is
+      actually on screen.
+    - The importer renumbers extreme positions, drops impossible Fitness values, never re-parents an existing row, refuses
+      custom ids that collide with the library, and reports a newer file version as such.

@@ -30,7 +30,8 @@ extension ActiveWorkoutEngine {
     }
 
     /// Add Warm-up Sets: replaces the row's incomplete warm-up sets with the ``WarmupRamp`` for its first non-warm-up
-    /// set that has a weight above 0, in the row's unit and bar. Completed warm-ups are kept as they are and stay first;
+    /// set that has a weight above 0 (typed, else the template plan's, else Previous's: the values ``check(_:)`` would
+    /// fill, so a fresh start from a template works), in the row's unit and bar. Completed warm-ups are kept as they are and stay first;
     /// the new ramp (kind warm-up, unchecked, weight and reps filled) follows them, ahead of the working sets, and set
     /// positions are renumbered. Without such a working weight nothing changes; a working weight whose ramp is empty
     /// (45 lb on the 45 lb bar) still removes the old incomplete warm-ups.
@@ -40,9 +41,8 @@ extension ActiveWorkoutEngine {
     public func addWarmupSets(to row: WorkoutExercise) throws -> Bool {
         let workout = try owned(row)
         let existing = sortedSets(of: row)
-        guard let working = existing.first(where: { $0.kind != .warmup && ($0.weight ?? 0) > 0 }),
-            let weight = working.weight
-        else { return false }
+        let workingWeights = existing.filter { $0.kind != .warmup }.map { filledValues(of: $0, in: row).weight }
+        guard let weight = workingWeights.first(where: { ($0 ?? 0) > 0 }) ?? nil else { return false }
         let ramp = WarmupRamp.steps(
             workingWeight: weight,
             unit: row.unit,

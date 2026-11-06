@@ -61,12 +61,16 @@ import Testing
         #expect(state.current?.progressText == "Set 2 of 3")
         #expect(state.setsDone == 1)
 
-        // Unchecking an earlier set brings it back; checking out of order skips only the checked one.
+        // Checking out of order moves on from the set just checked; unchecking an earlier set does not pull the
+        // activity back (the most recent set is still squatSets[2]).
+        rig.clock.advance(10)
         try engine.check(squatSets[2])
-        #expect(try #require(engine.activityState).current?.setID == squatSets[1].id)
+        #expect(try #require(engine.activityState).current?.setID == sets(curl)[0].id)
         try engine.uncheck(squatSets[0])
-        #expect(try #require(engine.activityState).current?.setID == squatSets[0].id)
+        #expect(try #require(engine.activityState).current?.setID == sets(curl)[0].id)
+        rig.clock.advance(10)
         try engine.check(squatSets[0])
+        rig.clock.advance(10)
         try engine.check(squatSets[1])
 
         state = try #require(engine.activityState)
@@ -78,6 +82,36 @@ import Testing
         state = try #require(engine.activityState)
         #expect(state.current == nil)
         #expect(state.setsDone == 6 && state.setsTotal == 6)
+    }
+
+    @Test func skippedSetDoesNotHoldTheActivityBack() throws {
+        let rig = try Rig()
+        let (engine, squat, curl) = try running(rig)
+        let squatSets = sets(squat)
+        let curlSets = sets(curl)
+        for set in squatSets.prefix(2) {
+            rig.clock.advance(10)
+            try engine.check(set)
+        }
+        // Squat set 3 is skipped; the lifter moves on to curls.
+        rig.clock.advance(10)
+        try engine.check(curlSets[0])
+        var current = try #require(engine.activityState?.current)
+        #expect(current.setID == curlSets[1].id)
+        #expect(current.exerciseName == "Zottman Curl" && current.number == 2)
+
+        // After the last curl set nothing follows, so the skipped squat set comes back.
+        rig.clock.advance(10)
+        try engine.check(curlSets[1])
+        rig.clock.advance(10)
+        try engine.check(curlSets[2])
+        current = try #require(engine.activityState?.current)
+        #expect(current.setID == squatSets[2].id)
+        #expect(current.progressText == "Set 3 of 3")
+
+        rig.clock.advance(10)
+        try engine.check(squatSets[2])
+        #expect(engine.activityState?.current == nil)
     }
 
     @Test func supersetAlternatesBetweenItsExercises() throws {

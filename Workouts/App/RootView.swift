@@ -101,6 +101,9 @@ struct RootView: View {
                 },
                 onDiscarded: { navigation.endWorkout() }
             )
+            // What is actually showing, as opposed to requested: the resume ring keys off this.
+            .onAppear { navigation.isWorkoutCoverOnScreen = true }
+            .onDisappear { navigation.isWorkoutCoverOnScreen = false }
         }
         // The cover hosts its own alert; this one stands down while it is up, since a presenter cannot show a second.
         .saveErrorAlert(isEnabled: !navigation.isWorkoutCoverPresented)

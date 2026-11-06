@@ -78,7 +78,9 @@ public enum TemplateUpdate {
     // MARK: Values
 
     /// Pairs template exercises with workout exercises of the same id (each used once, in order) and copies the values
-    /// of the sets they share by index.
+    /// of the sets they share. Sets pair by kind (the n-th warm-up with the n-th warm-up, the n-th other set with the
+    /// n-th other set), so warm-ups added during the workout never shift working-set values; only checked workout sets
+    /// give values, and a template set with no counterpart keeps its own. The template's structure never changes.
     private static func copyValues(from workout: Workout, to template: Template) {
         var available = orderedRows(of: workout)
         for plan in orderedRows(of: template) {
@@ -88,8 +90,13 @@ public enum TemplateUpdate {
             plan.barType = row.barType
             plan.barWeight = row.barWeight
             plan.updatedAt = Date()
-            for (plannedSet, doneSet) in zip(orderedSets(of: plan), orderedSets(of: row)) {
-                copy(doneSet, into: plannedSet)
+            let done = orderedSets(of: row)
+            for isWarmup in [true, false] {
+                let targets = orderedSets(of: plan).filter { ($0.kind == .warmup) == isWarmup }
+                let sources = done.filter { ($0.kind == .warmup) == isWarmup }
+                for (plannedSet, doneSet) in zip(targets, sources) where doneSet.completed {
+                    copy(doneSet, into: plannedSet)
+                }
             }
         }
     }

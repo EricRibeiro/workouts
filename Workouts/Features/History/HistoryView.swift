@@ -70,6 +70,10 @@ struct HistoryView: View {
                         .presentationPlacement(.center)
                 }
                 .sensoryFeedback(.success, trigger: savedTemplates)
+                .dismissSheetsOnWorkoutOpen {
+                    isCalendarPresented = false
+                    templateSource = nil
+                }
                 .searchable(text: $query, prompt: "Search workouts")
                 .searchScopes($scope, activation: .onSearchPresentation) {
                     ForEach(HistoryScope.allCases, id: \.self) { scope in
@@ -115,6 +119,8 @@ struct HistoryView: View {
             .accessibilityIdentifier("history.empty")
         } else {
             let sections = HistoryList.sections(HistoryList.filter(entries, query: query, scope: scope))
+            // The list filter ignores surrounding whitespace, so a whitespace-only search keeps the dashboard.
+            let isSearching = !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             // Read from the models here, not from the cached entries: Fitness data lands after the workout was saved and
             // does not touch `updatedAt`, so the rows and the week's total follow the model.
             let activeKcal = activeKcalByWorkout
@@ -122,7 +128,7 @@ struct HistoryView: View {
             let weekBpm = HistoryDashboard.weekAverageHeartRate(workouts: finished)
             let heartRates = avgHeartRateByWorkout
             List {
-                if query.isEmpty && scope == .all {
+                if !isSearching && scope == .all {
                     Section {
                         if horizontalSizeClass == .regular {
                             // One row, two columns, the gutter on the fold when half open (`DashboardColumns`).
@@ -164,7 +170,7 @@ struct HistoryView: View {
             .fitnessRefresh(health, context: context)
             .overlay {
                 if sections.isEmpty && !entries.isEmpty {
-                    if query.isEmpty {
+                    if !isSearching {
                         ContentUnavailableView(
                             "No PRs Yet",
                             systemImage: "trophy",

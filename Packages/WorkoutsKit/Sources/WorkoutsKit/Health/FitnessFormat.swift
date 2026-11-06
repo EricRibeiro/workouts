@@ -23,7 +23,13 @@ extension HealthEffort {
 public nonisolated enum FitnessFormat {
     /// The score as a whole number in 1...10.
     public static func wholeScore(_ score: Double) -> Int {
-        min(10, max(1, Int(score.rounded())))
+        min(10, max(1, clampedInt(score)))
+    }
+
+    /// `value` rounded to an `Int`, never trapping: NaN is 0 and anything beyond +-10^9 is clamped there.
+    static func clampedInt(_ value: Double) -> Int {
+        guard value.isFinite else { return value.isNaN ? 0 : (value < 0 ? -1_000_000_000 : 1_000_000_000) }
+        return Int(min(1e9, max(-1e9, value.rounded())))
     }
 
     /// `266 kcal`, `1,240 kcal`: whole calories with thousands separators.
@@ -40,7 +46,7 @@ public nonisolated enum FitnessFormat {
 
     /// `39 minutes, 53 seconds`, for VoiceOver.
     public static func spokenDuration(seconds: TimeInterval) -> String {
-        Duration.seconds(max(0, Int(seconds.rounded())))
+        Duration.seconds(max(0, clampedInt(seconds)))
             .formatted(.units(allowed: [.hours, .minutes, .seconds], width: .wide).locale(Locale(identifier: "en_US")))
     }
 

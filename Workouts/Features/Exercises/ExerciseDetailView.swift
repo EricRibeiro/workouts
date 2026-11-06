@@ -84,6 +84,7 @@ struct ExerciseDetailView: View {
                 CustomExerciseFormView(editing: exerciseID, onRemoved: { removals += 1 })
                     .presentationPlacement(.center)
             }
+            .dismissSheetsOnWorkoutOpen { isEditing = false }
             .task(
                 id: Fingerprint(
                     rows,

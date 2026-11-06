@@ -24,7 +24,8 @@ public final class ActiveWorkoutEngine {
     @ObservationIgnored let settings: SettingsStore
     @ObservationIgnored let now: () -> Date
     /// Previous entries by exercise id, loaded at start/resume and when exercises are added or replaced.
-    @ObservationIgnored var previousCache: [UUID: PreviousEntry] = [:]
+    /// Per exercise id, one entry per row of that exercise in the chosen past workout, by position (an entry may have no sets).
+    @ObservationIgnored var previousCache: [UUID: [PreviousEntry]] = [:]
     @ObservationIgnored var previousLoaded: Set<UUID> = []
     /// Test seam: runs before every save and may throw to simulate a failed save. Always nil in the app.
     @ObservationIgnored var saveHook: (() throws -> Void)?
@@ -222,9 +223,21 @@ public final class ActiveWorkoutEngine {
 
     /// The "Previous" cell of `set`: the same set among the completed sets of the exercise's most recent
     /// finished workout that has any, in the row's unit (converted and rounded to 0.5 when the units differ).
+    /// Like ``plan(for:)``, the n-th workout row of an exercise takes the n-th row of that exercise in the past workout
+    /// (by position), so Squat 100x5 then Squat 60x12 last time shows 100x5 and 60x12. A row with no n-th counterpart
+    /// (or whose counterpart has no completed sets) falls back to the past workout's first row with completed sets, so
+    /// an extra row added this time still gets a hint.
     /// Values are loaded at start, resume and when an exercise is added or replaced.
     public func previous(for set: WorkoutSet) -> PreviousSet? {
-        guard let row = set.workoutExercise, let entry = previousCache[row.exerciseID],
+        guard let row = set.workoutExercise, let entries = previousCache[row.exerciseID] else { return nil }
+        var nth = 0
+        if let workout = row.workout {
+            let rows = (workout.exercises ?? []).sorted { $0.position < $1.position }
+                .filter { $0.exerciseID == row.exerciseID }
+            nth = rows.firstIndex(where: { $0 === row }) ?? 0
+        }
+        let candidate = entries.indices.contains(nth) && !entries[nth].sets.isEmpty ? entries[nth] : nil
+        guard let entry = candidate ?? entries.first(where: { !$0.sets.isEmpty }),
             let index = Self.indexByKind(of: set, in: sortedSets(of: row), among: entry.sets.map(\.kind))
         else { return nil }
         let source = entry.sets[index]
@@ -344,6 +357,7 @@ public final class ActiveWorkoutEngine {
         try loadPrevious(for: [info.id])
         row.exerciseID = info.id
         row.exerciseName = info.name
+        timedExercises.remove(row.id)  // the new exercise decides again whether the row is timed
         try commitRollingBack(workout, row)
     }
 
@@ -358,22 +372,25 @@ public final class ActiveWorkoutEngine {
     }
 
     /// Rewrites exercise positions from `order`, which must contain each of the workout's exercises exactly once. A
-    /// superset the move splits loses the moved member (``SupersetGrouping/reordered(_:to:)``).
-    public func reorderExercises(_ order: [WorkoutExercise]) throws {
+    /// superset the move splits loses the moved member, and a non-member dropped inside a superset lands after it
+    /// (``SupersetGrouping/reordered(_:to:moving:)``); `moving` is the dragged exercises when known.
+    public func reorderExercises(_ order: [WorkoutExercise], moving: [WorkoutExercise] = []) throws {
         let workout = try activeWorkout()
         let current = sortedExercises(of: workout)
         guard order.count == current.count,
             Set(order.map(ObjectIdentifier.init)) == Set(current.map(ObjectIdentifier.init))
         else { throw ActiveWorkoutError.invalidOrder }
-        let groups = Dictionary(
-            SupersetGrouping.reordered(current.map { (id: $0.id, group: $0.supersetGroup) }, to: order.map(\.id))
-                .map { ($0.id, $0.group) },
-            uniquingKeysWith: { first, _ in first }
+        let grouped = SupersetGrouping.reordered(
+            current.map { (id: $0.id, group: $0.supersetGroup) },
+            to: order.map(\.id),
+            moving: moving.map(\.id)
         )
-        for (position, row) in order.enumerated() {
+        let rows = Dictionary(order.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        for (position, item) in grouped.enumerated() {
+            guard let row = rows[item.id] else { continue }
             row.position = position
             row.updatedAt = now()
-            row.supersetGroup = groups[row.id] ?? nil
+            row.supersetGroup = item.group
         }
         try commitRollingBack(workout, nil)
     }

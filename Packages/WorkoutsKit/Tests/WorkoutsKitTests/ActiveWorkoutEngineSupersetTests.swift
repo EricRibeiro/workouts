@@ -197,6 +197,19 @@ import Testing
         #expect(rows(workout).map(\.supersetGroup) == [nil, nil, nil])
     }
 
+    @Test func droppingAnExerciseInsideASupersetParksItAfterTheSuperset() throws {
+        let (rig, engine, rows3) = try threeRows()
+        defer { withExtendedLifetime(rig) {} }
+        let (a, b, c) = (rows3[0], rows3[1], rows3[2])
+        let d = try engine.addExercise(try rig.info(LibraryFixture.squat))
+        try engine.makeSuperset([a, b, d])
+        // c dragged between a and b: the superset stays whole and c is placed after it.
+        try engine.reorderExercises([a, c, b, d], moving: [c])
+        let workout = try #require(engine.workout)
+        #expect(rows(workout).map(\.id) == [a.id, b.id, d.id, c.id])
+        #expect(rows(workout).map(\.supersetGroup) == [1, 1, 1, nil])
+    }
+
     @Test func reorderingOneOfThreeKeepsTheRestAndRenumbers() throws {
         let (rig, engine, rows3) = try threeRows()
         defer { withExtendedLifetime(rig) {} }

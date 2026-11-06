@@ -180,4 +180,16 @@ import Testing
         #expect(nav.isWorkoutCoverPresented)
         #expect(!nav.isWorkoutMinimised)
     }
+
+    @Test func openingTheActiveWorkoutAsksEveryScreenToCloseItsSheets() {
+        let nav = AppNavigation()
+        #expect(nav.dismissSheetsRequest == 0)
+        nav.openActiveWorkout()
+        #expect(nav.dismissSheetsRequest == 1)
+        nav.openActiveWorkout()
+        #expect(nav.dismissSheetsRequest == 2)
+        // Presenting from the resume ring or on start is not a request to close anything.
+        nav.presentWorkout()
+        #expect(nav.dismissSheetsRequest == 2)
+    }
 }

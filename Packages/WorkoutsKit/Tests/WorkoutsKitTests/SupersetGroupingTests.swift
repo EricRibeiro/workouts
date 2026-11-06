@@ -128,4 +128,54 @@ import Testing
         let intact = SupersetGrouping.reordered(items, to: ["c", "d", "a", "b"])
         #expect(groups(intact) == [1, 1, 2, 2])
     }
+
+    // A non-member dropped between members keeps the superset whole: it lands after the run.
+
+    @Test func aNonMemberDroppedInsideAPairLandsAfterIt() {
+        let items: [Item] = [("a", 1), ("b", 1), ("c", nil)]
+        // The adjacent swap alone is ambiguous (b down or c up); the drag says c moved.
+        let moved = SupersetGrouping.reordered(items, to: ["a", "c", "b"], moving: ["c"])
+        #expect(ids(moved) == ["a", "b", "c"])
+        #expect(groups(moved) == [1, 1, nil])
+        // The same order with b as the dragged row pulls b out, as before.
+        let pulled = SupersetGrouping.reordered(items, to: ["a", "c", "b"], moving: ["b"])
+        #expect(ids(pulled) == ["a", "c", "b"])
+        #expect(groups(pulled) == [nil, nil, nil])
+        // Without a hint the ambiguous order keeps the member reading.
+        #expect(groups(SupersetGrouping.reordered(items, to: ["a", "c", "b"])) == [nil, nil, nil])
+    }
+
+    @Test func aNonMemberDroppedInsideATripleLandsAfterItWithoutEvictingAnyone() {
+        let items: [Item] = [("a", 1), ("b", 1), ("d", 1), ("c", nil)]
+        // Unambiguous: only c's removal reconciles the orders, so no hint is needed.
+        let moved = SupersetGrouping.reordered(items, to: ["a", "c", "b", "d"])
+        #expect(ids(moved) == ["a", "b", "d", "c"])
+        #expect(groups(moved) == [1, 1, 1, nil])
+        let hinted = SupersetGrouping.reordered(items, to: ["a", "c", "b", "d"], moving: ["c"])
+        #expect(ids(hinted) == ["a", "b", "d", "c"])
+        #expect(groups(hinted) == [1, 1, 1, nil])
+    }
+
+    @Test func aNonMemberDroppedInsideAGroupInTheMiddleOfAListKeepsTheOtherGroups() {
+        let items: [Item] = [("x", nil), ("a", 1), ("b", 1), ("c", 2), ("d", 2), ("y", nil)]
+        // y dragged between c and d: lands after d; both groups survive.
+        let moved = SupersetGrouping.reordered(items, to: ["x", "a", "b", "c", "y", "d"], moving: ["y"])
+        #expect(ids(moved) == ["x", "a", "b", "c", "d", "y"])
+        #expect(groups(moved) == [nil, 1, 1, 2, 2, nil])
+    }
+
+    @Test func aWrongHintIsIgnored() {
+        let items: [Item] = [("a", 1), ("b", 1), ("d", 1), ("c", nil)]
+        let moved = SupersetGrouping.reordered(items, to: ["a", "c", "b", "d"], moving: ["a"])
+        #expect(ids(moved) == ["a", "b", "d", "c"])
+        #expect(groups(moved) == [1, 1, 1, nil])
+    }
+
+    @Test func aMultiRowMoveStillKeepsTheLongestRun() {
+        let items: [Item] = [("a", 1), ("b", 1), ("c", 1), ("d", 1), ("x", nil), ("y", nil)]
+        // Two rows moved: no single mover explains it, so only the longest run (earliest on a tie) stays.
+        let moved = SupersetGrouping.reordered(items, to: ["x", "a", "b", "y", "c", "d"])
+        #expect(ids(moved) == ["x", "a", "b", "y", "c", "d"])
+        #expect(groups(moved) == [nil, 1, 1, nil, nil, nil])
+    }
 }

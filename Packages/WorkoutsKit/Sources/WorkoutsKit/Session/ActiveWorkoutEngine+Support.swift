@@ -216,21 +216,25 @@ extension ActiveWorkoutEngine {
             )
         )
         for past in finished where !pending.isEmpty {
-            for row in sortedExercises(of: past) where pending.contains(row.exerciseID) {
-                let done = sortedSets(of: row).filter(\.completed)
-                guard !done.isEmpty else { continue }
-                previousCache[row.exerciseID] = PreviousEntry(
-                    unit: row.unit,
-                    sets: done.map {
-                        PreviousSet(
-                            kind: $0.kind,
-                            weight: $0.weight,
-                            reps: $0.reps,
-                            durationSeconds: $0.durationSeconds
-                        )
-                    }
-                )
-                pending.remove(row.exerciseID)
+            let rows = sortedExercises(of: past)
+            for id in pending {
+                let sameExercise = rows.filter { $0.exerciseID == id }
+                let entries = sameExercise.map { row in
+                    PreviousEntry(
+                        unit: row.unit,
+                        sets: sortedSets(of: row).filter(\.completed).map {
+                            PreviousSet(
+                                kind: $0.kind,
+                                weight: $0.weight,
+                                reps: $0.reps,
+                                durationSeconds: $0.durationSeconds
+                            )
+                        }
+                    )
+                }
+                guard entries.contains(where: { !$0.sets.isEmpty }) else { continue }
+                previousCache[id] = entries
+                pending.remove(id)
             }
         }
         previousLoaded.formUnion(ids)

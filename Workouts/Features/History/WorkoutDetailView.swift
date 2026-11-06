@@ -189,6 +189,7 @@ struct WorkoutDetailView: View {
                     .presentationPlacement(.center)
             }
         }
+        .dismissSheetsOnWorkoutOpen { isTemplatePresented = false }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("history.detail")
     }

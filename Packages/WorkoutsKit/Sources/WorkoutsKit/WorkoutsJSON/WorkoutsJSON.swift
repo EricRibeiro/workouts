@@ -125,8 +125,15 @@ extension WorkoutsJSON {
     }
 
     /// Parses JSON bytes with ``decoder``.
+    ///
+    /// - Throws: ``ImportError/unsupportedVersion(_:)`` for a file written by another format version, checked before the
+    ///   full decode (a newer file may hold values this build cannot parse, which would read as "damaged"); a
+    ///   `DecodingError` for anything that is not a Workouts file.
     public nonisolated static func decode(_ data: Data) throws -> WorkoutsJSON {
-        try decoder.decode(WorkoutsJSON.self, from: data)
+        struct Header: Decodable { var version: Int }
+        let header = try decoder.decode(Header.self, from: data)
+        guard header.version == currentVersion else { throw ImportError.unsupportedVersion(header.version) }
+        return try decoder.decode(WorkoutsJSON.self, from: data)
     }
 
     /// The file name Export… offers: `workouts-export-YYYY-MM-DD.json`, the day read in `timeZone` (the device's by default).

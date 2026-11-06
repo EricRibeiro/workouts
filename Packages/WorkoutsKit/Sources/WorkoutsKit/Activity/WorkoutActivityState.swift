@@ -11,8 +11,8 @@ public nonisolated struct WorkoutActivityStaticInfo: Codable, Hashable, Sendable
     }
 }
 
-/// The set the Live Activity and the rest-end notification point at: the first unchecked set (`DECISIONS.md`, "Active
-/// workout behaviour": "the first with an unchecked set"), which is also the set **Done set** would check. Values are
+/// The set the Live Activity and the rest-end notification point at: the first unchecked set after the most recently
+/// checked one (`ActiveWorkoutEngine.activityState`), which is also the set **Done set** would check. Values are
 /// display-ready: what checking it would record (typed value, else Previous, else the template plan).
 public nonisolated struct WorkoutActivitySet: Codable, Hashable, Sendable {
     /// The set Done checks.
@@ -88,7 +88,7 @@ public nonisolated struct WorkoutActivityState: Codable, Hashable, Sendable {
     public var setsDone: Int
     /// All sets of the workout.
     public var setsTotal: Int
-    /// The first unchecked set; nil when every set is checked.
+    /// The next set to work (see ``ActiveWorkoutEngine/activityState``); nil when every set is checked.
     public var current: WorkoutActivitySet?
 
     public init(
@@ -125,8 +125,10 @@ public nonisolated struct WorkoutActivityState: Codable, Hashable, Sendable {
 extension ActiveWorkoutEngine {
     /// The Live Activity content for the in-progress workout, nil without one.
     ///
-    /// The current set is the **first unchecked set in ``activitySetOrder(groups:counts:)``**: exercises by `position`,
-    /// sets by `position`, with adjacent exercises of one superset group alternating (A1, B1, A2, B2, ...).
+    /// The current set is the **first unchecked set after the most recently checked one** in
+    /// ``activitySetOrder(groups:counts:)`` (exercises by `position`, sets by `position`, adjacent exercises of one
+    /// superset group alternating A1, B1, A2, B2, ...), so a set skipped earlier does not hold the activity back. With
+    /// none left after it the first unchecked set overall; with nothing checked yet, the first unchecked set.
     public var activityState: WorkoutActivityState? {
         guard let workout = liveWorkout else { return nil }
         let rest = restTimer
@@ -136,7 +138,7 @@ extension ActiveWorkoutEngine {
         let total = rowSets.reduce(0) { $0 + $1.count }
         let done = rowSets.reduce(0) { $0 + $1.filter(\.completed).count }
         var current: WorkoutActivitySet?
-        if let position = order.first(where: { !rowSets[$0.exercise][$0.set].completed }) {
+        if let position = currentPosition(in: order, sets: rowSets) {
             let row = rows[position.exercise]
             let sets = rowSets[position.exercise]
             let set = sets[position.set]
@@ -163,6 +165,21 @@ extension ActiveWorkoutEngine {
             setsTotal: total,
             current: current
         )
+    }
+
+    /// The set the activity points at, per the rule on ``activityState``. "Most recently checked" is the latest
+    /// `completedAt`; a tie (or a missing time) goes to the later set in `order`.
+    private func currentPosition(in order: [ActivitySetPosition], sets: [[WorkoutSet]]) -> ActivitySetPosition? {
+        var latest: (index: Int, at: Date)?
+        for (index, position) in order.enumerated() {
+            let set = sets[position.exercise][position.set]
+            guard set.completed else { continue }
+            let at = set.completedAt ?? .distantPast
+            if latest == nil || at >= latest!.at { latest = (index, at) }
+        }
+        let start = latest.map { $0.index + 1 } ?? 0
+        let isOpen: (ActivitySetPosition) -> Bool = { !sets[$0.exercise][$0.set].completed }
+        return order[start...].first(where: isOpen) ?? order.first(where: isOpen)
     }
 
     /// The static part of the activity, nil without a workout.

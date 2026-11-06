@@ -141,16 +141,23 @@ public struct PastWorkoutDraft: Equatable, Sendable {
     }
 
     /// Rewrites the exercise order; ignored unless `order` holds every exercise id exactly once. A superset the move
-    /// splits loses the moved block (``SupersetGrouping/reordered(_:to:)``).
-    public mutating func reorder(_ order: [UUID]) {
+    /// splits loses the moved block, and a block dropped inside a superset lands after it
+    /// (``SupersetGrouping/reordered(_:to:moving:)``); `moving` is the dragged block ids when known.
+    public mutating func reorder(_ order: [UUID], moving: [UUID] = []) {
         let byID = Dictionary(uniqueKeysWithValues: exercises.map { ($0.id, $0) })
         guard order.count == byID.count, Set(order).count == byID.count else { return }
-        let ordered = order.compactMap { byID[$0] }
-        guard ordered.count == byID.count else { return }
-        let groups = SupersetGrouping.reordered(exercises.map { (id: $0.id, group: $0.supersetGroup) }, to: order)
-        exercises = ordered
-        for (position, item) in groups.enumerated() where exercises[position].id == item.id {
-            exercises[position].supersetGroup = item.group
+        guard order.compactMap({ byID[$0] }).count == byID.count else { return }
+        let groups = SupersetGrouping.reordered(
+            exercises.map { (id: $0.id, group: $0.supersetGroup) },
+            to: order,
+            moving: moving
+        )
+        exercises = groups.compactMap { item in
+            byID[item.id].map { row in
+                var row = row
+                row.supersetGroup = item.group
+                return row
+            }
         }
     }
 

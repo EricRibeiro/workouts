@@ -60,6 +60,9 @@ public nonisolated struct ImportReport: Equatable, Sendable {
     /// Unfinished workouts in the file that were skipped because the store already has a different one in progress
     /// (they are also counted in `workouts.skipped`).
     public var skippedInProgress = 0
+    /// Custom exercises in the file refused because their id is a library exercise's (also counted in
+    /// `customExercises.skipped`).
+    public var refusedCustomExercises = 0
 
     public init() {}
 
@@ -153,6 +156,13 @@ extension ImportReport {
                 skippedInProgress == 1
                     ? "1 unfinished workout was skipped because one is in progress."
                     : "\(skippedInProgress) unfinished workouts were skipped because one is in progress."
+            )
+        }
+        if refusedCustomExercises > 0 {
+            lines.append(
+                refusedCustomExercises == 1
+                    ? "1 custom exercise was skipped because it reuses a library exercise's id."
+                    : "\(refusedCustomExercises) custom exercises were skipped because they reuse library exercises' ids."
             )
         }
         return lines.joined(separator: "\n")

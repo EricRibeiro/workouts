@@ -380,7 +380,7 @@ private struct FrozenSetTableSource: SetTableDataSource {
     func toggleCheck(of setID: UUID) -> Bool { false }
     func addSet(to sectionID: UUID) {}
     func deleteSet(_ setID: UUID) {}
-    func reorder(_ order: [UUID]) {}
+    func reorder(_ order: [UUID], moving: [UUID]) {}
 }
 
 extension ScrollPhase {

@@ -141,11 +141,11 @@ struct EngineSetTableSource: SetTableDataSource {
         perform { try engine.removeSet(set) }
     }
 
-    func reorder(_ order: [UUID]) {
+    func reorder(_ order: [UUID], moving: [UUID]) {
         let byID = Dictionary(uniqueKeysWithValues: exercises.map { ($0.id, $0) })
         let ordered = order.compactMap { byID[$0] }
         guard ordered.count == byID.count else { return }
-        perform { try engine.reorderExercises(ordered) }
+        perform { try engine.reorderExercises(ordered, moving: moving.compactMap { byID[$0] }) }
     }
 
     /// Runs an engine call and reports a failure.
@@ -209,7 +209,7 @@ struct TemplateSetTableSource: SetTableDataSource {
     func toggleCheck(of setID: UUID) -> Bool { true }
     func addSet(to sectionID: UUID) { draft.addSet(to: sectionID) }
     func deleteSet(_ setID: UUID) { draft.deleteSet(setID) }
-    func reorder(_ order: [UUID]) { draft.reorder(order) }
+    func reorder(_ order: [UUID], moving: [UUID]) { draft.reorder(order, moving: moving) }
 }
 
 // MARK: - Past
@@ -258,7 +258,7 @@ struct PastSetTableSource: SetTableDataSource {
     func toggleCheck(of setID: UUID) -> Bool { true }
     func addSet(to sectionID: UUID) { draft.addSet(to: sectionID) }
     func deleteSet(_ setID: UUID) { draft.deleteSet(setID) }
-    func reorder(_ order: [UUID]) { draft.reorder(order) }
+    func reorder(_ order: [UUID], moving: [UUID]) { draft.reorder(order, moving: moving) }
 }
 
 // MARK: - Shared helpers

@@ -23,13 +23,23 @@ private struct ResumeControl: ViewModifier {
     func body(content: Content) -> some View {
         content
             .toolbar {
-                if let engine, let navigation, let workout = engine.workout, !navigation.isWorkoutCoverPresented {
+                if let engine, let navigation, let workout = engine.workout, !navigation.isWorkoutCoverOnScreen {
                     // Its own glass group, still last: the ring is a status, not a third action beside the others.
                     ToolbarSpacer(.fixed, placement: .primaryAction)
                     ToolbarItem(placement: .primaryAction) {
                         ResumeRingButton(engine: engine, startedAt: workout.startedAt) {
                             restoreCount += 1
-                            navigation.presentWorkout()
+                            if navigation.isWorkoutCoverPresented {
+                                // Requested but not showing (a sheet blocked it): the binding is already true, so drop it
+                                // for a turn to make the next request a real change.
+                                navigation.isWorkoutCoverPresented = false
+                                Task { @MainActor in
+                                    await Task.yield()
+                                    navigation.presentWorkout()
+                                }
+                            } else {
+                                navigation.presentWorkout()
+                            }
                         }
                     }
                 }

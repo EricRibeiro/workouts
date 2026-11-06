@@ -36,30 +36,53 @@ public nonisolated enum SupersetGrouping {
         normalized(items.filter { $0.id != id })
     }
 
-    /// The groups after a drag reorder. `old` is the list before (supersets contiguous), `newOrder` the ids after. A
-    /// superset whose members are no longer next to each other is split by the move: the moved member leaves it (the
-    /// member whose removal leaves every other row in its old relative order; when several moved, only the longest run
-    /// of neighbours, earliest on a tie, stays), exactly like "remove from superset". Groups left with one member dissolve and
-    /// the rest renumber 1, 2, 3 by first appearance. The result is in `newOrder`; ids missing from `old` are dropped.
+    /// The rows after a drag reorder, in their final order. `old` is the list before (supersets contiguous), `newOrder`
+    /// the ids after, `moving` the dragged ids when the caller knows them (it settles which row moved when the order
+    /// alone is ambiguous, as in an adjacent swap).
+    ///
+    /// A superset the move splits is repaired by who moved. The single moved row is the one whose removal makes old and
+    /// new agree, considering every row:
+    /// - a member that left its group's run leaves the group, exactly like "remove from superset";
+    /// - a non-member dropped inside a group's run is placed right after the run instead, so the group stays whole
+    ///   (the returned order differs from `newOrder` then; callers must apply it).
+    ///
+    /// Without `moving`, an ambiguous move (several rows qualify) is read as the member leaving. When no single row
+    /// explains the move, only the longest run of neighbours (earliest on a tie) stays grouped. Groups left with one
+    /// member dissolve and the rest renumber 1, 2, 3 by first appearance. Ids missing from `old` are dropped.
     public static func reordered<ID: Hashable>(
         _ old: [(id: ID, group: Int?)],
-        to newOrder: [ID]
+        to newOrder: [ID],
+        moving: [ID] = []
     ) -> [(id: ID, group: Int?)] {
         let byID = Dictionary(old.map { ($0.id, $0.group) }, uniquingKeysWith: { first, _ in first })
         var items = newOrder.compactMap { id in byID[id].map { (id: id, group: $0) } }
         let oldIDs = old.map(\.id)
-        for group in Set(items.compactMap(\.group)) {
+        let candidates = newOrder.filter { candidate in
+            oldIDs.filter { $0 != candidate } == newOrder.filter { $0 != candidate }
+        }
+        let hinted = moving.count == 1 ? moving.filter(candidates.contains) : []
+        for group in Set(items.compactMap(\.group)).sorted() {
             let positions = items.indices.filter { items[$0].group == group }
             guard let first = positions.first, let last = positions.last, last - first + 1 != positions.count
             else { continue }
-            let members = positions.map { items[$0].id }
-            // Single mover: dropping it makes old and new agree on every other row.
-            let movers = members.filter { candidate in
-                oldIDs.filter { $0 != candidate } == newOrder.filter { $0 != candidate }
+            let members = Set(positions.map { items[$0].id })
+            let mover: ID?
+            if let only = hinted.first {
+                mover = only
+            } else if candidates.count == 1 {
+                mover = candidates.first
+            } else {
+                // Ambiguous: a member of this group leaving is the reading that predates the hint.
+                let inside = Set(items[first...last].map(\.id)).subtracting(members)
+                mover = candidates.first(where: members.contains) ?? candidates.first(where: inside.contains)
             }
-            let leaving: Set<Int>
-            if movers.count == 1, let mover = movers.first, let index = items.firstIndex(where: { $0.id == mover }) {
-                leaving = [index]
+            if let mover, members.contains(mover) {
+                if let index = items.firstIndex(where: { $0.id == mover }) { items[index].group = nil }
+            } else if let mover, let from = items.firstIndex(where: { $0.id == mover }) {
+                // A non-member sits inside the run: park it right after the run's last member.
+                let row = items.remove(at: from)
+                let end = items.lastIndex(where: { $0.group == group }) ?? items.endIndex - 1
+                items.insert(row, at: end + 1)
             } else {
                 var best = (start: first, length: 0)
                 var start = first
@@ -68,9 +91,10 @@ public nonisolated enum SupersetGrouping {
                     let length = position - start + 1
                     if length > best.length { best = (start, length) }
                 }
-                leaving = Set(positions.filter { $0 < best.start || $0 >= best.start + best.length })
+                for index in positions where index < best.start || index >= best.start + best.length {
+                    items[index].group = nil
+                }
             }
-            for index in leaving { items[index].group = nil }
         }
         return normalized(items)
     }

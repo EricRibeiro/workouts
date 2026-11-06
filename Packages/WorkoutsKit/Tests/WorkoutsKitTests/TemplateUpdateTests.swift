@@ -163,6 +163,48 @@ import Testing
         #expect(templateSets(rows[1]).map(\.reps) == [8, 8])
     }
 
+    @Test func valuesOnlyPairsSetsByKindSoWarmupsDoNotShiftWorkingSets() throws {
+        let context = try makeTestContext()
+        let (template, workout) = makePair(context)
+        // Two warm-ups are added in front of Bench's three working sets (100 x 5); the lifter also did 105 on set 2.
+        let bench = try #require((workout.exercises ?? []).first { $0.position == 0 })
+        for set in bench.sets ?? [] { set.position += 2 }
+        for (index, weight) in [20.0, 40.0].enumerated() {
+            context.insert(
+                WorkoutSet(
+                    position: index,
+                    kind: .warmup,
+                    weight: weight,
+                    reps: 10,
+                    completed: true,
+                    workoutExercise: bench
+                )
+            )
+        }
+        workoutSets(workout, exercise: 0)[3].weight = 105
+
+        try TemplateUpdate.apply(.valuesOnly, template: template, workout: workout, in: context)
+
+        let sets = templateSets(templateRows(template)[0])
+        #expect(sets.count == 3, "no warm-ups are added to the template")
+        #expect(sets.allSatisfy { $0.kind == .normal })
+        #expect(sets.map(\.weight) == [100, 105, 100])
+        #expect(sets.map(\.reps) == [5, 5, 5])
+    }
+
+    @Test func valuesOnlyIgnoresUncheckedWorkoutSets() throws {
+        let context = try makeTestContext()
+        let (template, workout) = makePair(context)
+        let skipped = workoutSets(workout, exercise: 0)[2]
+        skipped.weight = 5
+        skipped.completed = false
+        workoutSets(workout, exercise: 0)[0].weight = 110
+
+        try TemplateUpdate.apply(.valuesOnly, template: template, workout: workout, in: context)
+
+        #expect(templateSets(templateRows(template)[0]).map(\.weight) == [110, 100, 100])
+    }
+
     @Test func templateAndValuesMirrorsTheWorkout() throws {
         let context = try makeTestContext()
         let (template, workout) = makePair(context)

@@ -319,7 +319,8 @@ struct SetTable: View {
         case .end: destination = nil
         }
         source.reorder(
-            SetTableLayout.reordered(sections.map(\.id), moving: difference.sources, before: destination)
+            SetTableLayout.reordered(sections.map(\.id), moving: difference.sources, before: destination),
+            moving: difference.sources
         )
     }
 

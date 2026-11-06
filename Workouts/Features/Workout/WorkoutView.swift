@@ -104,6 +104,7 @@ struct WorkoutView: View {
                         }
                     }
                 ) { TemplatePreviewSheet(template: $0, started: workoutStarted, edit: edit) }
+                .dismissSheetsOnWorkoutOpen { previewSheet = nil }
                 .resumeControl()
                 .settingsControl()
                 .toolbar {
