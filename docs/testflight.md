@@ -31,3 +31,4 @@ Builds uploaded with `./dev testflight --upload` (cadence: AGENTS.md "TestFlight
 | 202611051341 | 18e81b6 | Ring+dumbbell resume control, Live Activity redesign, info sheet polish, one-line names |
 | 202611051529 | f9b32c6 | Apple Health blended into the workout (header stats, heart-rate chart, History bpm), health data fixes, shared info sheet, tab tap expands the sheet |
 | 202611060122 | 6580187 | Out of band (Eric, gate skipped; last full UI run 91/93, both failures fixed since): quality-review fixes, 1:00 default rest, appearance setting, exercise video card + full-width info sheet without ✕, Tools/duo |
+| 202611060155 | f0c3a0e | Out of band (Eric, gate skipped): exercise videos mix with other audio (no more pausing music) |
