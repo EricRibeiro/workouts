@@ -4,17 +4,11 @@ State: `main` is at `a668089` (past-workout and template editors as full-screen 
 Everything below is optional follow-up; nothing on `main` is half-done. Read `CLAUDE.md` first, then
 `docs/judgment-calls.md` JC94–102 for what the last session decided and why.
 
-## 1. Log the last upload (2 min)
+## 1. Last upload: done
 
-A full `./dev ui-test` + `./dev testflight --upload` was started for `a668089` as a plain background shell. Its
-output went to `/private/tmp/claude-501/-Users-ericribeiro-Projects-workouts/4ef2d514-ca6b-4c6b-8880-a17b4ecf3054/tasks/b1mcccjiq.output`
-(may be gone after a reboot).
-
-- If it printed `testflight: uploaded build <N>`: append a row to `docs/testflight.md`
-  (`| <N> | a668089 | Gated (...): past-workout and template editors open full screen |`), commit, push.
-- If it failed or the file is gone: check `.build/ui-test.stamp` (`commit=` must be `a668089…`, `clean=1`). If it
-  doesn't match, run `./dev ui-test` then `./dev testflight --upload` from the main checkout (never a worktree,
-  never with uncommitted changes), and log the build. Never pass `DEV_SKIP_UI_GATE=1` without Eric's OK.
+Build 202611061428 (a668089) uploaded after a full UI run (127 passed, 1 flaky); logged in `docs/testflight.md`. The flaky test was
+`ExerciseListUITests/testBestSetFollowsUnitChange()` (failed once, passed on retry; `.build/ui-flaky.log`). If it
+flakes again it fails the run: look at it then.
 
 ## 2. Live Activity snapshot tests (unfinished, tests only)
 
