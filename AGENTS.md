@@ -192,6 +192,10 @@ a milestone (a PLAN task or a review's fix batch). Never from a worktree, never 
 never by workers. It takes no simulator lock (own DerivedData under `.build/testflight/`). Log each upload's build number
 and commit in `docs/testflight.md`. `--upload` is gated: it refuses unless a full unfiltered `./dev ui-test` passed on HEAD
 with a clean tree (`.build/ui-test.stamp`); `DEV_SKIP_UI_GATE=1` overrides with a warning. A failed upload is reported, not retried in a loop.
+**Upload sooner (Eric, 2026-11-07: "more frequent uploads so I can test the changes quicker"):** a fix needs only `./dev check` plus
+its touched UI suites green, then `DEV_SKIP_UI_GATE=1 ./dev testflight --upload` right away; do not hold an upload for a full
+run, and batch nothing just to save uploads. The full sharded run still gates milestones (a PLAN phase, a review round's batch)
+and runs in the background; the `docs/testflight.md` row says which gate it passed (`Gated (full …)` or `Touched suites: …`).
 
 ## Secrets (App Store Connect key)
 
