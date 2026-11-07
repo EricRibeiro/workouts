@@ -64,6 +64,26 @@ final class HistoryListUITests: XCTestCase {
         XCTAssertFalse(any["history.detail"].exists)
     }
 
+    /// The detail's title and toolbar belong to the first frame of the push (backlog: "History detail jumps after the
+    /// push"): they must not wait for the detail's off-main derivation to land. Short timeouts, no long waits.
+    @MainActor
+    func testDetailHasTitleAndToolbarFromTheFirstFrame() throws {
+        let app = launch()
+        let any = app.descendants(matching: .any)
+        XCTAssertTrue(any["screen.history"].waitForExistence(timeout: 10))
+
+        let first = firstRow(app)
+        XCTAssertTrue(first.exists, "no history rows")
+        // The row's label is "name, date, duration, volume[, N PRs]".
+        let name = try XCTUnwrap(first.label.components(separatedBy: ",").first)
+        first.tap()
+
+        // The pushed screen itself: the bar's title and the Edit button, asserted without waiting for the content.
+        XCTAssertTrue(app.navigationBars.staticTexts[name].exists, "no title \(name) at the push")
+        XCTAssertTrue(app.buttons["workoutDetail.edit"].exists, "no Edit at the push")
+        XCTAssertTrue(app.buttons["workoutDetail.delete"].exists, "no Delete at the push")
+    }
+
     @MainActor
     func testRowEditAndSaveAsTemplate() throws {
         let app = launch()

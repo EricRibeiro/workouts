@@ -64,6 +64,48 @@ struct WorkoutDetailView: View {
                 .accessibilityIdentifier("history.detail.missing")
             }
         }
+        .navigationTitle(title)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button("Edit", systemImage: "pencil") { editing = PastEditorTarget(id: workoutID) }
+                    .accessibilityLabel("Edit")
+                    .accessibilityIdentifier("workoutDetail.edit")
+                    .disabled(workout == nil)
+            }
+            ToolbarItem(placement: .primaryAction) {
+                Button("Save as Template", systemImage: "doc.on.doc") {
+                    isTemplatePresented = true
+                }
+                .accessibilityLabel("Save as Template")
+                .accessibilityIdentifier("workoutDetail.saveTemplate")
+                .disabled(workout == nil)
+            }
+            ToolbarItem(placement: .primaryAction) {
+                Button("Delete", systemImage: "trash", role: .destructive) { isDeleteConfirming = true }
+                    .accessibilityLabel("Delete")
+                    .accessibilityIdentifier("workoutDetail.delete")
+                    .disabled(workout == nil)
+                    // On the button so the popover's arrow points at it.
+                    .confirmationDialog(
+                        "Delete workout?",
+                        isPresented: $isDeleteConfirming,
+                        titleVisibility: .visible
+                    ) {
+                        Button("Delete Workout", role: .destructive, action: delete)
+                            .accessibilityIdentifier("workoutDetail.delete.confirm")
+                    } message: {
+                        Text("\"\(title)\" and every set in it will be deleted. This cannot be undone.")
+                    }
+            }
+        }
+        .pastWorkoutEditorCover($editing)
+        .sheet(isPresented: $isTemplatePresented) {
+            if let workout {
+                SaveTemplateSheet(workout: workout) { savedTemplates += 1 }
+                    .presentationPlacement(.center)
+            }
+        }
         .task(id: inputs) {
             if isDeleted {
                 detail = nil
@@ -118,6 +160,10 @@ struct WorkoutDetailView: View {
 
     private var workout: Workout? { current.first }
 
+    /// The bar's title, from the model the `@Query` already holds on the first frame (the derived `detail` arrives later
+    /// and is only a fallback), so the push never shows an untitled bar.
+    private var title: String { workout?.name ?? detail?.name ?? "" }
+
     // MARK: Content
 
     private func content(_ detail: WorkoutDetail) -> some View {
@@ -150,45 +196,6 @@ struct WorkoutDetailView: View {
             }
             .padding(.horizontal)
             .padding(.bottom)
-        }
-        .navigationTitle(detail.name)
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                Button("Edit", systemImage: "pencil") { editing = PastEditorTarget(id: workoutID) }
-                    .accessibilityLabel("Edit")
-                    .accessibilityIdentifier("workoutDetail.edit")
-            }
-            ToolbarItem(placement: .primaryAction) {
-                Button("Save as Template", systemImage: "doc.on.doc") {
-                    isTemplatePresented = true
-                }
-                .accessibilityLabel("Save as Template")
-                .accessibilityIdentifier("workoutDetail.saveTemplate")
-            }
-            ToolbarItem(placement: .primaryAction) {
-                Button("Delete", systemImage: "trash", role: .destructive) { isDeleteConfirming = true }
-                    .accessibilityLabel("Delete")
-                    .accessibilityIdentifier("workoutDetail.delete")
-                    // On the button so the popover's arrow points at it.
-                    .confirmationDialog(
-                        "Delete workout?",
-                        isPresented: $isDeleteConfirming,
-                        titleVisibility: .visible
-                    ) {
-                        Button("Delete Workout", role: .destructive, action: delete)
-                            .accessibilityIdentifier("workoutDetail.delete.confirm")
-                    } message: {
-                        Text("\"\(detail.name)\" and every set in it will be deleted. This cannot be undone.")
-                    }
-            }
-        }
-        .pastWorkoutEditorCover($editing)
-        .sheet(isPresented: $isTemplatePresented) {
-            if let workout {
-                SaveTemplateSheet(workout: workout) { savedTemplates += 1 }
-                    .presentationPlacement(.center)
-            }
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("history.detail")
