@@ -374,6 +374,46 @@ Live Activity → notifications → logging, then templates, exercises, history.
   - [ ] **Taste calls still open (Eric)**: open-wide Workout grid widths; stars over the finish title; red "Update
     Template and Values"; media watermark; a pre-permission line before the notification prompt.
 
+### Phase 7b — Test coverage for transient and repeat states (Eric, 2026-11-07)
+
+Two device-found bugs passed a green suite: the download bar restarting on each Settings open and the History detail's
+title/toolbar popping in after the push. Analysis and rationale: `docs/reviews/2026-11-07-test-gaps.md` (Fable). The
+suite proves settled states only; these tasks cover first frames, second invocations and harness-disabled features.
+Order: 7b.1, 7b.2, 7b.3 first; then 7b.4 → 7b.5; 7b.6 at the next media change; 7b.7 with the `Tools/duo` stream.
+
+- [ ] **7b.1 Progress invariants (kit)**: one parameterised `MediaStoreTests` test over cache {none, partial, all} ×
+  {first, second pass} via `ProgressTicks`: first tick ≥ cached count, non-decreasing, constant total, no ticks when
+  nothing is pending, a second pass over an unchanged cache fetches and ticks nothing. Proof: `./dev kit MediaStore`.
+- [ ] **7b.2 Second-invocation tests**: for each `@Observable` controller with start/resume (`BulkVideoDownload`,
+  `RestNotifier`, `HealthEnrichmentService.appBecameActive` throttling, Live Activity start), call it a second time after
+  a completed and after a cancelled first run and assert the initial observable state, not only the final one. Proof:
+  `./dev kit` / `./dev test` on the touched suites.
+- [ ] **7b.3 Chrome rule, written**: DECISIONS.md and the `design-review` skill's state inventory: a pushed screen's
+  `navigationTitle`/`toolbar`/`searchable` sit on its outermost view with values available synchronously (the `@Query`
+  row, the pushed id), never inside a loaded-state branch; loading is a named state that is rendered (7b.5). Also add the
+  7b.1/7b.2 rules to the test-gap checklist. Proof: the doc diff.
+- [ ] **7b.4 Latency seam + first-frame UI tests**: `#if DEBUG` `-slowLoads <ms>` honoured in
+  `WorkoutStatsReader.loadWorkoutDetail`, the History dashboard summary and ExerciseDetail's loads; helper
+  `assertChromeImmediately(title:buttons:)` in `XCUIApplication+Waiting`; tests for WorkoutDetail, ExerciseDetail,
+  TemplatePreview, PastEditor that launch with `-slowLoads 3000`, tap, and assert the chrome exists while the content
+  does not yet. Makes `HistoryListUITests.testDetailHasTitleAndToolbarFromTheFirstFrame` deterministic. Needs: 0.10.
+  Proof: the new tests fail with the chrome moved back inside the loaded branch, pass on `main`.
+- [ ] **7b.5 Loading-frame snapshots**: `SnapshotWorkoutDetailTests` hosts `NavigationStack { WorkoutDetailView }`
+  loading (loader held via the 7b.4 seam or an injected never-resolving loader) and loaded; `Snapshot.assertSameChrome`
+  compares the top ~120 px of the two. Fallback if hosted `NavigationStack` traps: `.hostedFitting` with inline title.
+  Needs: 7b.4. Proof: `./dev test SnapshotTests`.
+- [ ] **7b.6 Media under UI test + gate audit**: DEBUG `FixtureMediaSource` (`-mediaSource fixture[:delayMs]`) replacing
+  the media `-uiTesting` gate; `-videoCache partial:<n>` seeding n catalog ids; one `SettingsUITests` test: open
+  Settings, the bar reads the seeded count, close, reopen, the value never decreased. Plus a list of what each
+  `-uiTesting` gate hides, marked "fixture exists" or "manual-only" (Health and Live Activity gates stay). Proof:
+  `./dev ui-test SettingsUITests/<test>()`.
+- [ ] **7b.7 `./dev shot --burst`**: lit-panel captures every ~100 ms for 1.5 s after launch or an injected tap, tiled
+  into one PNG, as a reviewer artifact for pushed screens (not an assertion). Proof: a burst of the History push shows
+  the title in every frame after the push starts.
+
+Not automated, deliberately: sub-second XCUITest timing without the seam, frame-by-frame recording analysis, real
+CloudKit or 1,029-id fixtures, removing the Health/Live Activity gates, `-slowLoads` sweeps of every gallery entry.
+
 ### Phase 8 — Sync and final import (the very last steps; Eric, 2026-11-04)
 
 - [ ] **8.1 CloudKit on**: flip the flag, promote the schema to production. Needs: 7.1. Proof: two simulators sync.
