@@ -186,17 +186,20 @@ struct TemplateEditor: View {
     private func arrangement(source: any SetTableDataSource, sections: [SetTableSection]) -> some View {
         let showsPane = horizontalSizeClass == .regular && !sections.isEmpty
         return ArrangementView {
-            SetTable(source: source, focusedSection: $focusedSectionID, blockActions: blockActions)
-                .overlay {
-                    if sections.isEmpty {
-                        ContentUnavailableView(
-                            "No Exercises Yet",
-                            systemImage: "figure.strengthtraining.traditional",
-                            description: Text("Add one to start building the template.")
-                        )
-                        .accessibilityIdentifier("templateEditor.empty")
+            VStack(spacing: 0) {
+                noteLine
+                SetTable(source: source, focusedSection: $focusedSectionID, blockActions: blockActions)
+                    .overlay {
+                        if sections.isEmpty {
+                            ContentUnavailableView(
+                                "No Exercises Yet",
+                                systemImage: "figure.strengthtraining.traditional",
+                                description: Text("Add one to start building the template.")
+                            )
+                            .accessibilityIdentifier("templateEditor.empty")
+                        }
                     }
-                }
+            }
         } secondary: {
             if showsPane {
                 let focused = focusedSection(in: sections)
@@ -208,6 +211,30 @@ struct TemplateEditor: View {
         .arrangementViewStyle(
             BenchArrangementStyle(axes: showsPane ? Axis.Set([.horizontal, .vertical]) : Axis.Set())
         )
+    }
+
+    /// The template's note as a secondary line above the first block (as `TemplatePreview` shows it); tapping it opens the
+    /// same Edit Note sheet as the title menu. Absent while the note is empty.
+    @ViewBuilder
+    private var noteLine: some View {
+        if !draft.note.isEmpty {
+            Button {
+                isNoteEditing = true
+            } label: {
+                Text(draft.note)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal)
+                    .padding(.vertical, 8)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Template note: \(draft.note)")
+            .accessibilityHint("Edits the note")
+            .accessibilityIdentifier("templateEditor.note")
+        }
     }
 
     /// The block the pane shows: the last focused one while it still exists, else the first.

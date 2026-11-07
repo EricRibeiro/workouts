@@ -188,4 +188,44 @@ final class TemplateEditorUITests: XCTestCase {
         let note = app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'Heavy singles.'")).firstMatch
         XCTAssertTrue(note.waitForExistence(timeout: 5), "the preview does not show the edited note")
     }
+
+    /// A note set from the title menu shows as a line above the first block in the editor; tapping it reopens the note sheet
+    /// with the text.
+    @MainActor
+    func testTemplateNoteLineShowsInTheEditorAndOpensTheSheet() throws {
+        let app = launch()
+        let any = app.descendants(matching: .any)
+        _ = openPreview(app)
+        openEditor(app)
+        let title = app.navigationBars.buttons.matching(
+            NSPredicate(format: "NOT identifier BEGINSWITH 'templateEditor.'")
+        )
+        .firstMatch
+        XCTAssertTrue(title.waitForExistence(timeout: 5), "no title menu button")
+        title.tap()
+        let item = app.buttons.matching(NSPredicate(format: "label == 'Edit Note…'")).firstMatch
+        XCTAssertTrue(item.waitForExistence(timeout: 5), "no Edit Note item")
+        item.tap()
+        let field = any["templateEditor.templateNote.field"].firstMatch
+        XCTAssertTrue(field.waitForExistence(timeout: 5), "no note field")
+        field.typeText(" Pause every rep.")
+        app.buttons["templateEditor.templateNote.save"].tap()
+        XCTAssertTrue(any["templateEditor.templateNote.sheet"].waitUntilGone(), "Save did not close the note sheet")
+
+        let line = app.buttons["templateEditor.note"]
+        XCTAssertTrue(line.waitForExistence(timeout: 5), "the editor does not show the note line")
+        XCTAssertTrue(line.label.hasPrefix("Template note: "), "label was \(line.label)")
+        XCTAssertTrue(line.label.contains("Pause every rep."), "label was \(line.label)")
+        line.tap()
+        XCTAssertTrue(
+            any["templateEditor.templateNote.sheet"].waitForExistence(timeout: 5),
+            "tapping the line did not open the sheet"
+        )
+        let reopened = any["templateEditor.templateNote.field"].firstMatch
+        XCTAssertTrue(reopened.waitForExistence(timeout: 5), "no note field")
+        XCTAssertTrue(
+            ((reopened.value as? String) ?? "").contains("Pause every rep."),
+            "the sheet does not hold the note: \(String(describing: reopened.value))"
+        )
+    }
 }
