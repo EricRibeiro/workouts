@@ -281,7 +281,7 @@ shape, so no simulator needs recreating.
 - [x] **C.3 Four-pose set**: `duo poses <dir>` writes `closed-portrait.png … open-tall.png` and restores closed-portrait; `./dev poses
   <dir> [-- args]` runs it under one lock after `run`. Needs: C.2. Proof: `./dev poses .build/screenshots/poses -- -preview Swatches` →
   four PNGs with the documented sizes, final `duo hinge` = closed.
-- [ ] **C.4 App-truth hinge**: DEBUG launch argument `-logHinge` installs a `UIHingeInteraction` on the root window (app target; the
+- [x] **C.4 App-truth hinge**: DEBUG launch argument `-logHinge` installs a `UIHingeInteraction` on the root window (app target; the
   kit cannot import UIKit) that logs `UIHinge.status` changes under `subsystem com.ericribeiro.Workouts, category hinge`; `duo hinge
   --app` reads the last line through `simctl spawn U log show`. Needs: B.1. Proof: `./dev run -- -logHinge`, `./dev fold open`, `./dev
   duo hinge --app` prints `fullyOpen`; then `./dev fold closed`.

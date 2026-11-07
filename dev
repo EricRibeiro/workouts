@@ -141,10 +141,14 @@ cap() {
 # Logs and result bundles carry the PID so parallel workers running the same command do not clobber each other.
 run_logged() {
   local name="$1"; shift
-  local log="$LOGS/$name-$$.log" rc
+  local log="$LOGS/$name-$$.log" rc errexit=0
   mkdir -p "$LOGS"
   find "$LOGS" -name '*.log' -mmin +240 -delete 2>/dev/null || true
   LAST_LOG="$log"
+  # Give errexit back the way we found it. An unconditional `set -e` here switched it on for a caller that had turned it
+  # off on purpose (cmd_ui_test around ui_test_sharded), so that function's `return 3` killed the script with status 3
+  # instead of reaching the single-simulator fallback.
+  [[ $- != *e* ]] || errexit=1
   set +e
   if command -v xcbeautify >/dev/null 2>&1; then
     "$@" 2>&1 | xcbeautify --quiet >"$log"
@@ -152,7 +156,7 @@ run_logged() {
     "$@" 2>&1 | { grep -Ev "$NOISE" || true; } >"$log"
   fi
   rc=${PIPESTATUS[0]}
-  set -e
+  if ((errexit)); then set -e; fi
   if ((rc != 0)); then
     echo "FAILED: $name (exit $rc), full log: $log" >&2
     excerpt "$log" | cap >&2
@@ -416,7 +420,9 @@ ui_test_sharded() {
   ui_pick_sims "$want"
   n=${#UI_SIMS[@]}
   if ((n < want)); then echo "dev: ui-test: only $n of the $want wanted shards: no more free pool simulators" >&2; fi
-  ((n >= 2)) || { ui_cleanup; return 3; }
+  # errexit must be off when this returns 3, or the caller's shell exits before it can read the status (belt and braces:
+  # run_logged above used to switch it back on).
+  ((n >= 2)) || { ui_cleanup; set +e; return 3; }
   trap ui_cleanup EXIT
   trap 'ui_cleanup; trap - EXIT; exit 130' INT TERM
   rm -rf "$UI_SHARDS_DIR"; mkdir -p "$UI_SHARDS_DIR"

@@ -16,7 +16,12 @@ let usage = """
 
       hinge --udid <udid> [--window-ms 0...5000] [--json]
                               read the hinge angle: angle, validity, pose (closed, half-open, open) and lit panel
-      fold <closed|half-open|open|degrees> --udid <udid> [--png <path>]
+      hinge --app --udid <udid>
+                              print the hinge status the app itself last logged (closed, partiallyOpen, fullyOpen,
+                              with the angle in degrees) from the last 5 minutes of the simulator log; the app must be a
+                              DEBUG build launched with -logHinge (./dev run -- -logHinge) and logs status changes
+                              only; exits 1 when no line is found
+      fold<closed|half-open|open|degrees> --udid <udid> [--png <path>]
                               move the hinge, verify it by hinge reads and the lit panel, optionally screenshot it
       orient <portrait|landscape-left|landscape-right> --udid <udid> [--png <path>]
                               rotate the device, verify by devicectl orientation and the lit panel, optionally screenshot
@@ -91,8 +96,19 @@ case "panels":
         fail("\(error)")
     }
 case "hinge":
-    rejectUnknownOptions(rest, known: ["--udid", "--window-ms", "--json"])
+    rejectUnknownOptions(rest, known: ["--udid", "--window-ms", "--json", "--app"])
     guard let udid = option("--udid", in: rest), !udid.isEmpty else { usageError("hinge needs --udid <udid>") }
+    if rest.contains("--app") {
+        if rest.contains("--json") || option("--window-ms", in: rest) != nil {
+            usageError("hinge --app takes only --udid")
+        }
+        do {
+            print(try AppHinge.read(udid: udid).text)
+        } catch {
+            fail("\(error)")
+        }
+        exit(0)
+    }
     var windowMs = 0
     if let text = option("--window-ms", in: rest) {
         guard let value = Int(text), (0...5000).contains(value) else {

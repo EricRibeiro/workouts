@@ -54,6 +54,7 @@ struct WorkoutsApp: App {
             // `-seedHealth`: writes a sample Fitness workout into the simulator's Health store (docs/port/healthkit.md).
             HealthSeeder.seedIfRequested()
             Self.prepareVideoCacheIfRequested()
+            HingeLogger.installIfRequested()
         #endif
         let settings = SettingsStore()
         self.settings = settings
