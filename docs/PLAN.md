@@ -410,6 +410,13 @@ Order: 7b.1, 7b.2, 7b.3 first; then 7b.4 → 7b.5; 7b.6 at the next media change
 - [ ] **7b.7 `./dev shot --burst`**: lit-panel captures every ~100 ms for 1.5 s after launch or an injected tap, tiled
   into one PNG, as a reviewer artifact for pushed screens (not an assertion). Proof: a burst of the History push shows
   the title in every frame after the push starts.
+- [ ] **7b.8 `./dev ui-test` progress + `./dev ui-status`** (Eric, 2026-11-07): `-quiet` hides per-test results, so a
+  running suite cannot be polled. `dev` writes `.build/ui-test.progress`, one line per shard
+  (`shard 2/3: 41/45 passed, 0 failed, last=Suite/test, 12m`), parsed from xcodebuild's per-test lines while the
+  console stays as quiet as today; a failure is appended the moment it happens. `./dev ui-status` prints the file, or
+  the last `.build/ui-test.stamp` when nothing is running. Lands with the `run_logged` errexit fix (sharded fallback);
+  never edit `dev` during a run. Proof: `./dev ui-test SmokeUITests` while `./dev ui-status` shows the count advancing,
+  then a sharded full run reports all shards.
 
 Not automated, deliberately: sub-second XCUITest timing without the seam, frame-by-frame recording analysis, real
 CloudKit or 1,029-id fixtures, removing the Health/Live Activity gates, `-slowLoads` sweeps of every gallery entry.
