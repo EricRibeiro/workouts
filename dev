@@ -1232,6 +1232,30 @@ cmd_check() {
   echo "check: ok"
 }
 
+# The accessibility tree of a `-preview <Name>` screen (PLAN device-tool C.6): WorkoutsUITests/TreeDumpUITests dumps
+# XCUIApplication.debugDescription as a kept attachment (the test's stdout does not reach the quiet log), read back from the
+# run's xcresult. Reuses cmd_ui_test, so the build, the simulator lock and the crash guard are the usual ones.
+cmd_tree() {
+  local name="${1:-}"
+  [[ -n "$name" && "$name" != -* && "$name" != */* ]] || die "usage: tree <PreviewName>"
+  command -v jq >/dev/null 2>&1 || die "tree: jq is required"
+  rm -rf "$RESULTS/latest-ui-test.xcresult"
+  # The totals line is noise here: the tree is the output. Failures still reach stderr.
+  TEST_RUNNER_TREE_PREVIEW="$name" cmd_ui_test 'TreeDumpUITests/testDump()' >/dev/null
+  local bundle="$RESULTS/latest-ui-test.xcresult" out
+  [[ -d "$bundle" ]] || die "tree: no result bundle at $bundle"
+  out=$(mktemp -d "${TMPDIR:-/tmp}/dev-tree.XXXXXX")
+  xcrun xcresulttool export attachments --path "$bundle" --output-path "$out" >/dev/null 2>&1 || true
+  local file text
+  file=$(jq -r '[.[].attachments[]? | select(.suggestedHumanReadableName | startswith("tree-"))][0].exportedFileName // empty' "$out/manifest.json" 2>/dev/null) || file=""
+  [[ -n "$file" && -f "$out/$file" ]] || { rm -rf "$out"; die "tree: the dump attachment is missing from $bundle (TreeDumpUITests did not run, or skipped itself)"; }
+  text=$(sed -n '/^=== TREE BEGIN ===$/,/^=== TREE END ===$/p' "$out/$file")
+  if [[ -z "$text" ]]; then text=$(<"$out/$file"); fi
+  rm -rf "$out"
+  [[ -n "$text" ]] || die "tree: the dump for '$name' is empty"
+  printf '%s\n' "$text"
+}
+
 cmd_help() {
   cat <<'USAGE'
 sims [--prune]     create the missing simulator clones (iPhone Duo 2..$DEV_SIM_POOL, default 5) and list the pool; --prune also shuts down idle pool sims and erases clones with PosterKit build-up
@@ -1240,6 +1264,7 @@ sims [--prune]     create the missing simulator clones (iPhone Duo 2..$DEV_SIM_P
 build              build the app for this checkout's simulator
 test [filter]      run WorkoutsTests (filter = suite or suite/test); prints totals, fails if none ran
 ui-test [filter]   run WorkoutsUITests (an unfiltered pass is sharded over DEV_UI_SHARDS pool sims and stamps HEAD, with its flaky tests, for the testflight --upload gate); prints totals, fails if none ran (filter HealthKitIntegrationUITests opts in to the real-Health test)
+tree <Name>        print the accessibility tree (XCUIApplication.debugDescription) of the `-preview <Name>` screen via TreeDumpUITests; no private AX bridge
 ui-status          progress of a running ui-test (one line per shard: passed/total, failures, last test, elapsed), else the last stamp and the last run's final line (.build/ui-test.progress)
 coverage [test|ui-test]  per-target code coverage of the last passing test (default) or ui-test run (xccov); fails if none kept
 kit [filter]       swift test in Packages/WorkoutsKit; prints summary line, fails if filter matched nothing
@@ -1279,6 +1304,7 @@ case "$sub" in
   test) sim_guarded cmd_test "$@" ;;
   ui-test) sim_guarded cmd_ui_test "$@" ;;
   ui-status) cmd_ui_status ;;
+  tree) sim_guarded cmd_tree "$@" ;;
   kit) cmd_kit "$@" ;;
   kit-build) cmd_kit_build ;;
   kit-coverage) cmd_kit_coverage ;;

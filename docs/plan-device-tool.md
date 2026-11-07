@@ -288,7 +288,7 @@ shape, so no simulator needs recreating.
 - [ ] **C.5 Keyframes** (later): `duo fold --keyframes '[{"atMs":0,"angle":0},{"atMs":3000,"angle":180}]'` porting `runFrames` (60 Hz,
   absolute deadlines) with `--record <mov>` via `simctl io … recordVideo`. Proof: a 3 s movie whose first and last frames are the two
   panels.
-- [ ] **C.6 Tree dump** (later): `WorkoutsUITests/TreeDumpUITests` prints `XCUIApplication().debugDescription` for `-preview <Name>`;
+- [x] **C.6 Tree dump** (later): `WorkoutsUITests/TreeDumpUITests` prints `XCUIApplication().debugDescription` for `-preview <Name>`;
   `./dev tree <Name>` runs it and prints the text; no private AX bridge. Proof: `./dev tree Swatches` lists the swatch labels.
 
 ## 8. Decisions (Eric, 2026-11-05)

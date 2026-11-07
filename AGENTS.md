@@ -56,6 +56,7 @@ SNAPSHOT_RECORD=1 ./dev test SnapshotTests   re-record the visual references (Wo
                         is high). A test that fails and passes alone on one retry is reported as flaky (`.build/ui-flaky.log`, stamp
                         `flaky=`); flaky twice in a row fails. DEV_UI_RETRY=0 = strict. A filtered run uses one sim
 ./dev ui-status         progress of a running ui-test (`.build/ui-test.progress`: a line per shard, `FAILED Suite/test` as it happens, `done: <totals>`); idle: last stamp + last run's final line
+./dev tree <Name>       accessibility tree (XCUIApplication.debugDescription) of the `-preview <Name>` screen via TreeDumpUITests (one sim, ~30s)
 ./dev coverage [kind]   per-target app coverage of the last passing test (default) or ui-test run (bundle kept in .build/results/latest-*)
 ./dev kit-coverage      swift test with coverage; prints the WorkoutsKit line-coverage TOTAL
 ./dev run [-- args]     boot sim, install, launch the app; args go to the app (`-- -preview <Name>` = the gallery)

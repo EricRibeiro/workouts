@@ -19,6 +19,8 @@ it. The fallback is the proof of record:
   settle and screenshot under one simulator lock, so a parallel worker cannot install its build in between. Then Read the PNG.
 - **Flows**: an XCUITest in `WorkoutsUITests`, run with `./dev ui-test Suite/test()`. It navigates by accessibility
   identifier, so unlabeled controls fail it just as they stall agents.
+- **Tree**: `./dev tree <Name>` prints the accessibility tree (labels, frames, identifiers) of a `-preview <Name>` screen, to
+  check what an agent or VoiceOver sees without a screenshot.
 - Register every new screen in the gallery in the same change.
 
 ## 1. Preview (no app launch, ~10–60s)
