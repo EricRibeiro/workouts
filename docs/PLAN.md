@@ -402,7 +402,7 @@ Order: 7b.1, 7b.2, 7b.3 first; then 7b.4 → 7b.5; 7b.6 at the next media change
   loading (loader held via the 7b.4 seam or an injected never-resolving loader) and loaded; `Snapshot.assertSameChrome`
   compares the top ~120 px of the two. Fallback if hosted `NavigationStack` traps: `.hostedFitting` with inline title.
   Needs: 7b.4. Proof: `./dev test SnapshotTests`.
-- [ ] **7b.6 Media under UI test + gate audit**: DEBUG `FixtureMediaSource` (`-mediaSource fixture[:delayMs]`) replacing
+- [x] **7b.6 Media under UI test + gate audit**: DEBUG `FixtureMediaSource` (`-mediaSource fixture[:delayMs]`) replacing
   the media `-uiTesting` gate; `-videoCache partial:<n>` seeding n catalog ids; one `SettingsUITests` test: open
   Settings, the bar reads the seeded count, close, reopen, the value never decreased. Plus a list of what each
   `-uiTesting` gate hides, marked "fixture exists" or "manual-only" (Health and Live Activity gates stay). Proof:

@@ -221,17 +221,30 @@ struct WorkoutsApp: App {
     }
 
     #if DEBUG
-        /// `-videoCache empty|seeded`: starts the media cache empty, or with one small dummy video in it, so a UI test can
-        /// prove the "Turn Off Video Downloads?" alert (UI-test runs have no network and download nothing).
+        /// `-videoCache empty|seeded|partial:<n>`: starts the media cache empty, with one small dummy video in it, or with
+        /// the first n catalog videos (both colour schemes) cached, so a UI test can prove the "Turn Off Video Downloads?"
+        /// alert and the download bar's starting count (UI-test runs have no network unless `-mediaSource fixture`).
         private static func prepareVideoCacheIfRequested() {
             let arguments = ProcessInfo.processInfo.arguments
             guard let flag = arguments.firstIndex(of: "-videoCache"), flag + 1 < arguments.count else { return }
             let media = URL.cachesDirectory.appendingPathComponent("media", isDirectory: true)
             try? FileManager.default.removeItem(at: media)
-            guard arguments[flag + 1] == "seeded" else { return }
-            let folder = media.appendingPathComponent("seeded-exercise", isDirectory: true)
-            try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-            try? Data(count: 64 * 1024).write(to: folder.appendingPathComponent("video-light.mp4"))
+            let mode = arguments[flag + 1]
+            if mode == "seeded" {
+                let folder = media.appendingPathComponent("seeded-exercise", isDirectory: true)
+                try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+                try? Data(count: 64 * 1024).write(to: folder.appendingPathComponent("video-light.mp4"))
+            } else if mode.hasPrefix("partial:"), let count = Int(mode.dropFirst("partial:".count)),
+                let catalog = try? LibraryCatalog.bundled(in: .main)
+            {
+                for exercise in catalog.exercises.filter(\.hasVideos).prefix(count) {
+                    let folder = media.appendingPathComponent(exercise.sourceId, isDirectory: true)
+                    try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+                    for scheme in MediaScheme.allCases {
+                        try? Data(count: 1024).write(to: folder.appendingPathComponent(scheme.fileName))
+                    }
+                }
+            }
         }
 
         /// `-seedOldWorkout`: inserts one finished workout "Old Backfill Workout" that ended 30 days ago and was never

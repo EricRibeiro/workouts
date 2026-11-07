@@ -10,11 +10,29 @@ import WorkoutsKit
 /// The app's one `MediaStore`: bundled thumbnails always, videos from CloudKit's public database (see
 /// `docs/port/media.md`) except in UI-test runs, which have no network and keep the thumbnail cross-fade.
 enum ExerciseMedia {
-    /// Whether a video can be fetched at all: not a UI-test run.
-    static let canStreamVideo: Bool = !ProcessInfo.processInfo.arguments.contains("-uiTesting")
+    #if DEBUG
+        /// `-mediaSource fixture[:delayMs]`: a network-free source, so UI tests can run the video downloads.
+        private static let fixtureSource = FixtureMediaSource.fromLaunchArguments()
+    #endif
+
+    /// Whether a video can be fetched at all: not a UI-test run, unless it passes `-mediaSource fixture` (Debug only).
+    static let canStreamVideo: Bool = {
+        #if DEBUG
+            if fixtureSource != nil { return true }
+        #endif
+        return !ProcessInfo.processInfo.arguments.contains("-uiTesting")
+    }()
+
+    private static func makeSource() -> (any MediaSource)? {
+        guard canStreamVideo else { return nil }
+        #if DEBUG
+            if let fixtureSource { return fixtureSource }
+        #endif
+        return CloudKitMediaSource()
+    }
 
     static let store = MediaStore(
-        source: canStreamVideo ? CloudKitMediaSource() : nil,
+        source: makeSource(),
         bundle: .main,
         cacheDirectory: .cachesDirectory
     )

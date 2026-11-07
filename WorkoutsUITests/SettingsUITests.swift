@@ -166,6 +166,44 @@ final class SettingsUITests: XCTestCase {
         XCTAssertFalse(app.alerts["Turn Off Video Downloads?"].exists, "Remove left videos behind")
     }
 
+    // MARK: Download progress
+
+    /// With n videos already cached and a slow fixture source, the bar starts at n or more (never at zero), and closing
+    /// and reopening Settings does not make it go backwards (PLAN 7b.6; bug 1 of `docs/reviews/2026-11-07-test-gaps.md`).
+    @MainActor
+    func testDownloadBarStartsAtTheCachedCountAndNeverDecreases() throws {
+        let cached = 5
+        // The first fetch takes 20 s, longer than the launch + open-Settings + scroll path, so the first read sees the bar
+        // before any tick has moved it (200 ms let the first tick hide a bar that started at zero).
+        let app = XCUIApplication.launchedForTesting([
+            "-mediaSource", "fixture:20000", "-videoCache", "partial:\(cached)", "-downloadAllVideos", "YES",
+        ])
+        let any = app.descendants(matching: .any)
+
+        /// Opens Settings, scrolls to the Media section and returns the number of videos the bar counts as done.
+        func openSettingsAndReadDone() -> Int {
+            let gear = any["toolbar.settings"].firstMatch
+            XCTAssertTrue(gear.waitForExistence(timeout: 10), "no Settings button")
+            gear.tap()
+            XCTAssertTrue(any["screen.settings"].waitForExistence(timeout: 5))
+            let bar = any["settings.downloadProgress"].firstMatch
+            for _ in 0..<5 where !bar.exists { app.swipeUp() }
+            XCTAssertTrue(bar.waitForExistence(timeout: 10), "no download progress bar")
+            let value = (bar.value as? String) ?? ""
+            let done = value.split(separator: " ").first.flatMap { Int($0) }
+            XCTAssertNotNil(done, "progress value '\(value)' does not start with a count")
+            return done ?? -1
+        }
+
+        let first = openSettingsAndReadDone()
+        XCTAssertGreaterThanOrEqual(first, cached, "the bar started below the \(cached) cached videos")
+        app.buttons["settings.done"].firstMatch.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["screen.settings"].waitForNonExistence(timeout: 5))
+
+        let second = openSettingsAndReadDone()
+        XCTAssertGreaterThanOrEqual(second, first, "the bar went backwards after reopening Settings")
+    }
+
     /// The file pickers cannot be driven reliably, so this only proves the rows exist and Export opens the share sheet
     /// (import, export and re-import are proven by the kit's `ImportExportFlowTests`).
     @MainActor
