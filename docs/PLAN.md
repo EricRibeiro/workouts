@@ -387,9 +387,9 @@ Live Activity → notifications → logging, then templates, exercises, history.
     entries stay); band capped at 3 lines with an ellipsis (Eric); Sticky Note… gets a `pin` glyph (Eric); the
     add-badge only when no sticky exists; block menu grouped with `Section`s. Needs: 7.8a. Proof: UI test tap band →
     editor; snapshot of a long band.
-  - [ ] **7.8c Template note in the editor**: a secondary line above the first block in `TemplateEditor`, tappable.
+  - [x] **7.8c Template note in the editor**: a secondary line above the first block in `TemplateEditor`, tappable.
     Proof: UI test.
-  - [ ] **7.8d Block notes in the past-workout editor**: pass note/sticky block actions to its `SetTable`;
+  - [x] **7.8d Block notes in the past-workout editor**: pass note/sticky block actions to its `SetTable`;
     `PastWorkoutDraft.setNote` (kit, tested). Proof: `./dev kit` + UI test edit a past block note, Save, History shows it.
 
 ### Phase 7b — Test coverage for transient and repeat states (Eric, 2026-11-07)

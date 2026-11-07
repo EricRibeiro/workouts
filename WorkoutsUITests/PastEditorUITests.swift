@@ -88,6 +88,51 @@ final class PastEditorUITests: XCTestCase {
         XCTAssertEqual(weight.value as? String, newWeight, "the saved weight was not read back")
     }
 
+    /// Opens the editor, then the first block's options menu.
+    @MainActor
+    private func openFirstBlockMenu(_ app: XCUIApplication) {
+        let any = app.descendants(matching: .any)
+        app.buttons["workoutDetail.edit"].tap()
+        XCTAssertTrue(any["screen.pastEditor"].waitForExistence(timeout: 5), "no past editor")
+        let options = app.buttons.matching(NSPredicate(format: "label ENDSWITH ' options'")).element(boundBy: 0)
+        XCTAssertTrue(options.waitForExistence(timeout: 5), "no block options menu")
+        options.tap()
+    }
+
+    @MainActor
+    func testBlockMenuOffersOnlyTheNotes() throws {
+        let app = openFirstWorkout()
+        openFirstBlockMenu(app)
+        XCTAssertTrue(app.buttons["settable.menu.note"].waitForExistence(timeout: 5), "no Note…")
+        XCTAssertTrue(app.buttons["settable.menu.stickyNote"].exists, "no Sticky Note…")
+        for hidden in ["warmup", "rest", "replace", "superset", "preferences", "remove"] {
+            XCTAssertFalse(app.buttons["settable.menu.\(hidden)"].exists, "\(hidden) is offered for a finished workout")
+        }
+    }
+
+    @MainActor
+    func testEditingABlockNoteAndSavingShowsItInTheDetail() throws {
+        let app = openFirstWorkout()
+        let any = app.descendants(matching: .any)
+        openFirstBlockMenu(app)
+        app.buttons["settable.menu.note"].tap()
+        XCTAssertTrue(any["pastEditor.note.sheet"].waitForExistence(timeout: 5), "no note sheet")
+        let field = any["pastEditor.note.field"].firstMatch
+        XCTAssertTrue(field.waitForExistence(timeout: 5), "no note field")
+        field.typeText("Paused reps")
+        app.buttons["pastEditor.note.save"].tap()
+        XCTAssertTrue(any["pastEditor.note.sheet"].waitUntilGone(), "Save did not close the note sheet")
+        XCTAssertTrue(app.buttons["pastEditor.save"].isEnabled, "Save is disabled after a note edit")
+
+        app.buttons["pastEditor.save"].tap()
+        XCTAssertTrue(any["history.detail"].waitForExistence(timeout: 5), "Save did not return to the detail")
+        XCTAssertTrue(any["screen.pastEditor"].waitUntilGone(timeout: 5), "the editor is still up")
+        XCTAssertTrue(
+            firstBlockLabel(app).contains("Paused reps"),
+            "the detail's first block does not show the note: \(firstBlockLabel(app))"
+        )
+    }
+
     @MainActor
     func testCancellingAsksFirstAndDiscardLeavesTheWorkoutAlone() throws {
         let app = openFirstWorkout()

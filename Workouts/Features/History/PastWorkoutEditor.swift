@@ -56,6 +56,7 @@ private struct Editor: View {
     @State private var isRenaming = false
     @State private var renameText = ""
     @State private var focusedSectionID: UUID?
+    @State private var blockSheets = BlockActionState()
     @FocusState private var isDurationFocused: Bool
 
     init(workout: Workout) {
@@ -110,6 +111,7 @@ private struct Editor: View {
                     .disabled(!isDirty)
             }
         }
+        .blockActionSheets(blockSheets, host: blockHost)
         .alert("Rename Workout", isPresented: $isRenaming) {
             TextField("Name", text: $renameText)
                 .accessibilityIdentifier("pastEditor.rename.field")
@@ -225,6 +227,39 @@ private struct Editor: View {
         }
     }
 
+    // MARK: Block menu
+
+    /// The draft behind the block menu's two prompts. Note… edits the draft (written on Save, dropped on Cancel). Sticky
+    /// Note… is the exercise's own note: `StickyNoteEditor` writes the `StickyNote` straight to the store and saves at once,
+    /// independent of this workout and of Save/Cancel. The other entries are not offered, so their closures are inert.
+    private var blockHost: BlockActionHost {
+        BlockActionHost(
+            blocks: draft.exercises.map {
+                BlockActionBlock(
+                    id: $0.id,
+                    exerciseID: $0.exerciseID,
+                    name: $0.name,
+                    note: $0.note,
+                    restSeconds: nil,
+                    supersetGroup: $0.supersetGroup,
+                    unit: $0.unit,
+                    barType: .olympic,
+                    barWeight: nil
+                )
+            },
+            idPrefix: "pastEditor",
+            removeMessage: "",
+            setNote: { draft.setNote($1, for: $0) },
+            addWarmups: { _ in true },
+            setRest: { _, _ in },
+            remove: { _ in },
+            replace: { _, _ in },
+            makeSuperset: { _, _ in },
+            removeFromSuperset: { _ in },
+            savePreferences: { _, _ in }
+        )
+    }
+
     // MARK: Table
 
     /// One ArrangementView in both widths so folding never swaps the table's identity (draft, focus and scroll stay); the
@@ -233,7 +268,7 @@ private struct Editor: View {
     private func arrangement(source: any SetTableDataSource, sections: [SetTableSection]) -> some View {
         let showsPane = horizontalSizeClass == .regular && !sections.isEmpty
         return ArrangementView {
-            SetTable(source: source, focusedSection: $focusedSectionID)
+            SetTable(source: source, focusedSection: $focusedSectionID, blockActions: blockSheets.noteActions())
         } secondary: {
             if showsPane {
                 let focused = focusedSection(in: sections)

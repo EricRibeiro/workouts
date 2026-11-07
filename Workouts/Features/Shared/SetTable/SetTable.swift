@@ -225,10 +225,14 @@ struct SetTable: View {
                 .accessibilityIdentifier("settable.menu.note")
             Button("Sticky Note…", systemImage: "note.text.badge.plus") { actions.stickyNote(section.id) }
                 .accessibilityIdentifier("settable.menu.stickyNote")
-            Button("Add Warm-up Sets", systemImage: "flame") { actions.addWarmups(section.id) }
-                .accessibilityIdentifier("settable.menu.warmup")
-            Button("Update Rest Timer…", systemImage: "timer") { actions.updateRest(section.id) }
-                .accessibilityIdentifier("settable.menu.rest")
+            if let addWarmups = actions.addWarmups {
+                Button("Add Warm-up Sets", systemImage: "flame") { addWarmups(section.id) }
+                    .accessibilityIdentifier("settable.menu.warmup")
+            }
+            if let updateRest = actions.updateRest {
+                Button("Update Rest Timer…", systemImage: "timer") { updateRest(section.id) }
+                    .accessibilityIdentifier("settable.menu.rest")
+            }
             if let replace = actions.replace {
                 Button("Replace Exercise…", systemImage: "arrow.triangle.2.circlepath") { replace(section.id) }
                     .accessibilityIdentifier("settable.menu.replace")
@@ -241,9 +245,11 @@ struct SetTable: View {
                 Button("Preferences…", systemImage: "slider.horizontal.3") { preferences(section.id) }
                     .accessibilityIdentifier("settable.menu.preferences")
             }
-            Divider()
-            Button("Remove Exercise", systemImage: "trash", role: .destructive) { actions.remove(section.id) }
-                .accessibilityIdentifier("settable.menu.remove")
+            if let remove = actions.remove {
+                Divider()
+                Button("Remove Exercise", systemImage: "trash", role: .destructive) { remove(section.id) }
+                    .accessibilityIdentifier("settable.menu.remove")
+            }
         } label: {
             Image(systemName: "ellipsis.circle")
                 .frame(minWidth: touch, minHeight: touch)

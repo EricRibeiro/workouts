@@ -337,4 +337,72 @@ import Testing
         let names = (model.exercises ?? []).sorted { $0.position < $1.position }.map(\.exerciseName)
         #expect(names == ["Row", "Bench"])
     }
+
+    // MARK: Block notes
+
+    @Test func setNoteTrimsAndMarksTheDraftDirty() throws {
+        let holder = try makeTestContainer()
+        defer { withExtendedLifetime(holder) {} }
+        let original = PastWorkoutDraft(workout(holder.mainContext))
+        var draft = original
+        let block = draft.exercises[0].id
+        draft.setNote("  Paused reps \n", for: block)
+        #expect(draft.exercises[0].note == "Paused reps")
+        #expect(draft.exercises[1].note.isEmpty)
+        #expect(draft.hasChanges(from: original))
+    }
+
+    @Test func setNoteWithOnlyWhitespaceClears() throws {
+        let holder = try makeTestContainer()
+        defer { withExtendedLifetime(holder) {} }
+        let model = workout(holder.mainContext)
+        model.exercises?.first { $0.exerciseName == "Bench" }?.note = "Old"
+        var draft = PastWorkoutDraft(model)
+        let block = try #require(draft.exercises.first { $0.name == "Bench" }?.id)
+        #expect(draft.exercises.first { $0.id == block }?.note == "Old")
+        draft.setNote(" \n ", for: block)
+        #expect(draft.exercises.first { $0.id == block }?.note == "")
+    }
+
+    @Test func setNoteOnAnUnknownIdChangesNothing() throws {
+        let holder = try makeTestContainer()
+        defer { withExtendedLifetime(holder) {} }
+        let original = PastWorkoutDraft(workout(holder.mainContext))
+        var draft = original
+        draft.setNote("Nope", for: UUID())
+        #expect(draft == original)
+    }
+
+    @Test func saveWritesTheNoteAndClearingItEmptiesTheWorkout() throws {
+        let holder = try makeTestContainer()
+        defer { withExtendedLifetime(holder) {} }
+        let context = holder.mainContext
+        let model = workout(context)
+        func bench() -> WorkoutExercise? { model.exercises?.first { $0.exerciseName == "Bench" } }
+        var draft = PastWorkoutDraft(model)
+        let block = try #require(draft.exercises.first { $0.name == "Bench" }?.id)
+        draft.setNote("Slow negatives", for: block)
+        try draft.save(to: model, in: context)
+        #expect(bench()?.note == "Slow negatives")
+        // Reading it back gives a clean draft, and clearing it saves too.
+        var again = PastWorkoutDraft(model)
+        #expect(again.exercises.first { $0.id == block }?.note == "Slow negatives")
+        again.setNote("", for: block)
+        try again.save(to: model, in: context)
+        #expect(bench()?.note == "")
+    }
+
+    @Test func discardingTheDraftLeavesTheNoteAlone() throws {
+        let holder = try makeTestContainer()
+        defer { withExtendedLifetime(holder) {} }
+        let context = holder.mainContext
+        let model = workout(context)
+        model.exercises?.first { $0.exerciseName == "Bench" }?.note = "Keep"
+        do {
+            var draft = PastWorkoutDraft(model)
+            let block = try #require(draft.exercises.first { $0.name == "Bench" }?.id)
+            draft.setNote("Changed", for: block)
+        }
+        #expect(model.exercises?.first { $0.exerciseName == "Bench" }?.note == "Keep")
+    }
 }

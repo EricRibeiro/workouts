@@ -98,6 +98,15 @@ public struct PastWorkoutDraft: Equatable, Sendable {
         name = trimmed
     }
 
+    // MARK: Block edits
+
+    /// Sets the block's note, trimmed (whitespace-only clears it), as the logging engine's and the template draft's note
+    /// setters do. An unknown id changes nothing. Written to the workout on save like every other edit.
+    public mutating func setNote(_ text: String, for blockID: UUID) {
+        guard let e = exercises.firstIndex(where: { $0.id == blockID }) else { return }
+        exercises[e].note = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     // MARK: Set edits
 
     public mutating func setWeight(_ weight: Double?, for setID: UUID) {
@@ -229,6 +238,7 @@ public struct PastWorkoutDraft: Equatable, Sendable {
             guard let row = rows[values.id] else { continue }
             row.position = position
             row.supersetGroup = values.supersetGroup.flatMap { groupSizes[$0, default: 0] > 1 ? $0 : nil }
+            row.note = values.note
             row.updatedAt = now
 
             let existing = Dictionary(uniqueKeysWithValues: (row.sets ?? []).map { ($0.id, $0) })

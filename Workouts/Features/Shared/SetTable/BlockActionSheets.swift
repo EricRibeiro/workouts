@@ -76,6 +76,15 @@ final class BlockActionState {
             preferences: { [self] id in preferences = BlockID(id: id) }
         )
     }
+
+    /// Only Note… and Sticky Note…, for a finished workout (the past-workout editor): warm-ups, rest, remove, replace,
+    /// superset and preferences make no sense there, so those entries are left nil and the table hides them.
+    func noteActions() -> SetTableBlockActions {
+        SetTableBlockActions(
+            note: { [self] id in note = BlockID(id: id) },
+            stickyNote: { [self] id in sticky = BlockID(id: id) }
+        )
+    }
 }
 
 extension View {
