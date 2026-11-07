@@ -100,19 +100,27 @@ public enum Screenshot {
         runner: any ProcessRunning = SystemProcessRunner(),
         sleep: (TimeInterval) -> Void = { Thread.sleep(forTimeInterval: $0) }
     ) throws -> ScreenshotResult {
+        let display = try resolveDisplay(udid: udid, selector: selector, runner: runner, sleep: sleep)
+        try Simctl(runner: runner).screenshot(udid: udid, displayName: display.name, path: path)
+        return ScreenshotResult(path: path, display: display)
+    }
+
+    /// Reads the display table and resolves the panel. `.lit` retries while no panel is lit.
+    public static func resolveDisplay(
+        udid: String,
+        selector: DisplaySelector = .lit,
+        runner: any ProcessRunning = SystemProcessRunner(),
+        sleep: (TimeInterval) -> Void = { Thread.sleep(forTimeInterval: $0) }
+    ) throws -> Display {
         let devicectl = Devicectl(runner: runner)
         var retries = selector == .lit ? litRetries : 0
-        var display: Display
         while true {
             do {
-                display = try selector.resolve(in: try devicectl.displays(udid: udid))
-                break
+                return try selector.resolve(in: try devicectl.displays(udid: udid))
             } catch DuoError.litPanelCount(0, _) where retries > 0 {
                 retries -= 1
                 sleep(litRetryInterval)
             }
         }
-        try Simctl(runner: runner).screenshot(udid: udid, displayName: display.name, path: path)
-        return ScreenshotResult(path: path, display: display)
     }
 }

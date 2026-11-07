@@ -7,9 +7,12 @@ let usage = """
     commands:
       panels --udid <udid>    list the device's displays: name, lit or dark, pixel size, point size, orientation
 
-      screenshot <path> --udid <udid> [--display lit|outer|inner] [--settle [--timeout <seconds>]]
+      screenshot <path> --udid <udid> [--display lit|outer|inner] [--settle [--timeout <seconds>] | --burst [<count>x<intervalMs>]]
                               capture one panel (default: the lit one) to a PNG and print its size; --settle repeats
-                              the capture until two consecutive ones are identical, so the PNG is the settled one
+                              the capture until two consecutive ones are identical, so the PNG is the settled one;
+                              --burst (default 15x100) instead captures the panel <count> times about <intervalMs> apart
+                              and tiles the frames into one labelled PNG grid (5 columns, tiles scaled to 360 px wide): a
+                              reviewer artifact for transitions, not a settled proof. Cannot be combined with --settle
       settle --udid <udid> [--timeout <seconds>]
                               capture the lit panel every 300 ms until two consecutive captures hash equal (SHA-256);
                               exit 1 with a message when the timeout (default 10 s) passes first
@@ -218,7 +221,7 @@ case "settle":
         fail("\(error)")
     }
 case "screenshot":
-    rejectUnknownOptions(Array(rest.dropFirst()), known: ["--udid", "--display", "--settle", "--timeout"])
+    rejectUnknownOptions(Array(rest.dropFirst()), known: ["--udid", "--display", "--settle", "--timeout", "--burst"])
     guard let path = rest.first, !path.hasPrefix("-") else { usageError("screenshot needs a <path>") }
     guard let udid = option("--udid", in: rest), !udid.isEmpty else { usageError("screenshot needs --udid <udid>") }
     var selector = DisplaySelector.lit
@@ -229,7 +232,17 @@ case "screenshot":
         selector = parsed
     }
     do {
-        if rest.contains("--settle") {
+        if let spec = try BurstSpec.parse(arguments: rest) {
+            if rest.contains("--settle") { usageError("--burst and --settle cannot be combined") }
+            let scratch = FileManager.default.temporaryDirectory.appendingPathComponent("duo-burst-\(getpid())").path
+            defer { try? FileManager.default.removeItem(atPath: scratch) }
+            let (frames, display) = try Screenshot.burst(spec: spec, directory: scratch, udid: udid, selector: selector)
+            try BurstSheet.compose(frames: frames, output: path)
+            let span = frames.last?.elapsedMs ?? 0
+            print(
+                "\(path) burst of \(frames.count) frames over \(span) ms (target \(spec.intervalMs) ms apart, \(display.name))"
+            )
+        } else if rest.contains("--settle") {
             let (shot, settled) = try Screenshot.captureSettled(
                 path: path,
                 udid: udid,

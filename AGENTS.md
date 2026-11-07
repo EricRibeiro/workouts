@@ -62,6 +62,8 @@ SNAPSHOT_RECORD=1 ./dev test SnapshotTests   re-record the visual references (Wo
 ./dev run [-- args]     boot sim, install, launch the app; args go to the app (`-- -preview <Name>` = the gallery)
 ./dev screenshot [p]    PNG of the booted simulator (Duo has two displays; DEV_DISPLAY=primary|…)
 ./dev shot <p> [-- args] run + settle + screenshot under one simulator lock: the parallel-safe screen proof
+./dev shot --burst [CxMS] <p> [-- args]  launch and capture the lit panel from the first frame (default 15x100), tiled into one labelled PNG grid: a
+                        reviewer artifact for transitions, not a proof (no tap injection; Tools/duo has no tap primitive)
 ./dev fold <pose> [p]   Duo hinge closed|half-open|open, verified by hinge reads + lit panel; p = PNG of the lit panel
 ./dev orient <o> [p]    rotate portrait|landscape-left|landscape-right, verified by devicectl + lit panel; p as for fold
 ./dev pose <name> [p]   closed-portrait|closed-landscape|open-wide (951x669 pt)|open-tall (669x951 pt) = fold + orient, verified; p as for fold

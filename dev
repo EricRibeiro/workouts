@@ -679,8 +679,7 @@ find_app() {
   echo "$app"
 }
 
-cmd_run() { # cmd_run [-- app launch args...]; args reach the app, e.g. ./dev run -- -preview Swatches
-  [[ "${1:-}" == "--" ]] && shift
+run_prepare() { # boot, build and install; leaves the launch to the caller (cmd_run, or cmd_shot --burst to catch the first frames)
   local out
   sim_resolve
   # Boots headless: no Simulator.app window is opened (with a pool of simulators, windows pile up on Eric's Mac).
@@ -692,6 +691,11 @@ cmd_run() { # cmd_run [-- app launch args...]; args reach the app, e.g. ./dev ru
   xcrun simctl bootstatus "$SIM_UDID" -b >/dev/null 2>&1 || true
   cmd_build
   xcrun simctl install "$SIM_UDID" "$(find_app)"
+}
+
+cmd_run() { # cmd_run [-- app launch args...]; args reach the app, e.g. ./dev run -- -preview Swatches
+  [[ "${1:-}" == "--" ]] && shift
+  run_prepare
   xcrun simctl launch --terminate-running-process "$SIM_UDID" "$BUNDLE_ID" "$@"
   echo "logs: xcrun simctl spawn $SIM_UDID log stream --predicate 'subsystem == \"$BUNDLE_ID\"'"
 }
@@ -718,10 +722,17 @@ cmd_shot() { # cmd_shot <png> [-- app launch args...]: run + settle + screenshot
   # ${DEV_SETTLE_TIMEOUT:-10} s, fails when the app never stops redrawing), and that settled capture is the PNG.
   # DEV_SETTLE=<s> is an optional extra wait before settling (default 1 s, so a still launch screen is not mistaken
   # for the settled app).
+  local burst=0 burst_spec=""
+  if [[ "${1:-}" == --burst ]]; then
+    burst=1; shift
+    if [[ "${1:-}" =~ ^[0-9]+x[0-9]+$ ]]; then burst_spec="$1"; shift; fi
+  fi
   local path="${1:-}"
-  [[ -n "$path" ]] || die "usage: shot <png> [-- app args...]"
+  [[ -n "$path" && "$path" != -* ]] || die "usage: shot [--burst [<count>x<intervalMs>]] <png> [-- app args...]"
   shift
-  cmd_run "$@" >/dev/null
+  [[ "${1:-}" == "--" ]] && shift
+  if ((burst)); then cmd_shot_burst "$path" "$burst_spec" "$@"; return; fi
+  cmd_run -- "$@" >/dev/null
   sleep "${DEV_SETTLE:-$((COLD_BOOT ? 15 : 1))}"
   duo_bin
   mkdir -p "$(dirname "$path")"
@@ -732,6 +743,28 @@ cmd_shot() { # cmd_shot <png> [-- app launch args...]: run + settle + screenshot
   "$DUO_BIN" screenshot "$path" --settle --timeout "${DEV_SETTLE_TIMEOUT:-10}" --udid "$SIM_UDID" || rc=$?
   xcrun simctl status_bar "$SIM_UDID" clear >/dev/null 2>&1 || true
   ((rc == 0)) || die "shot: no settled screenshot"
+  echo "$path"
+}
+
+cmd_shot_burst() { # cmd_shot_burst <png> <spec|""> [app launch args...]: capture the lit panel from the moment of launch
+  # A reviewer artifact for transitions (pushed screens, first frames), not a settled proof: duo captures the lit panel
+  # <count> times about <intervalMs> apart (default 15x100) and tiles the frames into <png>, each labelled with its
+  # index and time offset. The app launch runs in the background so the burst's first frames are the launch itself.
+  # No tap injection: Tools/duo has no tap primitive (its HID code only moves the hinge).
+  local path="$1" spec="$2"
+  shift 2
+  run_prepare
+  duo_bin
+  mkdir -p "$(dirname "$path")"
+  ((COLD_BOOT)) && sleep 15 # a fresh boot needs time before its first frame, as for a settled shot
+  xcrun simctl status_bar "$SIM_UDID" override --time 9:41 --wifiBars 3 --cellularMode notSupported \
+    --batteryState charged --batteryLevel 100 >/dev/null 2>&1 || true
+  xcrun simctl launch --terminate-running-process "$SIM_UDID" "$BUNDLE_ID" "$@" >/dev/null &
+  local launch_pid=$! rc=0
+  "$DUO_BIN" screenshot "$path" --burst ${spec:+"$spec"} --udid "$SIM_UDID" || rc=$?
+  wait "$launch_pid" || echo "dev: shot --burst: app launch failed" >&2
+  xcrun simctl status_bar "$SIM_UDID" clear >/dev/null 2>&1 || true
+  ((rc == 0)) || die "shot --burst: no burst captured"
   echo "$path"
 }
 
@@ -1274,6 +1307,8 @@ lint               swift-format lint --strict
 format             swift-format in place
 run [-- args]      boot sim, build, install, launch; args go to the app (-- -preview <Name>); prints log command
 shot <png> [-- args]  run + settle (identical consecutive captures) + screenshot in one lock hold (use this for proofs; parallel-safe)
+shot --burst [<count>x<intervalMs>] <png> [-- args]  launch and capture the lit panel from the first moment (default 15x100), tiled into one
+                   labelled PNG grid: a reviewer artifact for transitions, not a settled proof (no tap injection)
 screenshot [path]  simulator screenshot (default .build/screenshots/<timestamp>.png)
 home [png]         go to the Home screen (the app keeps running in the background); png = capture of it
 fold <pose> [png]  Duo hinge: closed|half-open|open, verified by hinge reads and the lit panel; png = capture of the lit panel
@@ -1282,7 +1317,7 @@ pose <name> [png]  Duo layout in one verified step: closed-portrait|closed-lands
                    the png is a settled capture (two identical consecutive captures, 10 s timeout)
 poses <dir> [-- args]  run (install + launch with args) then all four poses as settled PNGs <dir>/closed-portrait.png … open-tall.png,
                    under one simulator lock with the status bar pinned; always ends closed-portrait, also after a failure midway
-duo <verb> [args]  Tools/duo pass-through (panels, hinge, settle [--timeout s], screenshot [--display lit|outer|inner] [--settle], fold <degrees>, guest-build,
+duo <verb> [args]  Tools/duo pass-through (panels, hinge, settle [--timeout s], screenshot [--display lit|outer|inner] [--settle | --burst [CxMS]], fold <degrees>, guest-build,
                    --help); adds --udid for this checkout's simulator when the verb needs one; built into .build/duo/spm
 duo-test           swift test for Tools/duo (host-only, ~1s); also part of check
 testflight [--upload]  signed App Store archive + export to .build/testflight/export (no upload unless --upload;

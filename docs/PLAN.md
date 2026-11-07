@@ -407,9 +407,13 @@ Order: 7b.1, 7b.2, 7b.3 first; then 7b.4 → 7b.5; 7b.6 at the next media change
   Settings, the bar reads the seeded count, close, reopen, the value never decreased. Plus a list of what each
   `-uiTesting` gate hides, marked "fixture exists" or "manual-only" (Health and Live Activity gates stay). Proof:
   `./dev ui-test SettingsUITests/<test>()`.
-- [ ] **7b.7 `./dev shot --burst`**: lit-panel captures every ~100 ms for 1.5 s after launch or an injected tap, tiled
+- [x] **7b.7 `./dev shot --burst`**: lit-panel captures every ~100 ms for 1.5 s after launch or an injected tap, tiled
   into one PNG, as a reviewer artifact for pushed screens (not an assertion). Proof: a burst of the History push shows
   the title in every frame after the push starts.
+  **Outcome:** launch bursts only (`./dev shot --burst [CxMS] <png> [-- args]`, default 15x100, overlapping `simctl`
+  captures, labelled grid); proven on `-preview Swatches` (launch screen → fade-in → settled). `--tap` is deferred:
+  `Tools/duo` has no tap primitive, and adding HID touch injection is its own device-tool task. Push transitions stay
+  covered by 7b.4/7b.5.
 - [x] **7b.8 `./dev ui-test` progress + `./dev ui-status`** (Eric, 2026-11-07): `-quiet` hides per-test results, so a
   running suite cannot be polled. `dev` writes `.build/ui-test.progress`, one line per shard
   (`shard 2/3: 41/45 passed, 0 failed, last=Suite/test, 12m`), parsed from xcodebuild's per-test lines while the
