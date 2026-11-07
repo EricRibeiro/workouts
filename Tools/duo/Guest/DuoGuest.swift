@@ -21,6 +21,8 @@ let usageText = """
       rotate <portrait|landscape-left|landscape-right>
                                               rotate the device
       hinge [windowMs]                        read the hinge angle, optionally sampling for windowMs (0...5000)
+      stream                                  print {"ready":true}, then send one hinge angle (0...180) per line of stdin
+                                              as it arrives (the host paces them); exit at end of input
     """
 
 func writeJSON(_ object: [String: Any], to handle: FileHandle) {
@@ -82,6 +84,9 @@ func parse(_ arguments: [String]) -> Request {
             windowMs = value
         }
         return Request(verb: verb, parameters: ["windowMs": windowMs])
+    case "stream":
+        guard rest.isEmpty else { usageFailure("stream takes no arguments") }
+        return Request(verb: verb, parameters: [:])
     default:
         usageFailure("unknown verb '\(verb)'")
     }
@@ -293,6 +298,38 @@ func rotate(to orientation: String) -> Never {
 
 if request.verb == "rotate", let orientation = request.parameters["orientation"] as? String {
     rotate(to: orientation)
+}
+
+// `duo fold --keyframes`: the host owns the 60 Hz schedule (absolute deadlines) and writes each frame's angle to
+// our stdin; we hold one HID client open and dispatch each line the moment it arrives. Fold.m's `runFrames` did the
+// pacing in-process with `mach_wait_until`; doing it here instead would duplicate the schedule outside the tested kit.
+// A per-frame `simctl spawn` is far too slow for 60 Hz, hence one long-lived process.
+func stream() -> Never {
+    guard let sender = HIDSender() else {
+        writeError("IOKit's HID event entry points are not available in this simulator runtime")
+        exit(1)
+    }
+    writeJSON(["version": 1, "ready": true], to: FileHandle.standardOutput)
+    var frames = 0
+    while let line = readLine() {
+        guard let angle = Double(line.trimmingCharacters(in: .whitespaces)), angle.isFinite, (0...180).contains(angle)
+        else {
+            writeError("stream: '\(line)' is not an angle in 0...180")
+            exit(2)
+        }
+        guard sender.sendControl(source: "hinge-slider-control", type: "range", value: NSNumber(value: angle)) else {
+            writeError("Unable to create simulator HID event")
+            exit(1)
+        }
+        frames += 1
+    }
+    sender.release()
+    writeJSON(["version": 1, "ok": true, "frames": frames], to: FileHandle.standardOutput)
+    exit(0)
+}
+
+if request.verb == "stream" {
+    stream()
 }
 
 writeError("internal error: verb '\(request.verb)' has no handler")

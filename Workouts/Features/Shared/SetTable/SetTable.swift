@@ -110,7 +110,7 @@ struct SetTable: View {
                     onApplyPrevious: { source.applyPrevious(to: row.id) },
                     onCommitWeight: { source.commitWeight($0, for: row.id) },
                     onCommitReps: { source.commitReps($0, for: row.id) },
-                    onToggleCheck: { source.toggleCheck(of: row.id) }
+                    onToggleCheck: { toggleCheck(row) }
                 )
                 .id(row.id)
                 .swipeActions(edge: .trailing, allowsFullSwipe: true) {
@@ -340,6 +340,15 @@ struct SetTable: View {
         case .weight: source.commitWeight(SetInputFormat.parseWeight(text), for: row.id)
         case .reps: source.commitReps(SetInputFormat.parseCount(text), for: row.id)
         }
+    }
+
+    /// Checking a set (not unchecking, not a refused check) clears the focus, so the keyboard goes down and the rest countdown
+    /// and the table are uncovered (PLAN 7.7). Only this in-app tap dismisses: the Live Activity intent runs outside the view.
+    private func toggleCheck(_ row: SetRowModel) -> Bool {
+        let wasChecked = row.isChecked
+        let accepted = source.toggleCheck(of: row.id)
+        if accepted && !wasChecked { focus = nil }
+        return accepted
     }
 
     private func focusNext(in sections: [SetTableSection]) {

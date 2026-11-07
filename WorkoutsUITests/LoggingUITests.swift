@@ -118,4 +118,45 @@ final class LoggingUITests: XCTestCase {
             "the countdown folded into the overflow menu"
         )
     }
+
+    /// PLAN 7.7: checking a set clears focus, so the system keyboard goes down and the set reads Done.
+    @MainActor
+    func testCheckingSetDismissesKeyboard() throws {
+        let app = XCUIApplication.launchedInActiveWorkout()
+        let checks = app.switches.matching(
+            NSPredicate(format: "identifier BEGINSWITH 'setrow.' AND identifier ENDSWITH '.check'")
+        )
+        XCTAssertTrue(checks.element(boundBy: 0).waitForExistence(timeout: 10), "no set rows")
+        // The first unchecked set that has a weight cell.
+        var target: (check: XCUIElement, weight: XCUIElement)?
+        for index in 0..<checks.count {
+            let check = checks.element(boundBy: index)
+            guard check.value as? String == "Not done" else { continue }
+            let weight = app.textFields[check.identifier.replacingOccurrences(of: ".check", with: ".weight")]
+            if weight.exists {
+                target = (check, weight)
+                break
+            }
+        }
+        let (check, weight) = try XCTUnwrap(target, "no unchecked set with a weight cell")
+
+        weight.tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5), "keyboard did not appear")
+        weight.typeText("50")
+        let reps = app.textFields[check.identifier.replacingOccurrences(of: ".check", with: ".reps")]
+        if reps.exists, (reps.value as? String) == "Empty" {
+            reps.tap()
+            reps.typeText("5")
+        }
+
+        check.tap()
+        expectation(
+            for: NSPredicate(format: "count == 0"),
+            evaluatedWith: app.keyboards,
+            handler: nil
+        )
+        waitForExpectations(timeout: 2)
+        XCTAssertEqual(app.keyboards.count, 0)
+        XCTAssertEqual(check.value as? String, "Done")
+    }
 }

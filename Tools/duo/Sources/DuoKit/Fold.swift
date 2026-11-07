@@ -139,10 +139,31 @@ public enum Fold {
         now: () -> Date = Date.init,
         sleep: (TimeInterval) -> Void = { Thread.sleep(forTimeInterval: $0) }
     ) throws -> FoldResult {
+        try Simctl(runner: runner).setHinge(udid: udid, guestPath: guestPath, argument: target.argument)
+        return try verify(
+            target: target,
+            udid: udid,
+            guestPath: guestPath,
+            png: png,
+            runner: runner,
+            now: now,
+            sleep: sleep
+        )
+    }
+
+    /// The proof half of `run`, shared with `duo fold --keyframes`: hinge reads agree with the target, then the lit
+    /// panel is the one that goes with it, then the optional screenshot.
+    static func verify(
+        target: FoldTarget,
+        udid: String,
+        guestPath: String,
+        png: String?,
+        runner: any ProcessRunning,
+        now: () -> Date,
+        sleep: (TimeInterval) -> Void
+    ) throws -> FoldResult {
         let simctl = Simctl(runner: runner)
         let devicectl = Devicectl(runner: runner)
-        try simctl.setHinge(udid: udid, guestPath: guestPath, argument: target.argument)
-
         let verification = try PoseVerifier.verify(target: target) { window in
             try simctl.hinge(udid: udid, guestPath: guestPath, windowMs: window)
         }

@@ -106,7 +106,7 @@ Eric deferred the technical choices to Claude. These close every item in `docs/p
   glass.
 - Keyboard: system `.decimalPad` with a keyboard `ToolbarItemGroup` (−step, +step, Previous, Done) and a Next that advances weight
   → reps → next row; steps from the web. It covers half the closed screen, so Next is the mitigation; custom keypad only if this
-  proves worse. The exercise pane follows the **focused exercise**: the last focused cell's or tapped header's exercise, else the
+  proves worse. Checking a set dismisses the keyboard (Eric, 2026-11-07). The exercise pane follows the **focused exercise**: the last focused cell's or tapped header's exercise, else the
   first with an unchecked set.
 - **SetTable** (`Workouts/Features/Shared/SetTable`, 2.2–2.3): one component, three modes (template / active / past).
   `isIdleTimerDisabled` while logging when `keepScreenOn`.

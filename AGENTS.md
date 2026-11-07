@@ -65,6 +65,8 @@ SNAPSHOT_RECORD=1 ./dev test SnapshotTests   re-record the visual references (Wo
 ./dev shot --burst [CxMS] <p> [-- args]  launch and capture the lit panel from the first frame (default 15x100), tiled into one labelled PNG grid: a
                         reviewer artifact for transitions, not a proof (no tap injection; Tools/duo has no tap primitive)
 ./dev fold <pose> [p]   Duo hinge closed|half-open|open, verified by hinge reads + lit panel; p = PNG of the lit panel
+./dev fold --keyframes '<json>' [--record <mov>]  timed hinge motion [{"atMs":0,"angle":0},{"atMs":3000,"angle":180}] at 60 Hz, final pose verified;
+                        --record = simctl io recordVideo around it (read-only on the display); finish with `./dev pose closed-portrait`
 ./dev orient <o> [p]    rotate portrait|landscape-left|landscape-right, verified by devicectl + lit panel; p as for fold
 ./dev pose <name> [p]   closed-portrait|closed-landscape|open-wide (951x669 pt)|open-tall (669x951 pt) = fold + orient, verified; p as for fold
 ./dev poses <dir> [-- args]  run, then all four poses as settled PNGs <dir>/<name>.png under one simulator lock; always ends closed-portrait

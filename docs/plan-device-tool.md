@@ -285,9 +285,12 @@ shape, so no simulator needs recreating.
   kit cannot import UIKit) that logs `UIHinge.status` changes under `subsystem com.ericribeiro.Workouts, category hinge`; `duo hinge
   --app` reads the last line through `simctl spawn U log show`. Needs: B.1. Proof: `./dev run -- -logHinge`, `./dev fold open`, `./dev
   duo hinge --app` prints `fullyOpen`; then `./dev fold closed`.
-- [ ] **C.5 Keyframes** (later): `duo fold --keyframes '[{"atMs":0,"angle":0},{"atMs":3000,"angle":180}]'` porting `runFrames` (60 Hz,
+- [x] **C.5 Keyframes** (later): `duo fold --keyframes '[{"atMs":0,"angle":0},{"atMs":3000,"angle":180}]'` porting `runFrames` (60 Hz,
   absolute deadlines) with `--record <mov>` via `simctl io … recordVideo`. Proof: a 3 s movie whose first and last frames are the two
-  panels.
+  panels. Done 2026-11-07: `./dev fold --keyframes <json> [--record <mov> [--display lit|outer|inner]]` paces 60 Hz on `mach_wait_until`
+  deadlines in DuoKit (`Keyframes.swift`, fake-clock tests) and streams angles over one long-lived guest `stream` process; a 3 s unfold
+  sent 181 frames (max 5 ms late) and recorded a 3.3 s movie; one movie is one panel (simctl refuses to pick on the Duo), so the
+  cover movie ends dark and `--display inner` gives the other half.
 - [x] **C.6 Tree dump** (later): `WorkoutsUITests/TreeDumpUITests` prints `XCUIApplication().debugDescription` for `-preview <Name>`;
   `./dev tree <Name>` runs it and prints the text; no private AX bridge. Proof: `./dev tree Swatches` lists the swatch labels.
 

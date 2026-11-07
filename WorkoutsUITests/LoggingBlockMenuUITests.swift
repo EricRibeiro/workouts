@@ -93,24 +93,10 @@ final class LoggingBlockMenuUITests: XCTestCase {
         XCTAssertTrue(any["screen.exerciseDetail"].waitForExistence(timeout: 10), "tapping the name opened no detail")
         let detail = any["screen.exerciseDetail"]
 
-        // The sheet opens at half height; picking a segment expands it to full height. The detail's content starts at
-        // the sheet's top edge, so its position tracks the detent.
+        // The sheet opens at half height. The detail's content starts at the sheet's top edge, so its position tracks
+        // the detent.
         let windowHeight = app.windows.firstMatch.frame.height
-        let mediumTop = detail.frame.minY
-        XCTAssertGreaterThan(mediumTop, windowHeight * 0.3, "the sheet did not open at half height")
-        let segment = app.segmentedControls["exerciseDetail.segment"]
-        XCTAssertTrue(segment.waitForExistence(timeout: 5))
-        segment.buttons["History"].tap()
-        // The detent change animates; wait for the sheet to settle well above where it was at half height.
-        let deadline = Date().addingTimeInterval(5)
-        while detail.frame.minY > mediumTop * 0.7 && Date() < deadline {
-            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
-        }
-        XCTAssertLessThan(
-            detail.frame.minY,
-            mediumTop * 0.7,
-            "tapping a segment did not expand the sheet to full height (top at \(detail.frame.minY), was \(mediumTop), window \(windowHeight))"
-        )
+        XCTAssertGreaterThan(detail.frame.minY, windowHeight * 0.3, "the sheet did not open at half height")
         app.dismissSheetBySwiping(top: detail)
         XCTAssertTrue(any["screen.exerciseDetail"].waitUntilGone(), "swiping down did not close the exercise sheet")
 

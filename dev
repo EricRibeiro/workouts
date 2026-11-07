@@ -969,6 +969,25 @@ cmd_home() { # go to the Home screen so the Live Activity / notifications show; 
   "$DUO_BIN" home --udid "$SIM_UDID" ${extra[@]+"${extra[@]}"}
 }
 cmd_fold() {
+  if [[ "${1:-}" == --keyframes ]]; then # timed hinge motion, optionally recorded (docs/plan-device-tool.md C.5)
+    [[ -n "${2:-}" && "$2" != -* ]] || die "usage: fold --keyframes '<json>' [--record <movie.mov>]"
+    local json="$2" extra=()
+    shift 2
+    if [[ "${1:-}" == --record ]]; then
+      [[ -n "${2:-}" && "$2" != -* ]] || die "usage: fold --keyframes '<json>' [--record <movie.mov> [--display lit|outer|inner]]"
+      mkdir -p "$(dirname "$2")"; extra=(--record "$2"); shift 2
+      if [[ "${1:-}" == --display ]]; then
+        [[ "${2:-}" =~ ^(lit|outer|inner)$ ]] || die "usage: fold --keyframes '<json>' [--record <movie.mov> [--display lit|outer|inner]]"
+        extra+=(--display "$2"); shift 2
+      fi
+      [[ $# -eq 0 ]] || die "usage: fold --keyframes '<json>' [--record <movie.mov> [--display lit|outer|inner]]"
+    else
+      [[ $# -eq 0 ]] || die "usage: fold --keyframes '<json>' [--record <movie.mov>]"
+    fi
+    sim_require_booted; duo_bin
+    "$DUO_BIN" fold --keyframes "$json" --udid "$SIM_UDID" ${extra[@]+"${extra[@]}"}
+    return
+  fi
   [[ "${1:-}" =~ ^(closed|half-open|open)$ ]] && duo_png_ok "${2:-}" || die "usage: fold closed|half-open|open [screenshot.png]"
   sim_require_booted; duo_bin
   local extra=(); if [[ -n "${2:-}" ]]; then mkdir -p "$(dirname "$2")"; extra=(--png "$2"); fi
@@ -1312,6 +1331,8 @@ shot --burst [<count>x<intervalMs>] <png> [-- args]  launch and capture the lit 
 screenshot [path]  simulator screenshot (default .build/screenshots/<timestamp>.png)
 home [png]         go to the Home screen (the app keeps running in the background); png = capture of it
 fold <pose> [png]  Duo hinge: closed|half-open|open, verified by hinge reads and the lit panel; png = capture of the lit panel
+fold --keyframes '<json>' [--record <mov> [--display lit|outer|inner]]  timed hinge motion: [{"atMs":0,"angle":0},{"atMs":3000,"angle":180}] (2-64 keyframes, <= 60 s,
+                   linear, 60 Hz on absolute deadlines), final pose verified like fold; --record = simctl io recordVideo around it (one panel, default the lit one). Leave the sim closed
 orient <o> [png]   portrait|landscape-left|landscape-right, verified by devicectl orientation and the lit panel; png as for fold
 pose <name> [png]  Duo layout in one verified step: closed-portrait|closed-landscape|open-wide (951x669 pt)|open-tall (669x951 pt);
                    the png is a settled capture (two identical consecutive captures, 10 s timeout)

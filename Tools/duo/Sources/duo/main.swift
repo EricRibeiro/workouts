@@ -24,8 +24,15 @@ let usage = """
                               with the angle in degrees) from the last 5 minutes of the simulator log; the app must be a
                               DEBUG build launched with -logHinge (./dev run -- -logHinge) and logs status changes
                               only; exits 1 when no line is found
-      fold<closed|half-open|open|degrees> --udid <udid> [--png <path>]
+      fold <closed|half-open|open|degrees> --udid <udid> [--png <path>]
                               move the hinge, verify it by hinge reads and the lit panel, optionally screenshot it
+      fold --keyframes '<json>' --udid <udid> [--record <mov> [--display lit|outer|inner]]
+                              timed hinge motion: a JSON array of {"atMs":0,"angle":0}... (2-64 entries, atMs strictly
+                              ascending from 0 to at most 60000, angle 0...180) interpolated linearly and sent at
+                              60 Hz on absolute deadlines; then the final angle is verified like a plain fold.
+                              --record starts `simctl io recordVideo` before the first frame and stops it (SIGINT)
+                              about 300 ms after the last; recording only reads the display. One movie is one panel: --display
+                              (default lit, as of the start) says which
       orient <portrait|landscape-left|landscape-right> --udid <udid> [--png <path>]
                               rotate the device, verify by devicectl orientation and the lit panel, optionally screenshot
       pose <closed-portrait|closed-landscape|open-wide|open-tall> --udid <udid> [--png <path> [--settle [--timeout <s>]]]
@@ -124,6 +131,38 @@ case "hinge":
         let guest = try GuestBuilder(repositoryRoot: root).build()
         let report = try Hinge.read(udid: udid, windowMs: windowMs, guestPath: guest.path)
         print(rest.contains("--json") ? report.json : report.text)
+    } catch {
+        fail("\(error)")
+    }
+case "fold" where rest.contains(where: { $0 == "--keyframes" || $0.hasPrefix("--keyframes=") }):
+    rejectUnknownOptions(rest, known: ["--udid", "--keyframes", "--record", "--display"])
+    guard let json = option("--keyframes", in: rest) else { usageError("--keyframes needs a JSON array") }
+    guard let udid = option("--udid", in: rest), !udid.isEmpty else { usageError("fold needs --udid <udid>") }
+    let record = option("--record", in: rest)
+    if rest.contains("--record") && (record == nil || record?.hasPrefix("-") == true) {
+        usageError("--record needs a movie path")
+    }
+    var recordDisplay = DisplaySelector.lit
+    if let name = option("--display", in: rest) {
+        guard record != nil else { usageError("--display only applies with --record") }
+        guard let parsed = DisplaySelector(rawValue: name) else {
+            usageError("--display must be lit, outer or inner (got '\(name)')")
+        }
+        recordDisplay = parsed
+    }
+    guard let root = GuestBuilder.defaultRepositoryRoot() else { fail("\(DuoError.repositoryNotFound)") }
+    do {
+        let plan = try KeyframePlan.parse(json)
+        let guest = try GuestBuilder(repositoryRoot: root).build()
+        print(
+            try Keyframes.run(
+                plan: plan,
+                udid: udid,
+                guestPath: guest.path,
+                record: record,
+                recordDisplay: recordDisplay
+            ).summary
+        )
     } catch {
         fail("\(error)")
     }

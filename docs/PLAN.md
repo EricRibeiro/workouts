@@ -345,7 +345,7 @@ Live Activity → notifications → logging, then templates, exercises, history.
   - [x] Rest arc accent-coloured while running (toolbar ring, resume control, bench header), green in the grace.
   - [x] No rest caption under exercise names during a workout (template editor keeps it).
   - [x] Exercise info during a workout: tap the name (chevron after it) or the block menu's Exercise Info → shared
-    `ExerciseInfoSheet` (medium/large, system close, full-width uncropped media); a segment tap grows it to large. The
+    `ExerciseInfoSheet` (medium/large, system close, full-width uncropped media). The
     template preview's ⓘ uses the same sheet.
   - [x] One-line exercise names in the active workout and the template preview (two at accessibility sizes).
   - [x] Resume control: ring + `dumbbell.fill` in every state (JC74).
@@ -368,7 +368,7 @@ Live Activity → notifications → logging, then templates, exercises, history.
     loaded in `.task` (or the detail swaps views once its fetch finishes); give them values derived synchronously from
     the pushed workout. Proof: a frame-by-frame `./dev shot` pair, or a UI test asserting the title and Edit button
     exist immediately after the tap without waiting.
-  - [ ] **Confirming a set dismisses the keyboard** (Eric, 2026-11-07): today the `.decimalPad` stays up after a set
+  - [x] **Confirming a set dismisses the keyboard** (Eric, 2026-11-07): today the `.decimalPad` stays up after a set
     is checked off. Checking a set (its checkmark, from the keyboard's focus or not) clears focus so the keyboard goes
     down, uncovering the rest countdown and the table. Next keeps advancing weight → reps → next row as now (DECISIONS
     "Keyboard"; update that line). Proof: a UI test: focus a set's weight, type, check the set, the keyboard is gone
