@@ -47,6 +47,7 @@ final class FirstFrameUITests: XCTestCase {
             buttons: ["workoutDetail.edit", "workoutDetail.saveTemplate", "workoutDetail.delete"]
         )
         XCTAssertFalse(any["history.detail"].exists, "the detail's content was there before its load finished")
+        XCTAssertTrue(any["history.detail.loading"].exists, "no loading state in the body while the detail loads")
         XCTAssertTrue(any["history.detail"].waitForExistence(timeout: 10), "the detail never loaded")
         app.assertChromeImmediately(title: name, buttons: ["workoutDetail.edit"])
     }

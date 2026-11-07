@@ -62,6 +62,9 @@ struct WorkoutDetailView: View {
                     description: Text("That workout does not exist.")
                 )
                 .accessibilityIdentifier("history.detail.missing")
+            } else if !isLoaded {
+                DelayedLoadingIndicator(label: "Loading workout")
+                    .accessibilityIdentifier("history.detail.loading")
             }
         }
         .navigationTitle(title)
@@ -668,3 +671,21 @@ struct SaveTemplateSheet: View {
             .dynamicTypeSize(.accessibility3)
     }
 #endif
+
+/// A centered spinner for a body whose load is still running. It appears after a short delay so a fast load never
+/// flashes it; the screen's chrome is already on screen, this only fills the body.
+private struct DelayedLoadingIndicator: View {
+    let label: LocalizedStringKey
+    @State private var isVisible = false
+
+    var body: some View {
+        ProgressView()
+            .controlSize(.large)
+            .opacity(isVisible ? 1 : 0)
+            .accessibilityLabel(label)
+            .task {
+                try? await Task.sleep(for: .milliseconds(300))
+                isVisible = true
+            }
+    }
+}
