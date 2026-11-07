@@ -267,7 +267,8 @@ struct ExerciseMediaHeader: View {
 /// "Download all videos": prefetches every library video for one colour scheme, Wi-Fi only, in the background. It
 /// outlives the Settings sheet (closing it does not stop the download); switching the toggle off does. It starts from
 /// Settings and again whenever the app becomes active with the setting on (see `RootView`), so a relaunch after the app
-/// was killed mid-download, or a start on cellular, picks up where it left off: cached videos are skipped at once.
+/// was killed mid-download, or a start on cellular, picks up where it left off: cached videos count as done up front and
+/// are never revisited, and a pass with nothing left to fetch shows no bar.
 @MainActor
 @Observable
 final class BulkVideoDownload {
@@ -292,7 +293,11 @@ final class BulkVideoDownload {
     func start(sourceIDs: [String], scheme: MediaScheme) -> Task<Void, Never>? {
         guard task == nil else { return task }
         guard ExerciseMedia.canStreamVideo, !sourceIDs.isEmpty else { return nil }
-        progress = (0, sourceIDs.count)
+        // The bar starts at what the cache already holds (a cheap file-existence pass), and stays hidden when that is
+        // everything: re-running over a fully cached library must not flash a bar that counts up from zero.
+        let missing = store.uncachedSourceIDs(in: sourceIDs, scheme: scheme).count
+        guard missing > 0 else { return nil }
+        progress = (sourceIDs.count - missing, sourceIDs.count)
         let store = store
         let running = Task { [weak self] in
             // Progress arrives through a stream the task itself reads on the main actor, so no Task is spawned per tick.

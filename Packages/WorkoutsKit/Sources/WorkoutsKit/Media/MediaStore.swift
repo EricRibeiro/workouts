@@ -134,10 +134,18 @@ public actor MediaStore {
         return url
     }
 
-    /// Best-effort sequential fetch of many videos; cancellation stops early. A video the source does not have (nil) is
-    /// handled, since there is nothing to fetch; one whose fetch **threw** (offline, Wi-Fi-only on cellular) is not: its
-    /// id is returned so the caller can retry it later. `progress` is called after each id with (ids handled so far,
-    /// total), cached and missing ones included, failed ones not.
+    /// The ids among `sourceIDs` whose video is not in the cache yet, in order. Synchronous file-existence checks
+    /// only (no network, no LRU touch), so a UI can size a progress bar before any download starts. An id that cannot
+    /// name a cache file counts as uncached.
+    public nonisolated func uncachedSourceIDs(in sourceIDs: [String], scheme: MediaScheme) -> [String] {
+        sourceIDs.filter { cachedVideoURL(for: $0, scheme: scheme) == nil }
+    }
+
+    /// Best-effort sequential fetch of many videos; cancellation stops early. Videos already cached are counted as done
+    /// up front and not revisited, so a repeated pass starts where the cache already is rather than at zero. A video the
+    /// source does not have (nil) is handled, since there is nothing to fetch; one whose fetch **threw** (offline,
+    /// Wi-Fi-only on cellular) is not: its id is returned so the caller can retry it later. `progress` is called after
+    /// each fetched id with (ids handled so far, total), cached and missing ones included, failed ones not.
     @discardableResult
     public func prefetch(
         sourceIDs: [String],
@@ -145,8 +153,10 @@ public actor MediaStore {
         allowsCellular: Bool = true,
         progress: (@Sendable (_ done: Int, _ total: Int) -> Void)? = nil
     ) async -> [String] {
+        let pending = uncachedSourceIDs(in: sourceIDs, scheme: scheme)
+        let alreadyCached = sourceIDs.count - pending.count
         var failed: [String] = []
-        for (offset, sourceID) in sourceIDs.enumerated() {
+        for (offset, sourceID) in pending.enumerated() {
             if Task.isCancelled { return failed }
             do {
                 _ = try await video(for: sourceID, scheme: scheme, allowsCellular: allowsCellular)
@@ -155,7 +165,7 @@ public actor MediaStore {
             } catch {
                 failed.append(sourceID)
             }
-            progress?(offset + 1 - failed.count, sourceIDs.count)
+            progress?(alreadyCached + offset + 1 - failed.count, sourceIDs.count)
         }
         return failed
     }

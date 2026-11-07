@@ -69,4 +69,25 @@ struct BulkVideoDownloadTests {
         await first?.value
         #expect(!download.isRunning)
     }
+
+    @Test func progressStartsAtTheCachedCountAndAFullyCachedLibraryShowsNoBar() async throws {
+        let (store, _, root) = try makeStore(online: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let ids = ["a", "b", "c", "d"]
+        _ = try await store.video(for: "a", scheme: .light)
+        _ = try await store.video(for: "b", scheme: .light)
+        let download = BulkVideoDownload(store: store)
+
+        // The bar opens at 2 of 4 (what is on disk), not at 0.
+        let running = download.start(sourceIDs: ids, scheme: .light)
+        #expect(download.progress?.done == 2)
+        #expect(download.progress?.total == 4)
+        await running?.value
+        #expect(download.progress == nil)
+
+        // Everything is cached now: starting again (Settings reopened) shows nothing and runs nothing.
+        #expect(download.start(sourceIDs: ids, scheme: .light) == nil)
+        #expect(download.progress == nil)
+        #expect(!download.isRunning)
+    }
 }

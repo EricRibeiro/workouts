@@ -266,6 +266,45 @@ nonisolated final class GatedMediaSource: MediaSource, @unchecked Sendable {
         }
     }
 
+    @Test func uncachedSourceIDsListsOnlyWhatTheCacheLacks() async throws {
+        try await withStore(videos: ["a": 10, "b": 10, "c": 10]) { store, _, _ in
+            #expect(store.uncachedSourceIDs(in: ["a", "b", "c"], scheme: .light) == ["a", "b", "c"])
+            _ = try await store.video(for: "b", scheme: .light)
+            #expect(store.uncachedSourceIDs(in: ["a", "b", "c"], scheme: .light) == ["a", "c"])
+            // Another scheme is a different file; an unusable id counts as uncached.
+            #expect(store.uncachedSourceIDs(in: ["b"], scheme: .dark) == ["b"])
+            #expect(store.uncachedSourceIDs(in: ["../x"], scheme: .light) == ["../x"])
+        }
+    }
+
+    @Test func prefetchProgressStartsAtWhatIsCachedAndNeverRevisitsIt() async throws {
+        try await withStore(videos: ["a": 10, "b": 10, "c": 10, "d": 10]) { store, source, _ in
+            _ = try await store.video(for: "a", scheme: .light)
+            _ = try await store.video(for: "c", scheme: .light)
+            let ticks = ProgressTicks()
+            await store.prefetch(sourceIDs: ["a", "b", "c", "d"], scheme: .light) { done, total in
+                ticks.record(done, total)
+            }
+            // Two were cached: the first tick already counts them, and they are not fetched or ticked again.
+            #expect(ticks.values == [3, 4])
+            #expect(ticks.totals == [4, 4])
+            #expect(source.requests == ["a/light", "c/light", "b/light", "d/light"])
+        }
+    }
+
+    @Test func prefetchOverAFullyCachedSetReportsNothingAndFetchesNothing() async throws {
+        try await withStore(videos: ["a": 10, "b": 10]) { store, source, _ in
+            await store.prefetch(sourceIDs: ["a", "b"], scheme: .light)
+            let ticks = ProgressTicks()
+            let again = await store.prefetch(sourceIDs: ["a", "b"], scheme: .light) { done, total in
+                ticks.record(done, total)
+            }
+            #expect(again.isEmpty)
+            #expect(ticks.values.isEmpty)
+            #expect(source.requests == ["a/light", "b/light"])
+        }
+    }
+
     @Test func cacheSizeAndClearCache() async throws {
         try await withStore(videos: ["a": 30, "b": 12]) { store, _, _ in
             #expect(await store.cacheSize() == 0)

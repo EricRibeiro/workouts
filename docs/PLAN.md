@@ -354,7 +354,7 @@ Live Activity → notifications → logging, then templates, exercises, history.
   - [x] Apple Health first-party (Fable spec): health stats and weather in the workout header, Swift Charts heart-rate
     card with exercise bands and set ticks, zone bar, "Data from Apple Health"; History rows and This Week show bpm.
     Fixes: humidity ×100, zero-based zone index, heart-rate offsets re-based.
-  - [ ] **Media download progress restarts on every Settings open** (Eric, 2026-11-07, recording on the closed Duo):
+  - [x] **Media download progress restarts on every Settings open** (Eric, 2026-11-07, recording on the closed Duo):
     with Download all videos on, the bar under the toggle counts up from a low number each time Settings opens
     (468 of 1,029, close, reopen → 202 → 933 within seconds; it then disappears). Either the pass re-verifies already
     cached files and counts them as progress, or the downloads only run while Settings is visible. Expected: the bar
