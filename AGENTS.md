@@ -70,7 +70,7 @@ SNAPSHOT_RECORD=1 ./dev test SnapshotTests   re-record the visual references (Wo
 ./dev orient <o> [p]    rotate portrait|landscape-left|landscape-right, verified by devicectl + lit panel; p as for fold
 ./dev pose <name> [p]   closed-portrait|closed-landscape|open-wide (951x669 pt)|open-tall (669x951 pt) = fold + orient, verified; p as for fold
 ./dev poses <dir> [-- args]  run, then all four poses as settled PNGs <dir>/<name>.png under one simulator lock; always ends closed-portrait
-./dev home [p]          Home screen (the app keeps running); ./dev duo <verb> = Tools/duo pass-through (panels, hinge, screenshot)
+./dev home [p]          Home screen (the app keeps running); ./dev duo <verb> = Tools/duo pass-through (panels, hinge [--app = the app's own status, launch with `-- -logHinge`], settle, screenshot)
 ./dev duo-test          swift test for Tools/duo (~1s; part of check)
 ./dev check             lint → kit → duo-test → build → test; the pre-commit gate (~30s warm)
 ./dev sims [--prune]    create missing simulator clones and list the pool (who holds which lock, which is yours); read-only otherwise.
@@ -117,8 +117,8 @@ Rules for the loop:
 - **Never toggle the simulator's displays** (`simctl io … screenConfig`, display power, device defaults): it crash-loops
   SpringBoard and floods Eric's Mac with crash dialogs. `./dev` fails any simulator command during which SpringBoard
   crashed; treat that as a stop and report (never `simctl shutdown all`: it kills other agents' simulators; a pool clone
-  with 2+ PosterBoard/SpringBoard/backboardd reports is shut down and erased by `dev` itself, the original never). Change Duo poses only with `./dev fold` /
-  `./dev orient` (skill `verify-ui`), and leave the sim closed and portrait.
+  with 2+ PosterBoard/SpringBoard/backboardd reports is shut down and erased by `dev` itself, the original never). Change Duo poses only with `./dev pose` / `poses` (or the low-level `fold` / `orient`; skill
+  `verify-ui`), and leave the sim closed and portrait (`./dev pose closed-portrait`).
 - **Do not change** the deployment target, supported platforms, signing, or add a remote package
   without being asked.
 

@@ -71,21 +71,24 @@ a cold boot settles 15 s before `shot` captures. `./dev sims` lists the pool. An
 clones that are booted, unlocked, unused for `DEV_SIM_IDLE_MIN` (30) minutes and not running the app (`dev: shut down idle iPhone Duo 3`), so a
 simulator you left booted and walked away from cold-boots again next time.
 
-Change poses with `./dev fold closed|half-open|open [png]` and `./dev orient portrait|landscape-left|landscape-right [png]`
-(`Tools/duo`, our own tool: it sends the same HID hinge and orientation events as Xcode's Device Hub from a helper inside the
-simulator, then proves the pose with documented reads, hinge angle, `devicectl` orientation and the lit panel, and fails with
-the observed state if the pose is not reached; formerly a third-party wrapper). Each command is stateless: no session to open or
-close, and `./dev`'s per-simulator lock is the only serialisation. The optional png captures whichever panel is lit:
-466x678 pt closed (outer), 951x669 open (PNG 2853x2007), 669x951 open rotated (PNG 2007x2853). Plain
-`./dev screenshot` may capture a dark panel once the Duo is open, so use the fold/orient capture there. A closed fold takes
-about 6 s because the panel switch trails the hinge; half-open settles near 123 deg, not the commanded 130. Other verbs are one
-`./dev duo <verb>` away: `panels` (which panel is lit, with pixel and point sizes), `hinge` (angle, pose, lit panel),
-`screenshot <png> --display lit|outer|inner`, `fold <degrees>` for an explicit angle, `home`. Every
-coordinate and accessibility ref is stale after a pose change. After `fold open`, `./dev orient portrait` gives the wide layout (951x669, sidebar expanded)
-and `./dev orient landscape-left` the tall one (669x951, sidebar collapsed behind its toggle); the names are the reverse of the
-PNG shape. Finish a run with `./dev orient portrait` and
-`./dev fold closed` so the next agent starts from the default pose. Device Hub
-(`/Applications/Xcode.app/Contents/Applications/DeviceHub.app`) remains the manual fallback.
+Change poses with `./dev pose closed-portrait|closed-landscape|open-wide|open-tall [png]` (fold + orient in one verified step;
+open-wide is 951x669 pt, sidebar expanded; open-tall 669x951, sidebar collapsed behind its toggle) or `./dev poses <dir>`
+(all four as settled PNGs under one lock, always ending closed-portrait). `./dev fold closed|half-open|open [png]` and
+`./dev orient portrait|landscape-left|landscape-right [png]` are the low-level verbs under them (`Tools/duo`, our own tool: it
+sends the same HID hinge and orientation events as Xcode's Device Hub from a helper inside the simulator, then proves the pose
+with documented reads, hinge angle, `devicectl` orientation and the lit panel, and fails with the observed state if the pose is
+not reached; an orientation event that was dropped is re-sent once, reported as `(re-sent)`). Each command is stateless: no
+session to open or close, and `./dev`'s per-simulator lock is the only serialisation. The optional png captures whichever panel
+is lit: 466x678 pt closed (outer), 951x669 open (PNG 2853x2007), 669x951 open rotated (PNG 2007x2853). Plain `./dev screenshot`
+may capture a dark panel once the Duo is open, so use the pose/fold/orient capture there. A closed fold takes about 6 s because
+the panel switch trails the hinge; half-open settles near 123 deg, not the commanded 130. Other verbs are one `./dev duo <verb>`
+away: `panels` (which panel is lit, with pixel and point sizes), `hinge` (angle, pose, lit panel; `hinge --app` reads the angle
+and status the app logs when launched with `./dev run -- -logHinge`, where the status, not the angle, is the truth), `settle` (waits for
+two identical consecutive captures of the lit panel), `screenshot <png> --display lit|outer|inner`, `fold <degrees>` for an
+explicit angle, `home`. `./dev fold --keyframes '<json>' [--record <mov>]` plays timed hinge motion at 60 Hz (one panel per
+movie) for transition checks; an interrupted run needs `./dev pose closed-portrait`. Every coordinate and accessibility ref is
+stale after a pose change. Finish a run with `./dev pose closed-portrait` so the next agent starts from the default pose.
+Device Hub (`/Applications/Xcode.app/Contents/Applications/DeviceHub.app`) remains the manual fallback.
 
 **Never experiment with the simulator's displays.** `xcrun simctl io <dev> screenConfig --display=N
 power off|on` (tried 2026-11-03 to fake folding) put SpringBoard into a crash loop: a "SpringBoard quit

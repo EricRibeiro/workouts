@@ -179,6 +179,78 @@ private final class FakeClock: @unchecked Sendable {
     }
 }
 
+extension OrientRunTests {
+    /// Answers the orientation reads as "stuck" until the n-th `rotate` dispatch has happened, then as `landscapeLeft`.
+    private func dropping(rotations dropped: Int) -> ScriptedRunner {
+        let rotates = LockedCounter()
+        return ScriptedRunner { arguments in
+            if arguments.contains("rotate") {
+                _ = rotates.next()
+                return ProcessOutput(status: 0, stdout: Data(), stderr: "")
+            }
+            let delivered = rotates.current > dropped
+            if arguments.starts(with: ["devicectl", "device", "orientation"]) {
+                return ok(#"{"result":{"deviceOrientation":"\#(delivered ? "landscapeLeft" : "portrait")"}}"#)
+            }
+            if arguments.first == "devicectl" {
+                return ok(displaysJSON(lit: "LCD", outerRotation: delivered ? "rot270" : "rot0"))
+            }
+            return ProcessOutput(status: 0, stdout: Data(), stderr: "")
+        }
+    }
+
+    private func rotateCount(_ scripted: ScriptedRunner) -> Int {
+        scripted.calls.filter { $0.contains("rotate") }.count
+    }
+
+    @Test func aDroppedFirstRotationIsReSentOnceAndStillSucceeds() throws {
+        let scripted = dropping(rotations: 1)
+        var sleeps = 0
+        let result = try Orient.run(
+            target: .landscapeLeft,
+            udid: "U",
+            guestPath: "/g",
+            runner: scripted,
+            sleep: { _ in sleeps += 1 }
+        )
+        #expect(rotateCount(scripted) == 2)
+        #expect(result.resent)
+        #expect(result.summary == "orient landscape-left: device landscapeLeft, lit panel LCD rot270 (re-sent)")
+        #expect(sleeps == 8)
+    }
+
+    @Test func aRotationThatLandsAtOnceIsNeverReSent() throws {
+        let scripted = dropping(rotations: 0)
+        let result = try Orient.run(
+            target: .landscapeLeft,
+            udid: "U",
+            guestPath: "/g",
+            runner: scripted,
+            sleep: { _ in }
+        )
+        #expect(rotateCount(scripted) == 1)
+        #expect(!result.resent)
+    }
+
+    @Test func aRotationThatNeverLandsIsReSentAtMostOnce() throws {
+        let scripted = dropping(rotations: .max)
+        do {
+            _ = try Orient.run(
+                target: .landscapeLeft,
+                udid: "U",
+                guestPath: "/g",
+                runner: scripted,
+                sleep: { _ in }
+            )
+            Issue.record("expected a failure")
+        } catch {
+            #expect("\(error)".contains("not reached after 24 polls"))
+            #expect("\(error)".contains("rotation re-sent once"))
+        }
+        #expect(rotateCount(scripted) == 2)
+    }
+}
+
 @Suite struct ScreenshotRetryTests {
     private func runner(darkPolls: Int) -> ScriptedRunner {
         let polls = LockedCounter()
@@ -232,6 +304,8 @@ private final class FakeClock: @unchecked Sendable {
 private final class LockedCounter: @unchecked Sendable {
     private let lock = NSLock()
     private var value = 0
+
+    var current: Int { lock.withLock { value } }
 
     func next() -> Int {
         lock.withLock {

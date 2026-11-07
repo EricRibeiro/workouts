@@ -60,28 +60,38 @@ public struct OrientationVerification: Sendable, Equatable {
     public var reached: Bool
     public var last: OrientationObservation?
     public var polls: Int
+    /// True when the rotation was dispatched a second time because the first never showed up.
+    public var resent: Bool = false
 }
 
 /// Polls the documented reads until the device orientation and the lit panel agree with the target.
-/// Pure over its closures, so tests script the sequence and the sleep.
+/// Pure over its closures, so tests script the sequence and the sleep. A dispatched rotation can be dropped (the lit panel was
+/// still switching), so `resend`, when given, runs once after `resendAfter` unmatched polls and polling continues.
 public enum OrientationVerifier {
     public static func verify(
         target: TargetOrientation,
         attempts: Int = 24,
         interval: TimeInterval = 0.5,
+        resendAfter: Int = 8,
+        resend: (() throws -> Void)? = nil,
         observe: () throws -> OrientationObservation,
         sleep: (TimeInterval) -> Void
     ) throws -> OrientationVerification {
         var last: OrientationObservation?
+        var resent = false
         for attempt in 0..<attempts {
             if attempt > 0 { sleep(interval) }
             let observation = try observe()
             last = observation
             if observation.matches(target) {
-                return OrientationVerification(reached: true, last: observation, polls: attempt + 1)
+                return OrientationVerification(reached: true, last: observation, polls: attempt + 1, resent: resent)
+            }
+            if let resend, !resent, attempt + 1 == resendAfter {
+                resent = true
+                try resend()
             }
         }
-        return OrientationVerification(reached: false, last: last, polls: attempts)
+        return OrientationVerification(reached: false, last: last, polls: attempts, resent: resent)
     }
 }
 
@@ -140,9 +150,11 @@ public struct OrientResult: Sendable, Equatable {
     public var target: TargetOrientation
     public var observation: OrientationObservation
     public var screenshot: ScreenshotResult?
+    /// The first rotation was not seen, so it was dispatched once more.
+    public var resent: Bool = false
 
     public var summary: String {
-        let line = "orient \(target.rawValue): \(observation.text)"
+        let line = "orient \(target.rawValue): \(observation.text)" + (resent ? " (re-sent)" : "")
         guard let screenshot else { return line }
         return line + "\n" + screenshot.summary
     }
@@ -160,9 +172,11 @@ public enum Orient {
         sleep: (TimeInterval) -> Void = { Thread.sleep(forTimeInterval: $0) }
     ) throws -> OrientResult {
         let devicectl = Devicectl(runner: runner)
-        try Simctl(runner: runner).rotate(udid: udid, guestPath: guestPath, orientation: target)
+        let simctl = Simctl(runner: runner)
+        try simctl.rotate(udid: udid, guestPath: guestPath, orientation: target)
         let verification = try OrientationVerifier.verify(
             target: target,
+            resend: { try simctl.rotate(udid: udid, guestPath: guestPath, orientation: target) },
             observe: {
                 OrientationObservation(
                     deviceOrientation: try devicectl.deviceOrientation(udid: udid),
@@ -174,8 +188,9 @@ public enum Orient {
         guard verification.reached, let observation = verification.last else {
             let seen = verification.last?.text ?? "nothing read"
             throw DuoError.verificationFailed(
-                "orient \(target.rawValue) not reached after \(verification.polls) polls: \(seen); "
-                    + "see docs/plan-device-tool.md 1.4"
+                "orient \(target.rawValue) not reached after \(verification.polls) polls: \(seen)"
+                    + (verification.resent ? " (rotation re-sent once)" : "")
+                    + "; see docs/plan-device-tool.md 1.4"
             )
         }
         var shot: ScreenshotResult?
@@ -193,6 +208,11 @@ public enum Orient {
                 shot = try Screenshot.capture(path: png, udid: udid, selector: .lit, runner: runner)
             }
         }
-        return OrientResult(target: target, observation: observation, screenshot: shot)
+        return OrientResult(
+            target: target,
+            observation: observation,
+            screenshot: shot,
+            resent: verification.resent
+        )
     }
 }

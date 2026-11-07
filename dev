@@ -1286,15 +1286,16 @@ cmd_check() {
 
 # The accessibility tree of a `-preview <Name>` screen (PLAN device-tool C.6): WorkoutsUITests/TreeDumpUITests dumps
 # XCUIApplication.debugDescription as a kept attachment (the test's stdout does not reach the quiet log), read back from the
-# run's xcresult. Reuses cmd_ui_test, so the build, the simulator lock and the crash guard are the usual ones.
+# run's xcresult (latest-tree.xcresult). Reuses run_tests, so the build, the simulator lock and the crash guard are the usual ones.
 cmd_tree() {
   local name="${1:-}"
   [[ -n "$name" && "$name" != -* && "$name" != */* ]] || die "usage: tree <PreviewName>"
   command -v jq >/dev/null 2>&1 || die "tree: jq is required"
-  rm -rf "$RESULTS/latest-ui-test.xcresult"
+  # Its own bundle name (latest-tree.xcresult), so the merged bundle of the last full ui-test, which `coverage ui-test` reads, is untouched.
   # The totals line is noise here: the tree is the output. Failures still reach stderr.
-  TEST_RUNNER_TREE_PREVIEW="$name" cmd_ui_test 'TreeDumpUITests/testDump()' >/dev/null
-  local bundle="$RESULTS/latest-ui-test.xcresult" out
+  rm -rf "$RESULTS/latest-tree.xcresult"
+  TEST_RUNNER_TREE_PREVIEW="$name" run_tests tree WorkoutsUITests 'TreeDumpUITests/testDump()' >/dev/null
+  local bundle="$RESULTS/latest-tree.xcresult" out
   [[ -d "$bundle" ]] || die "tree: no result bundle at $bundle"
   out=$(mktemp -d "${TMPDIR:-/tmp}/dev-tree.XXXXXX")
   xcrun xcresulttool export attachments --path "$bundle" --output-path "$out" >/dev/null 2>&1 || true
