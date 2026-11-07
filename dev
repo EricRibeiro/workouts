@@ -10,6 +10,8 @@ DERIVED=".build/DerivedData"
 RESULTS=".build/results"
 LOGS=".build/logs"
 UI_STAMP=".build/ui-test.stamp"
+UI_PROGRESS=".build/ui-test.progress"   # one line per shard while ./dev ui-test runs, then a final "done:" line (./dev ui-status)
+UI_PROGRESS_DIR=".build/ui-test.progress.d" # per-shard state behind it, plus pid (the writer, for ui-status) and failed (append-only)
 KIT="Packages/WorkoutsKit"
 LINT_PATHS=(Workouts WorkoutsLiveActivity Shared WorkoutsTests WorkoutsUITests Packages Tools/duo)
 DUO_SPM=".build/duo/spm"
@@ -150,10 +152,14 @@ run_logged() {
   # instead of reaching the single-simulator fallback.
   [[ $- != *e* ]] || errexit=1
   set +e
+  # RUN_LOGGED_TAP (a function name) sits between the command and the filter: it reads the raw stream, may record progress,
+  # and passes on what the log should keep. Unset (everything but the ui-test runs), the pipeline is what it always was.
+  local tap=cat
+  [[ -z "${RUN_LOGGED_TAP:-}" ]] || tap="$RUN_LOGGED_TAP"
   if command -v xcbeautify >/dev/null 2>&1; then
-    "$@" 2>&1 | xcbeautify --quiet >"$log"
+    "$@" 2>&1 | "$tap" | xcbeautify --quiet >"$log"
   else
-    "$@" 2>&1 | { grep -Ev "$NOISE" || true; } >"$log"
+    "$@" 2>&1 | "$tap" | { grep -Ev "$NOISE" || true; } >"$log"
   fi
   rc=${PIPESTATUS[0]}
   if ((errexit)); then set -e; fi
@@ -174,10 +180,12 @@ excerpt() {
   fi
 }
 
-xcb() { # xcb <action> [extra xcodebuild args...]
+xcb() { # xcb <action> [extra xcodebuild args...]; XCB_VERBOSE (set by run_tests for ui-test) drops -quiet so per-test lines reach the tap
   local action="$1"; shift
+  local quiet=(-quiet)
+  [[ -z "${XCB_VERBOSE:-}" ]] || quiet=()
   xcodebuild "$action" -scheme "$SCHEME" -destination "platform=iOS Simulator,id=$SIM_UDID" \
-    -derivedDataPath "$DERIVED" -quiet "$@"
+    -derivedDataPath "$DERIVED" ${quiet[@]+"${quiet[@]}"} "$@"
 }
 
 # Reduce an xcresult bundle to its failing tests.
@@ -203,7 +211,12 @@ report_failures() {
 run_tests() { # run_tests <name> <target> [filter]
   local name="$1" target="$2" filter="${3:-}"
   local only="$target" bundle="$RESULTS/$name-$$.xcresult" rc=0
+  # ui-test: the single-simulator run reports progress too (shard 1/1); see ui_progress_tap.
+  local XCB_VERBOSE="" RUN_LOGGED_TAP="" UI_PROG_IDX=1 UI_PROG_OF=1 UI_PROG_SIM="" UI_PROG_TOTAL=""
   sim_resolve
+  if [[ "$name" == ui-test ]]; then
+    XCB_VERBOSE=1 RUN_LOGGED_TAP=ui_progress_tap UI_PROG_SIM=$(sim_name_by_udid "$SIM_UDID")
+  fi
   [[ -n "$filter" ]] && only="$target/$filter"
   mkdir -p "$RESULTS"
   find "$RESULTS" -maxdepth 1 -name '*.xcresult' ! -name 'latest-*' -mmin +240 -exec rm -rf {} + 2>/dev/null || true
@@ -241,7 +254,10 @@ test_summary() { # test_summary <name> <only> <bundle>
     echo "FAILED: $name — no tests matched '$only'" >&2
     return 1
   fi
-  jq -r --arg n "$name" '"\($n): \(.passedTests // 0) passed, \(.failedTests // 0) failed, \(.skippedTests // 0) skipped"' <<<"$json"
+  local line
+  line=$(jq -r --arg n "$name" '"\($n): \(.passedTests // 0) passed, \(.failedTests // 0) failed, \(.skippedTests // 0) skipped"' <<<"$json")
+  echo "$line"
+  [[ "$name" != ui-test ]] || ui_progress_done "$line"
 }
 
 cmd_build() { sim_resolve; run_logged build xcb build; }
@@ -257,13 +273,14 @@ cmd_ui_test() {
   # `check` leave it skipped.
   [[ "${1:-}" == HealthKitIntegration* ]] && export TEST_RUNNER_HEALTH_INTEGRATION=1
   local rc=0
+  ui_progress_begin
   if [[ -z "${1:-}" ]] && ((${DEV_UI_SHARDS:-3} > 1)); then
     # Not `ui_test_sharded || rc=$?`: that would disable errexit inside it (see sim_guarded).
     set +e; ui_test_sharded; rc=$?; set -e
-    if ((rc == 3)); then rc=0; run_tests ui-test WorkoutsUITests "" || rc=$?; fi # fewer than 2 free simulators: one, as before
-    ((rc == 0)) || return "$rc"
+    if ((rc == 3)); then rc=0; ui_progress_begin; run_tests ui-test WorkoutsUITests "" || rc=$?; fi # fewer than 2 free simulators: one, as before
+    ((rc == 0)) || { ui_progress_done "FAILED (exit $rc)"; return "$rc"; }
   else
-    run_tests ui-test WorkoutsUITests "${1:-}" || return
+    run_tests ui-test WorkoutsUITests "${1:-}" || { rc=$?; ui_progress_done "FAILED (exit $rc)"; return "$rc"; }
   fi
   # The ship gate: only a full, passing run (no filter) vouches for a commit; `testflight --upload` checks this stamp.
   if [[ -z "${1:-}" ]]; then
@@ -285,13 +302,71 @@ UI_FLAKY_LOG=".build/ui-flaky.log"          # <utc time> <commit> <test id> per 
 UI_SHARDS_DIR="$RESULTS/ui-test-shards"
 UI_SIMS=()
 UI_PIDS=()
+UI_N=1  # shards in this run (the "2/3" of the progress lines)
+UI_T0=$SECONDS
 UI_FLAKY="" # comma-separated ids of the tests that were flaky in this run, for the stamp
+# Progress for ./dev ui-status: $UI_PROGRESS holds one line per shard, then every FAILED test in the order it happened, then a
+# final "done:" line (kept after the run). It is composed from files in $UI_PROGRESS_DIR (shard-N.line, failed, done), because
+# the shards update it from separate processes; pid there is the writer, so ui-status can tell a live run from a dead one.
+ui_progress_render() {
+  local tmp; tmp=$(mktemp "$UI_PROGRESS.XXXXXX") || return 0 # not BASHPID: macOS ships bash 3.2
+  { cat "$UI_PROGRESS_DIR"/shard-*.line "$UI_PROGRESS_DIR/failed" "$UI_PROGRESS_DIR/done"; } 2>/dev/null >"$tmp" || true
+  mv -f "$tmp" "$UI_PROGRESS" 2>/dev/null || true
+}
+ui_progress_set() { # ui_progress_set <shard> <text>
+  local tmp; tmp=$(mktemp "$UI_PROGRESS_DIR/tmp.XXXXXX") || return 0
+  printf '%s\n' "$2" >"$tmp" && mv -f "$tmp" "$UI_PROGRESS_DIR/shard-$1.line"
+  ui_progress_render
+}
+ui_progress_begin() {
+  UI_T0=$SECONDS
+  rm -rf "$UI_PROGRESS_DIR" "$UI_PROGRESS"; mkdir -p "$UI_PROGRESS_DIR"
+  echo $$ >"$UI_PROGRESS_DIR/pid"
+  ui_progress_set 0 "starting (building)"
+}
+ui_progress_done() { # ui_progress_done <totals line>: the last line of the file
+  [[ -d "$UI_PROGRESS_DIR" ]] || return 0
+  printf 'done: %s\n' "$1" >"$UI_PROGRESS_DIR/done"
+  ui_progress_render
+}
+ui_progress_fmt_elapsed() { local s=$((SECONDS - UI_T0)); if ((s >= 60)); then printf '%dm' $((s / 60)); else printf '%ds' "$s"; fi; }
+# A pipeline stage for run_logged (RUN_LOGGED_TAP) around a ui-test xcodebuild: reads the raw, non-quiet stream, keeps this
+# shard's line current (UI_PROG_IDX/OF/SIM/TOTAL) and appends each failure to the file the moment it prints. The per-test and
+# per-step lines are consumed, so the log filter sees roughly what -quiet printed and the failure excerpt reads as before.
+ui_progress_tap() {
+  local line p=0 f=0 k=0 last="" id res of="${UI_PROG_TOTAL:+/$UI_PROG_TOTAL}" skipped
+  rm -f "$UI_PROGRESS_DIR/shard-0.line" # the "starting (building)" placeholder, once a real shard line takes over
+  ui_progress_set "$UI_PROG_IDX" "shard $UI_PROG_IDX/$UI_PROG_OF ($UI_PROG_SIM): 0${of} passed, 0 failed, starting"
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    id=""
+    if [[ "$line" =~ ^Test\ [Cc]ase\ \'-\[([A-Za-z0-9_]+\.)?([A-Za-z0-9_]+)\ ([A-Za-z0-9_]+)\]\'\ (passed|failed|skipped) ]]; then
+      id="${BASH_REMATCH[2]}/${BASH_REMATCH[3]}"; res="${BASH_REMATCH[4]}"
+    elif [[ "$line" =~ ^Test\ [Cc]ase\ \'([A-Za-z0-9_]+/[^\']+)\'\ (passed|failed|skipped) ]]; then
+      id="${BASH_REMATCH[1]}"; res="${BASH_REMATCH[2]}"
+    fi
+    if [[ -n "$id" ]]; then
+      case "$res" in
+        passed) p=$((p + 1)) ;;
+        failed) f=$((f + 1)); printf 'FAILED %s\n' "$id" >>"$UI_PROGRESS_DIR/failed" ;;
+        skipped) k=$((k + 1)) ;;
+      esac
+      last="$id"; skipped=""
+      ((k == 0)) || skipped=", $k skipped"
+      ui_progress_set "$UI_PROG_IDX" "shard $UI_PROG_IDX/$UI_PROG_OF ($UI_PROG_SIM): $p${of} passed, $f failed$skipped, last=$last, $(ui_progress_fmt_elapsed)"
+      continue
+    fi
+    [[ "$line" =~ ^(Test\ Suite|Test\ [Cc]ase|[[:space:]]+t\ =|[[:space:]]+Executed\ ) ]] || printf '%s\n' "$line"
+  done
+}
 ui_suites() { # ui_suites <xctestrun>: the UI test classes the built bundle contains; the source grep is only a fallback
   local tmp suites; tmp=$(mktemp -d)
   if xcodebuild test-without-building -xctestrun "$1" -destination "platform=iOS Simulator,id=$SIM_UDID" -enumerate-tests \
     -test-enumeration-style flat -test-enumeration-format json -test-enumeration-output-path "$tmp/enum.json" \
     -resultBundlePath "$tmp/enum.xcresult" >/dev/null 2>&1; then
     suites=$(jq -r '.values[].enabledTests[]?.identifier | select(startswith("WorkoutsUITests/")) | split("/")[1]' "$tmp/enum.json" 2>/dev/null | sort -u || true)
+    # tests per suite, for the progress file's N in "41/45 passed"
+    jq -r '[.values[].enabledTests[]?.identifier | select(startswith("WorkoutsUITests/")) | split("/")[1]] | group_by(.)[] | "\(.[0])\t\(length)"' \
+      "$tmp/enum.json" >"$UI_PROGRESS_DIR/counts.tsv" 2>/dev/null || rm -f "$UI_PROGRESS_DIR/counts.tsv"
   fi
   rm -rf "$tmp"
   if [[ -z "${suites:-}" ]]; then
@@ -370,11 +445,18 @@ ui_shard() { # ui_shard <index> <udid> <xctestrun> <suite...>; runs in a backgro
   shift 3
   bundle="$PWD/$UI_SHARDS_DIR/shard-$idx.xcresult" # absolute: ui_cleanup finds this checkout's xcodebuilds by it
   for s in "$@"; do only+=(-only-testing:"WorkoutsUITests/$s"); done
+  # Progress: no -quiet here, so xcodebuild prints each test's result and ui_progress_tap (between it and the log filter)
+  # turns them into this shard's line in the progress file. The planned test count comes from the enumeration, if it worked.
+  local RUN_LOGGED_TAP=ui_progress_tap UI_PROG_IDX="$idx" UI_PROG_OF="$UI_N" UI_PROG_SIM UI_PROG_TOTAL=""
+  UI_PROG_SIM=$(sim_name_by_udid "$udid")
+  if [[ -s "$UI_PROGRESS_DIR/counts.tsv" ]]; then
+    UI_PROG_TOTAL=$(printf '%s\n' "$@" | awk -F'\t' 'NR == FNR { want[$1] = 1; next } $1 in want { n += $2 } END { if (n) print n }' - "$UI_PROGRESS_DIR/counts.tsv")
+  fi
   for attempt in 1 2; do
     rm -rf "$bundle"; rc=0
     run_logged "ui-test-shard$idx" xcodebuild test-without-building -xctestrun "$xr" \
       -destination "platform=iOS Simulator,id=$udid" -parallel-testing-enabled NO -enableCodeCoverage YES -collect-test-diagnostics on-failure \
-      "${only[@]}" -resultBundlePath "$bundle" -quiet >/dev/null 2>&1 || rc=$?
+      "${only[@]}" -resultBundlePath "$bundle" >/dev/null 2>&1 || rc=$?
     # Xcode infrastructure flake (no test ran): retry once on a cold boot, as run_tests does.
     ((rc != 0 && attempt == 1)) || break
     xcrun xcresulttool get test-results summary --path "$bundle" --compact 2>/dev/null | grep -q 'hung before establishing connection' || break
@@ -411,6 +493,7 @@ ui_test_sharded() {
     return 3
   fi
   mkdir -p "$RESULTS"
+  ui_progress_set 0 "building (build-for-testing), then $want shards"
   run_logged ui-test-build xcb build-for-testing -enableCodeCoverage YES || return 1
   xr=$(find "$DERIVED/Build/Products" -name '*.xctestrun' -exec stat -f '%m %N' {} + | sort -rn | head -1 | cut -d' ' -f2-)
   [[ -n "$xr" ]] || die "ui-test: build-for-testing produced no .xctestrun under $DERIVED/Build/Products"
@@ -424,8 +507,9 @@ ui_test_sharded() {
   # run_logged above used to switch it back on).
   ((n >= 2)) || { ui_cleanup; set +e; return 3; }
   trap ui_cleanup EXIT
-  trap 'ui_cleanup; trap - EXIT; exit 130' INT TERM
+  trap 'ui_cleanup; ui_progress_done "interrupted"; trap - EXIT; exit 130' INT TERM
   rm -rf "$UI_SHARDS_DIR"; mkdir -p "$UI_SHARDS_DIR"
+  rm -f "$UI_PROGRESS_DIR/shard-0.line"; UI_N=$n
   plan=$(ui_balance "$n" "${suites[@]}")
   local mine
   for ((i = 1; i <= n; i++)); do
@@ -488,7 +572,32 @@ ui_test_sharded() {
     { echo "dev: warning: merging the shard bundles failed; coverage reads shard 1" >&2; cp -R "$UI_SHARDS_DIR/shard-1.xcresult" "$RESULTS/latest-ui-test.xcresult"; }
   [[ -z "${DEV_UI_VERBOSE:-}" ]] || cat "$UI_SHARDS_DIR/summary.tsv" >&2
   secs=$((SECONDS - t0))
-  echo "ui-test: $tp passed, $tf failed, $tk skipped, ${#flaky[@]} flaky ($n shards, $( ((secs >= 60)) && echo "$(((secs + 30) / 60))m" || echo "${secs}s"))"
+  local line="ui-test: $tp passed, $tf failed, $tk skipped, ${#flaky[@]} flaky ($n shards, $( ((secs >= 60)) && echo "$(((secs + 30) / 60))m" || echo "${secs}s"))"
+  echo "$line"
+  ui_progress_done "$line"
+}
+
+# Progress of a running (or the last) ui-test, from the file the ui_progress_* functions keep up to date.
+cmd_ui_status() {
+  local pid=""
+  pid=$(cat "$UI_PROGRESS_DIR/pid" 2>/dev/null || true)
+  if [[ -s "$UI_PROGRESS" && -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
+    cat "$UI_PROGRESS"
+    return 0
+  fi
+  echo "ui-test: not running"
+  if [[ -f "$UI_STAMP" ]]; then
+    echo "last stamp ($UI_STAMP):"; sed 's/^/  /' "$UI_STAMP"
+  else
+    echo "last stamp: none"
+  fi
+  if [[ -s "$UI_PROGRESS" ]]; then
+    local last; last=$(tail -n 1 "$UI_PROGRESS")
+    [[ "$last" == done:* ]] || last="(no final line: that run was cut off) $last"
+    echo "last run: $last"
+  else
+    echo "last run: no progress file"
+  fi
 }
 
 # Per-target code coverage of the newest passing `test` / `ui-test` run (tests record coverage; see run_tests).
@@ -1131,6 +1240,7 @@ sims [--prune]     create the missing simulator clones (iPhone Duo 2..$DEV_SIM_P
 build              build the app for this checkout's simulator
 test [filter]      run WorkoutsTests (filter = suite or suite/test); prints totals, fails if none ran
 ui-test [filter]   run WorkoutsUITests (an unfiltered pass is sharded over DEV_UI_SHARDS pool sims and stamps HEAD, with its flaky tests, for the testflight --upload gate); prints totals, fails if none ran (filter HealthKitIntegrationUITests opts in to the real-Health test)
+ui-status          progress of a running ui-test (one line per shard: passed/total, failures, last test, elapsed), else the last stamp and the last run's final line (.build/ui-test.progress)
 coverage [test|ui-test]  per-target code coverage of the last passing test (default) or ui-test run (xccov); fails if none kept
 kit [filter]       swift test in Packages/WorkoutsKit; prints summary line, fails if filter matched nothing
 kit-coverage       swift test with coverage; prints the whole-package line coverage (llvm-cov TOTAL)
@@ -1168,6 +1278,7 @@ case "$sub" in
   build) cmd_build ;;
   test) sim_guarded cmd_test "$@" ;;
   ui-test) sim_guarded cmd_ui_test "$@" ;;
+  ui-status) cmd_ui_status ;;
   kit) cmd_kit "$@" ;;
   kit-build) cmd_kit_build ;;
   kit-coverage) cmd_kit_coverage ;;
