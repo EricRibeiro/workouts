@@ -73,6 +73,25 @@ public enum Screenshot {
     public static let litRetries = 3
     public static let litRetryInterval: TimeInterval = 0.5
 
+    /// Captures `path` until the screen stops changing (see `Settle`); the file left at `path` is the settled capture.
+    public static func captureSettled(
+        path: String,
+        udid: String,
+        selector: DisplaySelector = .lit,
+        timeout: TimeInterval = Settle.defaultTimeout,
+        runner: any ProcessRunning = SystemProcessRunner(),
+        now: () -> Date = Date.init,
+        sleep: (TimeInterval) -> Void = { Thread.sleep(forTimeInterval: $0) }
+    ) throws -> (shot: ScreenshotResult, settle: Settle.Result) {
+        var shot: ScreenshotResult?
+        let settle = try Settle.run(timeout: timeout, now: now, sleep: sleep) {
+            shot = try capture(path: path, udid: udid, selector: selector, runner: runner, sleep: sleep)
+            return try Data(contentsOf: URL(fileURLWithPath: path))
+        }
+        guard let shot else { throw DuoError.verificationFailed("settle took no capture") }
+        return (shot, settle)
+    }
+
     /// Reads the display table, resolves the panel, captures it. `.lit` retries while no panel is lit.
     public static func capture(
         path: String,

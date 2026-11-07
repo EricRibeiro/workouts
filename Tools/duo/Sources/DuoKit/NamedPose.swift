@@ -54,6 +54,7 @@ public enum PoseCommand {
         udid: String,
         guestPath: String,
         png: String? = nil,
+        settle: TimeInterval? = nil,
         runner: any ProcessRunning = SystemProcessRunner(),
         now: () -> Date = Date.init,
         sleep: (TimeInterval) -> Void = { Thread.sleep(forTimeInterval: $0) }
@@ -71,6 +72,7 @@ public enum PoseCommand {
             udid: udid,
             guestPath: guestPath,
             png: png,
+            settle: settle,
             runner: runner,
             sleep: sleep
         )

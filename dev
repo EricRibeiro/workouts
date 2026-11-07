@@ -598,13 +598,26 @@ cmd_screenshot() {
 
 cmd_shot() { # cmd_shot <png> [-- app launch args...]: run + settle + screenshot under ONE lock hold
   # Separate `run` and `screenshot` calls each take the lock, so a parallel worker could install its own build in between
-  # and the shot would show that build (seen 2026-11-03). Waits ${DEV_SETTLE:-4}s for the first frame and presentations.
+  # and the shot would show that build (seen 2026-11-03). A cold boot waits 15 s for the first frame; then `duo screenshot
+  # --settle` captures the lit panel every 300 ms until two consecutive captures are byte-identical (timeout
+  # ${DEV_SETTLE_TIMEOUT:-10} s, fails when the app never stops redrawing), and that settled capture is the PNG.
+  # DEV_SETTLE=<s> is an optional extra wait before settling (default 1 s, so a still launch screen is not mistaken
+  # for the settled app).
   local path="${1:-}"
   [[ -n "$path" ]] || die "usage: shot <png> [-- app args...]"
   shift
   cmd_run "$@" >/dev/null
-  sleep "${DEV_SETTLE:-$((COLD_BOOT ? 15 : 4))}"
-  cmd_screenshot "$path"
+  sleep "${DEV_SETTLE:-$((COLD_BOOT ? 15 : 1))}"
+  duo_bin
+  mkdir -p "$(dirname "$path")"
+  # The status bar clock and indicators change between runs, so pin them (documented simctl) for the capture only.
+  xcrun simctl status_bar "$SIM_UDID" override --time 9:41 --wifiBars 3 --cellularMode notSupported \
+    --batteryState charged --batteryLevel 100 >/dev/null 2>&1 || true
+  local rc=0
+  "$DUO_BIN" screenshot "$path" --settle --timeout "${DEV_SETTLE_TIMEOUT:-10}" --udid "$SIM_UDID" || rc=$?
+  xcrun simctl status_bar "$SIM_UDID" clear >/dev/null 2>&1 || true
+  ((rc == 0)) || die "shot: no settled screenshot"
+  echo "$path"
 }
 
 # Simulator commands hold the lock of their one simulator (see the pool above), so parallel agents on the same simulator
@@ -823,7 +836,7 @@ cmd_pose() { # fold + orient + verify in one call; the names are the layouts ver
   [[ "${1:-}" =~ ^(closed-portrait|closed-landscape|open-wide|open-tall)$ ]] && duo_png_ok "${2:-}" \
     || die "usage: pose closed-portrait|closed-landscape|open-wide|open-tall [screenshot.png]"
   sim_require_booted; duo_bin
-  local extra=(); if [[ -n "${2:-}" ]]; then mkdir -p "$(dirname "$2")"; extra=(--png "$2"); fi
+  local extra=(); if [[ -n "${2:-}" ]]; then mkdir -p "$(dirname "$2")"; extra=(--png "$2" --settle); fi
   "$DUO_BIN" pose "$1" --udid "$SIM_UDID" ${extra[@]+"${extra[@]}"}
 }
 cmd_duo() { # pass-through to the tool; adds --udid for the verbs that act on a simulator
@@ -831,7 +844,7 @@ cmd_duo() { # pass-through to the tool; adds --udid for the verbs that act on a 
   local args=("$@") verb="${1:-}" a has_udid=0
   for a in "$@"; do [[ "$a" == --udid || "$a" == --udid=* ]] && has_udid=1; done
   case "$verb" in
-    panels | screenshot | hinge | fold | orient | pose | home)
+    panels | screenshot | settle | hinge | fold | orient | pose | home)
       ((has_udid == 0)) || die "pass the simulator as DEV_SIM_UDID=<udid> ./dev duo ..., not --udid (the lock and crash guard follow DEV_SIM/DEV_SIM_UDID)"
       sim_require_booted; args+=(--udid "$SIM_UDID") ;;
   esac
@@ -1099,13 +1112,14 @@ kit-build          swift build in Packages/WorkoutsKit
 lint               swift-format lint --strict
 format             swift-format in place
 run [-- args]      boot sim, build, install, launch; args go to the app (-- -preview <Name>); prints log command
-shot <png> [-- args]  run + wait + screenshot in one lock hold (use this for proofs; parallel-safe)
+shot <png> [-- args]  run + settle (identical consecutive captures) + screenshot in one lock hold (use this for proofs; parallel-safe)
 screenshot [path]  simulator screenshot (default .build/screenshots/<timestamp>.png)
 home [png]         go to the Home screen (the app keeps running in the background); png = capture of it
 fold <pose> [png]  Duo hinge: closed|half-open|open, verified by hinge reads and the lit panel; png = capture of the lit panel
 orient <o> [png]   portrait|landscape-left|landscape-right, verified by devicectl orientation and the lit panel; png as for fold
-pose <name> [png]  Duo layout in one verified step: closed-portrait|closed-landscape|open-wide (951x669 pt)|open-tall (669x951 pt)
-duo <verb> [args]  Tools/duo pass-through (panels, hinge, screenshot [--display lit|outer|inner], fold <degrees>, guest-build,
+pose <name> [png]  Duo layout in one verified step: closed-portrait|closed-landscape|open-wide (951x669 pt)|open-tall (669x951 pt);
+                   the png is a settled capture (two identical consecutive captures, 10 s timeout)
+duo <verb> [args]  Tools/duo pass-through (panels, hinge, settle [--timeout s], screenshot [--display lit|outer|inner] [--settle], fold <degrees>, guest-build,
                    --help); adds --udid for this checkout's simulator when the verb needs one; built into .build/duo/spm
 duo-test           swift test for Tools/duo (host-only, ~1s); also part of check
 testflight [--upload]  signed App Store archive + export to .build/testflight/export (no upload unless --upload;
@@ -1139,7 +1153,7 @@ case "$sub" in
   fold) sim_guarded cmd_fold "$@" ;;
   orient) sim_guarded cmd_orient "$@" ;;
   pose) sim_guarded cmd_pose "$@" ;;
-  duo) case "${1:-}" in panels | screenshot | hinge | fold | orient | pose | home) sim_guarded cmd_duo "$@" ;; *) cmd_duo "$@" ;; esac ;;
+  duo) case "${1:-}" in panels | screenshot | settle | hinge | fold | orient | pose | home) sim_guarded cmd_duo "$@" ;; *) cmd_duo "$@" ;; esac ;;
   duo-test) cmd_duo_test ;;
   sims) cmd_sims "$@" ;;
   testflight) cmd_testflight "$@" ;;

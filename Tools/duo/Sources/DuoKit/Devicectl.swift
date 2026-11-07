@@ -88,6 +88,7 @@ public enum DuoError: Error, Equatable, CustomStringConvertible {
     case guestSourceMissing(path: String)
     case repositoryNotFound
     case verificationFailed(String)
+    case settleTimeout(seconds: TimeInterval, captures: Int)
 
     public var description: String {
         switch self {
@@ -111,6 +112,9 @@ public enum DuoError: Error, Equatable, CustomStringConvertible {
             return "guest source not found at \(path)"
         case .verificationFailed(let message):
             return message
+        case .settleTimeout(let seconds, let captures):
+            return "screen did not settle: no two consecutive captures were identical within "
+                + "\(String(format: "%g", seconds)) s (\(captures) captures); the app is still animating or redrawing"
         case .repositoryNotFound:
             return "run duo from inside the workouts checkout (Tools/duo/Guest/DuoGuest.swift not found)"
         }

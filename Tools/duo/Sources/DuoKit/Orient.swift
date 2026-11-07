@@ -155,6 +155,7 @@ public enum Orient {
         udid: String,
         guestPath: String,
         png: String? = nil,
+        settle: TimeInterval? = nil,
         runner: any ProcessRunning = SystemProcessRunner(),
         sleep: (TimeInterval) -> Void = { Thread.sleep(forTimeInterval: $0) }
     ) throws -> OrientResult {
@@ -179,7 +180,18 @@ public enum Orient {
         }
         var shot: ScreenshotResult?
         if let png {
-            shot = try Screenshot.capture(path: png, udid: udid, selector: .lit, runner: runner)
+            if let settle {
+                shot = try Screenshot.captureSettled(
+                    path: png,
+                    udid: udid,
+                    selector: .lit,
+                    timeout: settle,
+                    runner: runner,
+                    sleep: sleep
+                ).shot
+            } else {
+                shot = try Screenshot.capture(path: png, udid: udid, selector: .lit, runner: runner)
+            }
         }
         return OrientResult(target: target, observation: observation, screenshot: shot)
     }

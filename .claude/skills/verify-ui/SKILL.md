@@ -40,7 +40,7 @@ dark mode. They are the wrong tool for navigation flows and state.
 ```
 ./dev run            # boots iPhone Duo, builds, installs, launches
 ./dev screenshot     # .build/screenshots/<timestamp>.png — open it with Read
-./dev shot <png> [-- args]   # run + 4 s settle (DEV_SETTLE) + screenshot in one lock hold: the parallel-safe proof
+./dev shot <png> [-- args]   # run + settle (two identical captures, status bar pinned to 9:41) + screenshot in one lock hold: the parallel-safe proof
 ```
 Dark mode / text size: `xcrun simctl ui booted appearance dark`,
 `xcrun simctl ui booted content_size accessibility-extra-large`.

@@ -7,8 +7,12 @@ let usage = """
     commands:
       panels --udid <udid>    list the device's displays: name, lit or dark, pixel size, point size, orientation
 
-      screenshot <path> --udid <udid> [--display lit|outer|inner]
-                              capture one panel (default: the lit one) to a PNG and print its size
+      screenshot <path> --udid <udid> [--display lit|outer|inner] [--settle [--timeout <seconds>]]
+                              capture one panel (default: the lit one) to a PNG and print its size; --settle repeats
+                              the capture until two consecutive ones are identical, so the PNG is the settled one
+      settle --udid <udid> [--timeout <seconds>]
+                              capture the lit panel every 300 ms until two consecutive captures hash equal (SHA-256);
+                              exit 1 with a message when the timeout (default 10 s) passes first
 
       hinge --udid <udid> [--window-ms 0...5000] [--json]
                               read the hinge angle: angle, validity, pose (closed, half-open, open) and lit panel
@@ -16,9 +20,9 @@ let usage = """
                               move the hinge, verify it by hinge reads and the lit panel, optionally screenshot it
       orient <portrait|landscape-left|landscape-right> --udid <udid> [--png <path>]
                               rotate the device, verify by devicectl orientation and the lit panel, optionally screenshot
-      pose <closed-portrait|closed-landscape|open-wide|open-tall> --udid <udid> [--png <path>]
+      pose <closed-portrait|closed-landscape|open-wide|open-tall> --udid <udid> [--png <path> [--settle [--timeout <s>]]]
                               fold + orient + verify in one call (open-wide = open portrait 951x669 pt, open-tall =
-                              open landscape-left 669x951 pt), optionally screenshot the lit panel
+                              open landscape-left 669x951 pt), optionally screenshot the lit panel (settled with --settle)
       home --udid <udid> [--png <path>]
                               go to the Home screen (launches SpringBoard) and confirm with a lit-panel screenshot
       guest-build         compile the in-simulator helper (cached per source and Xcode) and print its path
@@ -53,6 +57,15 @@ func rejectUnknownOptions(_ arguments: [String], known: Set<String>) {
         let name = argument.split(separator: "=", maxSplits: 1).first.map(String.init) ?? argument
         if !known.contains(name) { usageError("unknown option \(argument)") }
     }
+}
+
+/// Seconds from `--timeout`, default `Settle.defaultTimeout`; exits 2 when it is not a positive number.
+func settleTimeout(in arguments: [String]) -> TimeInterval {
+    guard let text = option("--timeout", in: arguments) else { return Settle.defaultTimeout }
+    guard let value = Double(text), value > 0, value <= 600 else {
+        usageError("--timeout must be a number of seconds in 0...600")
+    }
+    return value
 }
 
 let arguments = Array(CommandLine.arguments.dropFirst())
@@ -120,7 +133,7 @@ case "orient":
         fail("\(error)")
     }
 case "pose":
-    rejectUnknownOptions(Array(rest.dropFirst()), known: ["--udid", "--png"])
+    rejectUnknownOptions(Array(rest.dropFirst()), known: ["--udid", "--png", "--settle", "--timeout"])
     guard let argument = rest.first, let pose = NamedPose(rawValue: argument) else {
         usageError("pose needs \(NamedPose.usageList)")
     }
@@ -128,7 +141,13 @@ case "pose":
     guard let root = GuestBuilder.defaultRepositoryRoot() else { fail("\(DuoError.repositoryNotFound)") }
     do {
         let guest = try GuestBuilder(repositoryRoot: root).build()
-        let result = try PoseCommand.run(pose: pose, udid: udid, guestPath: guest.path, png: option("--png", in: rest))
+        let result = try PoseCommand.run(
+            pose: pose,
+            udid: udid,
+            guestPath: guest.path,
+            png: option("--png", in: rest),
+            settle: rest.contains("--settle") ? settleTimeout(in: rest) : nil
+        )
         print(result.summary)
     } catch {
         fail("\(error)")
@@ -151,8 +170,20 @@ case "guest-build":
     } catch {
         fail("\(error)")
     }
+case "settle":
+    rejectUnknownOptions(rest, known: ["--udid", "--timeout"])
+    guard let udid = option("--udid", in: rest), !udid.isEmpty else { usageError("settle needs --udid <udid>") }
+    let timeout = settleTimeout(in: rest)
+    let scratch = FileManager.default.temporaryDirectory.appendingPathComponent("duo-settle-\(getpid()).png").path
+    defer { try? FileManager.default.removeItem(atPath: scratch) }
+    do {
+        let (shot, settled) = try Screenshot.captureSettled(path: scratch, udid: udid, timeout: timeout)
+        print("settle: lit panel \(shot.display.name), \(settled.summary)")
+    } catch {
+        fail("\(error)")
+    }
 case "screenshot":
-    rejectUnknownOptions(Array(rest.dropFirst()), known: ["--udid", "--display"])
+    rejectUnknownOptions(Array(rest.dropFirst()), known: ["--udid", "--display", "--settle", "--timeout"])
     guard let path = rest.first, !path.hasPrefix("-") else { usageError("screenshot needs a <path>") }
     guard let udid = option("--udid", in: rest), !udid.isEmpty else { usageError("screenshot needs --udid <udid>") }
     var selector = DisplaySelector.lit
@@ -163,7 +194,17 @@ case "screenshot":
         selector = parsed
     }
     do {
-        print(try Screenshot.capture(path: path, udid: udid, selector: selector).summary)
+        if rest.contains("--settle") {
+            let (shot, settled) = try Screenshot.captureSettled(
+                path: path,
+                udid: udid,
+                selector: selector,
+                timeout: settleTimeout(in: rest)
+            )
+            print(shot.summary + "\n" + settled.summary)
+        } else {
+            print(try Screenshot.capture(path: path, udid: udid, selector: selector).summary)
+        }
     } catch {
         fail("\(error)")
     }
