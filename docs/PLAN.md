@@ -376,6 +376,11 @@ Live Activity → notifications → logging, then templates, exercises, history.
   - [ ] **Device checks (Eric)**: narrow Island on the closed Duo during a rest; Live Activity buttons in StandBy night
     mode; the new Fitness header and chart with a real Watch workout (zones, effort, set ticks lining up); laptop-pose
     Exercises split; half-open keyboard accessory.
+  - [ ] **Keyboard toolbar missing, intermittent (Eric, device, 2026-11-07)**: number pad up on the last exercise's reps
+    cell with no `.keyboard` toolbar (no hide button) and the cover's ring item showing, so SwiftUI `focus` was nil while
+    the field stayed first responder. Not reproduced in XCUITest (28 check→tap-next rounds, toolbar every time). Theory:
+    `toggleCheck`'s `focus = nil` (SetTable) racing a tap on the next cell during the keyboard dismissal. Next: a repro
+    on device (did it follow a check?), then compare-and-clear in `toggleCheck`; no guess fix.
   - [ ] **Taste calls still open (Eric)**: open-wide Workout grid widths; stars over the finish title; red "Update
     Template and Values"; media watermark; a pre-permission line before the notification prompt.
 
