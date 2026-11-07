@@ -16,6 +16,9 @@ let usage = """
                               move the hinge, verify it by hinge reads and the lit panel, optionally screenshot it
       orient <portrait|landscape-left|landscape-right> --udid <udid> [--png <path>]
                               rotate the device, verify by devicectl orientation and the lit panel, optionally screenshot
+      pose <closed-portrait|closed-landscape|open-wide|open-tall> --udid <udid> [--png <path>]
+                              fold + orient + verify in one call (open-wide = open portrait 951x669 pt, open-tall =
+                              open landscape-left 669x951 pt), optionally screenshot the lit panel
       home --udid <udid> [--png <path>]
                               go to the Home screen (launches SpringBoard) and confirm with a lit-panel screenshot
       guest-build         compile the in-simulator helper (cached per source and Xcode) and print its path
@@ -112,6 +115,20 @@ case "orient":
     do {
         let guest = try GuestBuilder(repositoryRoot: root).build()
         let result = try Orient.run(target: target, udid: udid, guestPath: guest.path, png: option("--png", in: rest))
+        print(result.summary)
+    } catch {
+        fail("\(error)")
+    }
+case "pose":
+    rejectUnknownOptions(Array(rest.dropFirst()), known: ["--udid", "--png"])
+    guard let argument = rest.first, let pose = NamedPose(rawValue: argument) else {
+        usageError("pose needs \(NamedPose.usageList)")
+    }
+    guard let udid = option("--udid", in: rest), !udid.isEmpty else { usageError("pose needs --udid <udid>") }
+    guard let root = GuestBuilder.defaultRepositoryRoot() else { fail("\(DuoError.repositoryNotFound)") }
+    do {
+        let guest = try GuestBuilder(repositoryRoot: root).build()
+        let result = try PoseCommand.run(pose: pose, udid: udid, guestPath: guest.path, png: option("--png", in: rest))
         print(result.summary)
     } catch {
         fail("\(error)")

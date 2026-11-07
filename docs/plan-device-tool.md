@@ -273,7 +273,7 @@ shape, so no simulator needs recreating.
 
 ### Phase C — evolutions for agents
 
-- [ ] **C.1 Pose names**: `duo pose closed-portrait|closed-landscape|open-wide|open-tall` = fold + orient + verify in one call; `./dev pose
+- [x] **C.1 Pose names**: `duo pose closed-portrait|closed-landscape|open-wide|open-tall` = fold + orient + verify in one call; `./dev pose
   <name> [png]`. Needs: B.1. Proof: `./dev pose open-tall .build/screenshots/tall.png` → 669×951 pt, then `./dev pose closed-portrait`.
 - [ ] **C.2 Settle**: `duo settle --timeout 10` hashes two consecutive lit-panel captures 300 ms apart until equal; `screenshot --settle`
   and `pose … --png` use it; `./dev shot` replaces its fixed `DEV_SETTLE` sleep with it (keep the cold-boot 15 s). Needs: C.1. Proof:

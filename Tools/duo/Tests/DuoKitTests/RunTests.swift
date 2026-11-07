@@ -271,3 +271,58 @@ private final class LockedCounter: @unchecked Sendable {
         )
     }
 }
+
+@Suite struct PoseRunTests {
+    @Test func foldsThenRotatesAndTakesTheOnlyPNGLast() throws {
+        let scripted = ScriptedRunner { arguments in
+            if arguments.starts(with: ["devicectl", "device", "orientation"]) {
+                return ok(#"{"result":{"deviceOrientation":"landscapeLeft"}}"#)
+            }
+            if arguments.first == "devicectl" { return ok(displaysJSON(lit: "LCD-1", innerRotation: "rot0")) }
+            if arguments.contains("hinge") { return ok(hingeJSON(180)) }
+            return ProcessOutput(status: 0, stdout: Data(), stderr: "")
+        }
+        let clock = FakeClock()
+        let result = try PoseCommand.run(
+            pose: .openTall,
+            udid: "U",
+            guestPath: "/g",
+            png: "/tmp/t.png",
+            runner: scripted,
+            now: clock.now,
+            sleep: clock.sleep
+        )
+        #expect(
+            result.summary.hasPrefix(
+                "pose open-tall: hinge 180 deg (open), lit panel LCD-1, device landscapeLeft, lit panel LCD-1 rot0\n/tmp/t.png"
+            )
+        )
+        let calls = scripted.calls
+        let set = try #require(calls.firstIndex(of: ["simctl", "spawn", "U", "/g", "set", "open"]))
+        let rotate = try #require(calls.firstIndex(of: ["simctl", "spawn", "U", "/g", "rotate", "landscape-left"]))
+        #expect(set < rotate)
+        #expect(scripted.screenshotCalls == [calls.count - 1])
+    }
+
+    @Test func aFailedFoldNeverRotates() throws {
+        let scripted = ScriptedRunner { arguments in
+            if arguments.first == "devicectl" { return ok(displaysJSON(lit: "LCD")) }
+            if arguments.contains("hinge") { return ok(hingeJSON(0)) }
+            return ProcessOutput(status: 0, stdout: Data(), stderr: "")
+        }
+        let clock = FakeClock()
+        #expect(throws: DuoError.self) {
+            try PoseCommand.run(
+                pose: .openWide,
+                udid: "U",
+                guestPath: "/g",
+                png: "/tmp/w.png",
+                runner: scripted,
+                now: clock.now,
+                sleep: clock.sleep
+            )
+        }
+        #expect(!scripted.calls.contains { $0.contains("rotate") })
+        #expect(scripted.screenshotCalls.isEmpty)
+    }
+}

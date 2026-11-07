@@ -62,6 +62,7 @@ SNAPSHOT_RECORD=1 ./dev test SnapshotTests   re-record the visual references (Wo
 ./dev shot <p> [-- args] run + settle + screenshot under one simulator lock: the parallel-safe screen proof
 ./dev fold <pose> [p]   Duo hinge closed|half-open|open, verified by hinge reads + lit panel; p = PNG of the lit panel
 ./dev orient <o> [p]    rotate portrait|landscape-left|landscape-right, verified by devicectl + lit panel; p as for fold
+./dev pose <name> [p]   closed-portrait|closed-landscape|open-wide (951x669 pt)|open-tall (669x951 pt) = fold + orient, verified; p as for fold
 ./dev home [p]          Home screen (the app keeps running); ./dev duo <verb> = Tools/duo pass-through (panels, hinge, screenshot)
 ./dev duo-test          swift test for Tools/duo (~1s; part of check)
 ./dev check             lint → kit → duo-test → build → test; the pre-commit gate (~30s warm)

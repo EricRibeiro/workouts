@@ -819,12 +819,19 @@ cmd_orient() {
   local extra=(); if [[ -n "${2:-}" ]]; then mkdir -p "$(dirname "$2")"; extra=(--png "$2"); fi
   "$DUO_BIN" orient "$1" --udid "$SIM_UDID" ${extra[@]+"${extra[@]}"}
 }
+cmd_pose() { # fold + orient + verify in one call; the names are the layouts verify-ui checks (docs/plan-device-tool.md C.1)
+  [[ "${1:-}" =~ ^(closed-portrait|closed-landscape|open-wide|open-tall)$ ]] && duo_png_ok "${2:-}" \
+    || die "usage: pose closed-portrait|closed-landscape|open-wide|open-tall [screenshot.png]"
+  sim_require_booted; duo_bin
+  local extra=(); if [[ -n "${2:-}" ]]; then mkdir -p "$(dirname "$2")"; extra=(--png "$2"); fi
+  "$DUO_BIN" pose "$1" --udid "$SIM_UDID" ${extra[@]+"${extra[@]}"}
+}
 cmd_duo() { # pass-through to the tool; adds --udid for the verbs that act on a simulator
   duo_bin
   local args=("$@") verb="${1:-}" a has_udid=0
   for a in "$@"; do [[ "$a" == --udid || "$a" == --udid=* ]] && has_udid=1; done
   case "$verb" in
-    panels | screenshot | hinge | fold | orient | home)
+    panels | screenshot | hinge | fold | orient | pose | home)
       ((has_udid == 0)) || die "pass the simulator as DEV_SIM_UDID=<udid> ./dev duo ..., not --udid (the lock and crash guard follow DEV_SIM/DEV_SIM_UDID)"
       sim_require_booted; args+=(--udid "$SIM_UDID") ;;
   esac
@@ -1097,6 +1104,7 @@ screenshot [path]  simulator screenshot (default .build/screenshots/<timestamp>.
 home [png]         go to the Home screen (the app keeps running in the background); png = capture of it
 fold <pose> [png]  Duo hinge: closed|half-open|open, verified by hinge reads and the lit panel; png = capture of the lit panel
 orient <o> [png]   portrait|landscape-left|landscape-right, verified by devicectl orientation and the lit panel; png as for fold
+pose <name> [png]  Duo layout in one verified step: closed-portrait|closed-landscape|open-wide (951x669 pt)|open-tall (669x951 pt)
 duo <verb> [args]  Tools/duo pass-through (panels, hinge, screenshot [--display lit|outer|inner], fold <degrees>, guest-build,
                    --help); adds --udid for this checkout's simulator when the verb needs one; built into .build/duo/spm
 duo-test           swift test for Tools/duo (host-only, ~1s); also part of check
@@ -1130,7 +1138,8 @@ case "$sub" in
   home) sim_guarded cmd_home "$@" ;;
   fold) sim_guarded cmd_fold "$@" ;;
   orient) sim_guarded cmd_orient "$@" ;;
-  duo) case "${1:-}" in panels | screenshot | hinge | fold | orient | home) sim_guarded cmd_duo "$@" ;; *) cmd_duo "$@" ;; esac ;;
+  pose) sim_guarded cmd_pose "$@" ;;
+  duo) case "${1:-}" in panels | screenshot | hinge | fold | orient | pose | home) sim_guarded cmd_duo "$@" ;; *) cmd_duo "$@" ;; esac ;;
   duo-test) cmd_duo_test ;;
   sims) cmd_sims "$@" ;;
   testflight) cmd_testflight "$@" ;;
