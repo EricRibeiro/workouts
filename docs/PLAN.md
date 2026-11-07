@@ -381,7 +381,7 @@ Live Activity → notifications → logging, then templates, exercises, history.
 
 - [ ] **7.8 Notes polish** (Fable review `docs/reviews/2026-11-07-notes-design.md` + Eric's answers, 2026-11-07). No
   workout-level note writer (Eric: "I don't want that type of note"; JC108). Sticky notes are the focus:
-  - [ ] **7.8a One note editor**: fold `StickyNoteEditor` into `NoteSheet` (autofocus, growing field, optional Remove
+  - [x] **7.8a One note editor**: fold `StickyNoteEditor` into `NoteSheet` (autofocus, growing field, optional Remove
     row); no scope footer (Eric). Proof: `./dev test` on the touched suites + one UI test per editor entry point.
   - [ ] **7.8b Tap the note to edit it**: the sticky band and the block note in `SetTable` open the editor (menu
     entries stay); band capped at 3 lines with an ellipsis (Eric); Sticky Note… gets a `pin` glyph (Eric); the
