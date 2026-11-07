@@ -388,7 +388,7 @@ Order: 7b.1, 7b.2, 7b.3 first; then 7b.4 → 7b.5; 7b.6 at the next media change
   `RestNotifier`, `HealthEnrichmentService.appBecameActive` throttling, Live Activity start), call it a second time after
   a completed and after a cancelled first run and assert the initial observable state, not only the final one. Proof:
   `./dev kit` / `./dev test` on the touched suites.
-- [ ] **7b.3 Chrome rule, written**: DECISIONS.md and the `design-review` skill's state inventory: a pushed screen's
+- [x] **7b.3 Chrome rule, written**: DECISIONS.md and the `design-review` skill's state inventory: a pushed screen's
   `navigationTitle`/`toolbar`/`searchable` sit on its outermost view with values available synchronously (the `@Query`
   row, the pushed id), never inside a loaded-state branch; loading is a named state that is rendered (7b.5). Also add the
   7b.1/7b.2 rules to the test-gap checklist. Proof: the doc diff.

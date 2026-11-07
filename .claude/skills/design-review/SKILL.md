@@ -67,11 +67,19 @@ For each screen list the states it can be in and what the user sees, can do, and
 already draws needs no row; a missing one is a finding.
 
 Empty (no templates, no history, no search hit, no Previous, no PRs yet, library search with the parser unavailable) ·
-Loading (media download; everything else is local and must not spin) · Error (save failed → the alert with Retry; media
+Loading (media download, and the first frame of any pushed screen that loads asynchronously: it is a named state that
+must be rendered, and its chrome must already be final; see the check below) · Error (save failed → the alert with Retry; media
 unavailable) · Success (finish, save as template, import: the decided haptic + dismissal, no banners) · Offline
 (CloudKit off, no network: nothing changes) · Disabled (Finish with nothing checked, empty set cannot be checked, Add (N)
 with 0 selected) · Overflow (615 workouts, 1,038 exercises, 6 custom presets, 40-character names, 20 sets, 4 supersets) ·
 First run (permission prompt timing, the "Allow Live Activities" banner).
+
+**Chrome in the loading frame** (DECISIONS → Pushed-screen chrome): for every pushed screen, confirm in source that
+`navigationTitle`, `toolbar` and `searchable` sit on the outermost view with synchronously available values (the `@Query`
+row, the pushed id) and not inside a loaded-state branch, and that buttons needing the loaded value are disabled, not
+absent. Then confirm in evidence that the loading frame (`-slowLoads`, once 7b.4 lands; a snapshot of the held loader
+until then) already shows the final title and bars. Chrome that appears or changes after the content arrives is a P1.
+Reference: `WorkoutDetailView`.
 
 ## 5. The user in the gym
 

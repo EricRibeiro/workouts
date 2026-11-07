@@ -171,3 +171,13 @@ Eric deferred the technical choices to Claude. These close every item in `docs/p
 - **A review is a phase gate, read-only** (PLAN 2.11, 3.8, 4.7, 5.8): findings P0–P3 with the fix classified (token / shared
   component / conceptual / local), P0–P2 become worker tasks, taste rows become one batched question to Eric. Accessibility
   audits stay with Apple's `accessibility-*` skills (6.3); poses stay with `verify-ui` (6.2).
+
+## Pushed-screen chrome (2026-11-07)
+
+- **Chrome sits on the outermost view and never waits for data** (Eric / Fable test-gap review,
+  `docs/reviews/2026-11-07-test-gaps.md` section 3 item 7): on a pushed screen, `navigationTitle`, `toolbar` and
+  `searchable` are attached to the outermost view and take values available synchronously (the `@Query` row, the pushed id),
+  never inside a loaded-state branch. A button that needs the loaded value is disabled until it arrives; it is not
+  omitted. Loading is a named state that is rendered (a placeholder body under the final chrome), not a blank frame, so
+  the title and bars do not pop in after the push. Reference: `WorkoutDetailView` (fix `f1be1bd`, "History detail: title
+  and toolbar from the first frame of the push"). Proven by the first-frame UI checks and loading-frame snapshots (PLAN 7b.4, 7b.5).
