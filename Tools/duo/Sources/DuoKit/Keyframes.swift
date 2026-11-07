@@ -220,6 +220,16 @@ public enum Keyframes {
             )
         }
         let stream = try GuestHingeStream(udid: udid, guestPath: guestPath)
+        // An interrupt must not orphan `recordVideo` or leave the guest streaming.
+        let signals = KeyframeSignalGuard { number in
+            recorder?.interrupt()
+            stream.closeInput()
+            FileHandle.standardError.write(
+                Data("duo: interrupted; the hinge may be mid-motion: run ./dev pose closed-portrait\n".utf8)
+            )
+            exit(128 + number)
+        }
+        defer { signals.cancel() }
         let playback: KeyframePlayback
         do {
             playback = try play(plan: plan, sender: stream, recorder: recorder, clock: clock)
@@ -243,42 +253,127 @@ public enum Keyframes {
 
 // MARK: - Real processes
 
+/// A flag set from another thread (readability and termination handlers).
+private final class Flag: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value = false
+    func set() {
+        lock.lock()
+        value = true
+        lock.unlock()
+    }
+    var isSet: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return value
+    }
+}
+
+/// The temp file a long-lived child writes its stderr to (a file, not a pipe: nothing to drain, nothing to deadlock on).
+private struct StderrFile {
+    let url: URL
+    let handle: FileHandle
+
+    init(directory: URL) throws {
+        url = directory.appendingPathComponent("duo-\(UUID().uuidString).err")
+        FileManager.default.createFile(atPath: url.path, contents: nil)
+        do {
+            handle = try FileHandle(forWritingTo: url)
+        } catch {
+            try? FileManager.default.removeItem(at: url)
+            throw error
+        }
+    }
+
+    var text: String { (try? String(contentsOf: url, encoding: .utf8)) ?? "" }
+
+    /// Idempotent: safe on every exit path and again from `deinit`.
+    func remove() {
+        try? handle.close()
+        try? FileManager.default.removeItem(at: url)
+    }
+}
+
 /// `xcrun simctl spawn <udid> <guest> stream`, kept open for the whole motion; each angle is one line on its stdin.
 public final class GuestHingeStream: HingeSending, @unchecked Sendable {
     private let process = Process()
     private let input = Pipe()
     private let output = Pipe()
-    private let errorURL: URL
-    private let errorHandle: FileHandle
+    private let stderrFile: StderrFile
+    private let lock = NSLock()
     private var closed = false
+
+    /// The stderr temp file; internal so tests can prove it is gone.
+    var errorURL: URL { stderrFile.url }
 
     public static func arguments(udid: String, guestPath: String) -> [String] {
         ["simctl", "spawn", udid, guestPath, "stream"]
     }
 
     /// Starts the guest and waits for its ready line (up to `readyTimeout` s), so frame 0 is not held back by launch.
-    public init(udid: String, guestPath: String, readyTimeout: TimeInterval = 15) throws {
+    /// The wait ends on the ready line, on EOF or on the process exiting; an exit throws `commandFailed` with its
+    /// stderr at once. `executable`/`arguments` default to xcrun and `arguments(udid:guestPath:)`; tests inject stand-ins.
+    public init(
+        udid: String,
+        guestPath: String,
+        readyTimeout: TimeInterval = 15,
+        executable: String = "/usr/bin/xcrun",
+        arguments: [String]? = nil,
+        scratch: URL = FileManager.default.temporaryDirectory
+    ) throws {
         signal(SIGPIPE, SIG_IGN)  // a dead guest must surface as a write error, not kill duo
-        errorURL = FileManager.default.temporaryDirectory.appendingPathComponent("duo-\(UUID().uuidString).err")
-        FileManager.default.createFile(atPath: errorURL.path, contents: nil)
-        errorHandle = try FileHandle(forWritingTo: errorURL)
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
-        process.arguments = Self.arguments(udid: udid, guestPath: guestPath)
+        stderrFile = try StderrFile(directory: scratch)
+        process.executableURL = URL(fileURLWithPath: executable)
+        process.arguments = arguments ?? Self.arguments(udid: udid, guestPath: guestPath)
         process.standardInput = input
         process.standardOutput = output
-        process.standardError = errorHandle
-        try process.run()
+        process.standardError = stderrFile.handle
 
-        let ready = DispatchSemaphore(value: 0)
+        let wake = DispatchSemaphore(value: 0)
+        let exited = DispatchSemaphore(value: 0)
+        let sawReady = Flag()
+        process.terminationHandler = { _ in
+            exited.signal()
+            wake.signal()
+        }
         output.fileHandleForReading.readabilityHandler = { handle in
-            if !handle.availableData.isEmpty { ready.signal() }  // the ready JSON; nothing else matters
+            let data = handle.availableData  // empty = EOF
             handle.readabilityHandler = nil
+            if !data.isEmpty { sawReady.set() }  // the ready JSON; nothing else matters
+            wake.signal()
         }
-        if ready.wait(timeout: .now() + readyTimeout) == .timedOut {
+        do {
+            try process.run()
+        } catch {
+            output.fileHandleForReading.readabilityHandler = nil
+            stderrFile.remove()
+            throw error
+        }
+
+        let timedOut = wake.wait(timeout: .now() + readyTimeout) == .timedOut
+        output.fileHandleForReading.readabilityHandler = nil
+        if timedOut {
             process.terminate()
-            throw DuoError.timedOut(command: "xcrun simctl spawn … duo-guest stream (ready)", seconds: readyTimeout)
+            stderrFile.remove()
+            throw DuoError.timedOut(
+                command: "xcrun simctl spawn … duo-guest stream (ready)",
+                seconds: readyTimeout
+            )
         }
+        if sawReady.isSet { return }
+        // EOF or exit without a ready line: the guest is gone (or going); its stderr says why.
+        if exited.wait(timeout: .now() + 2) == .timedOut { process.terminate() }
+        let status = process.isRunning ? Int32(-1) : process.terminationStatus
+        let detail = stderrFile.text
+        stderrFile.remove()
+        throw DuoError.commandFailed(
+            command: "xcrun simctl spawn … duo-guest stream",
+            status: status,
+            stderr: detail
+        )
     }
+
+    deinit { stderrFile.remove() }
 
     public func send(angle: Double) throws {
         do {
@@ -287,36 +382,40 @@ public final class GuestHingeStream: HingeSending, @unchecked Sendable {
             throw DuoError.commandFailed(
                 command: "xcrun simctl spawn … duo-guest stream",
                 status: process.isRunning ? -1 : process.terminationStatus,
-                stderr: stderrText()
+                stderr: stderrFile.text
             )
         }
     }
 
-    /// Closes stdin (the guest exits at end of input) and checks it exited cleanly.
+    /// Closes stdin (the guest exits at end of input). Idempotent; also what a signal handler calls.
+    public func closeInput() {
+        lock.lock()
+        defer { lock.unlock() }
+        guard !closed else { return }
+        closed = true
+        try? input.fileHandleForWriting.close()
+    }
+
+    /// Closes stdin and checks the guest exited cleanly.
     public func finish(timeout: TimeInterval = 10) throws {
-        if !closed {
-            closed = true
-            try? input.fileHandleForWriting.close()
-        }
+        closeInput()
+        defer { stderrFile.remove() }
         let deadline = Date().addingTimeInterval(timeout)
         while process.isRunning, Date() < deadline { Thread.sleep(forTimeInterval: 0.02) }
         if process.isRunning {
             process.terminate()
-            throw DuoError.timedOut(command: "xcrun simctl spawn … duo-guest stream (exit)", seconds: timeout)
+            throw DuoError.timedOut(
+                command: "xcrun simctl spawn … duo-guest stream (exit)",
+                seconds: timeout
+            )
         }
-        try? errorHandle.close()
-        defer { try? FileManager.default.removeItem(at: errorURL) }
         guard process.terminationStatus == 0 else {
             throw DuoError.commandFailed(
                 command: "xcrun simctl spawn … duo-guest stream",
                 status: process.terminationStatus,
-                stderr: stderrText()
+                stderr: stderrFile.text
             )
         }
-    }
-
-    private func stderrText() -> String {
-        (try? String(contentsOf: errorURL, encoding: .utf8)) ?? ""
     }
 }
 
@@ -326,21 +425,38 @@ public final class SimctlRecorder: VideoRecording, @unchecked Sendable {
     public let path: String
     private let udid: String
     private let displayName: String
+    private let executable: String
+    private let argumentOverride: [String]?
     private let process = Process()
-    private let errorURL: URL
-    private let errorHandle: FileHandle
+    private let stderrFile: StderrFile?
 
     public static func arguments(udid: String, displayName: String, path: String) -> [String] {
         ["simctl", "io", udid, "recordVideo", "--display=\(displayName)", "--force", path]
     }
 
-    public init(udid: String, path: String, displayName: String) {
+    /// `executable`/`arguments` default to xcrun and `arguments(udid:displayName:path:)`; tests inject stand-ins.
+    public init(
+        udid: String,
+        path: String,
+        displayName: String,
+        executable: String = "/usr/bin/xcrun",
+        arguments: [String]? = nil,
+        scratch: URL = FileManager.default.temporaryDirectory
+    ) {
         self.udid = udid
         self.path = path
         self.displayName = displayName
-        errorURL = FileManager.default.temporaryDirectory.appendingPathComponent("duo-\(UUID().uuidString).err")
-        FileManager.default.createFile(atPath: errorURL.path, contents: nil)
-        errorHandle = (try? FileHandle(forWritingTo: errorURL)) ?? FileHandle.nullDevice
+        self.executable = executable
+        self.argumentOverride = arguments
+        stderrFile = try? StderrFile(directory: scratch)
+    }
+
+    deinit { stderrFile?.remove() }
+
+    var isRunning: Bool { process.isRunning }
+
+    private var commandArguments: [String] {
+        argumentOverride ?? Self.arguments(udid: udid, displayName: displayName, path: path)
     }
 
     /// Launches the recorder and waits until it says it is recording (its stderr gets "Recording started").
@@ -349,21 +465,23 @@ public final class SimctlRecorder: VideoRecording, @unchecked Sendable {
             at: URL(fileURLWithPath: path).deletingLastPathComponent(),
             withIntermediateDirectories: true
         )
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
-        process.arguments = Self.arguments(udid: udid, displayName: displayName, path: path)
-        process.standardError = errorHandle
+        process.executableURL = URL(fileURLWithPath: executable)
+        process.arguments = commandArguments
+        process.standardError = stderrFile?.handle ?? FileHandle.nullDevice
         process.standardOutput = FileHandle.nullDevice
         try process.run()
         let deadline = Date().addingTimeInterval(15)
-        while process.isRunning, Date() < deadline {
+        while true {
             if stderrText().contains("Recording started") { return }
+            if !process.isRunning || Date() >= deadline { break }
             Thread.sleep(forTimeInterval: 0.02)
         }
         let detail = stderrText()
         let status = process.isRunning ? Int32(-1) : process.terminationStatus
         if process.isRunning { process.terminate() }
+        stderrFile?.remove()
         throw DuoError.commandFailed(
-            command: "xcrun " + Self.arguments(udid: udid, displayName: displayName, path: path).joined(separator: " "),
+            command: "xcrun " + commandArguments.joined(separator: " "),
             status: status,
             stderr: detail
         )
@@ -373,22 +491,72 @@ public final class SimctlRecorder: VideoRecording, @unchecked Sendable {
         try stop(timeout: 20)
     }
 
+    /// Finalises the movie. A recorder that already died with a failure status is reported with its stderr, and so is
+    /// a missing or empty movie: success means a non-empty file at `path`.
     func stop(timeout: TimeInterval) throws {
-        guard process.isRunning else { return }
-        kill(process.processIdentifier, SIGINT)
-        let deadline = Date().addingTimeInterval(timeout)
-        while process.isRunning, Date() < deadline { Thread.sleep(forTimeInterval: 0.02) }
-        defer {
-            try? errorHandle.close()
-            try? FileManager.default.removeItem(at: errorURL)
-        }
+        defer { stderrFile?.remove() }
+        let command = "xcrun " + commandArguments.joined(separator: " ")
         if process.isRunning {
-            process.terminate()
-            throw DuoError.timedOut(command: "xcrun simctl io … recordVideo (finalise)", seconds: timeout)
+            kill(process.processIdentifier, SIGINT)
+            let deadline = Date().addingTimeInterval(timeout)
+            while process.isRunning, Date() < deadline { Thread.sleep(forTimeInterval: 0.02) }
+            if process.isRunning {
+                process.terminate()
+                throw DuoError.timedOut(
+                    command: "xcrun simctl io … recordVideo (finalise)",
+                    seconds: timeout
+                )
+            }
+        } else if process.terminationStatus != 0 {
+            // It died on its own before the stop (refused display, crash, killed). After our own SIGINT the exit
+            // status is simctl's business; the movie check below is what proves that case.
+            throw DuoError.commandFailed(
+                command: command,
+                status: process.terminationStatus,
+                stderr: stderrText()
+            )
+        }
+        let size =
+            (try? FileManager.default.attributesOfItem(atPath: path)[.size] as? NSNumber)?.intValue ?? 0
+        guard size > 0 else {
+            throw DuoError.commandFailed(
+                command: command,
+                status: process.terminationStatus,
+                stderr: stderrText() + "\nno recording at \(path) (missing or empty)"
+            )
         }
     }
 
-    private func stderrText() -> String {
-        (try? String(contentsOf: errorURL, encoding: .utf8)) ?? ""
+    /// For a signal handler: SIGINT the recorder and give it a moment to finalise. Never throws.
+    func interrupt(timeout: TimeInterval = 5) {
+        guard process.isRunning else { return }
+        try? stop(timeout: timeout)
+    }
+
+    private func stderrText() -> String { stderrFile?.text ?? "" }
+}
+
+/// SIGINT/SIGTERM handling for a keyframe run: the signal stops the recorder (so the movie is finalised), closes the
+/// guest's stdin (so it exits) and ends `duo` with 128 + the signal. SIGKILL cannot be handled.
+final class KeyframeSignalGuard: @unchecked Sendable {
+    private var sources: [any DispatchSourceSignal] = []
+    private var previous: [(Int32, sig_t?)] = []
+
+    init(signals: [Int32] = [SIGINT, SIGTERM], onSignal: @escaping @Sendable (Int32) -> Void) {
+        for number in signals {
+            let old = signal(number, SIG_IGN)  // the dispatch source takes over delivery
+            previous.append((number, old))
+            let source = DispatchSource.makeSignalSource(signal: number, queue: .global())
+            source.setEventHandler { onSignal(number) }
+            source.resume()
+            sources.append(source)
+        }
+    }
+
+    func cancel() {
+        for source in sources { source.cancel() }
+        sources = []
+        for (number, old) in previous { signal(number, old ?? SIG_DFL) }
+        previous = []
     }
 }

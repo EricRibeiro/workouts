@@ -99,6 +99,7 @@ private struct BlockActionSheets: ViewModifier {
     @Bindable var state: BlockActionState
     let host: BlockActionHost
 
+    @Environment(\.modelContext) private var context
     @Query private var stickyNotes: [StickyNote]
 
     func body(content: Content) -> some View {
@@ -117,9 +118,10 @@ private struct BlockActionSheets: ViewModifier {
             }
             .sheet(item: $state.sticky) { target in
                 if let block = block(target.id) {
-                    StickyNoteEditor(
-                        exerciseID: block.exerciseID,
+                    NoteSheet(
+                        stickyNoteFor: block.exerciseID,
                         initialText: stickyNotes.first { $0.exerciseID == block.exerciseID }?.text ?? "",
+                        in: context,
                         onRemoved: { state.destructiveCount += 1 }
                     )
                     .presentationPlacement(.center)

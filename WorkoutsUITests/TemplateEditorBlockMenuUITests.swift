@@ -178,4 +178,35 @@ final class TemplateEditorBlockMenuUITests: XCTestCase {
         XCTAssertTrue(unitControl().buttons["lb"].isSelected, "Save did not keep the unit change")
         app.buttons["preferences.cancel"].tap()
     }
+
+    /// Note… and Sticky Note… in the template editor's block menu open the one note sheet (auto-focused, so the typed text lands
+    /// at once); Save closes it and the text shows under the header.
+    @MainActor
+    func testBlockNoteAndStickyNoteOpenTheNoteSheetAndShow() throws {
+        let app = launchEditor()
+        let any = app.descendants(matching: .any)
+        let (menu, section) = firstMenu(app)
+
+        openMenuEntry(app, menu: menu, entry: "settable.menu.note")
+        XCTAssertTrue(any["templateEditor.note.sheet"].waitForExistence(timeout: 5), "no note sheet")
+        let noteField = any["templateEditor.note.field"].firstMatch
+        XCTAssertTrue(noteField.waitForExistence(timeout: 5), "no note field")
+        XCTAssertFalse(any["templateEditor.note.remove"].exists, "Remove on a block note")
+        noteField.typeText(" Pause on the chest.")
+        app.buttons["templateEditor.note.save"].tap()
+        XCTAssertTrue(any["templateEditor.note.sheet"].waitUntilGone(), "Save did not close the note sheet")
+        let note = app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'Pause on the chest.'")).firstMatch
+        XCTAssertTrue(note.waitForExistence(timeout: 5), "the block note is not shown")
+
+        openMenuEntry(app, menu: menu, entry: "settable.menu.stickyNote")
+        XCTAssertTrue(any["stickyNote.sheet"].waitForExistence(timeout: 5), "no sticky note sheet")
+        let stickyField = any["stickyNote.field"].firstMatch
+        XCTAssertTrue(stickyField.waitForExistence(timeout: 5), "no sticky note field")
+        stickyField.typeText(" Elbows in.")
+        app.buttons["stickyNote.save"].tap()
+        XCTAssertTrue(any["stickyNote.sheet"].waitUntilGone(), "Save did not close the sticky note sheet")
+        let sticky = any["settable.sticky.\(section)"]
+        XCTAssertTrue(sticky.waitForExistence(timeout: 5), "the sticky note is not shown")
+        XCTAssertTrue(sticky.label.contains("Elbows in."), "label was \(sticky.label)")
+    }
 }
