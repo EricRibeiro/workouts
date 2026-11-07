@@ -839,12 +839,32 @@ cmd_pose() { # fold + orient + verify in one call; the names are the layouts ver
   local extra=(); if [[ -n "${2:-}" ]]; then mkdir -p "$(dirname "$2")"; extra=(--png "$2" --settle); fi
   "$DUO_BIN" pose "$1" --udid "$SIM_UDID" ${extra[@]+"${extra[@]}"}
 }
+cmd_poses() { # cmd_poses <dir> [-- app launch args...]: run + the four poses as settled PNGs, ONE lock hold (plan C.3)
+  # Like cmd_shot, run and capture share one lock hold so no parallel worker installs its build in between. `duo poses`
+  # writes <dir>/closed-portrait.png, closed-landscape.png, open-wide.png and open-tall.png (each settled; timeout
+  # ${DEV_SETTLE_TIMEOUT:-10} s per capture) and always ends with the hinge closed and the device portrait, even after a
+  # failure midway (it then exits non-zero). DEV_SETTLE is the same optional extra wait before the first capture as for shot.
+  local dir="${1:-}"
+  [[ -n "$dir" && "$dir" != -* ]] || die "usage: poses <dir> [-- app args...]"
+  shift
+  cmd_run "$@" >/dev/null
+  sleep "${DEV_SETTLE:-$((COLD_BOOT ? 15 : 1))}"
+  sim_require_booted; duo_bin
+  mkdir -p "$dir"
+  # The status bar clock and indicators change between runs, so pin them (documented simctl) for the captures only.
+  xcrun simctl status_bar "$SIM_UDID" override --time 9:41 --wifiBars 3 --cellularMode notSupported \
+    --batteryState charged --batteryLevel 100 >/dev/null 2>&1 || true
+  local rc=0
+  "$DUO_BIN" poses "$dir" --timeout "${DEV_SETTLE_TIMEOUT:-10}" --udid "$SIM_UDID" || rc=$?
+  xcrun simctl status_bar "$SIM_UDID" clear >/dev/null 2>&1 || true
+  ((rc == 0)) || die "poses: the set failed (closed-portrait was restored)"
+}
 cmd_duo() { # pass-through to the tool; adds --udid for the verbs that act on a simulator
   duo_bin
   local args=("$@") verb="${1:-}" a has_udid=0
   for a in "$@"; do [[ "$a" == --udid || "$a" == --udid=* ]] && has_udid=1; done
   case "$verb" in
-    panels | screenshot | settle | hinge | fold | orient | pose | home)
+    panels | screenshot | settle | hinge | fold | orient | pose | poses | home)
       ((has_udid == 0)) || die "pass the simulator as DEV_SIM_UDID=<udid> ./dev duo ..., not --udid (the lock and crash guard follow DEV_SIM/DEV_SIM_UDID)"
       sim_require_booted; args+=(--udid "$SIM_UDID") ;;
   esac
@@ -1119,6 +1139,8 @@ fold <pose> [png]  Duo hinge: closed|half-open|open, verified by hinge reads and
 orient <o> [png]   portrait|landscape-left|landscape-right, verified by devicectl orientation and the lit panel; png as for fold
 pose <name> [png]  Duo layout in one verified step: closed-portrait|closed-landscape|open-wide (951x669 pt)|open-tall (669x951 pt);
                    the png is a settled capture (two identical consecutive captures, 10 s timeout)
+poses <dir> [-- args]  run (install + launch with args) then all four poses as settled PNGs <dir>/closed-portrait.png … open-tall.png,
+                   under one simulator lock with the status bar pinned; always ends closed-portrait, also after a failure midway
 duo <verb> [args]  Tools/duo pass-through (panels, hinge, settle [--timeout s], screenshot [--display lit|outer|inner] [--settle], fold <degrees>, guest-build,
                    --help); adds --udid for this checkout's simulator when the verb needs one; built into .build/duo/spm
 duo-test           swift test for Tools/duo (host-only, ~1s); also part of check
@@ -1153,7 +1175,8 @@ case "$sub" in
   fold) sim_guarded cmd_fold "$@" ;;
   orient) sim_guarded cmd_orient "$@" ;;
   pose) sim_guarded cmd_pose "$@" ;;
-  duo) case "${1:-}" in panels | screenshot | settle | hinge | fold | orient | pose | home) sim_guarded cmd_duo "$@" ;; *) cmd_duo "$@" ;; esac ;;
+  poses) sim_guarded cmd_poses "$@" ;;
+  duo) case "${1:-}" in panels | screenshot | settle | hinge | fold | orient | pose | poses | home) sim_guarded cmd_duo "$@" ;; *) cmd_duo "$@" ;; esac ;;
   duo-test) cmd_duo_test ;;
   sims) cmd_sims "$@" ;;
   testflight) cmd_testflight "$@" ;;

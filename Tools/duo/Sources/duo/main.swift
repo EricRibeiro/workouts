@@ -23,6 +23,10 @@ let usage = """
       pose <closed-portrait|closed-landscape|open-wide|open-tall> --udid <udid> [--png <path> [--settle [--timeout <s>]]]
                               fold + orient + verify in one call (open-wide = open portrait 951x669 pt, open-tall =
                               open landscape-left 669x951 pt), optionally screenshot the lit panel (settled with --settle)
+      poses <dir> --udid <udid> [--timeout <seconds>]
+                              run the four poses in order (closed-portrait, closed-landscape, open-wide, open-tall),
+                              writing a settled <dir>/<name>.png for each and one summary line per pose; always ends by
+                              restoring closed-portrait, also after a failure midway (which then exits 1)
       home --udid <udid> [--png <path>]
                               go to the Home screen (launches SpringBoard) and confirm with a lit-panel screenshot
       guest-build         compile the in-simulator helper (cached per source and Xcode) and print its path
@@ -152,6 +156,21 @@ case "pose":
     } catch {
         fail("\(error)")
     }
+case "poses":
+    rejectUnknownOptions(Array(rest.dropFirst()), known: ["--udid", "--timeout"])
+    guard let directory = rest.first, !directory.hasPrefix("-") else { usageError("poses needs a <dir>") }
+    guard let udid = option("--udid", in: rest), !udid.isEmpty else { usageError("poses needs --udid <udid>") }
+    let timeout = settleTimeout(in: rest)
+    guard let root = GuestBuilder.defaultRepositoryRoot() else { fail("\(DuoError.repositoryNotFound)") }
+    let guest: URL
+    do {
+        guest = try GuestBuilder(repositoryRoot: root).build()
+    } catch {
+        fail("\(error)")
+    }
+    let report = PoseSet.run(directory: directory, udid: udid, guestPath: guest.path, settle: timeout)
+    for line in report.lines { print(line) }
+    if let message = report.failureMessage { fail(message) }
 case "home":
     rejectUnknownOptions(rest, known: ["--udid", "--png"])
     guard let udid = option("--udid", in: rest), !udid.isEmpty else { usageError("home needs --udid <udid>") }
