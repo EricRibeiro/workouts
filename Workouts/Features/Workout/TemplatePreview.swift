@@ -65,6 +65,7 @@ struct TemplatePreview: View {
         }
         .exerciseInfoSheet(exerciseID: $aboutExerciseID)
         .task(id: FinishedWorkoutsStamp(newestEdit: newest.first?.updatedAt, generation: generation?.value ?? 0)) {
+            await SlowLoads.delay()
             // The reader's context reads the store: flush edits the main context has not saved yet.
             context.saveIfChanged(reportingTo: errors)
             let index = try? await WorkoutStatsReader.loadLastPerformedIndex(in: context.container)

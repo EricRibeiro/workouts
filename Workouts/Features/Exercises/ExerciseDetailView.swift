@@ -93,6 +93,7 @@ struct ExerciseDetailView: View {
                     weightType: info.weightType
                 )
             ) {
+                await SlowLoads.delay()
                 let found = ExerciseBestSets.sessions(forRows: rows, weightType: info.weightType)
                 sessions = found
                 records = WorkoutsKit.records(found, weightType: info.weightType, options: options)

@@ -23,6 +23,34 @@ extension XCUIApplication {
     }
 }
 
+extension XCUIApplication {
+    /// Asserts, without waiting, that a pushed screen's chrome is already on screen: the navigation bar's `title` (when
+    /// given) and every button in `buttons` (by identifier). The first frame of a push must already have its bars (DECISIONS
+    /// "Pushed-screen chrome"); pair it with `-slowLoads` so the content is still loading when this runs.
+    @MainActor
+    func assertChromeImmediately(
+        title: String? = nil,
+        buttons identifiers: [String] = [],
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        if let title {
+            XCTAssertTrue(
+                // Any element type: a bar with a title menu (the past editor's) exposes its title as a button.
+                navigationBars.descendants(matching: .any).matching(
+                    NSPredicate(format: "label == %@", title)
+                ).firstMatch.exists,
+                "no title \(title) in the navigation bar at the push",
+                file: file,
+                line: line
+            )
+        }
+        for identifier in identifiers {
+            XCTAssertTrue(buttons[identifier].exists, "no \(identifier) at the push", file: file, line: line)
+        }
+    }
+}
+
 extension XCTestCase {
     /// Waits until `condition` holds (evaluated on the main actor, so it may read elements); true once it does, false on timeout.
     @MainActor @discardableResult

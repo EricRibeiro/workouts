@@ -100,6 +100,7 @@ struct HistoryView: View {
     /// Folds the history on a `WorkoutStatsReader` (its own context, off the main thread) and publishes the rows and the
     /// Recent PRs card here. What is shown stays until the new summary arrives, so a refresh never blanks the list.
     private func refreshSummary() async {
+        await SlowLoads.delay()
         // The reader's context reads the store: flush edits the main context has not saved yet.
         context.saveIfChanged(reportingTo: saveErrors)
         let options = RecordsOptions(formula: settings.e1rmFormula, displayUnit: settings.defaultUnit)

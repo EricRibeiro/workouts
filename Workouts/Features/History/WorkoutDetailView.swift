@@ -134,6 +134,7 @@ struct WorkoutDetailView: View {
     /// whole history, which is too much to walk here. What is shown stays until the new detail arrives; a failed read
     /// keeps it, or shows the load-failed state when there is nothing to keep.
     private func refreshDetail() async {
+        await SlowLoads.delay()
         // The reader's context reads the store: flush edits the main context has not saved yet.
         context.saveIfChanged(reportingTo: saveErrors)
         let options = RecordsOptions(

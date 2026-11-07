@@ -15,10 +15,10 @@ final class HistoryListUITests: XCTestCase {
 
     /// The first row, scrolling past the dashboard cards (the list is lazy, so rows below them do not exist yet).
     @MainActor
-    private func firstRow(_ app: XCUIApplication) -> XCUIElement {
+    private func firstRow(_ app: XCUIApplication, timeout: TimeInterval = 2) -> XCUIElement {
         let first = rows(app).element(boundBy: 0)
         for _ in 0..<8 {
-            if first.waitForExistence(timeout: 2) && first.isHittable { break }
+            if first.waitForExistence(timeout: timeout) && first.isHittable { break }
             app.swipeUp()
         }
         return first
@@ -65,23 +65,27 @@ final class HistoryListUITests: XCTestCase {
     }
 
     /// The detail's title and toolbar belong to the first frame of the push (backlog: "History detail jumps after the
-    /// push"): they must not wait for the detail's off-main derivation to land. Short timeouts, no long waits.
+    /// push"): they must not wait for the detail's off-main derivation to land. `-slowLoads` holds that derivation for 3 s
+    /// (the History summary too, so the rows arrive late), which makes the check deterministic rather than a race.
     @MainActor
     func testDetailHasTitleAndToolbarFromTheFirstFrame() throws {
-        let app = launch()
+        let app = XCUIApplication.launchedPreview(
+            "History",
+            extraArguments: ["-slowLoads", "3000"],
+            waitingFor: "screen.history"
+        )
         let any = app.descendants(matching: .any)
-        XCTAssertTrue(any["screen.history"].waitForExistence(timeout: 10))
 
-        let first = firstRow(app)
+        // The rows come from the held summary: wait it out (the first wait covers the 3 s), scrolling past the dashboard.
+        let first = firstRow(app, timeout: 6)
         XCTAssertTrue(first.exists, "no history rows")
         // The row's label is "name, date, duration, volume[, N PRs]".
         let name = try XCTUnwrap(first.label.components(separatedBy: ",").first)
         first.tap()
 
-        // The pushed screen itself: the bar's title and the Edit button, asserted without waiting for the content.
-        XCTAssertTrue(app.navigationBars.staticTexts[name].exists, "no title \(name) at the push")
-        XCTAssertTrue(app.buttons["workoutDetail.edit"].exists, "no Edit at the push")
-        XCTAssertTrue(app.buttons["workoutDetail.delete"].exists, "no Delete at the push")
+        // The pushed screen itself: the bar's title and its buttons, asserted without waiting, before the content exists.
+        app.assertChromeImmediately(title: name, buttons: ["workoutDetail.edit", "workoutDetail.delete"])
+        XCTAssertFalse(any["history.detail"].exists, "the detail's content was there before its load finished")
     }
 
     @MainActor

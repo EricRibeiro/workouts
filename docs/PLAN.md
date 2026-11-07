@@ -392,7 +392,7 @@ Order: 7b.1, 7b.2, 7b.3 first; then 7b.4 → 7b.5; 7b.6 at the next media change
   `navigationTitle`/`toolbar`/`searchable` sit on its outermost view with values available synchronously (the `@Query`
   row, the pushed id), never inside a loaded-state branch; loading is a named state that is rendered (7b.5). Also add the
   7b.1/7b.2 rules to the test-gap checklist. Proof: the doc diff.
-- [ ] **7b.4 Latency seam + first-frame UI tests**: `#if DEBUG` `-slowLoads <ms>` honoured in
+- [x] **7b.4 Latency seam + first-frame UI tests**: `#if DEBUG` `-slowLoads <ms>` honoured in
   `WorkoutStatsReader.loadWorkoutDetail`, the History dashboard summary and ExerciseDetail's loads; helper
   `assertChromeImmediately(title:buttons:)` in `XCUIApplication+Waiting`; tests for WorkoutDetail, ExerciseDetail,
   TemplatePreview, PastEditor that launch with `-slowLoads 3000`, tap, and assert the chrome exists while the content
