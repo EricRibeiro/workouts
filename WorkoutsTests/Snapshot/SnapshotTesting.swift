@@ -69,15 +69,25 @@ enum Snapshot {
         filePath: String = #filePath,
         sourceLocation: SourceLocation = #_sourceLocation
     ) {
-        let suite = URL(filePath: filePath).deletingPathExtension().lastPathComponent
-        let directory = testsDirectory.appending(path: "__Snapshots__").appending(path: suite)
-        let reference = directory.appending(path: "\(name)-\(variant.name).png")
-        let actual = directory.appending(path: "\(name)-\(variant.name).actual.png")
-
         guard let png = render(view, variant: variant, width: width, engine: engine, environment: environment) else {
             Issue.record("Could not render \(name)-\(variant.name)", sourceLocation: sourceLocation)
             return
         }
+        assert(png: png, named: name, variant: variant, filePath: filePath, sourceLocation: sourceLocation)
+    }
+
+    /// Compares (or records) an already rendered PNG against the reference `name`-`variant`; see `assert(_:named:...)`.
+    static func assert(
+        png: Data,
+        named name: String,
+        variant: SnapshotVariant,
+        filePath: String = #filePath,
+        sourceLocation: SourceLocation = #_sourceLocation
+    ) {
+        let suite = URL(filePath: filePath).deletingPathExtension().lastPathComponent
+        let directory = testsDirectory.appending(path: "__Snapshots__").appending(path: suite)
+        let reference = directory.appending(path: "\(name)-\(variant.name).png")
+        let actual = directory.appending(path: "\(name)-\(variant.name).actual.png")
 
         do {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -121,6 +131,50 @@ enum Snapshot {
         engine: Engine,
         environment: SampleEnvironment?
     ) -> Data? {
+        let content = frame(view, variant: variant, width: width, environment: environment)
+        switch engine {
+        case .image: return renderImage(content, width: width)
+        case .hostedFitting:
+            guard let hosted = host(content, variant: variant, width: width, height: nil) else {
+                return nil
+            }
+            // Lists and navigation bars populate on the next run loop turns. The main actor is held meanwhile, so
+            // nothing MainActor-isolated (a `.task`) runs: use `renderSettling` for a view that loads data.
+            RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.5))
+            return capture(hosted)
+        case .hosted(let height):
+            guard let hosted = host(content, variant: variant, width: width, height: height) else {
+                return nil
+            }
+            RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.5))
+            return capture(hosted)
+        }
+    }
+
+    /// Like `render` with `.hosted(height:)`, but waits `settle` by suspending (`Task.sleep`) instead of spinning the run
+    /// loop, so the view's own `.task` loads run and land before the frame is drawn.
+    static func renderSettling<Content: View>(
+        _ view: Content,
+        variant: SnapshotVariant,
+        width: CGFloat,
+        height: CGFloat,
+        environment: SampleEnvironment?,
+        settle: Duration
+    ) async -> Data? {
+        let content = frame(view, variant: variant, width: width, environment: environment)
+        guard let hosted = host(content, variant: variant, width: width, height: height) else {
+            return nil
+        }
+        try? await Task.sleep(for: settle)
+        return capture(hosted)
+    }
+
+    private static func frame<Content: View>(
+        _ view: Content,
+        variant: SnapshotVariant,
+        width: CGFloat,
+        environment: SampleEnvironment?
+    ) -> AnyView {
         let framed =
             view
             .frame(width: width)
@@ -131,30 +185,35 @@ enum Snapshot {
             // The finish stars would otherwise differ per frame; this draws their static Reduce Motion scatter.
             .environment(\.staticCelebration, true)
             .transaction { $0.animation = nil }
-        let content: AnyView
         if let environment {
-            content = AnyView(framed.sampleEnvironment(environment))
-        } else {
-            content = AnyView(framed)
+            return AnyView(framed.sampleEnvironment(environment))
         }
-        switch engine {
-        case .image: return renderImage(content, width: width)
-        case .hostedFitting: return renderHosted(content, variant: variant, width: width, height: nil)
-        case .hosted(let height): return renderHosted(content, variant: variant, width: width, height: height)
-        }
+        return AnyView(framed)
     }
 
     private static func renderImage(_ content: AnyView, width: CGFloat) -> Data? {
-        let renderer = ImageRenderer(content: AnyView(content.fixedSize(horizontal: false, vertical: true)))
+        let renderer = ImageRenderer(
+            content: AnyView(content.fixedSize(horizontal: false, vertical: true))
+        )
         renderer.scale = scale
         renderer.proposedSize = ProposedViewSize(width: width, height: nil)
         return renderer.uiImage?.pngData()
     }
 
-    /// Hosts the view in a window of the running app's scene, lets it lay out and settle, and draws the hierarchy.
-    private static func renderHosted(_ content: AnyView, variant: SnapshotVariant, width: CGFloat, height: CGFloat?)
-        -> Data?
-    {
+    /// A view hosted in a window, waiting to be drawn.
+    private struct Hosted {
+        let window: UIWindow
+        let controller: UIHostingController<AnyView>
+        let size: CGSize
+    }
+
+    /// Hosts the view in a window of the running app's scene and lays it out; the caller lets it settle, then `capture`s.
+    private static func host(
+        _ content: AnyView,
+        variant: SnapshotVariant,
+        width: CGFloat,
+        height: CGFloat?
+    ) -> Hosted? {
         guard
             let scene = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).first
         else { return nil }
@@ -169,22 +228,71 @@ enum Snapshot {
         let container = UIViewController()
         window.rootViewController = container
         window.isHidden = false
-        defer { window.isHidden = true }
         container.addChild(controller)
         controller.view.frame = CGRect(origin: .zero, size: size)
         container.view.addSubview(controller.view)
         controller.didMove(toParent: container)
         controller.view.layoutIfNeeded()
-        // Lists and navigation bars populate on the next run loop turns.
-        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.5))
-        controller.view.layoutIfNeeded()
+        return Hosted(window: window, controller: controller, size: size)
+    }
+
+    /// Draws the hosted hierarchy and takes the window down.
+    private static func capture(_ hosted: Hosted) -> Data? {
+        defer { hosted.window.isHidden = true }
+        hosted.controller.view.layoutIfNeeded()
         let format = UIGraphicsImageRendererFormat()
         format.scale = scale
         format.opaque = true
+        let size = hosted.size
         let image = UIGraphicsImageRenderer(size: size, format: format).image { _ in
-            controller.view.drawHierarchy(in: CGRect(origin: .zero, size: size), afterScreenUpdates: true)
+            hosted.controller.view.drawHierarchy(
+                in: CGRect(origin: .zero, size: size),
+                afterScreenUpdates: true
+            )
         }
         return image.pngData()
+    }
+
+    /// Fails unless the top `topPoints` of two renderings (the navigation bar and title of a pushed screen) are pixel-equal:
+    /// the chrome of the loading frame must be the chrome of the loaded one, so it neither pops in nor changes (PLAN 7b.5).
+    static func assertSameChrome(
+        _ loading: Data,
+        _ loaded: Data,
+        topPoints: CGFloat = 120,
+        sourceLocation: SourceLocation = #_sourceLocation
+    ) {
+        guard let a = pixels(loading), let b = pixels(loaded) else {
+            Issue.record("assertSameChrome: an image could not be decoded", sourceLocation: sourceLocation)
+            return
+        }
+        guard a.width == b.width else {
+            Issue.record(
+                "assertSameChrome: widths differ (\(a.width) vs \(b.width) px)",
+                sourceLocation: sourceLocation
+            )
+            return
+        }
+        let rows = min(Int(topPoints * scale), a.height, b.height)
+        var differing = 0
+        var firstRow: Int?
+        for row in 0..<rows {
+            for column in 0..<a.width {
+                let index = (row * a.width + column) * 4
+                for channel in 0..<4
+                where abs(Int(a.bytes[index + channel]) - Int(b.bytes[index + channel])) > channelThreshold {
+                    differing += 1
+                    firstRow = firstRow ?? row
+                    break
+                }
+            }
+        }
+        let total = rows * a.width
+        guard Double(differing) / Double(max(1, total)) > maxDifferingFraction else { return }
+        let message: String =
+            "The top \(Int(topPoints)) pt (navigation bar and title) of the loading frame differs from the loaded frame: "
+            + "\(differing) of \(total) pixels, first at row \(firstRow ?? 0) px. "
+            + "Chrome must not wait for data; see DECISIONS.md, Pushed-screen chrome."
+        Issue.record(Comment(rawValue: message), sourceLocation: sourceLocation)
     }
 
     // MARK: Comparison

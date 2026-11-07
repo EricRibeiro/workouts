@@ -398,7 +398,7 @@ Order: 7b.1, 7b.2, 7b.3 first; then 7b.4 → 7b.5; 7b.6 at the next media change
   TemplatePreview, PastEditor that launch with `-slowLoads 3000`, tap, and assert the chrome exists while the content
   does not yet. Makes `HistoryListUITests.testDetailHasTitleAndToolbarFromTheFirstFrame` deterministic. Needs: 0.10.
   Proof: the new tests fail with the chrome moved back inside the loaded branch, pass on `main`.
-- [ ] **7b.5 Loading-frame snapshots**: `SnapshotWorkoutDetailTests` hosts `NavigationStack { WorkoutDetailView }`
+- [x] **7b.5 Loading-frame snapshots**: `SnapshotWorkoutDetailTests` hosts `NavigationStack { WorkoutDetailView }`
   loading (loader held via the 7b.4 seam or an injected never-resolving loader) and loaded; `Snapshot.assertSameChrome`
   compares the top ~120 px of the two. Fallback if hosted `NavigationStack` traps: `.hostedFitting` with inline title.
   Needs: 7b.4. Proof: `./dev test SnapshotTests`.
@@ -410,7 +410,7 @@ Order: 7b.1, 7b.2, 7b.3 first; then 7b.4 → 7b.5; 7b.6 at the next media change
 - [ ] **7b.7 `./dev shot --burst`**: lit-panel captures every ~100 ms for 1.5 s after launch or an injected tap, tiled
   into one PNG, as a reviewer artifact for pushed screens (not an assertion). Proof: a burst of the History push shows
   the title in every frame after the push starts.
-- [ ] **7b.8 `./dev ui-test` progress + `./dev ui-status`** (Eric, 2026-11-07): `-quiet` hides per-test results, so a
+- [x] **7b.8 `./dev ui-test` progress + `./dev ui-status`** (Eric, 2026-11-07): `-quiet` hides per-test results, so a
   running suite cannot be polled. `dev` writes `.build/ui-test.progress`, one line per shard
   (`shard 2/3: 41/45 passed, 0 failed, last=Suite/test, 12m`), parsed from xcodebuild's per-test lines while the
   console stays as quiet as today; a failure is appended the moment it happens. `./dev ui-status` prints the file, or
