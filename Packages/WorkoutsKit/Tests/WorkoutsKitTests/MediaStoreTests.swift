@@ -305,6 +305,46 @@ nonisolated final class GatedMediaSource: MediaSource, @unchecked Sendable {
         }
     }
 
+    /// Progress invariants for `prefetch` over every starting cache and both passes (7b.1): the first tick already counts
+    /// what is cached, `done` never decreases, `total` is constant, nothing pending means no ticks, and a pass over an
+    /// unchanged cache makes no source request.
+    @Test(arguments: PrefetchCache.allCases, PrefetchPass.allCases)
+    func prefetchProgressInvariants(cache: PrefetchCache, pass: PrefetchPass) async throws {
+        let ids = (0..<12).map { "ex\($0)" }
+        let cachedIDs = Array(ids.prefix(cache.cachedCount(of: ids.count)))
+        try await withStore(videos: Dictionary(uniqueKeysWithValues: ids.map { ($0, 10) })) { store, source, _ in
+            for id in cachedIDs { _ = try await store.video(for: id, scheme: .light) }
+            if pass == .second {
+                await store.prefetch(sourceIDs: ids, scheme: .light)
+                #expect(store.uncachedSourceIDs(in: ids, scheme: .light).isEmpty)
+            }
+            let alreadyCached = ids.count - store.uncachedSourceIDs(in: ids, scheme: .light).count
+            let requestsBefore = source.requests.count
+
+            let ticks = ProgressTicks()
+            let failed = await store.prefetch(sourceIDs: ids, scheme: .light) { done, total in
+                ticks.record(done, total)
+            }
+
+            #expect(failed.isEmpty)
+            let pending = ids.count - alreadyCached
+            let requests = source.requests.count - requestsBefore
+            if pending == 0 {
+                #expect(ticks.values.isEmpty, "nothing pending must not tick")
+                #expect(requests == 0, "nothing pending must not fetch")
+            } else {
+                #expect(requests == pending, "only the uncached ids are fetched")
+                #expect(ticks.values.count == pending, "one tick per fetched id")
+                #expect((ticks.values.first ?? 0) >= alreadyCached, "the first tick already counts what is cached")
+                #expect(ticks.values == ticks.values.sorted(), "done never decreases")
+                #expect(ticks.values.last == ids.count)
+            }
+            #expect(Set(ticks.totals).count <= 1, "total is constant across ticks")
+            if let total = ticks.totals.first { #expect(total == ids.count) }
+            #expect(store.uncachedSourceIDs(in: ids, scheme: .light).isEmpty)
+        }
+    }
+
     @Test func cacheSizeAndClearCache() async throws {
         try await withStore(videos: ["a": 30, "b": 12]) { store, _, _ in
             #expect(await store.cacheSize() == 0)
@@ -401,3 +441,17 @@ nonisolated final class ProgressTicks: @unchecked Sendable {
     var values: [Int] { lock.withLock { pairs.map(\.0) } }
     var totals: [Int] { lock.withLock { pairs.map(\.1) } }
 }
+
+enum PrefetchCache: CaseIterable, Sendable {
+    case none, partial, all
+
+    func cachedCount(of total: Int) -> Int {
+        switch self {
+        case .none: 0
+        case .partial: total / 3
+        case .all: total
+        }
+    }
+}
+
+enum PrefetchPass: CaseIterable, Sendable { case first, second }

@@ -108,6 +108,44 @@ final class FakeLiveActivityProvider: LiveActivityProviding {
         #expect(content.relevanceScore == 0)
     }
 
+    @Test func aSecondObserveAndConcurrentReconcilesWhileOneRunsRequestNoSecondActivity() async throws {
+        let workout = try engine.startEmpty()
+        controller.observe(engine)
+        controller.observe(engine)
+        async let first: Void = controller.reconcile()
+        async let second: Void = controller.reconcile()
+        _ = await (first, second)
+        await controller.syncNow()
+
+        #expect(provider.requestAttempts == 1)
+        #expect(provider.requested.count == 1)
+        #expect(provider.existing.count == 1)
+        #expect(provider.requested.first?.workoutID == workout.id)
+        #expect(provider.requested.first?.isEnded == false)
+    }
+
+    @Test func aWorkoutStartedAfterAFinishedOneGetsItsOwnActivityAndTheOldOneStaysEnded() async throws {
+        let firstWorkout = try engine.startEmpty()
+        await controller.reconcile()
+        let first = try #require(provider.requested.first)
+        try engine.discard()
+        await controller.reconcile()
+        #expect(first.endedWith == .immediate)
+
+        let secondWorkout = try engine.startEmpty()
+        #expect(secondWorkout.id != firstWorkout.id)
+        await controller.reconcile()
+        #expect(provider.requested.count == 2)
+        let second = try #require(provider.requested.last)
+        #expect(second.workoutID == secondWorkout.id)
+        // Only the new one is live, and it opens with the new workout's state, not the old one's.
+        #expect(provider.existing.count == 1)
+        #expect(second.isEnded == false)
+        #expect(second.contents.count == 1)
+        #expect(second.contents.first?.state == engine.activityState)
+        #expect(first.contents.count == 1)
+    }
+
     @Test func updatesWhenTheRestStartsAndAdjusts() async throws {
         try engine.startEmpty()
         await controller.reconcile()

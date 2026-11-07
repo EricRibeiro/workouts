@@ -130,6 +130,42 @@ struct HealthEnrichmentServiceTests {
         #expect(setup.workout.activeEnergyKcal == 300)
     }
 
+    @Test func becomingActiveTwiceInARowLooksOnceAndLooksAgainOnceTheThrottleWindowHasPassed() async throws {
+        // Nothing in Health matches: the first lookup stamps the workout checked-without-a-match.
+        let gate = Gate()
+        let source = GatedSource(gate: gate, base: FakeHealthSource(candidates: [], summaries: []))
+        let settings = SettingsStore(backend: InMemoryBackend())
+        settings.healthEnrichmentEnabled = true
+        let context = ModelContext(try ModelContainer.workouts(inMemory: true, cloudKit: false))
+        let end = Date.now.addingTimeInterval(-600)
+        let workout = Workout(name: "Push", startedAt: end.addingTimeInterval(-3000), finishedAt: end, updatedAt: end)
+        context.insert(workout)
+        try context.save()
+        let service = HealthEnrichmentService(source: source, settings: settings)
+        await gate.release()
+
+        await service.appBecameActive(context: context)
+        let afterFirst = await gate.lookups
+        let stamp = try #require(workout.healthCheckedAt)
+        #expect(afterFirst == 1)
+
+        // Back to the foreground a moment later: inside the 15-minute throttle, so no fetch and the stamp is untouched.
+        await service.appBecameActive(context: context)
+        #expect(await gate.lookups == afterFirst)
+        #expect(workout.healthCheckedAt == stamp)
+
+        // The service has no injected clock (it reads `Date.now`), so the window passes by ageing the stamp.
+        workout.applyHealth(nil, checkedAt: .now.addingTimeInterval(-16 * 60))
+        await service.appBecameActive(context: context)
+        #expect(await gate.lookups == afterFirst + 1)
+        let restamped = try #require(workout.healthCheckedAt)
+        #expect(Date.now.timeIntervalSince(restamped) < 60)
+
+        // And the new stamp throttles again.
+        await service.appBecameActive(context: context)
+        #expect(await gate.lookups == afterFirst + 1)
+    }
+
     @Test func optingInAgainLooksAtWorkoutsAnEarlierEmptyPassStamped() async throws {
         // An earlier pass ran while access was denied (HealthKit answered "no data") and stamped the workout unmatched.
         let setup = try makeSetup(endedAgo: 30 * 86400)

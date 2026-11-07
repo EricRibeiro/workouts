@@ -381,10 +381,10 @@ title/toolbar popping in after the push. Analysis and rationale: `docs/reviews/2
 suite proves settled states only; these tasks cover first frames, second invocations and harness-disabled features.
 Order: 7b.1, 7b.2, 7b.3 first; then 7b.4 → 7b.5; 7b.6 at the next media change; 7b.7 with the `Tools/duo` stream.
 
-- [ ] **7b.1 Progress invariants (kit)**: one parameterised `MediaStoreTests` test over cache {none, partial, all} ×
+- [x] **7b.1 Progress invariants (kit)**: one parameterised `MediaStoreTests` test over cache {none, partial, all} ×
   {first, second pass} via `ProgressTicks`: first tick ≥ cached count, non-decreasing, constant total, no ticks when
   nothing is pending, a second pass over an unchanged cache fetches and ticks nothing. Proof: `./dev kit MediaStore`.
-- [ ] **7b.2 Second-invocation tests**: for each `@Observable` controller with start/resume (`BulkVideoDownload`,
+- [x] **7b.2 Second-invocation tests**: for each `@Observable` controller with start/resume (`BulkVideoDownload`,
   `RestNotifier`, `HealthEnrichmentService.appBecameActive` throttling, Live Activity start), call it a second time after
   a completed and after a cancelled first run and assert the initial observable state, not only the final one. Proof:
   `./dev kit` / `./dev test` on the touched suites.

@@ -193,6 +193,39 @@ final class FakeNotificationCenter: NotificationCenterProviding {
         #expect(center.delivered.isEmpty)
     }
 
+    @Test func aSecondRestAfterACompletedOneReplacesTheDeliveredBannerAndSchedulesAgain() throws {
+        let notifier = notifier()
+        notifier.sync(plan: plan(in: 90))
+        // The first rest ran out: its request fired and its banner is on screen.
+        clock.date = clock.date.addingTimeInterval(90)
+        center.pending[RestNotificationPlan.identifier] = nil
+        center.delivered.insert(RestNotificationPlan.identifier)
+
+        center.log = []
+        notifier.sync(plan: plan(in: 60, body: "Rest over · Set 4"))
+        #expect(center.delivered.isEmpty)
+        #expect(center.pending.count == 1)
+        let request = try #require(center.pending[RestNotificationPlan.identifier])
+        #expect(request.content.body == "Rest over · Set 4")
+        #expect((request.trigger as? UNTimeIntervalNotificationTrigger)?.timeInterval == 60)
+        #expect(center.log == ["removePending", "removeDelivered", "add"])
+    }
+
+    @Test func aSecondRestAfterACancelledOneSchedulesAgainWithNothingStale() throws {
+        let notifier = notifier()
+        notifier.sync(plan: plan(in: 90))
+        notifier.sync(plan: nil)
+        #expect(center.pending.isEmpty)
+
+        center.log = []
+        notifier.sync(plan: plan(in: 45))
+        let trigger = center.pending[RestNotificationPlan.identifier]?.trigger as? UNTimeIntervalNotificationTrigger
+        #expect(center.pending.count == 1)
+        #expect(trigger?.timeInterval == 45)
+        #expect(center.log.filter { $0 == "add" }.count == 1)
+        #expect(center.delivered.isEmpty)
+    }
+
     @Test func aPlanInThePastSchedulesNothingAndKeepsTheDeliveredBanner() {
         let notifier = notifier()
         notifier.sync(plan: plan(in: 90))
@@ -360,6 +393,36 @@ final class FakeNotificationCenter: NotificationCenterProviding {
         try engine.skipRest()
         await Task.yield()
         #expect(center.pending.isEmpty)
+    }
+
+    @Test func restsStartedAfterASkippedAndAfterACompletedOneEachScheduleOnTheLiveEngine() async throws {
+        center.status = .authorized
+        let engine = try engine()
+        let notifier = notifier()
+        notifier.observe(engine)
+
+        try engine.startRest(seconds: 60)
+        await Task.yield()
+        #expect(scheduledSeconds() == 60)
+        try engine.skipRest()
+        await Task.yield()
+        #expect(center.pending.isEmpty)
+
+        // Second rest, right after a skipped one: scheduled from the first change.
+        try engine.startRest(seconds: 30)
+        await Task.yield()
+        #expect(center.pending.count == 1)
+        #expect(scheduledSeconds() == 30)
+
+        // That one ran out (fired, banner on screen); a third rest clears the banner as it is scheduled.
+        clock.date = clock.date.addingTimeInterval(30)
+        center.pending[RestNotificationPlan.identifier] = nil
+        center.delivered.insert(RestNotificationPlan.identifier)
+        try engine.startRest(seconds: 20)
+        await Task.yield()
+        #expect(center.delivered.isEmpty)
+        #expect(center.pending.count == 1)
+        #expect(scheduledSeconds() == 20)
     }
 
     /// C-03: a rest started before the person answers the alert is refused by the center, so the grant must
