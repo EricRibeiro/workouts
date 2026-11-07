@@ -403,3 +403,10 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
     self-contained edit with Save/Cancel is modal): a tab re-tap can no longer pop an editor and drop its unsaved draft.
     Every other editing surface was already a sheet; pushed screens are read-only. The dirty-editor guards from JC99
     are removed; each editor cover hosts its own save-error alert.
+103. **Two in-progress workouts after a sync** (C-11 c, ahead of 8.1): `resume()` keeps the newest start (ties by id, so
+    every device agrees) and settles the older ones with the importer's demotion rule (finish at the last completed
+    set, never before the start). One with no completed set is deleted rather than finished, since `finish()` refuses
+    an empty workout. A remote-change merge never settles a workout running here; that waits for the next `resume()`.
+104. **Old agent worktrees archived, not removed** (2026-11-07): the handoff said they were archived; none was, and all
+    held uncommitted changes. Each diff is now `.build/worktree-archive/<name>.patch`; the worktrees stay until Eric
+    says to remove them.

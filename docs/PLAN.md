@@ -361,6 +361,13 @@ Live Activity → notifications → logging, then templates, exercises, history.
     shows the cached total immediately (or is hidden when everything is cached), and downloading continues off-screen.
     Find the owner of the pass (`docs/port/media.md`, grep the "of … videos" caption), fix, and cover it with a kit
     test on the progress model.
+  - [ ] **History detail jumps after the push** (Eric, 2026-11-07, recording on the closed Duo): opening a workout from
+    History pushes a detail with no "Push" title and no edit/duplicate/delete toolbar items; about half a second after
+    the push settles the title appears, the content drops ~35 pt, and the three toolbar buttons pop in. The title and
+    toolbar must be there from the first frame of the push. Likely cause: `navigationTitle`/toolbar depend on state
+    loaded in `.task` (or the detail swaps views once its fetch finishes); give them values derived synchronously from
+    the pushed workout. Proof: a frame-by-frame `./dev shot` pair, or a UI test asserting the title and Edit button
+    exist immediately after the tap without waiting.
   - [ ] **Device checks (Eric)**: narrow Island on the closed Duo during a rest; Live Activity buttons in StandBy night
     mode; the new Fitness header and chart with a real Watch workout (zones, effort, set ticks lining up); laptop-pose
     Exercises split; half-open keyboard accessory.
