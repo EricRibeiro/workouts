@@ -6,6 +6,7 @@
 import Observation
 import SwiftData
 import SwiftUI
+import WorkoutsKit
 
 /// Where a failed save is reported (DECISIONS "Errors": a failed `ModelContext.save()` is an alert with the message; the
 /// draft is never discarded). One instance lives in the environment; ``View/saveErrorAlert(isEnabled:)`` shows it.
@@ -59,12 +60,19 @@ private struct SaveErrorAlert: ViewModifier {
 
 private struct EditorCoverHost: ViewModifier {
     @Environment(SaveErrors.self) private var errors: SaveErrors?
+    @Environment(AppNavigation.self) private var navigation: AppNavigation?
 
     func body(content: Content) -> some View {
         content
             .saveErrorAlert()
-            .onAppear { errors?.editorCovers += 1 }
-            .onDisappear { errors?.editorCovers = max(0, (errors?.editorCovers ?? 1) - 1) }
+            .onAppear {
+                errors?.editorCovers += 1
+                navigation?.setEditorCoverOnScreen(true)
+            }
+            .onDisappear {
+                errors?.editorCovers = max(0, (errors?.editorCovers ?? 1) - 1)
+                navigation?.setEditorCoverOnScreen(false)
+            }
     }
 }
 

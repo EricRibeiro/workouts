@@ -24,6 +24,15 @@ public final class AppNavigation {
     /// resume ring keys off this, so the person always has the cover or the ring.
     public var isWorkoutCoverOnScreen = false
 
+    /// Whether a past-workout or template editor (a full-screen cover hosted by a tab) is on screen, set from the editor's
+    /// `onAppear`/`onDisappear` through `setEditorCoverOnScreen(_:)`. The editor may hold unsaved edits and the workout
+    /// cover presented over it would tear it down, so `openActiveWorkout()` waits while this is true.
+    public private(set) var isEditorCoverOnScreen = false
+
+    /// An open-the-workout request (Live Activity, rest notification) deferred because an editor was up; it is fulfilled
+    /// when the editor goes away.
+    public private(set) var isWorkoutOpenPending = false
+
     /// A workout is running but its cover is dismissed (DECISIONS: Minimise "dismisses the cover; the resume
     /// control restores it; a running workout survives any tab change"). Drives the ring `ToolbarItem`.
     public private(set) var isWorkoutMinimised: Bool
@@ -88,8 +97,20 @@ public final class AppNavigation {
     /// caller closes the root sheets (Settings, the finish summary) first, since a cover cannot present over a sheet. A
     /// tab's own sheet is left alone (it may hold typed input); if it blocks the cover, the resume ring covers the gap.
     public func openActiveWorkout() {
+        // An open editor is never closed by the request: wait for it to go away (Save or Cancel).
+        guard !isEditorCoverOnScreen else {
+            isWorkoutOpenPending = true
+            return
+        }
+        isWorkoutOpenPending = false
         selectedTab = .workout
         presentWorkout()
+    }
+
+    /// Records that an editor cover appeared or disappeared; when it disappears, a deferred open request is fulfilled.
+    public func setEditorCoverOnScreen(_ onScreen: Bool) {
+        isEditorCoverOnScreen = onScreen
+        if !onScreen, isWorkoutOpenPending { openActiveWorkout() }
     }
 
     // MARK: Settings
@@ -113,6 +134,7 @@ public final class AppNavigation {
 
     /// Finish or Discard: no workout is running any more, so there is neither a cover nor a resume control.
     public func endWorkout() {
+        isWorkoutOpenPending = false
         isWorkoutCoverPresented = false
         isWorkoutMinimised = false
     }

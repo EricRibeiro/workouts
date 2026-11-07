@@ -136,4 +136,42 @@ import Testing
         #expect(nav.isWorkoutCoverPresented)
         #expect(!nav.isWorkoutMinimised)
     }
+
+    @Test func openingTheActiveWorkoutWaitsForAnOpenEditorAndLeavesEverythingAlone() {
+        let nav = AppNavigation(selectedTab: .history, isWorkoutMinimised: true)
+        nav.setEditorCoverOnScreen(true)
+        nav.openActiveWorkout()
+        #expect(nav.selectedTab == .history)
+        #expect(!nav.isWorkoutCoverPresented)
+        #expect(nav.isWorkoutMinimised)
+        #expect(nav.isWorkoutOpenPending)
+    }
+
+    @Test func aDeferredOpenIsFulfilledWhenTheEditorGoesAway() {
+        let nav = AppNavigation(selectedTab: .history, isWorkoutMinimised: true)
+        nav.setEditorCoverOnScreen(true)
+        nav.openActiveWorkout()
+        nav.setEditorCoverOnScreen(false)
+        #expect(nav.selectedTab == .workout)
+        #expect(nav.isWorkoutCoverPresented)
+        #expect(!nav.isWorkoutOpenPending)
+    }
+
+    @Test func closingAnEditorWithNothingDeferredPresentsNothing() {
+        let nav = AppNavigation(selectedTab: .history, isWorkoutMinimised: true)
+        nav.setEditorCoverOnScreen(true)
+        nav.setEditorCoverOnScreen(false)
+        #expect(nav.selectedTab == .history)
+        #expect(!nav.isWorkoutCoverPresented)
+    }
+
+    @Test func endingTheWorkoutDropsADeferredOpen() {
+        let nav = AppNavigation(selectedTab: .history, isWorkoutMinimised: true)
+        nav.setEditorCoverOnScreen(true)
+        nav.openActiveWorkout()
+        nav.endWorkout()
+        nav.setEditorCoverOnScreen(false)
+        #expect(!nav.isWorkoutCoverPresented)
+        #expect(!nav.isWorkoutOpenPending)
+    }
 }

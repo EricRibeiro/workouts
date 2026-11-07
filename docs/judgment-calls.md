@@ -413,3 +413,7 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
 105. **`./dev shot` pins the status bar** (C.2): a settled capture must hash the same across runs, and the clock and
     indicators change, so `shot` applies `simctl status_bar override` (9:41, full battery, Wi-Fi) for the capture and
     clears it after. Documented simctl, not a display toggle. The warm-boot wait before settling dropped from 4 s to 1 s.
+106. **A workout link waits for an open editor** (handoff item 3, 2026-11-07): a Live Activity / notification /
+    `workouts://workout` request used to close an open past-workout or template editor silently, losing unsaved edits.
+    Now `AppNavigation` defers the request while an editor cover is up and presents the workout cover once the editor
+    closes (Save, Cancel, or Discard).
