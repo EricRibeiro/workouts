@@ -21,6 +21,56 @@ extension ActiveWorkoutEngine {
         try context.fetch(Workout.inProgress).first
     }
 
+    /// Settles every in-progress workout but the newest (``InProgressResolution``): a second device's workout that
+    /// CloudKit merged in is finished at its last completed set, or deleted when nothing was logged, so it is never a
+    /// phantom "running" workout. Best effort: a failed save is rolled back and tried again at the next ``resume()``.
+    func settleExtraInProgress() {
+        guard let all = try? context.fetch(FetchDescriptor<Workout>(predicate: Workout.inProgressPredicate)),
+            all.count > 1
+        else { return }
+        let candidates = all.map { workout in
+            InProgressResolution.Candidate(
+                id: workout.id,
+                startedAt: workout.startedAt,
+                completedSets: (workout.exercises ?? []).flatMap { $0.sets ?? [] }.filter(\.completed).map(
+                    \.completedAt
+                )
+            )
+        }
+        let plan = InProgressResolution.plan(for: candidates)
+        let byID = Dictionary(all.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        for settlement in plan.settled {
+            guard let workout = byID[settlement.id], settlement.id != plan.keep else { continue }
+            switch settlement.action {
+            case .delete:
+                context.delete(workout)
+            case .finish(let end):
+                var keptRows: [WorkoutExercise] = []
+                for row in sortedExercises(of: workout) {
+                    var survivors: [WorkoutSet] = []
+                    for set in sortedSets(of: row) {
+                        if set.completed { survivors.append(set) } else { context.delete(set) }
+                    }
+                    if survivors.isEmpty {
+                        context.delete(row)
+                    } else {
+                        for (position, set) in survivors.enumerated() { set.position = position }
+                        keptRows.append(row)
+                    }
+                }
+                renumber(keptRows)
+                workout.finishedAt = end
+                RestTimer().write(to: workout)
+                workout.updatedAt = now()
+            }
+        }
+        do {
+            try save()
+        } catch {
+            context.rollback()
+        }
+    }
+
     func refuseIfRunning() throws {
         if let running = try fetchInProgress() {
             workout = running

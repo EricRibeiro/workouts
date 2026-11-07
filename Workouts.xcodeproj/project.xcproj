@@ -53,6 +53,15 @@
       ],
       "membership-exceptions": [
         {
+          "target": "Workouts",
+          "inclusions": [
+            "ActivityControls.swift",
+            "ActivityStyle.swift",
+            "ActivityTimers.swift",
+            "DynamicIslandViews.swift",
+            "LockScreenActivityView.swift",
+          ],
+        }, {
           "target": "WorkoutsLiveActivity",
           "exclusions": [
             "Info.plist",

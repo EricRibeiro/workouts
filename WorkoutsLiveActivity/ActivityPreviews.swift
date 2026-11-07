@@ -120,6 +120,16 @@
     // `isDynamicIslandLimitedInWidth` is read-only, so the closed Duo's narrow Island cannot be previewed; it is
     // proven on the Duo with a Live Activity running (`./dev home`). A widget extension hosts only widget previews, so the
     // narrow stack cannot be a plain-view preview either.
+    #Preview("Lock Screen", as: .content, using: previewAttributes) {
+        WorkoutLiveActivity()
+    } contentStates: {
+        WorkoutActivityState.sampleResting
+        WorkoutActivityState.sampleRestOver
+        WorkoutActivityState.sampleLogging
+        WorkoutActivityState.sampleAllDone
+        WorkoutActivityState.sampleLongNames
+    }
+
     #Preview("Compact", as: .dynamicIsland(.compact), using: previewAttributes) {
         WorkoutLiveActivity()
     } contentStates: {

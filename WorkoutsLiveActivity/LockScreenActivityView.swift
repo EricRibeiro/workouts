@@ -81,15 +81,3 @@ extension WorkoutActivityState {
         setsTotal > 0 ? "\(min(setsDone, setsTotal)) of \(setsTotal) sets" : nil
     }
 }
-
-#if DEBUG
-    #Preview("Lock Screen", as: .content, using: WorkoutActivityAttributes(workoutID: UUID())) {
-        WorkoutLiveActivity()
-    } contentStates: {
-        WorkoutActivityState.sampleResting
-        WorkoutActivityState.sampleRestOver
-        WorkoutActivityState.sampleLogging
-        WorkoutActivityState.sampleAllDone
-        WorkoutActivityState.sampleLongNames
-    }
-#endif

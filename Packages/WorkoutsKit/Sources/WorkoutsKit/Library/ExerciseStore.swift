@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import SwiftData
 
 /// What the UI may do to an exercise that the user asks to remove.
 public nonisolated enum ExerciseRemoval: Sendable, Hashable {
@@ -33,6 +34,12 @@ public final class ExerciseStore {
     /// Replaces the custom exercises (call after any insert, edit, archive or delete).
     public func setCustom(_ custom: [Exercise]) {
         rebuild(custom: custom.map(ExerciseInfo.init))
+    }
+
+    /// Re-reads every custom exercise from `context` into the store: for changes the app did not make itself (a custom
+    /// exercise CloudKit merged in from another device).
+    public func reloadCustom(from context: ModelContext) throws {
+        setCustom(try context.fetch(FetchDescriptor<Exercise>()))
     }
 
     /// Library or custom exercise with this id, retired ones included. A custom row wins over a library

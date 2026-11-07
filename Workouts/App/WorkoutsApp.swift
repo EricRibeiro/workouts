@@ -14,7 +14,9 @@ import WorkoutsKit
 
 @main
 struct WorkoutsApp: App {
-    /// Local-only: the iCloud entitlement exists (7.1) but SwiftData sync stays off until PLAN 8.1 (JC54).
+    /// Local-only: the iCloud entitlement exists (7.1) but SwiftData sync stays off until PLAN 8.1 (JC54). 8.1 flips
+    /// this one flag: it picks the store's CloudKit database and installs the remote-change observer below.
+    private static let cloudKitEnabled = false
     private let container: ModelContainer?
     private let containerError: String?
     /// The one engine for the in-progress workout; resumes a running workout from the store at launch.
@@ -34,6 +36,9 @@ struct WorkoutsApp: App {
     /// Looks up the Apple Fitness workout behind each finished workout; its source is chosen once, here at launch.
     private let healthService: HealthEnrichmentService
     private let intentHandler: EngineActivityIntentHandler?
+    /// Re-reads the snapshots (custom exercises, Previous values, history caches) when CloudKit merges remote changes in;
+    /// nil while sync is off.
+    private let remoteChanges: RemoteChangeObserver?
     /// A tap on the rest notification's body asks the root view, through this, to show the workout.
     private let workoutLinks = WorkoutLinkRouter()
 
@@ -86,6 +91,14 @@ struct WorkoutsApp: App {
             )
             ActivityIntentRouter.handler = handler
             intentHandler = handler
+            remoteChanges =
+                Self.cloudKitEnabled
+                ? Self.observeRemoteChanges(
+                    context: context,
+                    store: store,
+                    engine: engine,
+                    generation: storeGeneration
+                ) : nil
             self.container = container
             self.engine = engine
             self.store = store
@@ -95,6 +108,7 @@ struct WorkoutsApp: App {
             engine = nil
             store = nil
             intentHandler = nil
+            remoteChanges = nil
             // Nothing drives them any more: a leftover activity or rest notification would show buttons that do nothing.
             Self.endLiveActivities()
             notifier.sync(plan: nil)
@@ -110,10 +124,34 @@ struct WorkoutsApp: App {
         #if DEBUG
             let arguments = ProcessInfo.processInfo.arguments
             let inMemory = arguments.contains("-uiTesting") || PreviewGallery.requestedName() != nil
-            return try ModelContainer.workouts(inMemory: inMemory, cloudKit: false)
+            return try ModelContainer.workouts(inMemory: inMemory, cloudKit: cloudKitEnabled)
         #else
-            return try ModelContainer.workouts(cloudKit: false)
+            return try ModelContainer.workouts(cloudKit: cloudKitEnabled)
         #endif
+    }
+
+    /// Installs the one `NSPersistentStoreRemoteChange` observer (debounced). A merge from another device changes rows the
+    /// app only snapshots: it re-reads the custom exercises, rebuilds the engine's Previous values and bumps the
+    /// generation the history caches key on. It never calls `resume()`, so a workout running here is not swapped.
+    @MainActor
+    private static func observeRemoteChanges(
+        context: ModelContext,
+        store: ExerciseStore,
+        engine: ActiveWorkoutEngine,
+        generation: StoreGeneration
+    ) -> RemoteChangeObserver {
+        let observer = RemoteChangeObserver {
+            do {
+                try store.reloadCustom(from: context)
+                try engine.reloadPrevious()
+            } catch {
+                Logger(subsystem: "com.ericribeiro.Workouts", category: "Sync")
+                    .error("Could not reload after a remote change: \(error.localizedDescription, privacy: .public)")
+            }
+            generation.bump()
+        }
+        observer.start()
+        return observer
     }
 
     var body: some Scene {

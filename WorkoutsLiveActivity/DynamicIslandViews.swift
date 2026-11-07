@@ -85,6 +85,18 @@ struct CompactLeadingView: View {
     @Environment(\.isDynamicIslandLimitedInWidth) private var isLimited
 
     var body: some View {
+        CompactLeadingContent(state: state, restOver: restOver, isLimited: isLimited)
+    }
+}
+
+/// ``CompactLeadingView``'s drawing with the width limit as a plain value, so snapshot tests can render the closed
+/// Duo's narrow stack (`isDynamicIslandLimitedInWidth` is get-only and cannot be set in the environment).
+struct CompactLeadingContent: View {
+    let state: WorkoutActivityState
+    let restOver: Bool
+    let isLimited: Bool
+
+    var body: some View {
         if isLimited {
             VStack(spacing: 1) {
                 MinimalView(state: state, restOver: restOver)
@@ -109,6 +121,17 @@ struct CompactTrailingView: View {
     let restOver: Bool
 
     @Environment(\.isDynamicIslandLimitedInWidth) private var isLimited
+
+    var body: some View {
+        CompactTrailingContent(state: state, restOver: restOver, isLimited: isLimited)
+    }
+}
+
+/// ``CompactTrailingView``'s drawing with the width limit as a plain value (see ``CompactLeadingContent``).
+struct CompactTrailingContent: View {
+    let state: WorkoutActivityState
+    let restOver: Bool
+    let isLimited: Bool
 
     var body: some View {
         if isLimited {

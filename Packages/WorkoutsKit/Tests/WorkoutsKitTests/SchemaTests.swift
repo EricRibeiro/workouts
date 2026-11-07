@@ -258,4 +258,18 @@ import Testing
         #expect(try count(Template.self, in: context) == 1)
         #expect(template.exercises?.isEmpty == true)
     }
+
+    // MARK: CloudKit choice (review C-11 a)
+
+    @Test(arguments: [
+        (false, false, CloudKitChoice.none), (false, true, .automatic), (true, false, .none), (true, true, .none),
+    ])
+    func cloudKitChoiceIsNoneWheneverInMemory(inMemory: Bool, cloudKit: Bool, expected: CloudKitChoice) {
+        #expect(CloudKitChoice.resolve(inMemory: inMemory, cloudKit: cloudKit) == expected)
+    }
+
+    @Test func inMemoryContainerBuildsEvenWithTheFlagOn() throws {
+        let container = try ModelContainer.workouts(inMemory: true, cloudKit: true)
+        #expect(container.schema.entities.count == 9)
+    }
 }

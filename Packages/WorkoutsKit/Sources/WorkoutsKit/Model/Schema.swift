@@ -26,17 +26,35 @@ public enum WorkoutsMigrationPlan: SchemaMigrationPlan {
     public static var stages: [MigrationStage] { [] }
 }
 
+/// Whether the store syncs through CloudKit: the pure rule behind ``ModelContainer/workouts(inMemory:cloudKit:)``.
+public nonisolated enum CloudKitChoice: Sendable, Equatable {
+    case none
+    case automatic
+
+    /// `.automatic` only when the flag is on **and** the store is on disk. An in-memory store with `.automatic` is an
+    /// invalid configuration (review C-11), so `inMemory` wins whatever the flag says.
+    public static func resolve(inMemory: Bool, cloudKit: Bool) -> CloudKitChoice {
+        cloudKit && !inMemory ? .automatic : .none
+    }
+}
+
 extension ModelContainer {
-    /// The app's container. The store is always local (`cloudKitDatabase: .none`) until PLAN 8.1 turns sync on, so
-    /// `cloudKit` is accepted but ignored for now (JC54). `inMemory` is for tests and previews.
+    /// The app's container. The store is local (`cloudKitDatabase: .none`) while `cloudKit` is false, which every
+    /// caller passes until PLAN 8.1 flips it (JC54); an in-memory store (tests, previews, UI tests) is always local, see
+    /// ``CloudKitChoice/resolve(inMemory:cloudKit:)``.
     public static func workouts(inMemory: Bool = false, cloudKit: Bool = false) throws -> ModelContainer {
         let schema = Schema(versionedSchema: SchemaV1.self)
+        let database: ModelConfiguration.CloudKitDatabase =
+            switch CloudKitChoice.resolve(inMemory: inMemory, cloudKit: cloudKit) {
+            case .none: .none
+            case .automatic: .automatic
+            }
         let configuration = ModelConfiguration(
             schema: schema,
             isStoredInMemoryOnly: inMemory,
-            // Explicit on purpose (JC54 / PLAN 8.1): the app now carries the iCloud entitlement, and SwiftData
-            // would otherwise start syncing to CloudKit on its own. 8.1 replaces this with `cloudKit ? .automatic : .none`.
-            cloudKitDatabase: .none
+            // Explicit on purpose (JC54 / PLAN 8.1): the app carries the iCloud entitlement, and SwiftData would
+            // otherwise start syncing to CloudKit on its own.
+            cloudKitDatabase: database
         )
         return try ModelContainer(
             for: schema,

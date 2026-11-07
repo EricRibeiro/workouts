@@ -49,10 +49,12 @@ public final class ActiveWorkoutEngine {
         try resume()
     }
 
-    /// Reloads the in-progress workout from the store (the newest, if sync ever produced two) and its Previous
-    /// values.
+    /// Reloads the in-progress workout from the store and its Previous values. When sync produced more than one
+    /// in-progress workout the newest stays and the older ones are finished at their last completed set, or deleted when
+    /// nothing was logged (``InProgressResolution``, the C-01 end-time rule).
     @discardableResult
     public func resume() throws -> Workout? {
+        settleExtraInProgress()
         previousCache = [:]
         previousLoaded = []
         let running = try fetchInProgress()
@@ -68,6 +70,16 @@ public final class ActiveWorkoutEngine {
             }
         }
         return running
+    }
+
+    /// Rebuilds the Previous values from the store, as ``resume()`` does, without touching the running workout. The
+    /// app calls it when CloudKit merged remote changes in, so a workout finished on another device shows up as Previous.
+    public func reloadPrevious() throws {
+        previousCache = [:]
+        previousLoaded = []
+        if let running = liveWorkout {
+            try loadPrevious(for: Set(sortedExercises(of: running).map(\.exerciseID)))
+        }
     }
 
     // MARK: - Start
