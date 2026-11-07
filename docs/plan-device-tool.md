@@ -263,7 +263,7 @@ A `Needs:` reference names a task here. Proof commands assume `U=$(cat .build/de
 - [x] **B.3 Gate**: `./dev check` runs `swift test --package-path Tools/duo` after `kit` (sub-second); `./dev lint` covers `Tools/duo`
   (`LINT_PATHS`). Needs: B.1. Proof: `./dev check`.
   **Outcome:** done. `./dev check` runs `duo-test` after kit (`duo: Test run with 93 tests …`); `LINT_PATHS` includes `Tools/duo`; `./dev duo-test` added.
-- [ ] **B.4 Full proof before the commit** (orchestrator's commit, not a worker task): `./dev check`, `./dev ui-test`, and the four-pose screenshot set from B.1 read
+- [x] **B.4 Full proof before the commit** (orchestrator's commit, not a worker task): `./dev check`, `./dev ui-test`, and the four-pose screenshot set from B.1 read
   by a reviewer. Then commit and `./dev testflight --upload` is **not** needed (tooling only; no app change) — note that in
   `docs/testflight.md` only if the commit also touches the app.
 
