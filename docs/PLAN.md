@@ -345,7 +345,7 @@ Live Activity → notifications → logging, then templates, exercises, history.
   - [x] Rest arc accent-coloured while running (toolbar ring, resume control, bench header), green in the grace.
   - [x] No rest caption under exercise names during a workout (template editor keeps it).
   - [x] Exercise info during a workout: tap the name (chevron after it) or the block menu's Exercise Info → shared
-    `ExerciseInfoSheet` (medium/large, system close, full-width uncropped media). The
+    `ExerciseInfoSheet` (medium/large, system close, full-width uncropped media); a segment tap grows it to large (JC109). The
     template preview's ⓘ uses the same sheet.
   - [x] One-line exercise names in the active workout and the template preview (two at accessibility sizes).
   - [x] Resume control: ring + `dumbbell.fill` in every state (JC74).
@@ -380,7 +380,9 @@ Live Activity → notifications → logging, then templates, exercises, history.
     Template and Values"; media watermark; a pre-permission line before the notification prompt.
 
 - [ ] **7.8 Notes polish** (Fable review `docs/reviews/2026-11-07-notes-design.md` + Eric's answers, 2026-11-07). No
-  workout-level note writer (Eric: "I don't want that type of note"; JC108). Sticky notes are the focus:
+  workout-level note writer (Eric: "I don't want that type of note"; JC108). Sticky notes are the focus. The detail's
+  sticky note lives at the top of the About segment (after the retired notice), in the sheet, the pushed detail and the
+  pane (JC109), so 7.8b's band work applies to `StickyNoteView` there:
   - [x] **7.8a One note editor**: fold `StickyNoteEditor` into `NoteSheet` (autofocus, growing field, optional Remove
     row); no scope footer (Eric). Proof: `./dev test` on the touched suites + one UI test per editor entry point.
   - [ ] **7.8b Tap the note to edit it**: the sticky band and the block note in `SetTable` open the editor (menu

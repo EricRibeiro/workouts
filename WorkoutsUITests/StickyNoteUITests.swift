@@ -72,5 +72,21 @@ final class StickyNoteUITests: XCTestCase {
         expectation(for: gone, evaluatedWith: any["exerciseDetail.stickyNote.text"])
         waitForExpectations(timeout: 5)
         XCTAssertEqual(app.buttons["exerciseDetail.stickyNote.edit"].label, "Add Sticky Note")
+
+        // The note is About content: the other segments do not show it, and About brings it back.
+        let segment = app.segmentedControls["exerciseDetail.segment"]
+        XCTAssertTrue(segment.waitForExistence(timeout: 5))
+        XCTAssertGreaterThanOrEqual(
+            any["exerciseDetail.stickyNote"].frame.minY,
+            segment.frame.maxY,
+            "the sticky note is not below the segmented control"
+        )
+        segment.buttons["History"].tap()
+        XCTAssertTrue(any["exerciseDetail.stickyNote"].waitUntilGone(), "the sticky note shows outside About")
+        segment.buttons["About"].tap()
+        XCTAssertTrue(
+            any["exerciseDetail.stickyNote"].waitForExistence(timeout: 5),
+            "About did not bring the note back"
+        )
     }
 }

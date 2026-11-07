@@ -24,6 +24,10 @@ final class ExerciseDetailUITests: XCTestCase {
         let segment = app.segmentedControls["exerciseDetail.segment"]
         XCTAssertTrue(segment.waitForExistence(timeout: 5))
         XCTAssertTrue(segment.buttons["About"].exists)
+        // The sticky note is About content, below the segmented control (not between the name and it).
+        let sticky = any["exerciseDetail.stickyNote"]
+        XCTAssertTrue(sticky.waitForExistence(timeout: 5), "no sticky note in About")
+        XCTAssertGreaterThan(sticky.frame.minY, segment.frame.maxY, "the sticky note is above the segmented control")
         segment.buttons["Records"].tap()
 
         // The sample history has Barbell Bench Press sessions, so at least the e1RM record exists.

@@ -253,7 +253,8 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
 75. **Exercise info is a sheet, closed from the top** (2026-11-05): an informational, glanceable view over the current
     task is a sheet per the HIG; its system close button stays in the top bar (Eric asked for a bottom button, then agreed:
     every system sheet closes there, and a swipe down is the thumb gesture). The template preview presents the same sheet
-    over itself rather than pushing, so the two entry points look identical. (The segment tap that used to grow it to large was removed, JC107.)
+    over itself rather than pushing, so the two entry points look identical. A segment tap grows it to the large detent
+    (removed in JC107, restored in JC109).
 76. **Health data has no section of its own** (2026-11-05, Fable spec): values sit in the workout header as peers of
     Duration/Volume; the only branding is "Data from Apple Health" (HealthKit HIG naming). No Activity-ring visuals (Apple
     reserves them for Move/Exercise/Stand). Zones collapse to one line when the workout never left zone 1.
@@ -301,7 +302,8 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
     exercise info sheet opts out of the Duo's vertical bar (`toolbarVerticalBehavior(.disabled)`) so its content uses the
     full width, and drops its ✕: it is a read-only, resizable sheet with a grabber, dismissed by swiping (HIG Modality:
     "a button in the top toolbar or swipe down"). This replaces the close-button half of JC75. The medium detent keeps
-    the full-size video; the rest of the content is one swipe up away.
+    the full-size video; the rest of the content is one swipe or a segment tap away (true again since JC109; the segments
+    sit right under the name at the medium detent).
 86. **The simulator pool looks after itself, and the full UI suite runs sharded** (2026-11-05, two Fable reviews):
     `./dev` shuts down pool clones idle 30 min (never the original, never one running the app), erases a clone after two
     system-process crashes on it (PosterBoard crash-looped on clones with thousands of leftover poster records), and
@@ -417,8 +419,15 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
     `workouts://workout` request used to close an open past-workout or template editor silently, losing unsaved edits.
     Now `AppNavigation` defers the request while an editor cover is up and presents the workout cover once the editor
     closes (Save, Cancel, or Discard).
-107. **Exercise info sheet no longer grows on a segment tap** (Eric, 2026-11-07): the tabs sit below the medium detent since
+107. **Exercise info sheet no longer grows on a segment tap** (Eric, 2026-11-07; superseded by JC109): the tabs sit below the medium detent since
     the video grew to full width, so the user drags the sheet up to reach them anyway; the grow-on-tap (JC75) was dead
     behaviour and its `onExerciseSegmentChange` environment hook is gone. Detents stay medium and large.
 108. **No workout-level note writer** (Eric, 2026-11-07, notes review): `Workout.note` keeps its field and History keeps
     showing notes that came in through the web import, but no screen writes one; Eric wants sticky notes, not that kind.
+109. **Sticky note is the first block of About; the info sheet grows on a segment tap again** (Eric, 2026-11-07, supersedes
+    JC107; Fable placement review `docs/reviews/2026-11-07-info-sheet-note-placement.md`): the sticky row sat between the
+    name and the segmented control and pushed the tabs below the medium detent, which is why the grow-on-tap looked dead.
+    Eric wants the tabs visible at the medium detent, right under the name, and a tap on another segment growing the sheet
+    to large again (`onExerciseSegmentChange` is back). The sticky note (band + Edit, or "Add Sticky Note" when none)
+    moves out of `ExerciseDetailView.summary` into `ExerciseAboutSection`'s `note` slot, after the retired notice and
+    before the body-part line, in every host (info sheet, pushed detail, embedded pane). Accessibility ids are unchanged.
