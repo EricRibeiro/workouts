@@ -193,21 +193,18 @@ struct SetTable: View {
                     .foregroundStyle(.secondary)
             }
             if let sticky = stickyNote(for: section) {
-                Text(sticky)
-                    .font(.footnote)
-                    .foregroundStyle(.primary)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color.stickyNote, in: .rect(cornerRadius: 8))
-                    .accessibilityLabel("Sticky note: \(sticky)")
-                    .accessibilityIdentifier("settable.sticky.\(section.id.uuidString)")
+                SetTableStickyBand(
+                    text: sticky,
+                    identifier: "settable.sticky.\(section.id.uuidString)",
+                    onEdit: blockActions.map { actions in { actions.stickyNote(section.id) } }
+                )
             }
             if !section.note.isEmpty {
-                Text(section.note)
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                SetTableNoteLine(
+                    text: section.note,
+                    identifier: "settable.note.\(section.id.uuidString)",
+                    onEdit: blockActions.map { actions in { actions.note(section.id) } }
+                )
             }
         }
         .padding(.horizontal, 8)
@@ -216,39 +213,62 @@ struct SetTable: View {
 
     /// The header's trailing options menu. The entries are the owner's; the table only lays them out.
     private func blockMenu(_ section: SetTableSection, actions: SetTableBlockActions) -> some View {
-        Menu {
-            if let onSelectExercise {
-                Button("Exercise Info", systemImage: "info.circle") { onSelectExercise(section) }
-                    .accessibilityIdentifier("settable.menu.info")
-            }
-            Button("Note…", systemImage: "note.text") { actions.note(section.id) }
-                .accessibilityIdentifier("settable.menu.note")
-            Button("Sticky Note…", systemImage: "note.text.badge.plus") { actions.stickyNote(section.id) }
+        let hasSticky = stickyNote(for: section) != nil
+        let hasSets = actions.addWarmups != nil || actions.updateRest != nil
+        let hasExercise =
+            onSelectExercise != nil || actions.replace != nil || actions.superset != nil || actions.preferences != nil
+        // Groups separated by Dividers, not `Section`s: a Section drops the buttons' accessibility identifiers (the menu
+        // items then show only their labels, and the UI tests find them by identifier).
+        return Menu {
+            Group {
+                Button("Note…", systemImage: "note.text") { actions.note(section.id) }
+                    .accessibilityIdentifier("settable.menu.note")
+                // `pin.badge.plus` is not an SF Symbol, so the title carries add versus edit; the identifier is stable.
+                Button(hasSticky ? "Edit Sticky Note…" : "Add Sticky Note…", systemImage: "pin") {
+                    actions.stickyNote(section.id)
+                }
                 .accessibilityIdentifier("settable.menu.stickyNote")
-            if let addWarmups = actions.addWarmups {
-                Button("Add Warm-up Sets", systemImage: "flame") { addWarmups(section.id) }
-                    .accessibilityIdentifier("settable.menu.warmup")
             }
-            if let updateRest = actions.updateRest {
-                Button("Update Rest Timer…", systemImage: "timer") { updateRest(section.id) }
-                    .accessibilityIdentifier("settable.menu.rest")
+            if hasSets {
+                Divider()
+                Group {
+                    if let addWarmups = actions.addWarmups {
+                        Button("Add Warm-up Sets", systemImage: "flame") { addWarmups(section.id) }
+                            .accessibilityIdentifier("settable.menu.warmup")
+                    }
+                    if let updateRest = actions.updateRest {
+                        Button("Update Rest Timer…", systemImage: "timer") { updateRest(section.id) }
+                            .accessibilityIdentifier("settable.menu.rest")
+                    }
+                }
             }
-            if let replace = actions.replace {
-                Button("Replace Exercise…", systemImage: "arrow.triangle.2.circlepath") { replace(section.id) }
-                    .accessibilityIdentifier("settable.menu.replace")
-            }
-            if let superset = actions.superset {
-                Button("Superset…", systemImage: "link") { superset(section.id) }
-                    .accessibilityIdentifier("settable.menu.superset")
-            }
-            if let preferences = actions.preferences {
-                Button("Preferences…", systemImage: "slider.horizontal.3") { preferences(section.id) }
-                    .accessibilityIdentifier("settable.menu.preferences")
+            if hasExercise {
+                Divider()
+                Group {
+                    if let onSelectExercise {
+                        Button("Exercise Info", systemImage: "info.circle") { onSelectExercise(section) }
+                            .accessibilityIdentifier("settable.menu.info")
+                    }
+                    if let replace = actions.replace {
+                        Button("Replace Exercise…", systemImage: "arrow.triangle.2.circlepath") { replace(section.id) }
+                            .accessibilityIdentifier("settable.menu.replace")
+                    }
+                    if let superset = actions.superset {
+                        Button("Superset…", systemImage: "link") { superset(section.id) }
+                            .accessibilityIdentifier("settable.menu.superset")
+                    }
+                    if let preferences = actions.preferences {
+                        Button("Preferences…", systemImage: "slider.horizontal.3") { preferences(section.id) }
+                            .accessibilityIdentifier("settable.menu.preferences")
+                    }
+                }
             }
             if let remove = actions.remove {
                 Divider()
-                Button("Remove Exercise", systemImage: "trash", role: .destructive) { remove(section.id) }
-                    .accessibilityIdentifier("settable.menu.remove")
+                Group {
+                    Button("Remove Exercise", systemImage: "trash", role: .destructive) { remove(section.id) }
+                        .accessibilityIdentifier("settable.menu.remove")
+                }
             }
         } label: {
             Image(systemName: "ellipsis.circle")

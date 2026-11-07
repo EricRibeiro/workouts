@@ -195,8 +195,9 @@ final class TemplateEditorBlockMenuUITests: XCTestCase {
         noteField.typeText(" Pause on the chest.")
         app.buttons["templateEditor.note.save"].tap()
         XCTAssertTrue(any["templateEditor.note.sheet"].waitUntilGone(), "Save did not close the note sheet")
-        let note = app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'Pause on the chest.'")).firstMatch
+        let note = any["settable.note.\(section)"]
         XCTAssertTrue(note.waitForExistence(timeout: 5), "the block note is not shown")
+        XCTAssertTrue(note.label.contains("Pause on the chest."), "label was \(note.label)")
 
         openMenuEntry(app, menu: menu, entry: "settable.menu.stickyNote")
         XCTAssertTrue(any["stickyNote.sheet"].waitForExistence(timeout: 5), "no sticky note sheet")

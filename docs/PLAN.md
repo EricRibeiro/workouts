@@ -384,13 +384,13 @@ Live Activity → notifications → logging, then templates, exercises, history.
   - [ ] **Taste calls still open (Eric)**: open-wide Workout grid widths; stars over the finish title; red "Update
     Template and Values"; media watermark; a pre-permission line before the notification prompt.
 
-- [ ] **7.8 Notes polish** (Fable review `docs/reviews/2026-11-07-notes-design.md` + Eric's answers, 2026-11-07). No
+- [x] **7.8 Notes polish** (Fable review `docs/reviews/2026-11-07-notes-design.md` + Eric's answers, 2026-11-07). No
   workout-level note writer (Eric: "I don't want that type of note"; JC108). Sticky notes are the focus. The detail's
   sticky note lives at the top of the About segment (after the retired notice), in the sheet, the pushed detail and the
   pane (JC109), so 7.8b's band work applies to `StickyNoteView` there:
   - [x] **7.8a One note editor**: fold `StickyNoteEditor` into `NoteSheet` (autofocus, growing field, optional Remove
     row); no scope footer (Eric). Proof: `./dev test` on the touched suites + one UI test per editor entry point.
-  - [ ] **7.8b Tap the note to edit it**: the sticky band and the block note in `SetTable` open the editor (menu
+  - [x] **7.8b Tap the note to edit it**: the sticky band and the block note in `SetTable` open the editor (menu
     entries stay); band capped at 3 lines with an ellipsis (Eric); Sticky Note… gets a `pin` glyph (Eric); the
     add-badge only when no sticky exists; block menu grouped with `Section`s. Needs: 7.8a. Proof: UI test tap band →
     editor; snapshot of a long band.

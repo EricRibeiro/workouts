@@ -431,3 +431,9 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
     to large again (`onExerciseSegmentChange` is back). The sticky note (band + Edit, or "Add Sticky Note" when none)
     moves out of `ExerciseDetailView.summary` into `ExerciseAboutSection`'s `note` slot, after the retired notice and
     before the body-part line, in every host (info sheet, pushed detail, embedded pane). Accessibility ids are unchanged.
+
+- **JC110 (2026-11-07, PLAN 7.8b): block menu groups by `Divider`, one `pin` glyph.** A `Section` inside the block
+  `Menu` dropped its buttons' accessibility identifiers (labels only in the tree), so the groups (notes; sets/rest;
+  exercise; remove) are split with `Divider`, which renders the same separators. `pin.badge.plus` is not an SF Symbol,
+  so Add/Edit Sticky Note… both use `pin` and the title carries the difference. The detail's `StickyNoteView` stays
+  uncapped (it is where the full text is read); the set-table band caps at 3 lines.
