@@ -379,6 +379,19 @@ Live Activity → notifications → logging, then templates, exercises, history.
   - [ ] **Taste calls still open (Eric)**: open-wide Workout grid widths; stars over the finish title; red "Update
     Template and Values"; media watermark; a pre-permission line before the notification prompt.
 
+- [ ] **7.8 Notes polish** (Fable review `docs/reviews/2026-11-07-notes-design.md` + Eric's answers, 2026-11-07). No
+  workout-level note writer (Eric: "I don't want that type of note"; JC108). Sticky notes are the focus:
+  - [ ] **7.8a One note editor**: fold `StickyNoteEditor` into `NoteSheet` (autofocus, growing field, optional Remove
+    row); no scope footer (Eric). Proof: `./dev test` on the touched suites + one UI test per editor entry point.
+  - [ ] **7.8b Tap the note to edit it**: the sticky band and the block note in `SetTable` open the editor (menu
+    entries stay); band capped at 3 lines with an ellipsis (Eric); Sticky Note… gets a `pin` glyph (Eric); the
+    add-badge only when no sticky exists; block menu grouped with `Section`s. Needs: 7.8a. Proof: UI test tap band →
+    editor; snapshot of a long band.
+  - [ ] **7.8c Template note in the editor**: a secondary line above the first block in `TemplateEditor`, tappable.
+    Proof: UI test.
+  - [ ] **7.8d Block notes in the past-workout editor**: pass note/sticky block actions to its `SetTable`;
+    `PastWorkoutDraft.setNote` (kit, tested). Proof: `./dev kit` + UI test edit a past block note, Save, History shows it.
+
 ### Phase 7b — Test coverage for transient and repeat states (Eric, 2026-11-07)
 
 Two device-found bugs passed a green suite: the download bar restarting on each Settings open and the History detail's

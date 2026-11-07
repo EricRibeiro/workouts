@@ -420,3 +420,5 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
 107. **Exercise info sheet no longer grows on a segment tap** (Eric, 2026-11-07): the tabs sit below the medium detent since
     the video grew to full width, so the user drags the sheet up to reach them anyway; the grow-on-tap (JC75) was dead
     behaviour and its `onExerciseSegmentChange` environment hook is gone. Detents stay medium and large.
+108. **No workout-level note writer** (Eric, 2026-11-07, notes review): `Workout.note` keeps its field and History keeps
+    showing notes that came in through the web import, but no screen writes one; Eric wants sticky notes, not that kind.
