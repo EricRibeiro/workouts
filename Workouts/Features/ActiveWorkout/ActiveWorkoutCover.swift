@@ -32,6 +32,7 @@ struct ActiveWorkoutCover: View {
     @State private var isRenaming = false
     @State private var renameText = ""
     @State private var renameError: String?
+    @State private var isReordering = false
     @State private var focusedSectionID: UUID?
     /// The exercise whose detail the compact-width sheet shows (regular width has the pane instead).
     @State private var infoExercise: UUID?
@@ -184,10 +185,20 @@ struct ActiveWorkoutCover: View {
                 isRenaming = true
             }
             .accessibilityIdentifier("cover.titleMenu.rename")
+            Button("Reorder Exercises…", systemImage: "arrow.up.arrow.down") { isReordering = true }
+                .disabled(sections.count < 2)
+                .accessibilityIdentifier("cover.titleMenu.reorder")
             Button("Discard Workout", systemImage: "trash", role: .destructive) {
                 finishFlow.requestDiscard(engine: engine, onDiscarded: onDiscarded)
             }
             .accessibilityIdentifier("cover.titleMenu.discard")
+        }
+        .sheet(isPresented: $isReordering) {
+            ReorderExercisesSheet(sections: sections) { offsets, destination in
+                var ids = sections.map(\.id)
+                ids.move(fromOffsets: offsets, toOffset: destination)
+                source.reorder(ids, moving: offsets.map { sections[$0].id })
+            }
         }
         .alert("Rename Workout", isPresented: $isRenaming) {
             TextField("Name", text: $renameText)

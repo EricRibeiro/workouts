@@ -178,4 +178,25 @@ final class LoggingUITests: XCTestCase {
         XCTAssertEqual(app.keyboards.count, 0)
         XCTAssertEqual(check.value as? String, "Done")
     }
+
+    /// The cover's title menu opens the reorder sheet listing the workout's exercises; Done closes it.
+    @MainActor
+    func testReorderExercisesFromTitleMenuListsTheExercisesAndDismisses() throws {
+        let app = XCUIApplication.launchedInActiveWorkout()
+        let any = app.descendants(matching: .any)
+        XCTAssertTrue(any["screen.activeWorkout"].waitForExistence(timeout: 10))
+        let title = app.navigationBars.matching(NSPredicate(format: "identifier != 'Workout'")).buttons.firstMatch
+        XCTAssertTrue(title.waitForExistence(timeout: 5), "no title menu button")
+        title.tap()
+        let item = app.buttons.matching(NSPredicate(format: "label == 'Reorder Exercises…'")).firstMatch
+        XCTAssertTrue(item.waitForExistence(timeout: 5), "no Reorder Exercises item")
+        item.tap()
+
+        let rows = any.matching(NSPredicate(format: "identifier BEGINSWITH 'reorder.row.'"))
+        XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: 5), "the reorder sheet lists no exercises")
+        XCTAssertGreaterThanOrEqual(rows.count, 2, "the reorder sheet lists fewer than two exercises")
+        app.buttons["reorder.done"].tap()
+        XCTAssertTrue(rows.firstMatch.waitUntilGone(), "Done did not close the reorder sheet")
+        XCTAssertTrue(app.buttons["cover.finish"].firstMatch.isHittable, "the cover is not back in front")
+    }
 }

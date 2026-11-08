@@ -118,6 +118,30 @@ final class PastEditorUITests: XCTestCase {
     }
 
     @MainActor
+    func testReorderExercisesFromTitleMenuListsTheExercisesAndDismisses() throws {
+        let app = openFirstWorkout()
+        let any = app.descendants(matching: .any)
+        app.buttons["workoutDetail.edit"].tap()
+        XCTAssertTrue(any["screen.pastEditor"].waitForExistence(timeout: 5), "no past editor")
+        let title = app.navigationBars.buttons.matching(
+            NSPredicate(format: "NOT identifier BEGINSWITH 'pastEditor.'")
+        )
+        .firstMatch
+        XCTAssertTrue(title.waitForExistence(timeout: 5), "no title menu button")
+        title.tap()
+        let item = app.buttons.matching(NSPredicate(format: "label == 'Reorder Exercises…'")).firstMatch
+        XCTAssertTrue(item.waitForExistence(timeout: 5), "no Reorder Exercises item")
+        item.tap()
+
+        let rows = any.matching(NSPredicate(format: "identifier BEGINSWITH 'reorder.row.'"))
+        XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: 5), "the reorder sheet lists no exercises")
+        XCTAssertGreaterThanOrEqual(rows.count, 2, "the reorder sheet lists fewer than two exercises")
+        app.buttons["reorder.done"].tap()
+        XCTAssertTrue(rows.firstMatch.waitUntilGone(), "Done did not close the reorder sheet")
+        XCTAssertTrue(app.buttons["pastEditor.save"].exists, "the editor is not back")
+    }
+
+    @MainActor
     func testEditingABlockNoteAndSavingShowsItInTheDetail() throws {
         let app = openFirstWorkout()
         let any = app.descendants(matching: .any)

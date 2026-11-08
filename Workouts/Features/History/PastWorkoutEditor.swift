@@ -56,6 +56,7 @@ private struct Editor: View {
     @State private var isDiscardConfirming = false
     @State private var isRenaming = false
     @State private var renameText = ""
+    @State private var isReordering = false
     @State private var focusedSectionID: UUID?
     @State private var blockSheets = BlockActionState()
     @FocusState private var isDurationFocused: Bool
@@ -85,6 +86,9 @@ private struct Editor: View {
                 isRenaming = true
             }
             .accessibilityIdentifier("pastEditor.titleMenu.rename")
+            Button("Reorder Exercises…", systemImage: "arrow.up.arrow.down") { isReordering = true }
+                .disabled(sections.count < 2)
+                .accessibilityIdentifier("pastEditor.titleMenu.reorder")
         }
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
@@ -121,6 +125,13 @@ private struct Editor: View {
                 .disabled(renameText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             Button("Cancel", role: .cancel) {}
                 .accessibilityIdentifier("pastEditor.rename.cancel")
+        }
+        .sheet(isPresented: $isReordering) {
+            ReorderExercisesSheet(sections: sections) { offsets, destination in
+                var ids = sections.map(\.id)
+                ids.move(fromOffsets: offsets, toOffset: destination)
+                source.reorder(ids, moving: offsets.map { sections[$0].id })
+            }
         }
         // Fires when "Discard changes?" is raised, not when Discard is tapped: confirming dismisses this screen in the
         // same pass, which would cut the haptic off, and the presenters (several) cannot be hooked cheaply.
