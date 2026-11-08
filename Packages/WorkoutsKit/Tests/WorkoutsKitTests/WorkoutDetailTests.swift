@@ -231,7 +231,7 @@ import Testing
         #expect(detail.exercises[0].accessibilityLabel.contains("superset 1"))
     }
 
-    @Test func weightsFollowTheDisplayUnit() throws {
+    @Test func setsReadAsEnteredWhileTheHeaderVolumeFollowsTheDisplayUnit() throws {
         let holder = try makeTestContainer()
         defer { withExtendedLifetime(holder) {} }
         let context = holder.mainContext
@@ -242,10 +242,39 @@ import Testing
             rows: [(bench, "Bench Press", nil, [(.normal, 100, 5, true)])]
         )
         let kg = try #require(detail(w.id, [w], options: RecordsOptions(displayUnit: .kg)))
-        #expect(kg.exercises[0].sets[0].text == "45.5 kg × 5")  // 45.36 kg rounded to 0.5
+        #expect(kg.exercises[0].sets[0].text == "100 lb × 5")
+        #expect(kg.exercises[0].bestSetText == "100 lb × 5")
+        #expect(kg.volumeText == "227 kg")  // 500 lb, converted once
         let lb = try #require(detail(w.id, [w], options: RecordsOptions(displayUnit: .lb)))
         #expect(lb.exercises[0].sets[0].text == "100 lb × 5")
         #expect(lb.volumeText == "500 lb")
+    }
+
+    @Test func aKgSessionViewedInPoundsReadsInKgAndTheTrophyStillLandsOnTheRecordSet() throws {
+        let holder = try makeTestContainer()
+        defer { withExtendedLifetime(holder) {} }
+        let context = holder.mainContext
+        let early = workout(
+            context,
+            name: "A",
+            at: date(10, 1),
+            rows: [(bench, "Bench Press", nil, [(.normal, 60, 8, true)])]
+        )
+        let later = workout(
+            context,
+            name: "B",
+            at: date(10, 8),
+            rows: [(bench, "Bench Press", nil, [(.normal, 60, 8, true), (.normal, 70, 8, true)])]
+        )
+        let lbOptions = RecordsOptions(displayUnit: .lb)
+        let view = try #require(detail(later.id, [early, later], options: lbOptions))
+        let block = view.exercises[0]
+        #expect(block.sets.map(\.text) == ["60 kg × 8", "70 kg × 8"])
+        #expect(block.bestSetText == "70 kg × 8")
+        #expect(block.sets.map(\.isPR) == [false, true])
+        #expect(block.sets[1].accessibilityLabel == "Set 2, 70 kg × 8, personal record")
+        #expect(block.prLines.allSatisfy { $0.hasSuffix(" lb") || $0.hasPrefix("Reps: ") })
+        #expect(view.volumeText.hasSuffix(" lb"))
     }
 
     // MARK: Records

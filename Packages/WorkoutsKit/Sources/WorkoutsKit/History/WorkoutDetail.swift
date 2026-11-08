@@ -196,8 +196,8 @@ nonisolated extension WorkoutDetail {
         let bestText =
             best.map {
                 formatSetDetail(
-                    weight: $0.weightInDisplayUnit,
-                    unit: unit,
+                    weight: $0.set.weight,
+                    unit: $0.set.unit,
                     reps: $0.set.reps,
                     durationSeconds: $0.set.durationSeconds
                 )
@@ -207,10 +207,11 @@ nonisolated extension WorkoutDetail {
         var unclaimed = prs
         var lines: [SetLine] = []
         for (index, (id, set)) in zip(setIDs, session.sets).enumerated() {
+            // The line reads as entered, in the set's own unit; only the record match uses the display unit.
             let shown = displayWeight(set, unit: unit)
             let text = formatSetDetail(
-                weight: shown,
-                unit: unit,
+                weight: set.weight,
+                unit: set.unit,
                 reps: set.reps,
                 durationSeconds: set.durationSeconds
             )
