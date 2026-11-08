@@ -381,6 +381,12 @@ Live Activity → notifications → logging, then templates, exercises, history.
     the field stayed first responder. Not reproduced in XCUITest (28 check→tap-next rounds, toolbar every time). Theory:
     `toggleCheck`'s `focus = nil` (SetTable) racing a tap on the next cell during the keyboard dismissal. Next: a repro
     on device (did it follow a check?), then compare-and-clear in `toggleCheck`; no guess fix.
+  - [ ] **Review rounds 3–5 leftovers (P3/nit, 2026-11-08; reports `docs/reviews/2026-11-08-r3-*`, `r4-*`, `r5-confirm`)**:
+    nested save-error alerts (info/peek sheet over an editor cover: only the topmost host should show; r5); heart-rate
+    Avg still counts the pre-start lead-in while Max is the plotted peak (r5 nit); non-numeric `DEV_BOOT_TIMEOUT`
+    aborts `dev` (r5 nit); test P3s from r3/r4 tests reports (two sleep polls, `XCTAssertFalse(waitForExistence)` after
+    dismiss, unanchored absence checks, fixed 3 s snapshot waits, set-row snapshot gaps, `.hostedFitting` measures
+    before the trait override).
   - [ ] **Taste calls still open (Eric)**: open-wide Workout grid widths; stars over the finish title; red "Update
     Template and Values"; media watermark; a pre-permission line before the notification prompt.
 
