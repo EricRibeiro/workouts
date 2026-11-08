@@ -379,17 +379,21 @@ struct SetTable: View {
             direction: direction,
             unit: row.unit,
             weightType: row.weightType,
-            placeholder: field.column == .weight ? row.weightPlaceholder : row.repsPlaceholder
+            placeholder: field.column == .weight ? row.weightPlaceholder : row.repsPlaceholder,
+            measure: row.measure
         )
         switch field.column {
         case .weight: source.commitWeight(SetInputFormat.parseWeight(text), for: row.id)
-        case .reps: source.commitReps(SetInputFormat.parseCount(text), for: row.id)
+        case .reps:
+            let value =
+                row.measure == .duration ? SetInputFormat.parseDurationText(text) : SetInputFormat.parseCount(text)
+            source.commitReps(value, for: row.id)
         }
         // VoiceOver stays on the − / + key, so say what the field now holds.
         let spoken: String
         switch field.column {
         case .weight: spoken = "Weight \(text) \(row.unit == .kg ? "kilograms" : "pounds")"
-        case .reps: spoken = "\(row.measure == .duration ? "Duration \(text) seconds" : "Reps \(text)")"
+        case .reps: spoken = "\(row.measure == .duration ? "Duration \(text)" : "Reps \(text)")"
         }
         AccessibilityNotification.Announcement(spoken).post()
     }

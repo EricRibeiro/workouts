@@ -24,6 +24,9 @@ struct SetFieldCell: View {
     /// The text a typed string normalises to (parse, clamp, format); empty when it means nothing.
     let normalize: (String) -> String
     let commit: (String) -> Void
+    /// A Time cell's entry mode: while focused, every text change is reshaped (digits fill from the right, `130` → `1:30`)
+    /// and focusing re-expresses the stored text as that entry text. nil for weight and reps.
+    var entry: Entry?
     /// A VoiceOver swipe up / down: the same step as the keyboard's − / + keys.
     let adjust: (SetKeyboard.Direction) -> Void
 
@@ -34,6 +37,11 @@ struct SetFieldCell: View {
     /// one-line or two-line choice cannot follow what is typed: a text-sized ideal width flipped the branch mid-typing,
     /// rebuilt the field and dropped focus. The cell still grows to fill the row.
     @ScaledMetric(relativeTo: .body) private var idealWidth = 56.0
+
+    struct Entry {
+        let reshape: (String) -> String
+        let focusText: (String) -> String
+    }
 
     private var isFocused: Bool { focus.wrappedValue == field }
 
@@ -63,6 +71,13 @@ struct SetFieldCell: View {
         .onTapGesture { focus.wrappedValue = field }
         .onAppear { text = value }
         .onChange(of: text) { _, newText in
+            if isFocused, let entry {
+                let shaped = entry.reshape(newText)
+                if shaped != newText {
+                    text = shaped
+                    return
+                }
+            }
             if normalize(newText) != value { commit(newText) }
         }
         .onChange(of: value) { _, newValue in
@@ -70,6 +85,7 @@ struct SetFieldCell: View {
         }
         .onChange(of: isFocused) { _, focused in
             if focused {
+                if let entry { text = entry.focusText(text) }
                 // First key replaces the cell's text.
                 if !text.isEmpty { selection = TextSelection(range: text.startIndex..<text.endIndex) }
             } else {
@@ -78,7 +94,7 @@ struct SetFieldCell: View {
         }
         .accessibilityLabel(label)
         // An empty field would otherwise report its placeholder (the Previous value) as if it were typed.
-        .accessibilityValue(text.isEmpty ? "Empty" : text)
+        .accessibilityValue(text.isEmpty ? "Empty" : (entry == nil ? text : normalize(text)))
         .accessibilityHint(hint)
         .accessibilityAdjustableAction { adjust($0 == .increment ? .increment : .decrement) }
         .accessibilityIdentifier(identifier)

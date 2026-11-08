@@ -6,7 +6,7 @@ public nonisolated enum SetInputFormat {
     /// What the second input column of a set row measures.
     public enum Measure: String, Sendable, Hashable, CaseIterable {
         case reps
-        /// Time exercises: whole seconds.
+        /// Time exercises: whole seconds, shown and typed as `m:ss`.
         case duration
     }
 
@@ -74,6 +74,49 @@ public nonisolated enum SetInputFormat {
     /// Field text for stored reps or seconds; empty for nil.
     public static func countText(_ count: Int?) -> String {
         count.map { String(max(0, $0)) } ?? ""
+    }
+
+    /// Field text for a stored duration: `0:30`, `1:20`, `12:05`, `1:00:00`; empty for nil.
+    public static func durationText(_ seconds: Int?) -> String {
+        seconds.map { ClockFormat.clock(seconds: $0) } ?? ""
+    }
+
+    /// The editing buffer of a stored duration, minutes then two-digit seconds without a separator (`90` → `130`,
+    /// `30` → `30`); empty for nil. Hours fold into minutes (`3600` → `6000`).
+    public static func durationDigits(_ seconds: Int?) -> String {
+        guard let seconds else { return "" }
+        let total = max(0, seconds)
+        let minutes = total / 60
+        return minutes == 0 ? "\(total)" : "\(minutes)\(String(format: "%02d", total % 60))"
+    }
+
+    /// Digits typed into a Time cell, read like a microwave: the last two are seconds, the rest minutes, normalised
+    /// (`190` → 150). Non-digits are dropped; no digits is nil.
+    public static func parseDurationDigits(_ text: String) -> Int? {
+        let digits = String(text.filter { $0.isASCII && $0.isNumber }.suffix(6))
+        guard !digits.isEmpty else { return nil }
+        let seconds = Int(digits.suffix(2)) ?? 0
+        let minutes = Int(digits.dropLast(2)) ?? 0
+        return minutes * 60 + seconds
+    }
+
+    /// A Time cell's text as shown (`1:30`, `1:00:00`) or typed back to a duration: colon groups are read as
+    /// h:mm:ss / m:ss, anything else as microwave digits. Empty or unparsable text is nil.
+    public static func parseDurationText(_ text: String) -> Int? {
+        let parts = text.split(separator: ":", omittingEmptySubsequences: false)
+        guard parts.count > 1, parts.count <= 3,
+            parts.allSatisfy({ !$0.isEmpty && $0.allSatisfy { $0.isASCII && $0.isNumber } })
+        else { return parseDurationDigits(text) }
+        return parts.reduce(0) { $0 * 60 + (Int($1) ?? 0) }
+    }
+
+    /// The live text of a Time cell while typing: digits fill from the right (`1` → `1`, `13` → `13`, `130` → `1:30`,
+    /// `1305` → `13:05`). Non-digits are dropped.
+    public static func durationEntryText(_ digits: String) -> String {
+        let digits = String(digits.filter { $0.isASCII && $0.isNumber }.suffix(6))
+        guard digits.count > 2 else { return digits }
+        let minutes = Int(digits.dropLast(2)) ?? 0
+        return "\(minutes):\(digits.suffix(2))"
     }
 
     /// The Previous cell text: `60 kg × 8`, `12 reps`, `20 kg × 45 s`; nil when the previous set recorded nothing. A

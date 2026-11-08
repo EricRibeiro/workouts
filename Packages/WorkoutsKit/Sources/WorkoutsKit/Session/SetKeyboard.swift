@@ -30,31 +30,36 @@ public nonisolated enum SetKeyboard {
     }
 
     /// The jump of the −/+ keys: 2.5 lb or 1.25 kg for weight, doubled for a barbell (plates go on in pairs); 1 for reps and
-    /// time (web `stepFor`).
-    public static func step(column: Column, unit: WeightUnit, weightType: WeightType) -> Double {
-        guard column == .weight else { return 1 }
+    /// 5 seconds for time.
+    public static func step(
+        column: Column,
+        unit: WeightUnit,
+        weightType: WeightType,
+        measure: SetInputFormat.Measure = .reps
+    ) -> Double {
+        guard column == .weight else { return measure == .duration ? 5 : 1 }
         let base = unit == .lb ? 2.5 : 1.25
         return weightType == .barbell ? base * 2 : base
     }
 
-    /// The step as spoken for VoiceOver: "2.5 pounds", "1.25 kilograms", "1 rep", "1 second".
+    /// The step as spoken for VoiceOver: "2.5 pounds", "1.25 kilograms", "1 rep", "5 seconds".
     public static func stepDescription(
         column: Column,
         unit: WeightUnit,
         weightType: WeightType,
         measure: SetInputFormat.Measure = .reps
     ) -> String {
-        let size = step(column: column, unit: unit, weightType: weightType)
+        let size = step(column: column, unit: unit, weightType: weightType, measure: measure)
         switch column {
         case .weight:
             return "\(SetInputFormat.weightText(size)) \(unit == .kg ? "kilograms" : "pounds")"
         case .reps:
-            return measure == .duration ? "1 second" : "1 rep"
+            return measure == .duration ? "5 seconds" : "1 rep"
         }
     }
 
     /// The field text after a −/+ press: the current value moved by one step, never below 0, weights at most 2 decimals,
-    /// reps and time whole numbers (web `applyKey`). An empty cell steps from its greyed `placeholder` (the Previous / plan
+    /// reps whole numbers and time `m:ss` (web `applyKey`). An empty cell steps from its greyed `placeholder` (the Previous / plan
     /// value checking the set would fill in; JC114), so a cell showing 60 goes to 62.5 on +. Without a usable placeholder
     /// (the default, or "–"), and for unparsable text, the base is 0.
     public static func stepped(
@@ -63,14 +68,18 @@ public nonisolated enum SetKeyboard {
         direction: Direction,
         unit: WeightUnit,
         weightType: WeightType,
-        placeholder: String = ""
+        placeholder: String = "",
+        measure: SetInputFormat.Measure = .reps
     ) -> String {
-        let size = step(column: column, unit: unit, weightType: weightType)
+        let size = step(column: column, unit: unit, weightType: weightType, measure: measure)
         let text = text.trimmingCharacters(in: .whitespaces).isEmpty ? placeholder : text
         switch column {
         case .weight:
             let current = SetInputFormat.parseWeight(text) ?? 0
             return SetInputFormat.weightText(max(0, current + direction.sign * size))
+        case .reps where measure == .duration:
+            let current = SetInputFormat.parseDurationText(text) ?? 0
+            return SetInputFormat.durationText(max(0, current + Int(direction.sign * size)))
         case .reps:
             let current = SetInputFormat.parseCount(text) ?? 0
             return SetInputFormat.countText(max(0, current + Int(direction.sign * size)))

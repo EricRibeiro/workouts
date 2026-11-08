@@ -68,17 +68,17 @@ extension SnapshotTests {
                 SetRowModel(
                     id: UUID(),
                     number: 6,
-                    previousText: "10 kg × 45 s",
+                    previousText: "10 kg × 0:45",
                     weightText: "10",
-                    repsText: "45",
+                    repsText: "0:45",
                     isChecked: true,
                     measure: .duration
                 ),
                 SetRowModel(
                     id: UUID(),
                     number: 7,
-                    previousText: "60 s",
-                    repsText: "60",
+                    previousText: "1:00",
+                    repsText: "1:00",
                     isChecked: true,
                     measure: .duration,
                     showsWeight: false

@@ -25,7 +25,7 @@ import Testing
         #expect(SetKeyboard.stepDescription(column: .reps, unit: .kg, weightType: .barbell) == "1 rep")
         #expect(
             SetKeyboard.stepDescription(column: .reps, unit: .kg, weightType: .barbell, measure: .duration)
-                == "1 second"
+                == "5 seconds"
         )
     }
 
@@ -83,6 +83,29 @@ import Testing
         #expect(weight("", "–", .increment) == "2.5")
         #expect(reps("", "–", .decrement) == "0")
         #expect(reps("", "", .increment) == "1")
+    }
+
+    @Test func steppingDurationMovesFiveSecondsAsClock() {
+        func go(_ text: String, _ direction: SetKeyboard.Direction, placeholder: String = "") -> String {
+            SetKeyboard.stepped(
+                text,
+                column: .reps,
+                direction: direction,
+                unit: .kg,
+                weightType: .weighted,
+                placeholder: placeholder,
+                measure: .duration
+            )
+        }
+        #expect(SetKeyboard.step(column: .reps, unit: .kg, weightType: .weighted, measure: .duration) == 5)
+        #expect(go("0:45", .increment) == "0:50")
+        #expect(go("0:58", .increment) == "1:03")
+        #expect(go("1:00", .decrement) == "0:55")
+        #expect(go("0:03", .decrement) == "0:00")
+        #expect(go("", .increment, placeholder: "1:30") == "1:35")
+        #expect(go("", .increment, placeholder: "–") == "0:05")
+        #expect(go("59:58", .increment) == "1:00:03")
+        #expect(go("1:00:00", .decrement) == "59:55")
     }
 
     @Test func steppingRepsAndTime() {

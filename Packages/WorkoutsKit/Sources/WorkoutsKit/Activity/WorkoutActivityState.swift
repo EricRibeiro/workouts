@@ -58,7 +58,7 @@ public nonisolated struct WorkoutActivitySet: Codable, Hashable, Sendable {
     /// "Set 3 of 4" for the lock screen and the Island.
     public var progressText: String { "Set \(number) of \(count)" }
 
-    /// "27.5 lb × 8", "12 reps", "45 s", "" when there is nothing to show.
+    /// "27.5 lb × 8", "12 reps", "0:45", "" when there is nothing to show.
     public var detailText: String {
         formatSetDetail(weight: weight, unit: unit, reps: reps, durationSeconds: durationSeconds)
     }
@@ -233,7 +233,7 @@ public nonisolated func shortenedName(_ name: String, limit: Int) -> String {
 }
 
 /// The value part of a set: `27.5 lb × 8`. A weight of 0 or none is dropped, so a bodyweight set reads `12 reps`. A
-/// duration reads `45 s`, with a weight `20 lb × 45 s`; a weight alone reads `27.5 lb`. Empty when there is nothing
+/// duration reads `0:45`, with a weight `20 lb × 0:45`; a weight alone reads `27.5 lb`. Empty when there is nothing
 /// to show.
 public nonisolated func formatSetDetail(
     weight: Double?,
@@ -246,7 +246,7 @@ public nonisolated func formatSetDetail(
         if let reps, reps > 0 {
             load == nil ? "\(reps) \(reps == 1 ? "rep" : "reps")" : "\(reps)"
         } else if let durationSeconds, durationSeconds > 0 {
-            ClockFormat.compact(seconds: durationSeconds)
+            ClockFormat.clock(seconds: durationSeconds)
         } else {
             nil
         }

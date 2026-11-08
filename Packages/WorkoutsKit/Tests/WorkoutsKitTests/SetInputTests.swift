@@ -71,11 +71,65 @@ import Testing
         #expect(SetInputFormat.countText(8) == "8")
     }
 
+    @Test(
+        arguments: [
+            (nil, ""), (0, "0:00"), (30, "0:30"), (59, "0:59"), (60, "1:00"), (61, "1:01"), (80, "1:20"),
+            (725, "12:05"), (3599, "59:59"), (3600, "1:00:00"), (3725, "1:02:05"), (-5, "0:00"),
+        ] as [(Int?, String)]
+    )
+    func durationText(seconds: Int?, expected: String) {
+        #expect(SetInputFormat.durationText(seconds) == expected)
+    }
+
+    @Test(
+        arguments: [
+            (nil, ""), (0, "0"), (30, "30"), (59, "59"), (60, "100"), (61, "101"), (90, "130"), (725, "1205"),
+            (3600, "6000"),
+        ] as [(Int?, String)]
+    )
+    func durationDigits(seconds: Int?, expected: String) {
+        #expect(SetInputFormat.durationDigits(seconds) == expected)
+    }
+
+    @Test(
+        arguments: [
+            ("", nil), ("ab", nil), ("0", 0), ("5", 5), ("59", 59), ("60", 60), ("61", 61), ("100", 60), ("130", 90),
+            ("190", 150), ("1305", 785), ("6000", 3600), ("1:30", 90), ("a1b3c0", 90), ("005", 5),
+        ] as [(String, Int?)]
+    )
+    func parseDurationDigits(text: String, expected: Int?) {
+        #expect(SetInputFormat.parseDurationDigits(text) == expected)
+    }
+
+    @Test(
+        arguments: [
+            ("", nil), ("ab", nil), ("1:30", 90), ("0:45", 45), ("12:05", 725), ("1:00:00", 3600), ("1:02:05", 3725),
+            ("130", 90), ("45", 45), ("1:", 1),
+        ] as [(String, Int?)]
+    )
+    func parseDurationText(text: String, expected: Int?) {
+        #expect(SetInputFormat.parseDurationText(text) == expected)
+    }
+
+    @Test(arguments: [
+        ("", ""), ("1", "1"), ("13", "13"), ("130", "1:30"), ("1305", "13:05"), ("0305", "3:05"), ("005", "0:05"),
+        ("ab", ""), ("1:30", "1:30"), ("12345", "123:45"),
+    ])
+    func durationEntryText(digits: String, expected: String) {
+        #expect(SetInputFormat.durationEntryText(digits) == expected)
+    }
+
+    @Test func durationDigitsRoundTrip() {
+        for seconds in [0, 5, 30, 59, 60, 61, 90, 725, 3599, 3600, 5400] {
+            #expect(SetInputFormat.parseDurationDigits(SetInputFormat.durationDigits(seconds)) == seconds)
+        }
+    }
+
     @Test func previousText() {
         let lifted = PreviousSet(weight: 60, reps: 8)
         #expect(SetInputFormat.previousText(lifted, unit: .kg) == "60 kg × 8")
         #expect(SetInputFormat.previousText(lifted, unit: .lb, showsWeight: false) == "8 reps")
-        #expect(SetInputFormat.previousText(PreviousSet(weight: 20, durationSeconds: 45), unit: .kg) == "20 kg × 45 s")
+        #expect(SetInputFormat.previousText(PreviousSet(weight: 20, durationSeconds: 45), unit: .kg) == "20 kg × 0:45")
         #expect(SetInputFormat.previousText(PreviousSet(), unit: .kg) == nil)
         #expect(SetInputFormat.previousText(nil, unit: .kg) == nil)
     }

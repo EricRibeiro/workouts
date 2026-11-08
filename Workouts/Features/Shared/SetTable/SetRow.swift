@@ -219,6 +219,8 @@ struct SetRow: View {
         )
     }
 
+    private var isDuration: Bool { model.measure == .duration }
+
     private var repsCell: some View {
         SetFieldCell(
             value: model.repsText,
@@ -227,11 +229,26 @@ struct SetRow: View {
             isChecked: model.isChecked,
             field: SetRowField(setID: model.id, column: .reps),
             focus: focus,
-            label: model.measure == .duration ? "Duration" : "Reps",
-            hint: model.measure == .duration ? "Seconds" : "",
+            label: isDuration ? "Duration" : "Reps",
+            hint: isDuration ? "Minutes and seconds" : "",
             identifier: "setrow.\(model.id.uuidString).reps",
-            normalize: { SetInputFormat.countText(SetInputFormat.parseCount($0)) },
-            commit: { onCommitReps(SetInputFormat.parseCount($0)) },
+            normalize: {
+                isDuration
+                    ? SetInputFormat.durationText(SetInputFormat.parseDurationDigits($0))
+                    : SetInputFormat.countText(SetInputFormat.parseCount($0))
+            },
+            commit: {
+                onCommitReps(isDuration ? SetInputFormat.parseDurationDigits($0) : SetInputFormat.parseCount($0))
+            },
+            entry: isDuration
+                ? SetFieldCell.Entry(
+                    reshape: SetInputFormat.durationEntryText,
+                    focusText: {
+                        SetInputFormat.durationEntryText(
+                            SetInputFormat.durationDigits(SetInputFormat.parseDurationText($0))
+                        )
+                    }
+                ) : nil,
             adjust: { direction in
                 let text = SetKeyboard.stepped(
                     model.repsText,
@@ -239,9 +256,10 @@ struct SetRow: View {
                     direction: direction,
                     unit: model.unit,
                     weightType: model.weightType,
-                    placeholder: model.repsPlaceholder
+                    placeholder: model.repsPlaceholder,
+                    measure: model.measure
                 )
-                onCommitReps(SetInputFormat.parseCount(text))
+                onCommitReps(isDuration ? SetInputFormat.parseDurationText(text) : SetInputFormat.parseCount(text))
             }
         )
     }
@@ -302,7 +320,13 @@ struct SetRow: View {
                             onCommitWeight: { value in
                                 update(row.id) { $0.weightText = SetInputFormat.weightText(value) }
                             },
-                            onCommitReps: { value in update(row.id) { $0.repsText = SetInputFormat.countText(value) } },
+                            onCommitReps: { value in
+                                update(row.id) {
+                                    $0.repsText =
+                                        $0.measure == .duration
+                                        ? SetInputFormat.durationText(value) : SetInputFormat.countText(value)
+                                }
+                            },
                             onToggleCheck: {
                                 update(row.id) { $0.isChecked.toggle() }
                                 return true
@@ -342,7 +366,8 @@ struct SetRow: View {
                     column: .reps,
                     direction: direction,
                     unit: row.unit,
-                    weightType: row.weightType
+                    weightType: row.weightType,
+                    measure: row.measure
                 )
                 update(row.id) { $0.repsText = text }
             }
@@ -426,11 +451,11 @@ struct SetRow: View {
                 SetRowModel(
                     id: UUID(),
                     number: 7,
-                    previousText: "10 kg × 45 s",
+                    previousText: "10 kg × 0:45",
                     weightText: "10",
-                    repsText: "45",
+                    repsText: "0:45",
                     weightPlaceholder: "10",
-                    repsPlaceholder: "60",
+                    repsPlaceholder: "1:00",
                     measure: .duration
                 ),
                 SetRowModel(id: UUID(), number: 8, canCheck: false),

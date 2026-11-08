@@ -41,7 +41,7 @@ struct ExerciseBestSetsTests {
         let bodyweight = [session(daysAgo: 1, type: .bodyweight, [LoggedSet(reps: 12)])]
         #expect(ExerciseBestSets.text(for: bodyweight, options: kg) == "12 reps")
         let plank = [session(daysAgo: 1, type: .unweighted, [LoggedSet(durationSeconds: 45)])]
-        #expect(ExerciseBestSets.text(for: plank, options: kg) == "45 s")
+        #expect(ExerciseBestSets.text(for: plank, options: kg) == "0:45")
     }
 
     @Test func neverPerformedIsEmptyAndLeftOutOfTheMap() {

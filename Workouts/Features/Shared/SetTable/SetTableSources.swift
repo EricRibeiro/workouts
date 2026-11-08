@@ -47,17 +47,16 @@ struct EngineSetTableSource: SetTableDataSource {
                         kind: set.kind,
                         previousText: SetInputFormat.previousText(previous, unit: row.unit),
                         weightText: SetInputFormat.weightText(set.weight),
-                        repsText: SetInputFormat.countText(timed ? set.durationSeconds : set.reps),
+                        repsText: timed
+                            ? SetInputFormat.durationText(set.durationSeconds) : SetInputFormat.countText(set.reps),
                         isChecked: set.completed,
                         canCheck: engine.canCheck(set),
                         weightPlaceholder: placeholder(
                             weight: previous?.weight ?? plan?.weight
                         ),
-                        repsPlaceholder: placeholder(
-                            count: timed
-                                ? (previous?.durationSeconds ?? plan?.durationSeconds)
-                                : (previous?.reps ?? plan?.reps)
-                        ),
+                        repsPlaceholder: timed
+                            ? placeholder(duration: previous?.durationSeconds ?? plan?.durationSeconds)
+                            : placeholder(count: previous?.reps ?? plan?.reps),
                         unit: row.unit,
                         weightType: weightType,
                         measure: timed ? .duration : .reps,
@@ -190,7 +189,8 @@ struct TemplateSetTableSource: SetTableDataSource {
                         number: index + 1,
                         kind: set.kind,
                         weightText: SetInputFormat.weightText(set.weight),
-                        repsText: SetInputFormat.countText(row.isTimed ? set.durationSeconds : set.reps),
+                        repsText: row.isTimed
+                            ? SetInputFormat.durationText(set.durationSeconds) : SetInputFormat.countText(set.reps),
                         unit: row.unit,
                         weightType: weightType,
                         measure: row.isTimed ? .duration : .reps,
@@ -240,7 +240,8 @@ struct PastSetTableSource: SetTableDataSource {
                         number: index + 1,
                         kind: set.kind,
                         weightText: SetInputFormat.weightText(set.weight),
-                        repsText: SetInputFormat.countText(row.isTimed ? set.durationSeconds : set.reps),
+                        repsText: row.isTimed
+                            ? SetInputFormat.durationText(set.durationSeconds) : SetInputFormat.countText(set.reps),
                         unit: row.unit,
                         weightType: weightType,
                         measure: row.isTimed ? .duration : .reps,
@@ -277,4 +278,8 @@ private func placeholder(weight: Double?) -> String {
 
 private func placeholder(count: Int?) -> String {
     count.map { SetInputFormat.countText($0) } ?? "–"
+}
+
+private func placeholder(duration: Int?) -> String {
+    duration.map { SetInputFormat.durationText($0) } ?? "–"
 }

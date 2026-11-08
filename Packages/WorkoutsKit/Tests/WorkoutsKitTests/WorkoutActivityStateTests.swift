@@ -196,8 +196,8 @@ import Testing
         #expect(engine.activityState?.current?.detailText == "12 reps")
         try engine.check(sets(stretch)[0])
         try engine.setValues(sets(stretch)[1], weight: nil, reps: nil, durationSeconds: 45)
-        #expect(engine.activityState?.current?.detailText == "45 s")
-        #expect(engine.activityState?.current?.nextSetText == "Set 2 · 45 s")
+        #expect(engine.activityState?.current?.detailText == "0:45")
+        #expect(engine.activityState?.current?.nextSetText == "Set 2 · 0:45")
     }
 
     @Test func restFieldsMirrorTheRestTimer() throws {
@@ -295,7 +295,7 @@ import Testing
         #expect(formatSetDetail(weight: 100, unit: .kg, reps: 5, durationSeconds: nil) == "100 kg × 5")
         #expect(formatSetDetail(weight: nil, unit: .kg, reps: 12, durationSeconds: nil) == "12 reps")
         #expect(formatSetDetail(weight: 0, unit: .lb, reps: 12, durationSeconds: nil) == "12 reps")
-        #expect(formatSetDetail(weight: nil, unit: .lb, reps: nil, durationSeconds: 45) == "45 s")
+        #expect(formatSetDetail(weight: nil, unit: .lb, reps: nil, durationSeconds: 45) == "0:45")
         #expect(formatSetDetail(weight: 20, unit: .lb, reps: nil, durationSeconds: 90) == "20 lb × 1:30")
         #expect(formatSetDetail(weight: 27.5, unit: .lb, reps: nil, durationSeconds: nil) == "27.5 lb")
         #expect(formatSetDetail(weight: nil, unit: .lb, reps: 0, durationSeconds: 0) == "")

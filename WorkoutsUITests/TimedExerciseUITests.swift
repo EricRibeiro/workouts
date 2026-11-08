@@ -103,16 +103,32 @@ final class TimedExerciseUITests: XCTestCase {
         XCTAssertEqual(reps.firstMatch.label, "Duration", "Plank's cell is not a duration cell")
         XCTAssertEqual(fields(in: plank, ending: ".weight").count, 0, "Plank rows show a weight cell")
 
-        // Typing 45 into the Time cell shows 45 (seconds; `countText` renders the plain number).
+        // Digits fill from the right: 45 reads 0:45 once committed (seconds only).
         let time = reps.firstMatch
         time.tap()
         time.typeText("45")
         XCTAssertTrue(
-            waitUntil { (time.value as? String) == "45" },
+            waitUntil { (time.value as? String) == "0:45" },
             "Time cell reads \(time.value as? String ?? "nil")"
         )
         app.buttons["setkeyboard.done"].firstMatch.tap()
-        XCTAssertTrue(waitUntil { (time.value as? String) == "45" })
+        XCTAssertTrue(waitUntil { (time.value as? String) == "0:45" })
+
+        // A second set: 130 is 1 minute 30 seconds, 190 normalises to 2:30.
+        let addSet = plank.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'settable.addset.'")).firstMatch
+        XCTAssertTrue(addSet.waitForExistence(timeout: 5), "Plank has no Add set button")
+        addSet.tap()
+        XCTAssertTrue(waitUntil { reps.count >= 2 }, "the second Plank set did not appear")
+        let second = reps.element(boundBy: reps.count - 1)
+        second.tap()
+        second.typeText("130")
+        XCTAssertTrue(
+            waitUntil { (second.value as? String) == "1:30" },
+            "second Time cell reads \(second.value as? String ?? "nil")"
+        )
+        app.buttons["setkeyboard.done"].firstMatch.tap()
+        XCTAssertTrue(waitUntil { (second.value as? String) == "1:30" })
+        XCTAssertEqual(time.value as? String, "0:45")
         XCTAssertTrue(any["screen.activeWorkout"].exists)
     }
 

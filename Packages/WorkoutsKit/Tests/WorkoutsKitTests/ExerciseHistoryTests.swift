@@ -130,7 +130,7 @@ struct ExerciseHistoryTests {
             weightType: .barbell,
             options: options
         )
-        #expect(try #require(result.first).sets.first?.text == "45 s")
+        #expect(try #require(result.first).sets.first?.text == "0:45")
     }
 }
 
