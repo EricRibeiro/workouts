@@ -101,7 +101,9 @@ struct SetTable: View {
     private func block(_ section: SetTableSection, supersetNumber: Int?, order: [UUID]) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             header(section, supersetNumber: supersetNumber, order: order)
-            if let first = section.rows.first, !dynamicTypeSize.isAccessibilitySize {
+            // At accessibility sizes a row with a Previous line stacks (the cells carry captions instead); one without it
+            // (template and past editors) stays on one line, so the header still applies.
+            if let first = section.rows.first, !dynamicTypeSize.isAccessibilitySize || !first.showsPrevious {
                 columnHeader(for: first)
             }
             ForEach(section.rows) { row in
@@ -284,7 +286,13 @@ struct SetTable: View {
             }
         } label: {
             Image(systemName: "ellipsis.circle")
-                .frame(minWidth: touch, minHeight: touch)
+                // Centred over the check column; with no check column (template and past editors) the cells run to the
+                // trailing edge, so the glyph aligns there. The hit target stays `touch` wide either way.
+                .frame(
+                    minWidth: touch,
+                    minHeight: touch,
+                    alignment: section.rows.first?.showsCheck == false ? .trailing : .center
+                )
                 .contentShape(.rect)
                 // For the header's first-baseline alignment: a baseline 6 pt below the glyph's centre puts the circle's
                 // centre on the name's x-height centre instead of sitting it on the baseline.
@@ -299,7 +307,7 @@ struct SetTable: View {
     }
 
     /// Set · Previous · unit · Reps · ✓, mirroring the row's one-line columns. Hidden from VoiceOver (the cells carry their own
-    /// labels) and dropped at accessibility sizes, where the row stacks into two lines.
+    /// labels) and dropped at accessibility sizes where the row stacks into two lines (a row with a Previous column).
     private func columnHeader(for row: SetRowModel) -> some View {
         HStack(spacing: 8) {
             Text("Set").frame(minWidth: labelWidth)

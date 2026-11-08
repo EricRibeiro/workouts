@@ -20,6 +20,10 @@ import WorkoutsKit
 //   Color.statDuration, statVolume, statSets, statExercises, statPRs
 //                         Finish summary stat values (22pt bold): at least 3:1 on white and #F2F2F7 in light and on
 //                         #1C1C1E and black in dark
+//   Color.record          personal-record trophy: dark gold #8A5C00 in light (5.8:1 on white), system yellow in dark
+//   Color.chartBelowGoal  weekly-goal chart bar for a week under the goal: paler blue in light, deeper blue in dark, each
+//                         about 2:1 from the accent bar (the accent at 0.75 opacity was 1.5:1 in dark) and 2:1 or more
+//                         from the card fill
 //   Color.warmup          warm-up set kind
 //   Color.setKindDrop     drop set kind
 //   Color.setKindFailure  failure set kind

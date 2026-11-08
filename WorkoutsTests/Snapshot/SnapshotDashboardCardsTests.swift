@@ -54,13 +54,14 @@ extension SnapshotTests {
             ),
         ]
 
-        private func cards(populated: Bool = true) -> some View {
+        private func cards(populated: Bool = true, loaded: Bool = true) -> some View {
             DashboardCards(
                 entries: populated ? Self.entries : [],
                 recentPRs: populated ? Self.recentPRs : [],
                 goal: 4,
                 weekActiveKcal: populated ? 1_240 : nil,
                 weekAverageBpm: populated ? 118 : nil,
+                isLoaded: loaded,
                 openWorkout: { _ in },
                 calendar: SnapshotFixtures.calendar,
                 now: SnapshotFixtures.now
@@ -90,6 +91,13 @@ extension SnapshotTests {
         @Test(arguments: SnapshotVariant.all)
         func empty(variant: SnapshotVariant) {
             Snapshot.assert(cards(populated: false), named: "empty", variant: variant)
+        }
+
+        /// The first frame, before the history summary lands: This Week and Recent PRs are placeholder blocks, not "0 / 4"
+        /// and "No records yet".
+        @Test(arguments: SnapshotVariant.all)
+        func loading(variant: SnapshotVariant) {
+            Snapshot.assert(cards(populated: false, loaded: false), named: "dashboardLoading", variant: variant)
         }
     }
 }

@@ -33,6 +33,8 @@ struct HistoryView: View {
 
     @State private var entries: [HistoryEntry] = []
     @State private var recentPRs: [RecentPR] = []
+    /// False until the first summary lands; the dashboard cards that depend on it are placeholders until then.
+    @State private var hasLoadedSummary = false
     @State private var query = ""
     @State private var scope: HistoryScope = .all
     @State private var pendingDelete: HistoryEntry?
@@ -110,7 +112,9 @@ struct HistoryView: View {
             weightTypes: store.weightTypes,
             options: options
         )
-        guard !Task.isCancelled, let summary else { return }
+        guard !Task.isCancelled else { return }
+        defer { hasLoadedSummary = true }
+        guard let summary else { return }
         entries = summary.entries
         recentPRs = summary.recentPRs
     }
@@ -146,7 +150,8 @@ struct HistoryView: View {
                                 entries: entries,
                                 recentPRs: recentPRs,
                                 weekActiveKcal: weekKcal,
-                                weekAverageBpm: weekBpm
+                                weekAverageBpm: weekBpm,
+                                isLoaded: hasLoadedSummary
                             ) { path.append(.workout($0)) }
                             .listRowSeparator(.hidden)
                             .listRowBackground(Color.clear)
@@ -159,7 +164,8 @@ struct HistoryView: View {
                                     entries: entries,
                                     recentPRs: recentPRs,
                                     weekActiveKcal: weekKcal,
-                                    weekAverageBpm: weekBpm
+                                    weekAverageBpm: weekBpm,
+                                    isLoaded: hasLoadedSummary
                                 ) {
                                     path.append(.workout($0))
                                 }

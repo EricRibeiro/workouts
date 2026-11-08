@@ -29,6 +29,9 @@ struct TemplatePreview: View {
     /// per change in the task (one fetch) rather than from an observed query of every finished workout.
     @Query(Workout.newestFinishedEdit) private var newest: [Workout]
     @State private var lastPerformedIndex = TemplateCardSummary.LastPerformedIndex()
+    /// False until the first index load lands: "Last performed" is a redacted stand-in until then, so Start Workout and
+    /// the list do not jump when the line arrives.
+    @State private var indexLoaded = false
     @State private var flow = StartWorkoutFlow()
     /// The exercise whose info sheet the row's `info.circle` opens (the same sheet as the active workout's; a sheet rather
     /// than a push, which also sidesteps value links never activating when this view is itself pushed at regular width).
@@ -70,8 +73,9 @@ struct TemplatePreview: View {
             // The reader's context reads the store: flush edits the main context has not saved yet.
             context.saveIfChanged(reportingTo: errors)
             let index = try? await WorkoutStatsReader.loadLastPerformedIndex(in: context.container)
-            guard !Task.isCancelled, let index else { return }
-            lastPerformedIndex = index
+            guard !Task.isCancelled else { return }
+            if let index { lastPerformedIndex = index }
+            indexLoaded = true
         }
         .accessibilityIdentifier("template.preview")
     }
@@ -85,7 +89,14 @@ struct TemplatePreview: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
-            if let lastPerformed {
+            if !indexLoaded {
+                Label("Last performed · Yesterday", systemImage: "clock")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .redacted(reason: .placeholder)
+                    .accessibilityHidden(true)
+                    .accessibilityIdentifier("template.preview.lastPerformed.loading")
+            } else if let lastPerformed {
                 Label("Last performed · \(lastPerformed)", systemImage: "clock")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
