@@ -145,7 +145,7 @@ struct FinishSummaryView: View {
             Text(text)
         } icon: {
             Image(systemName: "trophy.fill")
-                .foregroundStyle(.yellow)
+                .foregroundStyle(Color.record)
         }
         if store?.exercise(id: exerciseID) != nil {
             NavigationLink(value: ExerciseRecordsRoute(exerciseID: exerciseID)) { label }

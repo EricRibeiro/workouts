@@ -84,16 +84,27 @@ struct SetRow: View {
         }
     }
 
+    /// Previous (when the row has one) on the first line, the cells and check on the second. A row with no Previous column
+    /// (template editor, past editor) has nothing for a first line to carry, so label, cells and check share one line.
+    /// With a Previous line the column header is gone at accessibility sizes, so each cell carries its own caption (unit,
+    /// Reps / Time); without one the table keeps its header over the single line.
+    @ViewBuilder
     private var twoLine: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 12) {
-                kindButton
-                if model.showsPrevious {
+        if model.showsPrevious {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 12) {
+                    kindButton
                     previousButton
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
+                HStack(alignment: .bottom, spacing: 8) {
+                    fields
+                    if model.showsCheck { checkButton }
+                }
             }
-            HStack(spacing: 8) {
+        } else {
+            HStack(alignment: .bottom, spacing: 8) {
+                kindButton
                 fields
                 if model.showsCheck { checkButton }
             }
@@ -105,6 +116,11 @@ struct SetRow: View {
         if model.showsWeight { weightField }
         repsField
     }
+
+    /// The unit of the weight cell; the stacked layout has no column header to say so.
+    private var weightCaption: String { model.unit.rawValue }
+
+    private var repsCaption: String { model.measure == .duration ? "Time" : "Reps" }
 
     // MARK: Cells
 
@@ -150,6 +166,33 @@ struct SetRow: View {
     }
 
     private var weightField: some View {
+        captioned(weightCaption) { weightCell }
+    }
+
+    private var repsField: some View {
+        captioned(repsCaption) { repsCell }
+    }
+
+    /// In the stacked layout (accessibility sizes, with a Previous line) a small caption sits over the cell, since the column
+    /// header is dropped there. Rows without Previous keep the table's column header instead (`SetTable.block`). Hidden from
+    /// VoiceOver: the cell already says "Weight" / "Reps" and carries the unit in its hint.
+    @ViewBuilder
+    private func captioned(_ caption: String, @ViewBuilder cell: () -> some View) -> some View {
+        if dynamicTypeSize.isAccessibilitySize && model.showsPrevious {
+            VStack(spacing: 2) {
+                Text(caption)
+                    .font(.caption)
+                    .foregroundStyle(Color.setSecondaryText)
+                    .lineLimit(1)
+                    .accessibilityHidden(true)
+                cell()
+            }
+        } else {
+            cell()
+        }
+    }
+
+    private var weightCell: some View {
         SetFieldCell(
             value: model.weightText,
             placeholder: model.weightPlaceholder,
@@ -175,7 +218,7 @@ struct SetRow: View {
         )
     }
 
-    private var repsField: some View {
+    private var repsCell: some View {
         SetFieldCell(
             value: model.repsText,
             placeholder: model.repsPlaceholder,

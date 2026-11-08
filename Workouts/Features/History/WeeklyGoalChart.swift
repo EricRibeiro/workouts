@@ -65,13 +65,15 @@ struct WeeklyGoalChart: View {
     private var chart: some View {
         let top = axisTop(counts: counts, goal: goal)
         let step = max(1, Int((Double(top) / 5).rounded(.up)))
+        // Read here: the axis closure runs inside Charts, outside this view's environment (no Dynamic Type size there).
+        let xLabels = labelledWeeks
         return Chart {
             ForEach(counts, id: \.weekStart) { week in
                 BarMark(
                     x: .value("Week of", weekLabel(week.weekStart, calendar: calendar)),
                     y: .value("Workouts", week.count)
                 )
-                .foregroundStyle(week.count >= goal ? Color.accentColor : Color.accentColor.opacity(0.75))
+                .foregroundStyle(week.count >= goal ? Color.accentColor : Color.chartBelowGoal)
                 .cornerRadius(4)
                 .annotation(position: .top, spacing: 2) {
                     if week.count > 0 {
@@ -93,12 +95,29 @@ struct WeeklyGoalChart: View {
             }
         }
         .chartXAxis {
-            AxisMarks { _ in
-                // Drops a label that would overprint its neighbour (accessibility sizes) instead of stacking them.
-                AxisValueLabel(collisionResolution: .greedy)
+            AxisMarks { value in
+                // Only the weeks in `xLabels` are named (every week at normal sizes), so no label collides with a
+                // neighbour or leaves the card at accessibility sizes; greedy resolution still guards the rest.
+                AxisValueLabel(collisionResolution: .greedy) {
+                    if let label = value.as(String.self), xLabels.contains(label) {
+                        Text(label)
+                    }
+                }
             }
         }
         .frame(height: plotHeight)
+    }
+
+    /// The x labels to draw. Every week at normal sizes; at accessibility sizes every second week (every third past six
+    /// weeks) counted back from the newest, leaving out the two outermost bars: their wide labels would run past the
+    /// card's inset on the left and into the value axis on the right. The bar counts and the VoiceOver summary still
+    /// cover every week.
+    private var labelledWeeks: [String] {
+        let labels = counts.map { weekLabel($0.weekStart, calendar: calendar) }
+        guard typeSize.isAccessibilitySize else { return labels }
+        let stride = labels.count > 6 ? 3 : 2
+        return labels.indices.filter { $0 > 0 && $0 < labels.count - 1 && (labels.count - 1 - $0) % stride == 0 }
+            .map { labels[$0] }
     }
 
     /// One sentence for VoiceOver: every week with its Monday, then the goal.

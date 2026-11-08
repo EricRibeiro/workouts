@@ -22,6 +22,9 @@ struct DashboardCard<Content: View>: View {
     let title: String
     let systemImage: String
     var opens = false
+    /// The summary has not arrived: the content is drawn as placeholder blocks and the sentence says so, instead of
+    /// presenting an empty result as fact.
+    var isLoading = false
     let label: String
     let identifier: String
     @ViewBuilder let content: Content
@@ -40,13 +43,14 @@ struct DashboardCard<Content: View>: View {
                 }
             }
             content
+                .redacted(reason: isLoading ? .placeholder : [])
         }
         // Cards in one grid row share the tallest card's height; content stays pinned to the top.
         .frame(maxHeight: .infinity, alignment: .top)
         .dashboardCardStyle()
         .cardContentShape()
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(label)
+        .accessibilityLabel(isLoading ? "\(title), loading" : label)
         .accessibilityAddTraits(opens ? .isButton : [])
         .accessibilityIdentifier(identifier)
     }
@@ -73,6 +77,8 @@ struct DashboardSection: View {
     var weekActiveKcal: Double?
     /// Duration-weighted average heart rate this week from Apple Fitness; nil hides the figure.
     var weekAverageBpm: Double?
+    /// False until the history summary has arrived (This Week and Recent PRs are placeholders until then).
+    var isLoaded = true
     let openWorkout: (UUID) -> Void
 
     @AppStorage(SettingsKey.weeklyGoal.rawValue) private var storedGoal = SettingsStore.weeklyGoalDefault
@@ -84,6 +90,7 @@ struct DashboardSection: View {
             goal: min(max(storedGoal, 1), 14),
             weekActiveKcal: weekActiveKcal,
             weekAverageBpm: weekAverageBpm,
+            isLoaded: isLoaded,
             openWorkout: openWorkout
         )
     }
@@ -100,6 +107,8 @@ struct DashboardCards: View {
     var weekActiveKcal: Double?
     /// Duration-weighted average heart rate this week from Apple Fitness; nil hides the figure.
     var weekAverageBpm: Double?
+    /// False until the history summary has arrived: This Week and Recent PRs are drawn as placeholders.
+    var isLoaded = true
     let openWorkout: (UUID) -> Void
     var calendar: Calendar = .current
     var now: Date = .now
@@ -128,6 +137,7 @@ struct DashboardCards: View {
         return DashboardCard(
             title: "This Week",
             systemImage: "calendar",
+            isLoading: !isLoaded,
             label:
                 "This week, \(week.workouts) of \(goal) \(goal == 1 ? "workout" : "workouts")\(detailLabel)\(calorieLabel)\(heartRateLabel)",
             identifier: "history.card.thisWeek"
@@ -168,30 +178,40 @@ struct DashboardCards: View {
         return DashboardCard(
             title: "Recent PRs",
             systemImage: "medal.fill",
+            isLoading: !isLoaded,
             label: sentence,
             identifier: "history.card.recentPRs"
         ) {
-            if recentPRs.isEmpty {
+            if !isLoaded {
+                // Two placeholder rows in the shape of a record, so the card does not jump when the real ones arrive.
+                ForEach(0..<2, id: \.self) { _ in
+                    prRow(name: "Exercise name", text: "000 lb × 00")
+                }
+            } else if recentPRs.isEmpty {
                 Text("No records yet")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             } else {
                 VStack(alignment: .leading, spacing: 8) {
                     ForEach(recentPRs) { pr in
-                        HStack(alignment: .firstTextBaseline, spacing: 8) {
-                            Image(systemName: "trophy.fill")
-                                .font(.subheadline)
-                                .foregroundStyle(.tint)
-                            VStack(alignment: .leading, spacing: 0) {
-                                Text(pr.exerciseName)
-                                    .font(.subheadline.weight(.semibold))
-                                Text(pr.text)
-                                    .font(.footnote)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
+                        prRow(name: pr.exerciseName, text: pr.text)
                     }
                 }
+            }
+        }
+    }
+
+    private func prRow(name: String, text: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Image(systemName: "trophy.fill")
+                .font(.subheadline)
+                .foregroundStyle(.tint)
+            VStack(alignment: .leading, spacing: 0) {
+                Text(name)
+                    .font(.subheadline.weight(.semibold))
+                Text(text)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
             }
         }
     }
@@ -244,6 +264,8 @@ struct DashboardColumns: View {
     var weekActiveKcal: Double?
     /// Duration-weighted average heart rate this week from Apple Fitness; nil hides the figure.
     var weekAverageBpm: Double?
+    /// False until the history summary has arrived (This Week and Recent PRs are placeholders until then).
+    var isLoaded = true
     let openWorkout: (UUID) -> Void
 
     @AppStorage(SettingsKey.weeklyGoal.rawValue) private var storedGoal = SettingsStore.weeklyGoalDefault
@@ -255,6 +277,7 @@ struct DashboardColumns: View {
             goal: min(max(storedGoal, 1), 14),
             weekActiveKcal: weekActiveKcal,
             weekAverageBpm: weekAverageBpm,
+            isLoaded: isLoaded,
             openWorkout: openWorkout
         )
         FoldColumns {

@@ -44,6 +44,9 @@ struct ExerciseDetailView: View {
     @Environment(\.onExerciseSegmentChange) private var onSegmentChange
     @State private var segment: Segment
     @State private var detail = ExerciseDetailData.empty
+    /// False until the first load lands: History, Charts and Records show a redacted placeholder rather than their empty
+    /// states, which would claim there is no data while it is still being read.
+    @State private var detailLoaded = false
     @State private var isEditing = false
     @State private var removals = 0
 
@@ -112,8 +115,9 @@ struct ExerciseDetailView: View {
             weightType: weightType,
             options: options
         )
-        guard !Task.isCancelled, let loaded else { return }
-        detail = loaded
+        guard !Task.isCancelled else { return }
+        if let loaded { detail = loaded }
+        detailLoaded = true
     }
 
     /// The embedded pane (already one side of the logging screen's arrangement) and the compact pushed detail are one
@@ -190,6 +194,9 @@ struct ExerciseDetailView: View {
                 StickyNoteView(exerciseID: info.id)
             }
             .padding(.horizontal)
+        case .history where !detailLoaded, .charts where !detailLoaded, .records where !detailLoaded:
+            ExerciseDetailLoadingPlaceholder()
+                .padding(.horizontal)
         case .history:
             ExerciseHistoryView(sessions: detail.history, embedded: embedded)
                 .padding(.horizontal)
@@ -272,6 +279,40 @@ private struct StackedPrimaryFitsContent: ViewModifier {
 extension View {
     fileprivate func stackedPrimaryFitsContent(isSplit: Bool) -> some View {
         modifier(StackedPrimaryFitsContent(isSplit: isSplit))
+    }
+}
+
+/// What History, Charts and Records show while their first load is in flight: two session-shaped cards of redacted
+/// placeholder rows, so the segment keeps its footprint and nothing claims "no history" before the data has arrived.
+private struct ExerciseDetailLoadingPlaceholder: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            ForEach(0..<2, id: \.self) { _ in card }
+        }
+        .redacted(reason: .placeholder)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Loading exercise history")
+        .accessibilityIdentifier("exerciseDetail.loading")
+    }
+
+    private var card: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Workout name").font(.headline)
+                Text("Mon, Jan 1, 2026").font(.footnote)
+            }
+            .padding(.vertical, 10)
+            ForEach(1...3, id: \.self) { number in
+                Divider()
+                HStack(alignment: .firstTextBaseline, spacing: 12) {
+                    Text("\(number)").font(.subheadline.weight(.semibold)).frame(minWidth: 24, alignment: .leading)
+                    Text("100 kg × 10").font(.body)
+                    Spacer(minLength: 8)
+                }
+                .padding(.vertical, 8)
+            }
+        }
+        .detailCardStyle()
     }
 }
 
