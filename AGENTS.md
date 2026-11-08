@@ -113,7 +113,7 @@ Rules for the loop:
   `DeviceInteraction*` drives the UI and reads the accessibility tree for exploration. If the `mcp__…xcode__*` tools are
   missing, say so once and fall back to the proofs above (only Eric can reconnect, with `/mcp reconnect all`). A task's
   proof never depends on the MCP, and its `BuildProject`/`RunSomeTests` tools never count as the gate (Xcode's own
-  DerivedData, no `.build/check.stamp`). Default herdr workers lack the MCP tools (orchestrator or `--full` workers only). Skill: `verify-ui`.
+  DerivedData, no `.build/check.stamp`). Workers have the MCP tools too; `--lean` workers have none. Skill: `verify-ui`.
 - **Never toggle the simulator's displays** (`simctl io … screenConfig`, display power, device defaults): it crash-loops
   SpringBoard and floods Eric's Mac with crash dialogs. `./dev` fails any simulator command during which SpringBoard
   crashed; treat that as a stop and report (never `simctl shutdown all`: it kills other agents' simulators; a pool clone
@@ -163,6 +163,12 @@ Rules for the loop:
 - Every new public function in `WorkoutsKit` gets a test in the same change.
 - Accessibility labels on every interactive element — the device-interaction tools navigate by
   the accessibility tree, so unlabeled controls stall agents as well as users.
+- **Load the Apple skill before the work, not after.** Writing or changing a SwiftUI view →
+  `xcode-integration:swiftui-specialist`; any layout, size-class or window-size work →
+  `xcode-integration:app-resizability`; toolbar, `@State`, reorderable lists or any API new in iOS 27 →
+  `xcode-integration:swiftui-whats-new-27`; the Live Activity / rest intents (Skip, +30 s, Done) →
+  `xcode-integration:app-intents-specialist`; an API question → the MCP `DocumentationSearch` tool (workers have no
+  web). One skill per concern; load it with the Skill tool, read the relevant reference, then edit.
 - English only: `Text("…")` literals, no String Catalog maintenance, no `String(localized:)` in the kit.
 
 ## Working in bite-sized tasks
@@ -170,7 +176,8 @@ Rules for the loop:
 A task for a worker is one unit: one model type + its tests, one view + its preview, one
 `xcodeproj` change. Give it the files, the approach, and exactly one proving command from the
 loop above. Keep whole-suite runs (`./dev check`), screenshots across poses, and commits for the
-orchestrator after review. Workers do not commit.
+orchestrator after review. Workers do not commit. A brief names the Apple skill the worker must load when the task
+touches a view, layout, iOS 27 API or intent.
 
 ## Skills
 
@@ -180,8 +187,11 @@ orchestrator after review. Workers do not commit.
   dimensions, state inventory, P0–P3 findings → worker tasks, taste → Eric). HIG and `DECISIONS.md` are its authority.
 - `.claude/skills/verify-ui` — render a preview, run on the Duo, screenshot, drive the UI, and
   what each pose of the Duo should be checked for.
-- Apple's bundled skills (`swiftui-specialist`, `app-resizability`, `device-interaction`,
-  `modernize-tests`, accessibility auditors, …) come with the Xcode plugin; invoke them by name.
+- Apple's bundled skills come with the Xcode plugin (`xcode-integration:<name>`). The ones that matter here:
+  `swiftui-specialist`, `swiftui-whats-new-27`, `app-resizability`, `device-interaction`, `app-intents-specialist`, and
+  the three `accessibility-*-specialist` auditors (dynamic-type, sufficient-contrast, voiceover) used by `design-review`
+  and PLAN 6.3. The rest of the plugin (translation, String Catalog, modernize-tests, C bounds safety, document apps)
+  does not apply to this project.
 
 ## TestFlight cadence
 

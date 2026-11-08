@@ -35,7 +35,7 @@ Every view file should carry a `#Preview`. Render it through Xcode's MCP:
 3. Look at the returned PNG yourself. A successful render does not reveal clipped or truncated
    text; check it.
 
-Default herdr workers lack the MCP tools; use them from the orchestrator or a `--full` worker.
+`--lean` workers have no MCP tools; everyone else does.
 
 Previews are the right tool for layout, colours, Dynamic Type (`previewVariantOverrides`), and
 dark mode. They are the wrong tool for navigation flows and state.
