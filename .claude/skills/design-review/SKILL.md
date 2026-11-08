@@ -21,8 +21,8 @@ browser modes) reads only web markup, and the rest conflicts with system chrome.
 Gather before judging, and batch: one look per configuration, fix-list in hand, not a screenshot per thought.
 
 - `./dev shot <png> -- -preview <Name>` for every screen in scope, closed portrait, **light and dark**
-  (`xcrun simctl ui booted appearance dark|light`), at the default size and `accessibility-extra-large`
-  (`xcrun simctl ui booted content_size …`; reset to `medium` after). One open-wide capture per screen via `./dev fold open`
+  (`./dev ui-env appearance dark|light`), at the default size and `accessibility-extra-large`
+  (`./dev ui-env content_size …`; `./dev ui-env reset` after, which sets large/light; tests and `./dev tree` reset it too, so re-apply before each shot). One open-wide capture per screen via `./dev fold open`
   (skill `verify-ui`), then `./dev fold closed`.
 - Read the screen's source files and the shared components it uses (`Workouts/Design`, `Features/Shared`).
 - Read the DECISIONS headings the screen cites and PLAN section 3's paragraph for it. That paragraph is the brief; the

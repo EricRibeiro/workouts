@@ -227,6 +227,8 @@ private struct ExercisePeekSheet: View {
                 }
         }
         .accessibilityIdentifier("screen.exerciseAbout")
+        // Its detail can report a save failure (a sticky note): the root's alert sits under this sheet, so host it here.
+        .sheetSaveErrorHost()
     }
 }
 

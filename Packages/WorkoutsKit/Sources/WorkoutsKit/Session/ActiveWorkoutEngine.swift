@@ -488,14 +488,23 @@ public final class ActiveWorkoutEngine {
         }
         let end = max(now(), workout.startedAt)
         var kept: [(WorkoutExercise, [WorkoutSet])] = []
+        // Same fill as `check(_:)`: typed values stay, empty fields take Previous, else the plan. Every fill is computed
+        // before the first deletion: Previous and the plan find a set's position in the live relationships, so a dropped
+        // set must not shift a later one.
+        var fills: [ObjectIdentifier: (weight: Double?, reps: Int?, duration: Int?)] = [:]
+        if unfinished == .complete {
+            for row in rows {
+                for set in sortedSets(of: row) where !set.completed && hasValues(set, in: row) {
+                    fills[ObjectIdentifier(set)] = filledValues(of: set, in: row)
+                }
+            }
+        }
         do {
             var keptRows: [WorkoutExercise] = []
             for row in rows {
                 var survivors: [WorkoutSet] = []
                 for set in sortedSets(of: row) {
-                    if !set.completed && unfinished == .complete && hasValues(set, in: row) {
-                        // Same fill as `check(_:)`: typed values stay, empty fields take Previous, else the plan.
-                        let filled = filledValues(of: set, in: row)
+                    if let filled = fills[ObjectIdentifier(set)] {
                         set.weight = filled.weight
                         set.reps = filled.reps
                         set.durationSeconds = filled.duration

@@ -211,9 +211,26 @@ report_failures() {
 # A pool simulator keeps whatever text size and appearance an earlier session left it at (an accessibility size once
 # failed UI tests that pass at Large). Reset both before a test run; `simctl ui` needs a booted device, so boot it headless
 # first. Not display toggles: these are the same settings as Settings > Display & Brightness / Display Size.
+sim_bootstatus() { # sim_bootstatus <udid> [seconds]: wait for boot, but give up after DEV_BOOT_TIMEOUT (default 120) s
+  # `simctl bootstatus -b` has no time limit of its own; a stuck boot would hang here while the caller holds the lock.
+  local limit="${2:-${DEV_BOOT_TIMEOUT:-120}}" pid i=0
+  xcrun simctl bootstatus "$1" -b >/dev/null 2>&1 &
+  pid=$!
+  while kill -0 "$pid" 2>/dev/null; do
+    if ((i >= limit * 5)); then
+      echo "dev: warning: simulator $1 not booted after ${limit}s; continuing" >&2
+      kill "$pid" 2>/dev/null || true
+      break
+    fi
+    sleep 0.2
+    i=$((i + 1))
+  done
+  wait "$pid" 2>/dev/null || true
+}
+
 sim_reset_ui() { # sim_reset_ui <udid>
   xcrun simctl boot "$1" >/dev/null 2>&1 || true
-  xcrun simctl bootstatus "$1" -b >/dev/null 2>&1 || true
+  sim_bootstatus "$1"
   xcrun simctl ui "$1" content_size large >/dev/null 2>&1 || true
   xcrun simctl ui "$1" appearance light >/dev/null 2>&1 || true
 }
@@ -700,7 +717,7 @@ run_prepare() { # boot, build and install; leaves the launch to the caller (cmd_
   else
     [[ "$out" == *"current state: Booted"* || "$out" == *"already"* ]] || die "boot failed: $out"
   fi
-  xcrun simctl bootstatus "$SIM_UDID" -b >/dev/null 2>&1 || true
+  sim_bootstatus "$SIM_UDID"
   cmd_build
   xcrun simctl install "$SIM_UDID" "$(find_app)"
 }
@@ -710,6 +727,33 @@ cmd_run() { # cmd_run [-- app launch args...]; args reach the app, e.g. ./dev ru
   run_prepare
   xcrun simctl launch --terminate-running-process "$SIM_UDID" "$BUNDLE_ID" "$@"
   echo "logs: xcrun simctl spawn $SIM_UDID log stream --predicate 'subsystem == \"$BUNDLE_ID\"'"
+}
+
+cmd_ui_env() { # cmd_ui_env [content_size <size>] [appearance light|dark] | reset: text size / appearance of THIS checkout's sim
+  # The documented `simctl ui booted ...` hits whichever sim is booted (often another run's shard); this targets ours.
+  local arg usage="usage: ui-env [content_size <size>] [appearance light|dark] | reset"
+  xcrun simctl boot "$SIM_UDID" >/dev/null 2>&1 || true
+  sim_bootstatus "$SIM_UDID"
+  if (($# == 0)); then
+    echo "content_size: $(xcrun simctl ui "$SIM_UDID" content_size 2>&1)"
+    echo "appearance: $(xcrun simctl ui "$SIM_UDID" appearance 2>&1)"
+    return
+  fi
+  while (($# > 0)); do
+    arg="$1"
+    case "$arg" in
+      reset)
+        xcrun simctl ui "$SIM_UDID" content_size large || die "ui-env: content_size failed"
+        xcrun simctl ui "$SIM_UDID" appearance light || die "ui-env: appearance failed"
+        shift ;;
+      content_size | appearance)
+        [[ -n "${2:-}" ]] || die "$usage"
+        xcrun simctl ui "$SIM_UDID" "$arg" "$2" || die "ui-env: $arg $2 failed"
+        shift 2 ;;
+      *) die "$usage" ;;
+    esac
+  done
+  cmd_ui_env
 }
 
 cmd_screenshot() {
@@ -1341,6 +1385,9 @@ run [-- args]      boot sim, build, install, launch; args go to the app (-- -pre
 shot <png> [-- args]  run + settle (identical consecutive captures) + screenshot in one lock hold (use this for proofs; parallel-safe)
 shot --burst [<count>x<intervalMs>] <png> [-- args]  launch and capture the lit panel from the first moment (default 15x100), tiled into one
                    labelled PNG grid: a reviewer artifact for transitions, not a settled proof (no tap injection)
+ui-env [content_size <size>] [appearance light|dark] | reset   text size / appearance of THIS checkout's sim (no args = print current;
+                   reset = large + light; sizes e.g. large, accessibility-extra-large). test, ui-test and tree reset it to large/light
+                   first, so re-apply before ./dev shot. Use this, never `simctl ui booted`
 screenshot [path]  simulator screenshot (default .build/screenshots/<timestamp>.png)
 home [png]         go to the Home screen (the app keeps running in the background); png = capture of it
 fold <pose> [png]  Duo hinge: closed|half-open|open, verified by hinge reads and the lit panel; png = capture of the lit panel
@@ -1384,6 +1431,7 @@ case "$sub" in
   screenshot) sim_guarded cmd_screenshot "$@" ;;
   shot) sim_guarded cmd_shot "$@" ;;
   home) sim_guarded cmd_home "$@" ;;
+  ui-env) sim_guarded cmd_ui_env "$@" ;;
   fold) sim_guarded cmd_fold "$@" ;;
   orient) sim_guarded cmd_orient "$@" ;;
   pose) sim_guarded cmd_pose "$@" ;;

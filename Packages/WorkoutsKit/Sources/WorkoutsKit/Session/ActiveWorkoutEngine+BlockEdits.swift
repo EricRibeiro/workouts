@@ -4,13 +4,21 @@ import SwiftData
 // MARK: - Block edits (the exercise header menu, task 3.6d)
 
 extension ActiveWorkoutEngine {
-    /// Sets the row's note, trimmed (whitespace-only clears it). A single-value edit: the value stays in memory when the
-    /// save fails.
+    /// Sets the row's note, trimmed (whitespace-only clears it). Restores the previous note (and timestamps) when the save
+    /// fails, so a sheet that is cancelled after the error does not leave the typed text showing.
     /// - Throws: ``ActiveWorkoutError/notInActiveWorkout`` when the row is not in the workout.
     public func setNote(_ text: String, for row: WorkoutExercise) throws {
         let workout = try owned(row)
+        let (previousNote, previousRowStamp, previousWorkoutStamp) = (row.note, row.updatedAt, workout.updatedAt)
         row.note = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        try commit(workout, row)
+        do {
+            try commit(workout, row)
+        } catch {
+            row.note = previousNote
+            row.updatedAt = previousRowStamp
+            workout.updatedAt = previousWorkoutStamp
+            throw error
+        }
     }
 
     /// Update Rest Timer: the row's rest in seconds: 0 = Off (no timer), nil = Default (the Settings rest). Only this row changes (each row rests by its own

@@ -18,6 +18,9 @@ struct ActiveWorkoutCover: View {
     let onFinished: (FinishSummary) -> Void
     /// Called after the workout was discarded.
     let onDiscarded: () -> Void
+    /// Called when Finish saved the workout but its summary could not be built (the id of the saved workout): it was
+    /// finished all the same, minus the summary sheet. Defaults to ``onDiscarded``.
+    var onSavedWithoutSummary: ((UUID?) -> Void)?
     @Environment(ActiveWorkoutEngine.self) private var engine: ActiveWorkoutEngine?
     @Environment(ExerciseStore.self) private var store: ExerciseStore?
     @Environment(SaveErrors.self) private var errors: SaveErrors?
@@ -85,7 +88,12 @@ struct ActiveWorkoutCover: View {
                     ToolbarItem(placement: .confirmationAction) {
                         Button("Finish", systemImage: "checkmark") {
                             guard let engine else { return }
-                            finishFlow.begin(engine: engine, onFinished: onFinished, onDiscarded: onDiscarded)
+                            finishFlow.begin(
+                                engine: engine,
+                                onFinished: onFinished,
+                                onDiscarded: onDiscarded,
+                                onSavedWithoutSummary: onSavedWithoutSummary
+                            )
                         }
                         .accessibilityLabel("Finish")
                         .accessibilityIdentifier("cover.finish")

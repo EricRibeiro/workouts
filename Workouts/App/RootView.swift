@@ -58,6 +58,9 @@ struct RootView: View {
         // The one rest watcher while the cover is closed (the cover hosts its own): it outlives the resume ring, which is
         // gone on a pushed screen. Exactly one is active at a time, so the haptic never doubles.
         .restExpiryWatcher(isActive: !navigation.isWorkoutCoverOnScreen)
+        #if DEBUG
+            .restStateProbe()
+        #endif
         // The scrolling lists (History, Exercises) let the tab bar collapse; the Workout tab keeps it (DECISIONS).
         .tabBarMinimizeBehavior(navigation.selectedTab == .workout ? .never : .onScrollDown)
         .onOpenURL { url in
@@ -89,18 +92,18 @@ struct RootView: View {
             isPresented: $navigation.isWorkoutCoverPresented,
             onDismiss: {
                 finishSummary = pendingSummary
+                // No summary sheet to follow (it could not be built): the template question comes now.
+                if pendingSummary == nil { askToUpdateTemplate() }
                 pendingSummary = nil
             }
         ) {
             ActiveWorkoutCover(
                 minimise: { navigation.minimiseWorkout() },
                 onFinished: { summary in
-                    health?.workoutFinished(context: context)
-                    pendingSummary = FinishSummaryItem(summary: summary)
-                    summaryWorkoutID = summary.workoutID
-                    navigation.endWorkout()
+                    workoutSaved(id: summary.workoutID, summary: summary)
                 },
-                onDiscarded: { navigation.endWorkout() }
+                onDiscarded: { navigation.endWorkout() },
+                onSavedWithoutSummary: { id in workoutSaved(id: id, summary: nil) }
             )
             // What is actually showing, as opposed to requested: the resume ring keys off this.
             .onAppear { navigation.isWorkoutCoverOnScreen = true }
@@ -145,6 +148,15 @@ extension RootView {
         } else {
             navigation.openActiveWorkout()
         }
+    }
+
+    /// A finished workout is saved: Health picks it up, the summary (when it could be built) is held until the cover has
+    /// closed, the "Update Template?" question waits for the summary to go, and the workout ends.
+    private func workoutSaved(id: UUID?, summary: FinishSummary?) {
+        health?.workoutFinished(context: context)
+        pendingSummary = summary.map(FinishSummaryItem.init(summary:))
+        summaryWorkoutID = id
+        navigation.endWorkout()
     }
 
     private func openPendingWorkout() {

@@ -70,6 +70,8 @@ SNAPSHOT_RECORD=1 ./dev test SnapshotTests   re-record the visual references (Wo
 ./dev orient <o> [p]    rotate portrait|landscape-left|landscape-right, verified by devicectl + lit panel; p as for fold
 ./dev pose <name> [p]   closed-portrait|closed-landscape|open-wide (951x669 pt)|open-tall (669x951 pt) = fold + orient, verified; p as for fold
 ./dev poses <dir> [-- args]  run, then all four poses as settled PNGs <dir>/<name>.png under one simulator lock; always ends closed-portrait
+./dev ui-env [content_size <size>] [appearance light|dark] | reset   text size / appearance of THIS checkout's sim (no args = print; reset = large/light).
+                        test, ui-test and tree reset it to large/light first: re-apply before `./dev shot`
 ./dev home [p]          Home screen (the app keeps running); ./dev duo <verb> = Tools/duo pass-through (panels, hinge [--app = the app's own status, launch with `-- -logHinge`], settle, screenshot)
 ./dev duo-test          swift test for Tools/duo (~1s; part of check)
 ./dev check             lint → kit → duo-test → build → test; the pre-commit gate (~30s warm)
@@ -105,7 +107,7 @@ Rules for the loop:
   UI tests launch with `-uiTesting` (in-memory store, no leftover state).
 - **The UI proof of record is `./dev`; the Xcode MCP is the first shortcut.** A screen is proven by `./dev run -- -preview <Name>` (PLAN
   task 0.10; until it lands, plain `./dev run`; a `#if DEBUG` `PreviewGallery` hosting the same views as the `#Preview`s, fed by the sample container; set Dynamic Type and
-  dark with `xcrun simctl ui booted ...`) followed by `./dev screenshot`; a flow is proven by an XCUITest in `WorkoutsUITests`
+  dark with `./dev ui-env content_size <size>` / `./dev ui-env appearance dark`, never `simctl ui booted`: that hits an arbitrary sim) followed by `./dev screenshot`; a flow is proven by an XCUITest in `WorkoutsUITests`
   (`./dev ui-test Suite/test()`), which also forces the accessibility identifiers below. Xcode's MCP tools (plugin
   `xcode-integration` in Claude Code, `xcrun agent plugin path --plugin-format codex` in Codex) connect by default; reach
   for them first. `RenderPreview` checks layout, Dynamic Type and dark without a simulator (`XcodeOpenWorkspace` on this

@@ -14,8 +14,9 @@ Xcode's MCP (steps 1 and 3 below) is the first shortcut; a proof must not depend
 record:
 
 - **Screens**: `./dev run -- -preview <Name>` launches the `#if DEBUG` `PreviewGallery` root, which hosts the same views as the
-  `#Preview`s on the sample container (PLAN task 0.10). Dynamic Type and dark: `xcrun simctl ui booted content_size
-  accessibility-extra-large`, `xcrun simctl ui booted appearance dark`. Prefer `./dev shot <png> -- -preview <Name>`: run,
+  `#Preview`s on the sample container (PLAN task 0.10). Dynamic Type and dark: `./dev ui-env content_size
+  accessibility-extra-large`, `./dev ui-env appearance dark` (this checkout's sim, under the lock; `./dev ui-env reset` = large/light;
+  tests, `ui-test` and `./dev tree` reset to large/light, so re-apply ui-env before `./dev shot`). Prefer `./dev shot <png> -- -preview <Name>`: run,
   settle and screenshot under one simulator lock, so a parallel worker cannot install its build in between. Then Read the PNG.
 - **Flows**: an XCUITest in `WorkoutsUITests`, run with `./dev ui-test Suite/test()`. It navigates by accessibility
   identifier, so unlabeled controls fail it just as they stall agents.
@@ -48,8 +49,9 @@ dark mode. They are the wrong tool for navigation flows and state.
 ./dev shot <png> [-- args]   # run + settle (two identical captures, status bar pinned to 9:41) + screenshot in one lock hold: the parallel-safe proof
 ./dev shot --burst <png> [-- args]   # 15 lit-panel captures ~100 ms apart from launch, tiled into one labelled grid: a reviewer artifact for transitions; --settle stays the steady-state proof
 ```
-Dark mode / text size: `xcrun simctl ui booted appearance dark`,
-`xcrun simctl ui booted content_size accessibility-extra-large`.
+Dark mode / text size: `./dev ui-env appearance dark`,
+`./dev ui-env content_size accessibility-extra-large`; `./dev ui-env reset` afterwards (large/light). Tests and `./dev tree`
+reset these too, so re-apply before `./dev shot`.
 Logs: `xcrun simctl spawn booted log stream --predicate 'subsystem == "com.ericribeiro.Workouts"'`.
 
 ## 3. Drive the UI (flows, taps, typing)
@@ -121,4 +123,4 @@ clone itself (the original is never erased automatically); the next run boots it
    Dismiss with `t 233 670 f 233 200 0.3`, then `DeviceInteractionEndSession` (key `interactionSessionKey`).
 The Dynamic Island is not drawn in simulator screenshots of the closed Duo's strip; use the Lock Screen banner.
 
-- **Text size**: the `-UIPreferredContentSizeCategoryName` launch argument does **not** apply through `./dev shot` (Phase 3 review, 2026-11-04). Your checkout has its own pool simulator, so set it there: `xcrun simctl ui <udid> content_size accessibility-extra-large` (udid = the THIS-CHECKOUT row of `./dev sims`), shoot, then `xcrun simctl ui <udid> content_size medium`. Same for `appearance dark|light`.
+- **Text size**: the `-UIPreferredContentSizeCategoryName` launch argument does **not** apply through `./dev shot` (Phase 3 review, 2026-11-04). Your checkout has its own pool simulator, so set it there: `./dev ui-env content_size accessibility-extra-large` (it resolves this checkout's sim itself), shoot, then `./dev ui-env reset`. Same for `./dev ui-env appearance dark|light`.

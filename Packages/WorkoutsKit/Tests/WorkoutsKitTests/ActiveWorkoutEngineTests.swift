@@ -1020,6 +1020,32 @@ import Testing
         #expect(summary.setCount == 3)
     }
 
+    @Test func finishCompleteFillsFromTheSetsPositionBeforeAnEarlierEmptySetIsDropped() throws {
+        let rig = try Rig()
+        rig.settings.defaultUnit = .kg
+        rig.finishedWorkout(
+            exercise: LibraryFixture.squat,
+            unit: .kg,
+            sets: [(90, 6, .normal), (92.5, 6, .normal), (95, 6, .normal)],
+            startedAt: rig.clock.date.addingTimeInterval(-86_400)
+        )
+        let engine = try rig.makeEngine()
+        _ = try engine.startEmpty()
+        let squat = try engine.addExercise(try rig.info(LibraryFixture.squat))
+        let working = sets(squat)
+        try engine.check(working[0])
+        // The second set has nothing typed and is dropped; the third, with only reps, keeps the Previous of the third
+        // position (95), the greyed placeholder it showed, not the second's (92.5).
+        try engine.setValues(working[1], weight: nil, reps: nil, durationSeconds: nil)
+        try engine.setValues(working[2], weight: nil, reps: 4, durationSeconds: nil)
+        let placeholder = engine.previous(for: working[2])
+        #expect(placeholder?.weight == 95)
+        try engine.finish(unfinished: .complete)
+        let kept = sets(squat)
+        #expect(kept.count == 2)
+        #expect(kept[1].reps == 4 && kept[1].weight == placeholder?.weight)
+    }
+
     @Test func finishClampsFinishedAtToStartedAt() throws {
         let rig = try Rig()
         let engine = try rig.makeEngine()

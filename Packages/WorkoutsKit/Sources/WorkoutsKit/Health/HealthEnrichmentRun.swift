@@ -49,6 +49,7 @@ public enum HealthEnrichmentRun {
         return await process(
             pending,
             claimedIDs: Set(workouts.compactMap(\.healthWorkoutID)),
+            earliest: nil,
             source: source,
             now: now,
             progress: nil
@@ -77,6 +78,7 @@ public enum HealthEnrichmentRun {
         return await process(
             pending,
             claimedIDs: Set(workouts.compactMap(\.healthWorkoutID)),
+            earliest: nil,
             source: source,
             now: now,
             progress: progress
@@ -101,17 +103,25 @@ public enum HealthEnrichmentRun {
         let candidates = try context.fetch(backfillCandidatesDescriptor(earliest: earliest))
         guard !candidates.isEmpty else { return Outcome() }
         let claimedIDs = try Set(context.fetch(claimedDescriptor()).compactMap(\.healthWorkoutID))
-        return await process(candidates, claimedIDs: claimedIDs, source: source, now: now, progress: progress)
+        return await process(
+            candidates,
+            claimedIDs: claimedIDs,
+            earliest: earliest,
+            source: source,
+            now: now,
+            progress: progress
+        )
     }
 
     /// The loop `run` and `backfill` share. `claimedIDs` are the Fitness workouts already attached, which count as claimed.
     ///
     /// Workouts that started before `source.earliestReadableDate()` are dropped first and never stamped: Health cannot show
     /// them (iOS 27 shares only the past 30 days by default), so a lookup would stamp them "unmatched" and a later, wider
-    /// grant would never revisit them.
+    /// grant would never revisit them. `earliest` is that date when the caller already asked for it; `nil` asks the source here.
     private static func process(
         _ candidates: [Workout],
         claimedIDs: Set<String>,
+        earliest knownEarliest: Date?,
         source: any HealthSource,
         now: Date,
         progress: ((_ done: Int, _ total: Int) -> Void)?
@@ -121,7 +131,8 @@ public enum HealthEnrichmentRun {
         // belong to a context right now (re-checked after each await, see `isLive`); a workout that never had a context
         // (unit tests building bare models) has nothing to be detached from.
         let snapshot = candidates.map { (workout: $0, startedAt: $0.startedAt, stored: $0.modelContext != nil) }
-        let earliest = await source.earliestReadableDate()
+        let earliest: Date
+        if let knownEarliest { earliest = knownEarliest } else { earliest = await source.earliestReadableDate() }
         // Only the snapshot's values and liveness are used after the await, never the models' properties.
         let live = snapshot.filter { $0.startedAt >= earliest && Self.isLive($0.workout, wasStored: $0.stored) }
         let pending = live.map(\.workout)

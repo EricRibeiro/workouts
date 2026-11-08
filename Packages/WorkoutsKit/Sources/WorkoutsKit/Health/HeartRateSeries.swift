@@ -17,6 +17,13 @@ public nonisolated enum HeartRateSeries {
         return result
     }
 
+    /// The peak to caption a chart drawn from `clipped` (the output of ``clippedToStart(_:)``): the highest plotted sample, so
+    /// the caption never exceeds the line. The stored whole-workout max can come from the lead-in the clip dropped; an
+    /// empty series falls back to `stored`.
+    public static func plottedMaximum(of clipped: [HeartRatePoint], storedMaximum stored: Double?) -> Double? {
+        clipped.map(\.bpm).max() ?? stored
+    }
+
     /// Reduces `points` to at most `maxPoints` for a small chart.
     ///
     /// Points are sorted by offset and split into `maxPoints` equal-width time buckets. Each non-empty bucket becomes one

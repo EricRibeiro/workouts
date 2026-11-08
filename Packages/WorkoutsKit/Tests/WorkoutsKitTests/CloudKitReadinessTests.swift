@@ -193,6 +193,7 @@ import Testing
         clock.advance(by: debounce)
         #expect(await signal.wait(), "the later change never reached the handler")
         #expect(calls == 2)
+        #expect(!observer.isScheduled, "a delivered call left the observer looking armed")
 
         // Stopping drops the wait that is armed and holds nothing, whatever the clock does.
         center.post(name: name, object: nil)

@@ -75,6 +75,8 @@ struct ExerciseInfoSheet: View {
         .presentationDragIndicator(.visible)
         // Like every other sheet: a centered card on the regular-width Duo, the detents on compact.
         .presentationPlacement(.center)
+        // The detail can report a save failure (a sticky note): the root's alert sits under this sheet, so host it here.
+        .sheetSaveErrorHost()
     }
 }
 

@@ -175,6 +175,17 @@ struct HealthHeartRateSeriesTests {
         )
     }
 
+    @Test func plottedMaximumIgnoresTheClippedLeadIn() {
+        // The stored max (170) came from before the workout started; the clipped line peaks at 130.
+        let clipped = HeartRateSeries.clippedToStart([
+            HeartRatePoint(offset: -120, bpm: 170), HeartRatePoint(offset: -60, bpm: 95),
+            HeartRatePoint(offset: 5, bpm: 120), HeartRatePoint(offset: 10, bpm: 130),
+        ])
+        #expect(HeartRateSeries.plottedMaximum(of: clipped, storedMaximum: 170) == 130)
+        #expect(HeartRateSeries.plottedMaximum(of: [], storedMaximum: 170) == 170)
+        #expect(HeartRateSeries.plottedMaximum(of: [], storedMaximum: nil) == nil)
+    }
+
     @Test func degenerateInputs() {
         #expect(HeartRateSeries.downsample([], maxPoints: 10).isEmpty)
         #expect(HeartRateSeries.downsample(series(count: 5, peakAt: 2), maxPoints: 0).isEmpty)

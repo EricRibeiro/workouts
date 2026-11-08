@@ -46,6 +46,11 @@ struct HeartRateChart: View {
         HeartRateSeries.clippedToStart(series)
     }
 
+    /// The peak of what is plotted, so the "Max" caption never exceeds the line (the stored max can sit in the dropped lead-in).
+    private var shownMaximum: Double? {
+        HeartRateSeries.plottedMaximum(of: points, storedMaximum: maximum)
+    }
+
     private var blocks: [SetTimeline.Block] {
         timeline.blocks.map {
             var block = $0
@@ -173,7 +178,7 @@ struct HeartRateChart: View {
         var text = "Heart rate"
         var parts: [String] = []
         if let average { parts.append("average \(FitnessFormat.wholeNumber(average))") }
-        if let maximum { parts.append("max \(FitnessFormat.wholeNumber(maximum))") }
+        if let shownMaximum { parts.append("max \(FitnessFormat.wholeNumber(shownMaximum))") }
         if !parts.isEmpty { text += ", " + parts.joined(separator: ", ") + " beats per minute" }
         if !timeline.isEmpty {
             text +=
@@ -199,9 +204,9 @@ struct HeartRateChart: View {
     private var captionText: String {
         var parts = ["Heart Rate"]
         if let average { parts.append("Avg \(FitnessFormat.wholeNumber(average))") }
-        if let maximum { parts.append("Max \(FitnessFormat.wholeNumber(maximum))") }
+        if let shownMaximum { parts.append("Max \(FitnessFormat.wholeNumber(shownMaximum))") }
         var text = parts.joined(separator: " \u{00B7} ")
-        if average != nil || maximum != nil { text += " bpm" }
+        if average != nil || shownMaximum != nil { text += " bpm" }
         return text
     }
 

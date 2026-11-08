@@ -68,16 +68,27 @@ final class ResumeControlUITests: XCTestCase {
     }
 
     /// A rest that ends while the workout is minimised and a past workout is pushed (no resume ring there): the root's
-    /// watcher still forgets the over rest at expiry plus grace. Proof: back on the root the ring already reads the elapsed
-    /// time, not "rest over" (the ring itself no longer forgets anything).
+    /// watcher still forgets the over rest at expiry plus grace. Proof: on the pushed screen itself, the Debug probe
+    /// (`debug.restState`, in the root overlay) goes `running`, `over`, then `none`. Without the root watcher it would stay
+    /// `over` until the screen was popped.
     @MainActor
     func testRestIsForgottenOnAPushedScreenWhileMinimised() throws {
-        let app = XCUIApplication.launchedInActiveWorkout(["-sampleRestSeconds", "6", "-seedOldWorkout"])
+        let app = XCUIApplication.launchedInActiveWorkout(["-sampleNoRest", "-seedOldWorkout"])
         let any = app.descendants(matching: .any)
         let ring = app.buttons["resume.ring"].firstMatch
+        let state = any["debug.restState"].firstMatch
+
+        // Start a 60 s rest from the cover's ring, then minimise.
+        let restRing = app.buttons["rest.ring"].firstMatch
+        XCTAssertTrue(restRing.waitForExistence(timeout: 10), "no rest ring")
+        restRing.tap()
+        let preset = app.buttons["rest.preset.60"].firstMatch
+        XCTAssertTrue(preset.waitForExistence(timeout: 5))
+        preset.tap()
+        XCTAssertTrue(state.waitForExistence(timeout: 5), "no debug.restState probe")
+        waitForRestState("running", on: state, timeout: 5)
         app.buttons["cover.minimise"].firstMatch.tap()
         XCTAssertTrue(ring.waitForExistence(timeout: 10))
-        XCTAssertTrue(ring.label.contains("rest "), "no rest running: \(ring.label)")
 
         app.selectTab("tab.history", label: "History")
         let row = any.matching(
@@ -92,9 +103,13 @@ final class ResumeControlUITests: XCTestCase {
         row.tap()
         XCTAssertTrue(any["history.detail"].waitForExistence(timeout: 5), "the row did not open the detail")
         ring.assertStaysAbsent(for: 1, "a resume ring shows on the pushed detail")
+        waitForRestState("running", on: state, timeout: 5)
 
-        // The rest ends 6 s after launch and the grace is 3 s: stay on the pushed screen well past both.
-        Thread.sleep(forTimeInterval: 12)
+        // The rest ends now; stay on the pushed screen: over through the 3 s grace, then forgotten by the root's watcher.
+        app.expireRestNow()
+        waitForRestState("over", on: state, timeout: 5)
+        waitForRestState("none", on: state, timeout: 10)
+        XCTAssertTrue(any["history.detail"].exists, "left the pushed detail")
 
         let back = app.buttons["BackButton"].firstMatch
         XCTAssertTrue(back.waitForExistence(timeout: 5), "no back button on the pushed detail")
@@ -105,5 +120,16 @@ final class ResumeControlUITests: XCTestCase {
             ring.label.hasSuffix("elapsed"),
             "the over rest was not forgotten on the pushed screen: \(ring.label)"
         )
+    }
+
+    /// Waits until the `debug.restState` probe reads `expected`.
+    @MainActor
+    private func waitForRestState(_ expected: String, on probe: XCUIElement, timeout: TimeInterval) {
+        let predicate = NSPredicate(format: "value == %@", expected)
+        let result = XCTWaiter().wait(
+            for: [XCTNSPredicateExpectation(predicate: predicate, object: probe)],
+            timeout: timeout
+        )
+        XCTAssertEqual(result, .completed, "rest state never became \(expected): \(String(describing: probe.value))")
     }
 }

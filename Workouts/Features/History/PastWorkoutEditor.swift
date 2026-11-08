@@ -117,6 +117,7 @@ private struct Editor: View {
                 .accessibilityIdentifier("pastEditor.rename.field")
             Button("Save") { draft.rename(to: renameText) }
                 .accessibilityIdentifier("pastEditor.rename.save")
+                .disabled(renameText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             Button("Cancel", role: .cancel) {}
                 .accessibilityIdentifier("pastEditor.rename.cancel")
         }

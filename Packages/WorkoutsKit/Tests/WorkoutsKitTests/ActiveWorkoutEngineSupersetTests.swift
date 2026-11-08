@@ -412,10 +412,23 @@ import Testing
         let (rig, engine, rows3) = try threeRows()
         defer { withExtendedLifetime(rig) {} }
         engine.saveHook = { throw BlockEditSaveFailed() }
-        #expect(throws: BlockEditSaveFailed.self) { try engine.setNote("kept", for: rows3[0]) }
         #expect(throws: BlockEditSaveFailed.self) { try engine.setRest(77, for: rows3[0]) }
         #expect(throws: BlockEditSaveFailed.self) { try engine.setBar(.ez, weight: nil, for: rows3[0]) }
-        #expect(rows3[0].note == "kept" && rows3[0].restSeconds == 77 && rows3[0].barType == .ez)
+        #expect(rows3[0].restSeconds == 77 && rows3[0].barType == .ez)
+    }
+
+    @Test func aFailedNoteSaveRestoresThePreviousNote() throws {
+        let (rig, engine, rows3) = try threeRows()
+        defer { withExtendedLifetime(rig) {} }
+        try engine.setNote("original", for: rows3[0])
+        let stamp = rows3[0].updatedAt
+        engine.saveHook = { throw BlockEditSaveFailed() }
+        #expect(throws: BlockEditSaveFailed.self) { try engine.setNote("typed then cancelled", for: rows3[0]) }
+        #expect(rows3[0].note == "original")
+        #expect(rows3[0].updatedAt == stamp)
+        engine.saveHook = nil
+        try engine.setNote("saved", for: rows3[0])
+        #expect(rows3[0].note == "saved")
     }
 
     @Test func replaceExerciseKeepsTheRowsSets() throws {

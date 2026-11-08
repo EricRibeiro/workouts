@@ -28,6 +28,9 @@ final class FinishFlowState {
     private var engine: ActiveWorkoutEngine?
     private var onFinished: (FinishSummary) -> Void = { _ in }
     private var onDiscarded: () -> Void = {}
+    private var onSavedWithoutSummary: (UUID?) -> Void = { _ in }
+    /// The id of the workout being finished, read before the save lets go of it: the "saved, no summary" hand-off needs it.
+    private var finishingWorkoutID: UUID?
     /// What "Retry" in the error alert repeats.
     private var retry: (() -> Void)?
 
@@ -35,10 +38,15 @@ final class FinishFlowState {
     func begin(
         engine: ActiveWorkoutEngine,
         onFinished: @escaping (FinishSummary) -> Void,
-        onDiscarded: @escaping () -> Void
+        onDiscarded: @escaping () -> Void,
+        onSavedWithoutSummary: ((UUID?) -> Void)? = nil
     ) {
         self.engine = engine
-        configure(onFinished: onFinished, onDiscarded: onDiscarded)
+        configure(
+            onFinished: onFinished,
+            onDiscarded: onDiscarded,
+            onSavedWithoutSummary: onSavedWithoutSummary
+        )
         do {
             let dialog = try engine.finishDialog()
             if dialog == .none {
@@ -48,15 +56,27 @@ final class FinishFlowState {
             }
         } catch {
             fail(error) { [weak self] in
-                self?.begin(engine: engine, onFinished: onFinished, onDiscarded: onDiscarded)
+                self?.begin(
+                    engine: engine,
+                    onFinished: onFinished,
+                    onDiscarded: onDiscarded,
+                    onSavedWithoutSummary: onSavedWithoutSummary
+                )
             }
         }
     }
 
     /// Sets what a finished or ended workout hands on to (also how the tests drive ``run(finish:isWorkoutGone:retry:)``).
-    func configure(onFinished: @escaping (FinishSummary) -> Void, onDiscarded: @escaping () -> Void) {
+    /// `onSavedWithoutSummary` runs when the save went through but the summary could not be built (it defaults to
+    /// `onDiscarded`, which only ends the workout).
+    func configure(
+        onFinished: @escaping (FinishSummary) -> Void,
+        onDiscarded: @escaping () -> Void,
+        onSavedWithoutSummary: ((UUID?) -> Void)? = nil
+    ) {
         self.onFinished = onFinished
         self.onDiscarded = onDiscarded
+        self.onSavedWithoutSummary = onSavedWithoutSummary ?? { _ in onDiscarded() }
     }
 
     /// Title menu, Discard Workout: asks for confirmation; confirming runs the same discard as the Finish dialog.
@@ -71,7 +91,8 @@ final class FinishFlowState {
         run(
             finish: { try engine.finish(unfinished: unfinished) },
             isWorkoutGone: { engine.workout == nil },
-            retry: { [weak self] in self?.finish(unfinished) }
+            retry: { [weak self] in self?.finish(unfinished) },
+            workoutID: engine.workout?.id
         )
     }
 
@@ -81,8 +102,10 @@ final class FinishFlowState {
     func run(
         finish: () throws -> FinishSummary,
         isWorkoutGone: () -> Bool,
-        retry: @escaping () -> Void
+        retry: @escaping () -> Void,
+        workoutID: UUID? = nil
     ) {
+        finishingWorkoutID = workoutID
         do {
             onFinished(try finish())
         } catch {
@@ -95,10 +118,12 @@ final class FinishFlowState {
         }
     }
 
-    /// OK on the "Workout Saved" alert: the workout is already saved, so end it as a discard does (the cover closes).
+    /// OK on the "Workout Saved" alert: the workout is already saved, so hand it on as a finish minus the summary sheet
+    /// (Health pickup, the "Update Template?" question) and close the cover.
     func acknowledgeSavedWithoutSummary() {
         savedMessage = nil
-        onDiscarded()
+        onSavedWithoutSummary(finishingWorkoutID)
+        finishingWorkoutID = nil
     }
 
     fileprivate func discardWorkout() {

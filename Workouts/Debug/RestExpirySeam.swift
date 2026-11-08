@@ -2,6 +2,7 @@
     import Foundation
     import SwiftData
     import WorkoutsKit
+    import SwiftUI
     import notify
 
     /// A UI-test seam (Debug builds, `-uiTesting` only): expires the running rest at once, so a test starts its own rest,
@@ -32,6 +33,45 @@
             guard let workout = engine?.workout, workout.restEndsAt != nil else { return }
             workout.restEndsAt = .now
             try? context?.save()
+        }
+    }
+
+    /// The read side of the seam (`-uiTesting` only): a zero-size, non-hittable accessibility element in the root overlay,
+    /// above the `TabView` and so present on every pushed screen. Identifier `debug.restState`, value `none` (no rest),
+    /// `running`, or `over` (expired but not yet forgotten), straight from the engine's rest timer. A test waits for
+    /// `over` and then `none` on a pushed screen to prove who forgot the rest. No layout, nothing visible.
+    private struct RestStateProbe: ViewModifier {
+        @Environment(ActiveWorkoutEngine.self) private var engine: ActiveWorkoutEngine?
+
+        func body(content: Content) -> some View {
+            if ProcessInfo.processInfo.arguments.contains("-uiTesting") {
+                content.overlay {
+                    // The rest changes state by the clock (running to over) without any observed property changing.
+                    TimelineView(.periodic(from: .now, by: 0.25)) { timeline in
+                        Color.clear
+                            .frame(width: 0, height: 0)
+                            .allowsHitTesting(false)
+                            .accessibilityElement()
+                            .accessibilityIdentifier("debug.restState")
+                            .accessibilityLabel("Rest state")
+                            .accessibilityValue(state(at: timeline.date))
+                    }
+                }
+            } else {
+                content
+            }
+        }
+
+        private func state(at date: Date) -> String {
+            guard let timer = engine?.restTimer, timer.isActive else { return "none" }
+            return timer.isExpired(at: date) ? "over" : "running"
+        }
+    }
+
+    extension View {
+        /// Hosts the `debug.restState` probe (see ``RestExpirySeam``); a no-op outside `-uiTesting`.
+        func restStateProbe() -> some View {
+            modifier(RestStateProbe())
         }
     }
 #endif

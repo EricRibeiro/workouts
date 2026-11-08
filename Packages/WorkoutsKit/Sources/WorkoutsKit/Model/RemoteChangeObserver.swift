@@ -68,6 +68,7 @@ public final class RemoteChangeObserver {
         pending = Task { [weak self] in
             try? await clock.sleep(for: wait)
             guard !Task.isCancelled else { return }
+            self?.pending = nil
             self?.onChange()
         }
     }

@@ -32,6 +32,26 @@ struct FinishFlowStateTests {
         #expect(finishes == 0)
     }
 
+    /// R4W-1: the saved-without-summary hand-off carries the workout id so Health and the template question still run.
+    @Test func aSummaryFailureHandsTheSavedWorkoutOnWithoutASummary() {
+        let state = FinishFlowState()
+        let id = UUID()
+        var saved: [UUID?] = []
+        var discards = 0
+        state.configure(
+            onFinished: { _ in },
+            onDiscarded: { discards += 1 },
+            onSavedWithoutSummary: { saved.append($0) }
+        )
+
+        state.run(finish: { throw Failure() }, isWorkoutGone: { true }, retry: {}, workoutID: id)
+        #expect(saved.isEmpty)
+
+        state.acknowledgeSavedWithoutSummary()
+        #expect(saved == [id])
+        #expect(discards == 0)
+    }
+
     @Test func aFailedSaveKeepsTheWorkoutAndOffersRetry() {
         let state = FinishFlowState()
         var discards = 0
