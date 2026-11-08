@@ -47,19 +47,8 @@ struct WeeklyGoalChart: View {
     }
 
     private var header: some View {
-        let layout =
-            typeSize.isAccessibilitySize
-            ? AnyLayout(VStackLayout(alignment: .leading)) : AnyLayout(HStackLayout(alignment: .firstTextBaseline))
-        return layout {
-            Text("Workouts per week")
-                .font(.headline)
-            if !typeSize.isAccessibilitySize {
-                Spacer()
-            }
-            Text("Goal \(goal)")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-        }
+        Text("Workouts per week")
+            .font(.headline)
     }
 
     private var chart: some View {
