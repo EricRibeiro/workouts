@@ -50,6 +50,8 @@ struct ExerciseDetailView: View {
     @State private var loadSerial = 0
     @State private var isEditing = false
     @State private var removals = 0
+    /// The detail column's size, measured outside the content-fitted pane; the hero cap derives from it.
+    @State private var columnSize: CGSize?
 
     init(exerciseID: UUID, embedded: Bool = false, inSplitColumn: Bool = false, initialSegment: Segment = .about) {
         self.exerciseID = exerciseID
@@ -139,6 +141,27 @@ struct ExerciseDetailView: View {
     /// Wide, with no fold, it is the same split: side by side when the area is wider than tall, stacked otherwise.
     @ViewBuilder
     private func layout(_ info: ExerciseInfo, library: LibraryExercise?) -> some View {
+        content(info, library: library)
+            .background {
+                Color.clear.onGeometryChange(for: CGSize.self) {
+                    $0.size
+                } action: {
+                    columnSize = $0
+                }
+            }
+            .environment(\.exerciseHeroCapHeight, heroCapHeight)
+    }
+
+    /// 35 % of the column's height, and never taller than the 16:9 card the column's width allows (the stacked split's
+    /// top pane is the full width, and fits its content using this height as the hero's ideal one).
+    private var heroCapHeight: CGFloat {
+        guard let columnSize else { return .infinity }
+        // 32: the hero's `.padding(.horizontal)`, 16 pt a side.
+        return min(columnSize.height * 0.35, max(columnSize.width - 32, 0) * 9 / 16)
+    }
+
+    @ViewBuilder
+    private func content(_ info: ExerciseInfo, library: LibraryExercise?) -> some View {
         if embedded {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {

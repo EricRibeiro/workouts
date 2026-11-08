@@ -123,6 +123,10 @@ extension EnvironmentValues {
     /// and segments). Infinite outside the sheet. Closed portrait's 16:9 hero is already under it, so only the short poses
     /// (closed landscape, open wide) shrink the hero, letterboxed, instead of pushing the name below the medium detent.
     @Entry var exerciseHeroSheetMaxHeight: CGFloat = .infinity
+    /// The tallest the hero may be on a detail screen: 35 % of the column's visible height, measured by the screen on a
+    /// container that does not depend on the hero (the stacked split sizes its top pane to its content, so measuring
+    /// inside it made the hero shrink the pane that shrank the hero). Infinite until measured.
+    @Entry var exerciseHeroCapHeight: CGFloat = .infinity
 }
 
 /// The hero of the exercise detail: the exercise video when the cache has (or can fetch) one, else the bundled start
@@ -142,8 +146,8 @@ struct ExerciseMediaHeader: View {
     /// `Task.isCancelled`: iOS fires a stray onDisappear right after a re-push's onAppear, which cancels the task but
     /// must not lose the video, while a colour-scheme change mid-fetch (a new load) still must.
     @State private var videoSerial = 0
-    @State private var heroCap: CGFloat = .infinity
     @Environment(\.exerciseHeroCapped) private var heroCapped
+    @Environment(\.exerciseHeroCapHeight) private var heroCap
     @Environment(\.exerciseInfoSheetContent) private var inInfoSheet
     @Environment(\.exerciseHeroSheetMaxHeight) private var sheetMaxHeight
 
@@ -195,18 +199,12 @@ struct ExerciseMediaHeader: View {
         }
         .aspectRatio(16 / 9, contentMode: .fit)
         .frame(maxWidth: .infinity)
-        .frame(maxHeight: heroCapped ? heroCap : sheetMaxHeight)
-        .background {
-            // `containerRelativeFrame` only sets an exact size, so a probe measures the cap (35 % of the container's
-            // height) and the hero takes it as a maximum. One rule in every pose; the closed Duo stays under it.
-            Color.clear
-                .containerRelativeFrame(.vertical) { height, _ in height * 0.35 }
-                .onGeometryChange(for: CGFloat.self) {
-                    $0.size.height
-                } action: {
-                    heroCap = $0
-                }
-        }
+        // The ideal height is the cap: a pane that fits its content (the stacked split) would otherwise size itself to the
+        // stills' small intrinsic size and cut the name and segments off under the capped hero.
+        .frame(
+            idealHeight: heroCapped && heroCap.isFinite ? heroCap : nil,
+            maxHeight: heroCapped ? heroCap : sheetMaxHeight
+        )
         // The card's fill is the videos' own flat background colour, and the video is fitted (never cropped), so the
         // letterbox area and the not-yet-loaded stills sit on the same colour and the video edge is invisible.
         frame
