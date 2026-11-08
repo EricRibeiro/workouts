@@ -44,20 +44,24 @@ extension ActiveWorkoutEngine {
         try commit(workout, row)
     }
 
-    /// Takes `row` out of its superset; a group left with one member dissolves and the groups renumber 1, 2, 3 by first
-    /// appearance. A row in no superset changes nothing. Rolls back when the save fails.
+    /// Takes `row` out of its superset; a member from the middle of the group moves to just after it so the group stays
+    /// contiguous (``SupersetGrouping/removingFromGroup(_:in:)``). A group left with one member dissolves and the groups
+    /// renumber 1, 2, 3 by first appearance. A row in no superset changes nothing. Rolls back when the save fails.
     /// - Throws: ``ActiveWorkoutError/notInActiveWorkout`` when the row is not in the workout.
     public func removeFromSuperset(_ row: WorkoutExercise) throws {
         let workout = try owned(row)
         guard row.supersetGroup != nil else { return }
         let current = sortedExercises(of: workout)
-        let result = SupersetGrouping.normalized(
-            current.map { (id: $0.id, group: $0.id == row.id ? nil : $0.supersetGroup) }
+        let result = SupersetGrouping.removingFromGroup(
+            row.id,
+            in: current.map { (id: $0.id, group: $0.supersetGroup) }
         )
         let byID = Dictionary(current.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         let stamp = now()
-        for entry in result {
-            guard let member = byID[entry.id], member.supersetGroup != entry.group else { continue }
+        for (position, entry) in result.enumerated() {
+            guard let member = byID[entry.id], member.supersetGroup != entry.group || member.position != position
+            else { continue }
+            member.position = position
             member.supersetGroup = entry.group
             member.updatedAt = stamp
         }

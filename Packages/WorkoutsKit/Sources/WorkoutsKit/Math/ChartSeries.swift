@@ -40,7 +40,24 @@ nonisolated func e1rmBeats(_ value: Double, low: Bool, _ current: Double, curren
     return compareKg(value, current) > 0
 }
 
-/// One point per session, stable-sorted by time.
+/// Rows sharing a workout and exercise merged into one session each, in first-seen order.
+nonisolated func mergedByWorkout(_ sessions: [Session]) -> [Session] {
+    var groups: [[Session]] = []
+    var groupOf: [WorkoutExerciseKey: Int] = [:]
+    for session in sessions {
+        let key = WorkoutExerciseKey(workoutID: session.workoutID, exerciseID: session.exerciseID)
+        if let group = groupOf[key] {
+            groups[group].append(session)
+        } else {
+            groupOf[key] = groups.count
+            groups.append([session])
+        }
+    }
+    return groups.map { $0.count == 1 ? $0[0] : mergedSession($0) }
+}
+
+/// One point per session, stable-sorted by time. Rows of one exercise in one workout are one session (merged with
+/// ``mergedSession(_:)``, as PRs and the Finish screen judge them), so a repeated exercise never plots two points.
 ///
 /// A session with no counted set that has reps has no point for any metric. A metric that does not apply to the
 /// session's weight type (e1RM for rep types and assisted, volume for assisted) yields no point for that session, so
@@ -55,7 +72,7 @@ public nonisolated func chartSeries(_ sessions: [Session], metric: ChartMetric, 
     -> [ChartPoint]
 {
     var points: [ChartPoint] = []
-    for session in sortedByTime(sessions) {
+    for session in sortedByTime(mergedByWorkout(sessions)) {
         let category = session.weightType.category
         let withReps = countedSets(session.sets).filter { $0.reps > 0 }
         guard !withReps.isEmpty else { continue }

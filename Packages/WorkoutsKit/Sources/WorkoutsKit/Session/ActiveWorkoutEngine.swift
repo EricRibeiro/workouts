@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 import SwiftData
+import os
 
 /// The in-progress workout: start, resume, check sets, Previous autofill, exercise and set edits, finish and discard.
 ///
@@ -66,7 +67,15 @@ public final class ActiveWorkoutEngine {
             var timer = RestTimer(workout: running, now: now)
             if timer.clearIfExpired() {
                 timer.write(to: running)
-                try commit(running, nil)
+                // Best effort: clearing a stale timer must never fail the launch (`init` calls this). The cleared
+                // timer stays in memory and is saved with the next edit.
+                do {
+                    try commit(running, nil)
+                } catch {
+                    KitLog.engine.error(
+                        "Could not save the cleared rest timer: \(error.localizedDescription, privacy: .public)"
+                    )
+                }
             }
         }
         return running
@@ -80,6 +89,24 @@ public final class ActiveWorkoutEngine {
         if let running = liveWorkout {
             try loadPrevious(for: Set(sortedExercises(of: running).map(\.exerciseID)))
         }
+    }
+
+    /// What the app does when CloudKit merged remote changes in (P-01): rebuilds Previous, and re-settles the running
+    /// workout through ``resume()`` when this device's `workout` is gone (deleted or detached by a merge, finished on
+    /// another device) or nil (a workout may have been started elsewhere). A workout still running here is kept, so
+    /// the one being logged is not swapped under the person's hands.
+    public func reloadAfterRemoteChange() throws {
+        // The store is the truth: a model another context deleted or finished can still look alive (and trap when read)
+        // until the context refreshes it, so ask the store whether the workout is still in progress, by identity only.
+        if let running = liveWorkout, try inProgressIdentifiers().contains(running.persistentModelID) {
+            try reloadPrevious()
+        } else {
+            try resume()
+        }
+    }
+
+    private func inProgressIdentifiers() throws -> Set<PersistentIdentifier> {
+        Set(try context.fetch(Workout.inProgress).map(\.persistentModelID))
     }
 
     // MARK: - Start

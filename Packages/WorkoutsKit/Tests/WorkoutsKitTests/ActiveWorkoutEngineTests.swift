@@ -709,6 +709,32 @@ import Testing
         _ = row
     }
 
+    /// Two kg-logged exercises of 11 kg x 1 shown in lb: 24.25 lb each rounds to 24.5 per row (49 summed), but the
+    /// 22 kg total is 48.5 lb. The Finish sheet and the History row must show the same, single-rounded figure.
+    @Test func finishSheetAndHistoryRowShowTheSameVolume() throws {
+        let rig = try Rig()
+        rig.settings.defaultUnit = .kg
+        let engine = try rig.makeEngine()
+        try engine.startEmpty()
+        for id in [LibraryFixture.squat, LibraryFixture.curl] {
+            let row = try engine.addExercise(try rig.info(id))
+            try engine.setValues(sets(row)[0], weight: 11, reps: 1, durationSeconds: nil)
+            try engine.check(sets(row)[0])
+        }
+        rig.settings.defaultUnit = .lb
+        rig.clock.advance(600)
+        let summary = try engine.finish(unfinished: .discard)
+
+        let workouts = try rig.context.fetch(FetchDescriptor<Workout>())
+        let entries = HistoryList.entries(
+            from: workouts,
+            weightType: { rig.store.exercise(id: $0)?.weightType },
+            options: RecordsOptions(displayUnit: .lb)
+        )
+        #expect(summary.volume == 48.5)
+        #expect(entries.first?.volume == summary.volume)
+    }
+
     @Test func finishSummaryWithoutARecordHasNoPRs() throws {
         let rig = try Rig()
         rig.settings.defaultUnit = .kg

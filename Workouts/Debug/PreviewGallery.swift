@@ -49,7 +49,7 @@
             case .workout: WorkoutView()
             case .exercises: ExercisesView()
             case .settings: SettingsView()
-            case .activeWorkoutCover: ActiveWorkoutCover(minimise: {}, onFinished: { _ in }, onDiscarded: {})
+            case .activeWorkoutCover: ActiveWorkoutCoverDemo()
             case .calendar: CalendarDemo()
             case .swatches: SwatchesView()
             case .exercisePicker: ExercisePickerView(title: "Add Exercise") { _ in }
@@ -160,6 +160,57 @@
                     let name = custom ? SampleData.customExerciseName : "Barbell Bench Press"
                     exerciseID = store.all().first(where: { $0.name == name })?.id
                 }
+        }
+    }
+
+    /// The gallery entry `ActiveWorkoutCover`: the cover over an engine that has started the sample workout (the first
+    /// sample template, as `-startSampleWorkout` does for the app), so the logging screen is what gets shown. Without a
+    /// running workout the cover only draws its empty state.
+    struct ActiveWorkoutCoverDemo: View {
+        @Environment(\.modelContext) private var context
+        @Environment(ExerciseStore.self) private var store
+        @State private var engine: ActiveWorkoutEngine?
+        @State private var settings = SettingsStore()
+        @State private var failure: String?
+
+        var body: some View {
+            Group {
+                if let engine {
+                    ActiveWorkoutCover(minimise: {}, onFinished: { _ in }, onDiscarded: {})
+                        .environment(engine)
+                        .environment(settings)
+                } else if let failure {
+                    ContentUnavailableView(
+                        "Could not start the workout",
+                        systemImage: "exclamationmark.triangle",
+                        description: Text(failure)
+                    )
+                } else {
+                    ProgressView()
+                }
+            }
+            .task { start() }
+        }
+
+        private func start() {
+            guard engine == nil else { return }
+            do {
+                let engine = try ActiveWorkoutEngine(context: context, store: store, settings: settings)
+                if engine.workout == nil {
+                    var descriptor = FetchDescriptor<Template>(
+                        sortBy: [SortDescriptor(\.position), SortDescriptor(\.name)]
+                    )
+                    descriptor.fetchLimit = 1
+                    if let template = try context.fetch(descriptor).first {
+                        try engine.start(from: template)
+                    } else {
+                        try engine.startEmpty()
+                    }
+                }
+                self.engine = engine
+            } catch {
+                failure = error.localizedDescription
+            }
         }
     }
 

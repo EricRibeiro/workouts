@@ -133,7 +133,8 @@ struct WorkoutsApp: App {
 
     /// Installs the one `NSPersistentStoreRemoteChange` observer (debounced). A merge from another device changes rows the
     /// app only snapshots: it re-reads the custom exercises, rebuilds the engine's Previous values and bumps the
-    /// generation the history caches key on. It never calls `resume()`, so a workout running here is not swapped.
+    /// generation the history caches key on. A workout still running here is never swapped; one that a merge deleted or
+    /// finished (or none yet) goes through `resume()`, so the cover and the set table never read a deleted model.
     @MainActor
     private static func observeRemoteChanges(
         context: ModelContext,
@@ -144,7 +145,7 @@ struct WorkoutsApp: App {
         let observer = RemoteChangeObserver {
             do {
                 try store.reloadCustom(from: context)
-                try engine.reloadPrevious()
+                try engine.reloadAfterRemoteChange()
             } catch {
                 Logger(subsystem: "com.ericribeiro.Workouts", category: "Sync")
                     .error("Could not reload after a remote change: \(error.localizedDescription, privacy: .public)")

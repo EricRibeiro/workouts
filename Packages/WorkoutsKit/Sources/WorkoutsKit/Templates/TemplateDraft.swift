@@ -217,8 +217,8 @@ public struct TemplateDraft: Equatable, Sendable {
     ///
     /// Returns whether the block has a working weight (the UI asks for one first when it does not), not whether any
     /// warm-up was built. Without a working weight nothing changes. A working weight so light its ramp is empty (45 lb on
-    /// the 45 lb bar, a 5 lb dumbbell) also changes nothing: the existing warm-ups stay, since there is no ramp to
-    /// replace them with (the logging engine, which tracks completed sets, instead drops its unchecked old warm-ups).
+    /// the 45 lb bar, a 5 lb dumbbell) removes the existing warm-ups, as the logging engine does for its unchecked ones:
+    /// the ramp replaces them, and here it is empty.
     @discardableResult
     public mutating func addWarmupSets(to blockID: UUID, makeID: () -> UUID = UUID.init) -> Bool {
         guard let e = index(of: blockID) else { return false }
@@ -231,7 +231,6 @@ public struct TemplateDraft: Equatable, Sendable {
             barType: block.barType,
             customBarWeight: block.barWeight
         )
-        guard !ramp.isEmpty else { return true }
         let warmups = ramp.map {
             SetValues(
                 id: makeID(),
@@ -314,12 +313,23 @@ public struct TemplateDraft: Equatable, Sendable {
         }
     }
 
-    /// Takes the block out of its superset; a group left with one member dissolves and the rest renumber. A block that is
-    /// in no superset is untouched.
+    /// Takes the block out of its superset; a block from the middle of the group moves to just after it so the group stays
+    /// contiguous (``SupersetGrouping/removingFromGroup(_:in:)``), a group left with one member dissolves and the rest
+    /// renumber. A block that is in no superset is untouched.
     public mutating func removeFromSuperset(_ blockID: UUID) {
         guard let e = index(of: blockID), exercises[e].supersetGroup != nil else { return }
-        exercises[e].supersetGroup = nil
-        applyGroups(SupersetGrouping.normalized(exercises.map { (id: $0.id, group: $0.supersetGroup) }))
+        let grouped = SupersetGrouping.removingFromGroup(
+            blockID,
+            in: exercises.map { (id: $0.id, group: $0.supersetGroup) }
+        )
+        let byID = Dictionary(exercises.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        exercises = grouped.compactMap { item in
+            byID[item.id].map { block in
+                var block = block
+                block.supersetGroup = item.group
+                return block
+            }
+        }
     }
 
     /// Removes the block with its sets. A superset left with one member dissolves and the groups renumber 1, 2, 3

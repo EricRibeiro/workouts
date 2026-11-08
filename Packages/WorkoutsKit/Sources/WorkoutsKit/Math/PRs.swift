@@ -101,7 +101,7 @@ nonisolated func prsForEachSession(
     return out
 }
 
-private nonisolated struct WorkoutExerciseKey: Hashable {
+nonisolated struct WorkoutExerciseKey: Hashable {
     var workoutID: UUID
     var exerciseID: UUID
 }

@@ -22,6 +22,14 @@ struct VolumeTests {
         #expect(volume(of: kgSets, weightType: .barbell, displayUnit: .lb) == 220.5)  // 220.46
     }
 
+    @Test func volumeKgIsUnroundedAndDisplayedVolumeRoundsOnce() {
+        let sets = [LoggedSet(weight: 11, unit: .kg, reps: 1)]
+        #expect(volumeKg(of: sets, weightType: .barbell) == 11)
+        #expect(volumeKg(of: sets, weightType: .assisted) == 0)
+        #expect(displayedVolume(kg: 33, displayUnit: .lb) == 73)  // 72.75
+        #expect(displayedVolume(kg: 11, displayUnit: .lb) == 24.5)  // 24.25 rounds half up
+    }
+
     @Test func mixedUnitsSumInKg() {
         let sets = [LoggedSet(weight: 100, unit: .lb, reps: 10), LoggedSet(weight: 50, unit: .kg, reps: 10)]
         #expect(volume(of: sets, weightType: .machine, displayUnit: .kg) == 953.5)  // 453.59 + 500

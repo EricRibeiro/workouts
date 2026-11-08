@@ -184,4 +184,43 @@ import Testing
         let tiny = FoldPlacement.columnWidths(total: 5, division: nil, spacing: 12)
         #expect(tiny.left == 0 && tiny.right == 0)
     }
+
+    // MARK: Grid columns around the fold
+
+    @Test func foldColumnsPutTheMiddleGutterOnAnOffCentreHinge() throws {
+        // Open wide: a 951 pt display, hinge at x = 475.5, a 17 pt margin and a 64 pt bar strip on the trailing edge. The
+        // grid starts at x = 17 and is 951 - 17 - 17 - 64 = 853 pt wide, so the hinge is at 458.5 in the grid's own space
+        // and an inactive hinge reports no width.
+        let hinge: CGFloat = 458.5
+        let columns = try #require(
+            FoldPlacement.foldColumns(width: 853, minimum: 160, spacing: 12, division: hinge...hinge)
+        )
+        #expect(columns.count == 4)
+        // Two columns a side; the gutter between them is 12 pt, centred on the hinge.
+        #expect(columns[1].spacingAfter == 12)
+        let leftEdge = columns[0].width + 12 + columns[1].width
+        #expect(abs(leftEdge - (hinge - 6)) < 0.001)
+        #expect(abs(leftEdge + 12 - (hinge + 6)) < 0.001)
+        // Nothing crosses and the grid still fills its width.
+        let total = columns.reduce(0) { $0 + $1.width + $1.spacingAfter }
+        #expect(abs(total - 853) < 0.001)
+        #expect(columns.allSatisfy { $0.width >= 160 })
+    }
+
+    @Test func foldColumnsKeepAWideDivisionAsTheGutter() throws {
+        let columns = try #require(
+            FoldPlacement.foldColumns(width: 800, minimum: 160, spacing: 12, division: 390...410)
+        )
+        #expect(columns.count == 4)
+        #expect(columns[1].spacingAfter == 20)
+        #expect(columns[0].width + 12 + columns[1].width == 390)
+    }
+
+    @Test func foldColumnsAreNilWithoutAUsableDivision() {
+        #expect(FoldPlacement.foldColumns(width: 800, minimum: 160, spacing: 12, division: nil) == nil)
+        // A division at the edge is not inside the grid.
+        #expect(FoldPlacement.foldColumns(width: 800, minimum: 160, spacing: 12, division: 0...20) == nil)
+        // A half too narrow for one column at the minimum.
+        #expect(FoldPlacement.foldColumns(width: 800, minimum: 500, spacing: 12, division: 400...400) == nil)
+    }
 }

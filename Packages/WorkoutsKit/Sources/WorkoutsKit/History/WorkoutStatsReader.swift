@@ -1,6 +1,22 @@
 import Foundation
 import SwiftData
 
+/// What the exercise detail shows for one exercise: its sessions (the Charts segment), records and history sessions.
+/// Plain values, so they cross from the reader's actor to the view.
+public nonisolated struct ExerciseDetailData: Equatable, Sendable {
+    public var sessions: [Session]
+    public var records: [ExerciseRecord]
+    public var history: [ExerciseHistorySession]
+
+    public init(sessions: [Session], records: [ExerciseRecord], history: [ExerciseHistorySession]) {
+        self.sessions = sessions
+        self.records = records
+        self.history = history
+    }
+
+    public static let empty = ExerciseDetailData(sessions: [], records: [], history: [])
+}
+
 /// Reads the finished history off the main thread (PLAN 6.4): the Exercises best-set texts, the History tab's rows
 /// and Recent PRs card, a workout's detail and the templates' last-performed index. All walk every finished workout, its exercise rows and their sets, and every row and set read
 /// is a SwiftData fault; with a few hundred workouts that blocked the main thread for around a second when the tab
@@ -61,6 +77,27 @@ public actor WorkoutStatsReader {
         )
     }
 
+    /// The exercise detail's sessions, records and history for `exerciseID`: fetches just that exercise's rows in
+    /// finished workouts (`ExerciseBestSets.rowsDescriptor`), then folds them here instead of on the main thread.
+    public func exerciseDetail(
+        exerciseID: UUID,
+        weightType: WeightType,
+        options: RecordsOptions
+    ) throws -> ExerciseDetailData {
+        let rows = try modelContext.fetch(ExerciseBestSets.rowsDescriptor(exerciseID: exerciseID))
+        let sessions = ExerciseBestSets.sessions(forRows: rows, weightType: weightType)
+        return ExerciseDetailData(
+            sessions: sessions,
+            records: WorkoutsKit.records(sessions, weightType: weightType, options: options),
+            history: ExerciseHistory.sessions(
+                sessions,
+                names: ExerciseBestSets.workoutNames(of: rows),
+                weightType: weightType,
+                options: options
+            )
+        )
+    }
+
     /// `TemplateCardSummary.LastPerformedIndex` over the finished history (the Workout tab's cards and the template
     /// preview). It reads only each workout's start, name and template, so the exercise rows are not prefetched.
     public func lastPerformedIndex() throws -> TemplateCardSummary.LastPerformedIndex {
@@ -108,6 +145,18 @@ public actor WorkoutStatsReader {
     ) async throws -> WorkoutDetail? {
         try await WorkoutStatsReader(modelContainer: container)
             .workoutDetail(id: id, weightTypes: weightTypes, options: options, now: now, calendar: calendar)
+    }
+
+    /// `exerciseDetail(exerciseID:weightType:options:)` on a fresh reader created off the main actor.
+    @concurrent
+    public static func loadExerciseDetail(
+        in container: ModelContainer,
+        exerciseID: UUID,
+        weightType: WeightType,
+        options: RecordsOptions
+    ) async throws -> ExerciseDetailData {
+        try await WorkoutStatsReader(modelContainer: container)
+            .exerciseDetail(exerciseID: exerciseID, weightType: weightType, options: options)
     }
 
     /// `lastPerformedIndex()` on a fresh reader created off the main actor.

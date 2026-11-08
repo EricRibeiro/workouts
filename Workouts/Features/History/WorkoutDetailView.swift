@@ -18,6 +18,7 @@ struct WorkoutDetailView: View {
     @Environment(SettingsStore.self) private var settings: SettingsStore?
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(StoreGeneration.self) private var generation: StoreGeneration?
     @Environment(SaveErrors.self) private var saveErrors: SaveErrors?
     /// This workout alone (zero or one row): Edit, Save as Template and Delete need no more, and it keys the detail.
@@ -172,37 +173,101 @@ struct WorkoutDetailView: View {
 
     private func content(_ detail: WorkoutDetail) -> some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                // Read from the model here, not from `detail`: Health data lands after the workout was saved and does
-                // not touch `updatedAt`, so the stats and the chart appear (and go) as the model changes.
-                let health = workout?.healthSummary
-                DetailHeader(detail: detail, health: health)
-                if let workout, let health, HeartRateChart.canShow(series: health.heartRateSeries) {
-                    HeartRateChart(
-                        series: health.heartRateSeries,
-                        timeline: SetTimeline.make(workout: workout),
-                        average: health.avgHeartRate,
-                        maximum: health.maxHeartRate,
-                        zones: health.zones
-                    )
-                    .dashboardCardStyle()
-                    .accessibilityElement(children: .contain)
-                    .accessibilityIdentifier("workoutDetail.heartRate")
+            // Read from the model here, not from `detail`: Health data lands after the workout was saved and does
+            // not touch `updatedAt`, so the stats and the chart appear (and go) as the model changes.
+            let health = workout?.healthSummary
+            if horizontalSizeClass == .regular {
+                // Two columns that keep off the fold (`FoldColumns`): the header and chart on the left, then the
+                // exercise blocks in order, split where the two columns come out closest in height.
+                let split = Self.splitIndex(
+                    blocks: detail.exercises,
+                    leadingWeight: Self.headerWeight + (hasChart(health) ? Self.chartWeight : 0)
+                )
+                FoldColumns {
+                    VStack(alignment: .leading, spacing: 16) {
+                        headerAndChart(detail, health: health)
+                        ForEach(detail.exercises.prefix(split)) { block in
+                            ExerciseBlockView(block: block)
+                        }
+                        emptyNote(detail)
+                    }
+                    VStack(alignment: .leading, spacing: 16) {
+                        ForEach(detail.exercises.dropFirst(split)) { block in
+                            ExerciseBlockView(block: block)
+                        }
+                    }
                 }
-                ForEach(detail.exercises) { block in
-                    ExerciseBlockView(block: block)
+                .padding(.horizontal)
+                .padding(.bottom)
+            } else {
+                VStack(alignment: .leading, spacing: 16) {
+                    headerAndChart(detail, health: health)
+                    ForEach(detail.exercises) { block in
+                        ExerciseBlockView(block: block)
+                    }
+                    emptyNote(detail)
                 }
-                if detail.exercises.isEmpty {
-                    Text("No completed sets in this workout.")
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
+                .padding(.horizontal)
+                .padding(.bottom)
             }
-            .padding(.horizontal)
-            .padding(.bottom)
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("history.detail")
+    }
+
+    @ViewBuilder
+    private func headerAndChart(_ detail: WorkoutDetail, health: HealthWorkoutSummary?) -> some View {
+        DetailHeader(detail: detail, health: health)
+        if let workout, let health, HeartRateChart.canShow(series: health.heartRateSeries) {
+            HeartRateChart(
+                series: health.heartRateSeries,
+                timeline: SetTimeline.make(workout: workout),
+                average: health.avgHeartRate,
+                maximum: health.maxHeartRate,
+                zones: health.zones
+            )
+            .dashboardCardStyle()
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("workoutDetail.heartRate")
+        }
+    }
+
+    @ViewBuilder
+    private func emptyNote(_ detail: WorkoutDetail) -> some View {
+        if detail.exercises.isEmpty {
+            Text("No completed sets in this workout.")
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private func hasChart(_ health: HealthWorkoutSummary?) -> Bool {
+        workout != nil && health.map { HeartRateChart.canShow(series: $0.heartRateSeries) } == true
+    }
+
+    // MARK: Two-column split
+
+    /// Rough heights in set-row units, only to balance the columns (the real heights are not known before layout).
+    static let headerWeight = 5
+    static let chartWeight = 7
+
+    /// How many leading blocks go in the left column (under the header and chart, `leadingWeight`): the count that makes
+    /// the two columns' estimated heights closest. Blocks keep their order, so the right column continues the left.
+    static func splitIndex(blocks: [WorkoutDetail.ExerciseBlock], leadingWeight: Int) -> Int {
+        let weights = blocks.map { 3 + $0.sets.count + $0.prLines.count + ($0.note.isEmpty ? 0 : 1) }
+        let total = leadingWeight + weights.reduce(0, +)
+        var left = leadingWeight
+        var best = 0
+        var bestGap = abs(total - 2 * left)
+        for (index, weight) in weights.enumerated() {
+            left += weight
+            let gap = abs(total - 2 * left)
+            if gap < bestGap {
+                best = index + 1
+                bestGap = gap
+            }
+        }
+        return best
     }
 
     private func delete() {

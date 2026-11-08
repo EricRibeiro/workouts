@@ -43,16 +43,21 @@ public struct PastWorkoutDraft: Equatable, Sendable {
     public var exercises: [ExerciseValues]
     /// Never negative; set through `setDurationMinutes`.
     public private(set) var durationSeconds: Int
+    /// The duration the draft opened with, in whole seconds. Landing back on its minute restores it (see
+    /// `setDurationMinutes`), so a +1/-1 round trip is neither dirty nor a duration change.
+    private let originalDurationSeconds: Int
 
     /// The draft of a finished workout (a missing `finishedAt` reads as zero duration).
     public init(_ workout: Workout) {
         name = workout.name
         startedAt = workout.startedAt
         durationSeconds = max(0, Int((workout.finishedAt ?? workout.startedAt).timeIntervalSince(workout.startedAt)))
+        originalDurationSeconds = durationSeconds
         exercises = (workout.exercises ?? [])
             .sorted { $0.position < $1.position }
             .map { row in
-                let sets = (row.sets ?? []).sorted { $0.position < $1.position }
+                // Completed sets only: an unchecked planned set is not part of the log, and saving would complete it.
+                let sets = (row.sets ?? []).filter(\.completed).sorted { $0.position < $1.position }
                 return ExerciseValues(
                     id: row.id,
                     exerciseID: row.exerciseID,
@@ -84,9 +89,11 @@ public struct PastWorkoutDraft: Equatable, Sendable {
     /// The longest duration the editor accepts, in minutes (a day).
     public static let maxDurationMinutes = 1440
 
-    /// Sets the duration in minutes, clamped to 0...`maxDurationMinutes`.
+    /// Sets the duration in minutes, clamped to 0...`maxDurationMinutes`. Landing on the minute the draft opened with
+    /// restores its exact seconds (a 62:05 workout stepped +1 then -1 is 62:05 again, not 62:00).
     public mutating func setDurationMinutes(_ minutes: Int) {
-        durationSeconds = min(max(0, minutes), Self.maxDurationMinutes) * 60
+        let clamped = min(max(0, minutes), Self.maxDurationMinutes)
+        durationSeconds = clamped == originalDurationSeconds / 60 ? originalDurationSeconds : clamped * 60
     }
 
     public var endedAt: Date { startedAt.addingTimeInterval(TimeInterval(durationSeconds)) }
@@ -204,7 +211,7 @@ public struct PastWorkoutDraft: Equatable, Sendable {
 
     /// Writes the draft to `workout` without saving. Sets and exercises are matched by id: kept ones are updated in place
     /// (hidden fields survive), new sets are inserted, sets without a value and exercises without a set are deleted. Every
-    /// kept set is completed. `finishedAt` becomes `startedAt + duration`, and `completedAt` stamps move with the start. A changed start or
+    /// kept set is completed. `finishedAt` becomes `startedAt + duration`, and `completedAt` stamps move with the start and are clamped to the new end. A changed start or
     /// duration clears the workout's Fitness data (and its `healthCheckedAt` stamp) so it is matched again for the new time.
     /// The draft holds whole seconds, so a duration the person did not change keeps the workout's exact (fractional)
     /// length rather than the truncated one.
@@ -249,7 +256,10 @@ public struct PastWorkoutDraft: Equatable, Sendable {
                 let model: WorkoutSet
                 if let found = existing[set.id] {
                     model = found
-                    model.completedAt = model.completedAt.map { $0.addingTimeInterval(shift) } ?? endedAt
+                    // Moves with the start, then stays inside the workout: a shortened duration must not leave
+                    // sets completed after the new end.
+                    let moved = model.completedAt.map { $0.addingTimeInterval(shift) } ?? endedAt
+                    model.completedAt = min(max(moved, startedAt), endedAt)
                 } else {
                     model = WorkoutSet(id: set.id, workoutExercise: row)
                     context.insert(model)

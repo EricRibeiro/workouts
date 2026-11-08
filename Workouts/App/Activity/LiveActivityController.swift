@@ -22,36 +22,64 @@ protocol LiveActivityHandle: AnyObject {
     func end(dismissalPolicy: ActivityUIDismissalPolicy) async
 }
 
-/// The slice of ActivityKit the controller uses, so tests can substitute a fake.
+/// The slice of ActivityKit the controller uses, so tests can substitute a fake. The calls are `async` because the real
+/// ones are synchronous XPC round trips to `chronod` that must not run on the main thread.
 @MainActor
 protocol LiveActivityProviding {
     /// Activities that already exist (from an earlier launch of the process).
-    var existing: [any LiveActivityHandle] { get }
+    func existingActivities() async -> [any LiveActivityHandle]
     /// Whether the person allows Live Activities (Settings, per app); requesting while off only throws.
-    var areActivitiesEnabled: Bool { get }
+    func activitiesEnabled() async -> Bool
     func request(
         workoutID: UUID,
         content: ActivityContent<WorkoutActivityState>
-    ) throws -> any LiveActivityHandle
+    ) async throws -> any LiveActivityHandle
 }
 
 /// The real ActivityKit.
+///
+/// `Activity.activities`, `ActivityAuthorizationInfo` and `Activity.request` are synchronous XPC round trips to
+/// `chronod`. The controller's first reconcile runs from `WorkoutsApp.init`, so on the main thread a slow daemon could
+/// hold the app past the launch watchdog (the same class of stall as `SystemNotificationCenter`, JC80). They run on
+/// ``queue`` instead, one at a time and in call order, and the caller awaits the result, so reconcile still finishes
+/// before the next start or update. The handles are wrapped back on the main actor.
 struct SystemLiveActivityProvider: LiveActivityProviding {
-    var existing: [any LiveActivityHandle] {
-        Activity<WorkoutActivityAttributes>.activities.map(SystemLiveActivity.init)
+    private nonisolated static let queue = DispatchQueue(label: "com.ericribeiro.Workouts.liveactivity")
+
+    func existingActivities() async -> [any LiveActivityHandle] {
+        let activities = await withCheckedContinuation { continuation in
+            Self.queue.async {
+                continuation.resume(returning: Activity<WorkoutActivityAttributes>.activities)
+            }
+        }
+        return activities.map(SystemLiveActivity.init)
     }
 
-    var areActivitiesEnabled: Bool { ActivityAuthorizationInfo().areActivitiesEnabled }
+    func activitiesEnabled() async -> Bool {
+        await withCheckedContinuation { continuation in
+            Self.queue.async {
+                continuation.resume(returning: ActivityAuthorizationInfo().areActivitiesEnabled)
+            }
+        }
+    }
 
     func request(
         workoutID: UUID,
         content: ActivityContent<WorkoutActivityState>
-    ) throws -> any LiveActivityHandle {
-        let activity = try Activity.request(
-            attributes: WorkoutActivityAttributes(workoutID: workoutID),
-            content: content,
-            pushType: nil
-        )
+    ) async throws -> any LiveActivityHandle {
+        let activity = try await withCheckedThrowingContinuation { continuation in
+            Self.queue.async {
+                continuation.resume(
+                    with: Result {
+                        try Activity.request(
+                            attributes: WorkoutActivityAttributes(workoutID: workoutID),
+                            content: content,
+                            pushType: nil
+                        )
+                    }
+                )
+            }
+        }
         return SystemLiveActivity(activity)
     }
 }
@@ -229,12 +257,12 @@ final class LiveActivityController {
             return
         }
         // Off in Settings: skip the request (it would only throw) and look again on the next change.
-        guard provider.areActivitiesEnabled else {
+        guard await provider.activitiesEnabled() else {
             logUnavailable(for: info.workoutID, "Live Activities are turned off")
             return
         }
         do {
-            current = try provider.request(workoutID: info.workoutID, content: content)
+            current = try await provider.request(workoutID: info.workoutID, content: content)
             lastContent = content
         } catch {
             // Too many activities, or a refusal: the app works without it; try again on the next change.
@@ -252,7 +280,7 @@ final class LiveActivityController {
     /// Ends every activity except one for `keep`, which becomes ``current`` (adopted) when it exists.
     private func endAll(keeping keep: UUID?) async {
         var adopted: (any LiveActivityHandle)?
-        var all = provider.existing
+        var all = await provider.existingActivities()
         if let current, !all.contains(where: { $0.id == current.id }) { all.append(current) }
         for activity in all {
             if let keep, activity.workoutID == keep, adopted == nil, Self.isLive(activity.activityState) {

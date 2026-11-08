@@ -161,4 +161,50 @@ import Testing
         #expect(expected != TemplateCardSummary.LastPerformedIndex())
         #expect(actual == expected)
     }
+
+    @Test func exerciseDetailEqualsTheSynchronousFold() async throws {
+        let catalog = try Self.realCatalog()
+        let store = ExerciseStore(catalog: catalog)
+        let container = try seededContainer(catalog: catalog)
+        let options = RecordsOptions(formula: .brzycki, displayUnit: .kg)
+        let finished = try container.mainContext.fetch(
+            FetchDescriptor<Workout>(predicate: #Predicate { $0.finishedAt != nil })
+        )
+        let weightType = { (id: UUID) in store.exercise(id: id)?.weightType }
+        let sessionsByExercise = ExerciseBestSets.sessions(from: finished, weightType: weightType)
+        // The most-performed exercise, so the comparison is not trivial.
+        let exerciseID = try #require(sessionsByExercise.max { $0.value.count < $1.value.count }?.key)
+        let type = weightType(exerciseID) ?? .weighted
+
+        let rows = try container.mainContext.fetch(ExerciseBestSets.rowsDescriptor(exerciseID: exerciseID))
+        let sessions = ExerciseBestSets.sessions(forRows: rows, weightType: type)
+        let expected = ExerciseDetailData(
+            sessions: sessions,
+            records: records(sessions, weightType: type, options: options),
+            history: ExerciseHistory.sessions(
+                sessions,
+                names: ExerciseBestSets.workoutNames(of: rows),
+                weightType: type,
+                options: options
+            )
+        )
+        let actual = try await WorkoutStatsReader.loadExerciseDetail(
+            in: container,
+            exerciseID: exerciseID,
+            weightType: type,
+            options: options
+        )
+
+        #expect(!expected.sessions.isEmpty)
+        #expect(!expected.records.isEmpty)
+        #expect(actual == expected)
+        // The unfinished workout's row never counts.
+        let unfinished = try await WorkoutStatsReader.loadExerciseDetail(
+            in: container,
+            exerciseID: catalog.exercises[0].id,
+            weightType: .barbell,
+            options: options
+        )
+        #expect(unfinished.sessions.flatMap(\.sets).allSatisfy { $0.weight != 500 })
+    }
 }

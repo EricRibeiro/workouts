@@ -81,6 +81,7 @@ enum Snapshot {
         png: Data,
         named name: String,
         variant: SnapshotVariant,
+        excludingTop topPoints: CGFloat = 0,
         filePath: String = #filePath,
         sourceLocation: SourceLocation = #_sourceLocation
     ) {
@@ -108,7 +109,7 @@ enum Snapshot {
                 )
                 return
             }
-            if let problem = difference(between: png, and: expected) {
+            if let problem = difference(between: png, and: expected, excludingTop: topPoints) {
                 try png.write(to: actual)
                 let message: String =
                     "\(name)-\(variant.name) differs from its reference: \(problem). "
@@ -297,21 +298,24 @@ enum Snapshot {
 
     // MARK: Comparison
 
-    /// Nil when the images match within tolerance, else why not.
-    static func difference(between actual: Data, and expected: Data) -> String? {
+    /// Nil when the images match within tolerance, else why not. `excludingTop` skips the top points of both images: the
+    /// Liquid Glass of a navigation bar samples per-simulator lighting, so a bar is compared frame to frame within one run
+    /// (`assertSameChrome`), not against a stored reference (tests review r1 P1-1).
+    static func difference(between actual: Data, and expected: Data, excludingTop topPoints: CGFloat = 0) -> String? {
         guard let a = pixels(actual), let e = pixels(expected) else { return "an image could not be decoded" }
         guard a.width == e.width, a.height == e.height else {
             return "size \(a.width)x\(a.height) px, reference \(e.width)x\(e.height) px"
         }
+        let skipped = min(Int(topPoints * scale), a.height)
         var differing = 0
-        for index in stride(from: 0, to: a.bytes.count, by: 4) {
+        for index in stride(from: skipped * a.width * 4, to: a.bytes.count, by: 4) {
             for channel in 0..<4
             where abs(Int(a.bytes[index + channel]) - Int(e.bytes[index + channel])) > channelThreshold {
                 differing += 1
                 break
             }
         }
-        let total = a.width * a.height
+        let total = a.width * (a.height - skipped)
         let fraction = Double(differing) / Double(max(1, total))
         guard fraction > maxDifferingFraction else { return nil }
         let percent = (fraction * 100).formatted(.number.precision(.fractionLength(2)))

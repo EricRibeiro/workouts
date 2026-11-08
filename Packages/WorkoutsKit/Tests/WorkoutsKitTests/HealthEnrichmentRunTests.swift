@@ -67,6 +67,33 @@ private nonisolated struct GatedSource: HealthSource {
     }
 }
 
+/// Suspends `earliestReadableDate()` at the gate (the pass's first await), then answers from `base`. Counts every call, so
+/// a test can tell whether a pass reached the source at all.
+private nonisolated struct EarliestGatedSource: HealthSource {
+    let gate: Gate
+    let base: FakeHealthSource
+    let calls: Counter
+
+    func earliestReadableDate() async -> Date {
+        await calls.bump()
+        await gate.wait()
+        return await base.earliestReadableDate()
+    }
+
+    func workouts(in interval: DateInterval) async throws -> [HealthWorkoutCandidate] {
+        try await base.workouts(in: interval)
+    }
+
+    func summary(for candidate: HealthWorkoutCandidate) async throws -> HealthWorkoutSummary {
+        try await base.summary(for: candidate)
+    }
+}
+
+private actor Counter {
+    private(set) var value = 0
+    func bump() { value += 1 }
+}
+
 @Suite struct HealthEnrichmentRunTests {
     private typealias Outcome = HealthEnrichmentRun.Outcome
 
@@ -315,6 +342,87 @@ private nonisolated struct GatedSource: HealthSource {
 
         #expect(outcome == Outcome(matched: 0, checked: 0, stopped: nil))
         #expect(workouts[0].healthWorkoutID == nil && workouts[0].healthCheckedAt == nil)
+    }
+
+    @Test func aWorkoutDeletedDuringTheFirstAwaitIsSkippedWithoutBeingTouched() async throws {
+        let context = try makeTestContext()
+        let workouts = [0.0, 7200].map { Self.workout(startOffset: $0) }
+        for workout in workouts { context.insert(workout) }
+        try context.save()
+        let gate = Gate()
+        let calls = Counter()
+        let source = EarliestGatedSource(
+            gate: gate,
+            base: Self.source([("HK-1", 0), ("HK-2", 7200)]),
+            calls: calls
+        )
+        var done: [Int] = []
+        let pass = Task {
+            await HealthEnrichmentRun.backfill(
+                workouts: workouts,
+                source: source,
+                now: Self.later,
+                progress: { finished, _ in done.append(finished) }
+            )
+        }
+        // The pass is suspended in `earliestReadableDate()`, before it has looked at a single workout; delete one there.
+        await gate.waitUntilEntered()
+        context.delete(workouts[0])
+        try context.save()
+        await gate.release()
+        let outcome = await pass.value
+
+        // The deleted workout is dropped (it was snapshotted as stored, so it is not mistaken for a bare model), is not
+        // counted in the total, and nothing was written to it.
+        #expect(outcome == Outcome(matched: 1, checked: 1, stopped: nil))
+        #expect(workouts[1].healthWorkoutID == "HK-2")
+        #expect(done == [0, 1])
+    }
+
+    @Test func aBackfillWithNothingPendingDoesNotFetchWorkoutsOrAskTheSource() async throws {
+        let context = try makeTestContext()
+        let matched = Self.workout(startOffset: 0)
+        matched.healthWorkoutID = "HK-1"
+        matched.healthCheckedAt = Self.t0
+        let checked = Self.workout(startOffset: 7200)
+        checked.healthCheckedAt = Self.t0
+        let active = Workout(name: "active", startedAt: Self.t0, updatedAt: Self.t0)
+        for workout in [matched, checked, active] { context.insert(workout) }
+        try context.save()
+        let gate = Gate()
+        await gate.release()
+        let calls = Counter()
+        let source = EarliestGatedSource(gate: gate, base: Self.source([("HK-9", 14400)]), calls: calls)
+
+        #expect(try context.fetchCount(HealthEnrichmentRun.backfillCandidatesDescriptor()) == 0)
+        let outcome = try await HealthEnrichmentRun.backfill(context: context, source: source, now: Self.later)
+
+        #expect(outcome == Outcome())
+        #expect(await calls.value == 0)
+        #expect(!context.hasChanges)
+    }
+
+    @Test func aContextBackfillFetchesOnlyTheNeverCheckedAndHonoursClaimedIDs() async throws {
+        let context = try makeTestContext()
+        // Already holds HK-1, so the pending one must not take it; the checked one is left alone.
+        let holder = Self.workout(startOffset: 0, name: "holder")
+        holder.healthWorkoutID = "HK-1"
+        holder.healthCheckedAt = Self.t0
+        let checked = Self.workout(startOffset: 3600, name: "checked")
+        checked.healthCheckedAt = Self.t0
+        let pending = Self.workout(startOffset: 7200, name: "pending")
+        for workout in [holder, checked, pending] { context.insert(workout) }
+        try context.save()
+        let source = Self.source([("HK-1", 7200)])
+
+        #expect(
+            try context.fetch(HealthEnrichmentRun.backfillCandidatesDescriptor()).map(\.name) == ["pending"]
+        )
+        let outcome = try await HealthEnrichmentRun.backfill(context: context, source: source, now: Self.later)
+
+        #expect(outcome == Outcome(matched: 0, checked: 1, stopped: nil))
+        #expect(pending.healthWorkoutID == nil && pending.healthCheckedAt == Self.later)
+        #expect(checked.healthCheckedAt == Self.t0)
     }
 
     @Test func backfillProgressStillReachesTheTotalWhenAWorkoutWasDeleted() async throws {
@@ -654,14 +762,18 @@ private nonisolated struct GatedSource: HealthSource {
         #expect(a.healthCheckedAt == nil && b.healthCheckedAt == nil)
     }
 
-    @Test func allFinishedDescriptorReturnsEveryFinishedWorkoutOldestFirst() throws {
+    @Test func backfillCandidatesDescriptorReturnsOnlyFinishedUnmatchedUncheckedOldestFirst() throws {
         let context = try makeTestContext()
         let newest = Self.workout(startOffset: 7200, name: "newest")
         let oldest = Self.workout(startOffset: 0, name: "oldest")
         let active = Workout(name: "active", startedAt: Self.t0, updatedAt: Self.t0)
-        for workout in [newest, active, oldest] { context.insert(workout) }
+        let checked = Self.workout(startOffset: 3600, name: "checked")
+        checked.healthCheckedAt = Self.t0
+        let matched = Self.workout(startOffset: 3600, name: "matched")
+        matched.healthWorkoutID = "HK-1"
+        for workout in [newest, active, oldest, checked, matched] { context.insert(workout) }
         try context.save()
-        let names = try context.fetch(HealthEnrichmentRun.allFinishedDescriptor()).map(\.name)
+        let names = try context.fetch(HealthEnrichmentRun.backfillCandidatesDescriptor()).map(\.name)
         #expect(names == ["oldest", "newest"])
     }
 }

@@ -62,7 +62,7 @@ public nonisolated struct HistorySection: Identifiable, Hashable, Sendable {
 public nonisolated enum HistoryList {
     // MARK: Building entries
 
-    /// One entry per finished workout, newest first. Volume is in `options.displayUnit`; the PR count compares each
+    /// One entry per finished workout, newest first. Volume is in `options.displayUnit`, summed in kg and rounded once (as the Finish sheet does); the PR count compares each
     /// exercise session with the sessions of the same exercise strictly before the workout.
     @MainActor
     public static func entries(
@@ -83,10 +83,9 @@ public nonisolated enum HistoryList {
         var volumes: [UUID: Double] = [:]
         for item in folded {
             prCounts[item.session.workoutID, default: 0] += item.prs.count
-            volumes[item.session.workoutID, default: 0] += volume(
+            volumes[item.session.workoutID, default: 0] += volumeKg(
                 of: item.session.sets,
-                weightType: item.session.weightType,
-                displayUnit: options.displayUnit
+                weightType: item.session.weightType
             )
         }
 
@@ -97,7 +96,7 @@ public nonisolated enum HistoryList {
                 name: workout.name,
                 startedAt: workout.startedAt,
                 durationSeconds: duration(from: workout.startedAt, to: workout.finishedAt),
-                volume: round05(volumes[workout.id] ?? 0),
+                volume: displayedVolume(kg: volumes[workout.id] ?? 0, displayUnit: options.displayUnit),
                 unit: options.displayUnit,
                 prCount: prCounts[workout.id] ?? 0,
                 exerciseNames: rows.map(\.exerciseName)

@@ -537,6 +537,54 @@ import Testing
         #expect(startOnly.finishedAt == Self.t(4_000))
     }
 
+    @Test func aDemotedWorkoutDropsUncheckedSetsAndEmptiedExercisesLikeFinishAndClearsItsRest() throws {
+        let store = try Store()
+        var doc = Self.fixture()
+        let newest = try #require(doc.workouts.first { $0.id == Self.id(50) })
+        func set(_ position: Int, weight: Double, completed: Bool) -> WorkoutSetDTO {
+            WorkoutSetDTO(
+                id: UUID(),
+                position: position,
+                kind: .normal,
+                weight: weight,
+                reps: 5,
+                durationSeconds: nil,
+                distanceMeters: nil,
+                completed: completed,
+                completedAt: completed ? Self.t(5_400) : nil,
+                rpe: nil
+            )
+        }
+        var older = newest
+        older.id = UUID()
+        older.startedAt = Self.t(5_000)
+        var first = try #require(newest.exercises.first)
+        first.id = UUID()
+        first.position = 0
+        first.sets = [set(0, weight: 100, completed: true), set(1, weight: 405, completed: false)]
+        var second = first
+        second.id = UUID()
+        second.position = 1
+        second.sets = [set(0, weight: 50, completed: false)]
+        older.exercises = [second, first]  // the all-unchecked exercise comes first
+        older.exercises[0].position = 0
+        older.exercises[1].position = 1
+        older.restEndsAt = Self.t(5_600)
+        older.restSetId = older.exercises[1].sets[0].id
+        doc.workouts = [older, newest]
+
+        _ = try Importer.apply(doc, to: store.context, catalog: try Self.catalog())
+
+        let demoted = try #require(try store.context.fetch(FetchDescriptor<Workout>()).first { $0.id == older.id })
+        let rows = (demoted.exercises ?? []).sorted { $0.position < $1.position }
+        #expect(rows.map(\.id) == [first.id], "the exercise with no checked set is dropped")
+        #expect(rows.first?.position == 0)
+        #expect((rows.first?.sets ?? []).map(\.weight) == [100], "the unchecked 405 is dropped")
+        #expect((rows.first?.sets ?? []).allSatisfy { $0.completed })
+        #expect(demoted.restEndsAt == nil)
+        #expect(demoted.restSetID == nil)
+    }
+
     @Test func reimportingTheEnginesOwnMidWorkoutExportIsANoOp() throws {
         let store = try Store()
         let engine = try Self.engine(for: store)

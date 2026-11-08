@@ -46,7 +46,13 @@ public enum HealthEnrichmentRun {
             workouts
             .filter { $0.needsHealthCheck(now: now, recheckAfter: recheckAfter) }
             .sorted { ($0.finishedAt ?? .distantPast) < ($1.finishedAt ?? .distantPast) }
-        return await process(pending, among: workouts, source: source, now: now, progress: nil)
+        return await process(
+            pending,
+            claimedIDs: Set(workouts.compactMap(\.healthWorkoutID)),
+            source: source,
+            now: now,
+            progress: nil
+        )
     }
 
     /// Looks up every finished, unmatched workout that was never checked (`healthCheckedAt == nil`), however old, oldest
@@ -68,30 +74,58 @@ public enum HealthEnrichmentRun {
             workouts
             .filter { $0.isFinished && $0.healthWorkoutID == nil && $0.healthCheckedAt == nil }
             .sorted { ($0.finishedAt ?? .distantPast) < ($1.finishedAt ?? .distantPast) }
-        return await process(pending, among: workouts, source: source, now: now, progress: progress)
+        return await process(
+            pending,
+            claimedIDs: Set(workouts.compactMap(\.healthWorkoutID)),
+            source: source,
+            now: now,
+            progress: progress
+        )
     }
 
-    /// The loop `run` and `backfill` share. `all` supplies the Fitness workouts already attached, which count as claimed.
+    /// `backfill` straight from the store, fetching only what it needs: the never-checked finished workouts
+    /// (``backfillCandidatesDescriptor()``) and, separately, the Fitness ids already attached (they count as claimed). When
+    /// no workout is waiting it returns after a `fetchCount`, without faulting a single model or asking the source anything,
+    /// so the foreground backfill is cheap once everything has been stamped.
+    public static func backfill(
+        context: ModelContext,
+        source: any HealthSource,
+        now: Date,
+        progress: ((_ done: Int, _ total: Int) -> Void)? = nil
+    ) async throws -> Outcome {
+        let descriptor = backfillCandidatesDescriptor()
+        guard try context.fetchCount(descriptor) > 0 else { return Outcome() }
+        let candidates = try context.fetch(descriptor)
+        let claimedIDs = try Set(context.fetch(claimedDescriptor()).compactMap(\.healthWorkoutID))
+        return await process(candidates, claimedIDs: claimedIDs, source: source, now: now, progress: progress)
+    }
+
+    /// The loop `run` and `backfill` share. `claimedIDs` are the Fitness workouts already attached, which count as claimed.
     ///
     /// Workouts that started before `source.earliestReadableDate()` are dropped first and never stamped: Health cannot show
     /// them (iOS 27 shares only the past 30 days by default), so a lookup would stamp them "unmatched" and a later, wider
     /// grant would never revisit them.
     private static func process(
         _ candidates: [Workout],
-        among all: [Workout],
+        claimedIDs: Set<String>,
         source: any HealthSource,
         now: Date,
         progress: ((_ done: Int, _ total: Int) -> Void)?
     ) async -> Outcome {
+        // Everything read from the models happens here, before the first `await`: a workout deleted and saved while the
+        // pass is suspended is detached afterwards, and reading it then is a fatal error. `stored` records which workouts
+        // belong to a context right now (re-checked after each await, see `isLive`); a workout that never had a context
+        // (unit tests building bare models) has nothing to be detached from.
+        let snapshot = candidates.map { (workout: $0, startedAt: $0.startedAt, stored: $0.modelContext != nil) }
         let earliest = await source.earliestReadableDate()
-        let pending = candidates.filter { $0.startedAt >= earliest }
-        var claimed = Set(all.compactMap(\.healthWorkoutID))
+        // Only the snapshot's values and liveness are used after the await, never the models' properties.
+        let live = snapshot.filter { $0.startedAt >= earliest && Self.isLive($0.workout, wasStored: $0.stored) }
+        let pending = live.map(\.workout)
+        let stored = live.map(\.stored)
+        var claimed = claimedIDs
         let enrichment = HealthEnrichment(source: source)
         var outcome = Outcome()
         let total = pending.count
-        // Which workouts belong to a context right now. Stored ones are re-checked after each await (see `isLive`); a
-        // workout that never had a context (unit tests building bare models) has nothing to be detached from.
-        let stored = pending.map { $0.modelContext != nil }
         progress?(0, total)
 
         for (index, workout) in pending.enumerated() {
@@ -180,12 +214,22 @@ public enum HealthEnrichmentRun {
         return workouts.count
     }
 
-    /// Every finished workout, oldest finish first: what the app fetches to feed `backfill`.
-    public static func allFinishedDescriptor() -> FetchDescriptor<Workout> {
+    /// Finished workouts that were never checked and have no Fitness match, oldest finish first: the only ones `backfill`
+    /// looks at, so the app never has to fault the rest of the history for it.
+    public static func backfillCandidatesDescriptor() -> FetchDescriptor<Workout> {
         FetchDescriptor<Workout>(
-            predicate: Workout.finishedPredicate,
+            predicate: #Predicate<Workout> {
+                $0.finishedAt != nil && $0.healthWorkoutID == nil && $0.healthCheckedAt == nil
+            },
             sortBy: [SortDescriptor(\Workout.finishedAt)]
         )
+    }
+
+    /// Workouts that already carry a Fitness workout: their ids are the claimed ones.
+    static func claimedDescriptor() -> FetchDescriptor<Workout> {
+        var descriptor = FetchDescriptor<Workout>(predicate: #Predicate<Workout> { $0.healthWorkoutID != nil })
+        descriptor.propertiesToFetch = [\.healthWorkoutID]
+        return descriptor
     }
 
     /// Finished workouts that finished within `within` of `now`, oldest finish first: what the app fetches to feed

@@ -50,8 +50,9 @@ extension SnapshotTests {
             let loading = try await render(workoutID: newest.id, environment: environment, held: true)
             let loaded = try await render(workoutID: newest.id, environment: environment, held: false)
 
-            Snapshot.assert(png: loading, named: "loading", variant: Self.variant)
-            Snapshot.assert(png: loaded, named: "loaded", variant: Self.variant)
+            // The bar's glass varies per simulator, so the references skip it; the chrome check below compares it in-run.
+            Snapshot.assert(png: loading, named: "loading", variant: Self.variant, excludingTop: 80)
+            Snapshot.assert(png: loaded, named: "loaded", variant: Self.variant, excludingTop: 80)
             // The hosted frame has no status bar, so the inline bar ends at ~80 pt and the first card starts right under it.
             Snapshot.assertSameChrome(loading, loaded, topPoints: 80)
             // The two states must really differ below the chrome, or the hold did nothing.

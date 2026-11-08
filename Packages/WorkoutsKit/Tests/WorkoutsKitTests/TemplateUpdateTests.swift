@@ -163,6 +163,25 @@ import Testing
         #expect(templateSets(rows[1]).map(\.reps) == [8, 8])
     }
 
+    @Test func valuesOnlyConvertsTemplateSetsWithoutACounterpartWhenTheUnitSwitches() throws {
+        let context = try makeTestContext()
+        let (template, workout) = makePair(context)
+        // Bench was planned as 3 x 100 lb; the workout switched it to kg and logged two sets of 60, the third undone.
+        let plan = try #require(templateRows(template).first)
+        plan.unit = .lb
+        let done = try #require((workout.exercises ?? []).first { $0.position == 0 })
+        done.unit = .kg
+        for set in workoutSets(workout, exercise: 0) { set.weight = 60 }
+        context.delete(workoutSets(workout, exercise: 0)[2])
+        try context.save()
+
+        try TemplateUpdate.apply(.valuesOnly, template: template, workout: workout, in: context)
+
+        let bench = templateRows(template)[0]
+        #expect(bench.unit == .kg)
+        #expect(templateSets(bench).map(\.weight) == [60, 60, 45.5], "100 lb is 45.359 kg, rounded to 45.5")
+    }
+
     @Test func valuesOnlyPairsSetsByKindSoWarmupsDoNotShiftWorkingSets() throws {
         let context = try makeTestContext()
         let (template, workout) = makePair(context)

@@ -386,16 +386,45 @@ public enum Importer {
                 row.name = dto.name
                 row.note = dto.note
                 row.startedAt = dto.startedAt
+                let demoted = isDemoted(dto)
                 row.finishedAt = dto.finishedAt ?? finishedAtForDemoted(dto)
                 row.createdAt = dto.createdAt
                 row.updatedAt = dto.updatedAt
-                row.restEndsAt = dto.restEndsAt
+                // A demoted workout is finished: no rest timer runs on it.
+                row.restEndsAt = demoted ? nil : dto.restEndsAt
                 row.restSeconds = dto.restSeconds
-                row.restSetID = dto.restSetId
+                row.restSetID = demoted ? nil : dto.restSetId
                 try importHealth(dto, into: row)
                 row.template = resolve(dto.templateId, in: templates)
-                syncExercises(of: row, with: dto.exercises)
+                syncExercises(of: row, with: demoted ? Self.completedOnly(dto.exercises) : dto.exercises)
             }
+        }
+
+        /// Finish's rule for a demoted workout: unchecked sets are dropped, then exercises left without a set; positions
+        /// are renumbered and a superset left with one exercise is dissolved.
+        private static func completedOnly(_ exercises: [WorkoutExerciseDTO]) -> [WorkoutExerciseDTO] {
+            var kept: [WorkoutExerciseDTO] = []
+            for var exercise in exercises.sorted(by: { $0.position < $1.position }) {
+                let sets = exercise.sets.sorted { $0.position < $1.position }.filter(\.completed)
+                guard !sets.isEmpty else { continue }
+                exercise.sets = sets
+                for index in exercise.sets.indices { exercise.sets[index].position = index }
+                exercise.position = kept.count
+                kept.append(exercise)
+            }
+            let sizes = kept.reduce(into: [Int: Int]()) { counts, row in
+                if let group = row.supersetGroup { counts[group, default: 0] += 1 }
+            }
+            for index in kept.indices {
+                guard let group = kept[index].supersetGroup, sizes[group, default: 0] < 2 else { continue }
+                kept[index].supersetGroup = nil
+            }
+            return kept
+        }
+
+        /// An unfinished document workout that is not the one kept in progress (it is finished on import).
+        private func isDemoted(_ dto: WorkoutDTO) -> Bool {
+            dto.finishedAt == nil && dto.id != inProgressID && dto.id != resumedID
         }
 
         /// Whether the last-write-wins rule lets `dto` through (a new id, or strictly newer than the store's row).
@@ -407,7 +436,7 @@ public enum Importer {
         /// The end time for an unfinished document workout that is not the one kept in progress (nil for that one):
         /// its latest completed set, else its start.
         private func finishedAtForDemoted(_ dto: WorkoutDTO) -> Date? {
-            guard dto.finishedAt == nil, dto.id != inProgressID, dto.id != resumedID else { return nil }
+            guard isDemoted(dto) else { return nil }
             let lastSet = dto.exercises.flatMap(\.sets).filter(\.completed).compactMap(\.completedAt).max()
             return lastSet.map { max($0, dto.startedAt) } ?? dto.startedAt
         }

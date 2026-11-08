@@ -133,6 +133,10 @@ struct ActiveWorkoutCover: View {
             .presentationPlacement(.center)
         }
         .exerciseInfoSheet(exerciseID: $infoExercise)
+        // Unfolding while the sheet is up: the pane now shows the exercise, so the sheet would duplicate it.
+        .onChange(of: horizontalSizeClass) { _, new in
+            if new == .regular { infoExercise = nil }
+        }
         // UIKit: SwiftUI has no idle-timer API. Driven by "the cover is up, a workout is running and Settings asks", so
         // Finish and Discard (workout gone) release the screen even before the cover has finished animating away.
         .onAppear { applyKeepScreenOn() }

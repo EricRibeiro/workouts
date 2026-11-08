@@ -48,6 +48,8 @@ struct ExerciseInfoSheet: View {
         }
         .presentationDetents([.medium, .large], selection: $detent)
         .presentationDragIndicator(.visible)
+        // Like every other sheet: a centered card on the regular-width Duo, the detents on compact.
+        .presentationPlacement(.center)
     }
 }
 

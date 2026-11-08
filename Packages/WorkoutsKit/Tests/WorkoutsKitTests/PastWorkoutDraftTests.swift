@@ -41,6 +41,24 @@ import Testing
         return workout
     }
 
+    @Test func draftLoadsCompletedSetsOnlySoSavingNeverLogsAPlannedSet() throws {
+        let holder = try makeTestContainer()
+        defer { withExtendedLifetime(holder) {} }
+        let context = holder.mainContext
+        let model = workout(context)
+        let bench = try #require((model.exercises ?? []).first { $0.exerciseName == "Bench" })
+        context.insert(WorkoutSet(position: 2, weight: 405, reps: 5, completed: false, workoutExercise: bench))
+
+        var draft = PastWorkoutDraft(model)
+        #expect(draft.exercises[0].sets.count == 2, "the unchecked 405 is not loaded")
+        draft.name = "Renamed"
+        try draft.save(to: model, in: context)
+
+        let sets = (bench.sets ?? []).sorted { $0.position < $1.position }
+        #expect(sets.map(\.weight) == [100, 100])
+        #expect(sets.allSatisfy { $0.completed })
+    }
+
     @Test func freshDraftIsCleanAndReadsTheWorkout() throws {
         let holder = try makeTestContainer()
         defer { withExtendedLifetime(holder) {} }
@@ -293,6 +311,44 @@ import Testing
         #expect(model.healthWorkoutID == nil)
         #expect(model.activeEnergyKcal == nil)
         #expect(model.avgHeartRate == nil)
+    }
+
+    @Test func shorteningTheDurationClampsSetCompletionTimesToTheNewEnd() throws {
+        let holder = try makeTestContainer()
+        defer { withExtendedLifetime(holder) {} }
+        let context = holder.mainContext
+        let model = workout(context)
+        let sets = (model.exercises ?? []).flatMap { $0.sets ?? [] }
+        for set in sets { set.completedAt = start.addingTimeInterval(48 * 60) }
+        var draft = PastWorkoutDraft(model)
+        draft.setDurationMinutes(30)
+        try draft.save(to: model, in: context, now: start.addingTimeInterval(86_400))
+
+        let end = start.addingTimeInterval(30 * 60)
+        #expect(model.finishedAt == end)
+        for set in sets { #expect(set.completedAt == end) }
+    }
+
+    @Test func steppingTheDurationUpAndBackIsNotAChangeAndKeepsSecondsAndFitnessData() throws {
+        let holder = try makeTestContainer()
+        defer { withExtendedLifetime(holder) {} }
+        let context = holder.mainContext
+        let model = workout(context)
+        let end = start.addingTimeInterval(62 * 60 + 5)
+        model.finishedAt = end
+        matched(model)
+        let original = PastWorkoutDraft(model)
+        var draft = original
+        draft.setDurationMinutes(original.durationMinutes + 1)
+        #expect(draft.hasChanges(from: original))
+        draft.setDurationMinutes(original.durationMinutes)
+        #expect(!draft.hasChanges(from: original))
+        #expect(draft.durationSeconds == 62 * 60 + 5)
+
+        try draft.save(to: model, in: context, now: start.addingTimeInterval(86_400))
+        #expect(model.finishedAt == end)
+        #expect(model.healthWorkoutID == "HK-1")
+        #expect(model.activeEnergyKcal == 300)
     }
 
     @Test func saveDropsEmptySetsEmptyExercisesAndLoneSupersets() throws {

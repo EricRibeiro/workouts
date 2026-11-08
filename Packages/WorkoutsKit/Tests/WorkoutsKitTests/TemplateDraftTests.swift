@@ -391,19 +391,21 @@ import Testing
         #expect(draft == withWarmupOnly)
     }
 
-    @Test func addWarmupSetsWithALightWeightReportsAWeightAndKeepsExistingWarmups() {
+    @Test func addWarmupSetsWithALightWeightReportsAWeightAndClearsExistingWarmups() {
         var (draft, ids) = blocks(["Squat"])
         for set in draft.exercises[0].sets { draft.setWeight(200, for: set.id) }
         let applied = draft.addWarmupSets(to: ids[0])
         #expect(applied)
         #expect(draft.exercises[0].sets.filter { $0.kind == .warmup }.count == 4)
+        let working = draft.exercises[0].sets.filter { $0.kind != .warmup }.map(\.id)
 
-        // 45 lb on the 45 lb Olympic bar has an empty ramp, but it is a working weight: true, and nothing is deleted.
+        // 45 lb on the 45 lb Olympic bar has an empty ramp, but it is a working weight: true, and the old warm-ups (now
+        // heavier than the working set) are removed, as the engine does.
         for set in draft.exercises[0].sets where set.kind != .warmup { draft.setWeight(45, for: set.id) }
-        let light = draft
         let lightApplied = draft.addWarmupSets(to: ids[0])
         #expect(lightApplied)
-        #expect(draft == light)
+        #expect(draft.exercises[0].sets.map(\.id) == working)
+        #expect(draft.exercises[0].sets.allSatisfy { $0.kind != .warmup && $0.weight == 45 })
 
         // A fresh block with a light weight also reports true and adds nothing.
         var (fresh, freshIDs) = blocks(["Curl"])
@@ -526,14 +528,33 @@ import Testing
         #expect(groups(draft) == [1, 1, 2, 2, 2])
 
         draft.removeFromSuperset(ids[3])
-        #expect(groups(draft) == [1, 1, 2, nil, 2])
+        // D was the middle of C, D, E: it moves out to just after the group.
+        #expect(groups(draft) == [1, 1, 2, 2, nil])
         draft.removeFromSuperset(ids[0])
-        #expect(groups(draft) == [nil, nil, 1, nil, 1])
-        #expect(draft.exercises.map(\.name) == ["A", "B", "C", "D", "E"])
+        #expect(groups(draft) == [nil, nil, 1, 1, nil])
+        #expect(draft.exercises.map(\.name) == ["A", "B", "C", "E", "D"])
         // Not in a superset: untouched.
         let before = draft
         draft.removeFromSuperset(ids[3])
         #expect(draft == before)
+    }
+
+    /// Removing the first, middle or last member of a 3-member superset (group 1) that is followed by a pair (group 2):
+    /// the group stays contiguous, the removed block sits right after it, and the pair renumbers behind it.
+    @Test(arguments: [0, 1, 2])
+    func removeFromSupersetKeepsTheTripleContiguous(removed: Int) {
+        var (draft, ids) = blocks(["A", "B", "C", "D", "E"])
+        draft.makeSuperset([ids[0], ids[1], ids[2]])
+        draft.makeSuperset([ids[3], ids[4]])
+        #expect(groups(draft) == [1, 1, 1, 2, 2])
+
+        draft.removeFromSuperset(ids[removed])
+
+        let members = ids[0...2].filter { $0 != ids[removed] }
+        // The first member is already ahead of what is left of the group, so it stays; the others sit right after it.
+        let expectedOrder = removed == 0 ? [ids[0]] + members : members + [ids[removed]]
+        #expect(draft.exercises.map(\.id) == expectedOrder + [ids[3], ids[4]])
+        #expect(groups(draft) == (removed == 0 ? [nil, 1, 1, 2, 2] : [1, 1, nil, 2, 2]))
     }
 
     @Test func removeExerciseLeavingOneMemberDissolvesTheGroup() {

@@ -297,6 +297,30 @@ import Testing
         #expect(rows3.map(\.supersetGroup) == [nil, 1, 1])
     }
 
+    /// Removing the first, middle or last member of a 3-member superset (group 1) that is followed by a pair (group 2):
+    /// the group stays contiguous, the removed row sits right after it, and the pair renumbers behind it.
+    @Test(arguments: [0, 1, 2])
+    func removeFromSupersetKeepsTheTripleContiguous(removed: Int) throws {
+        let (rig, engine, rows3) = try threeRows()
+        defer { withExtendedLifetime(rig) {} }
+        let d = try engine.addExercise(try rig.info(LibraryFixture.squat))
+        let e = try engine.addExercise(try rig.info(LibraryFixture.curl))
+        try engine.makeSuperset(rows3)
+        try engine.makeSuperset([d, e])
+        #expect(rows3.map(\.supersetGroup) == [1, 1, 1] && [d, e].map(\.supersetGroup) == [2, 2])
+
+        let target = rows3[removed]
+        try engine.removeFromSuperset(target)
+
+        let ordered = rows(try #require(engine.workout))
+        let members = rows3.filter { $0.id != target.id }
+        // The first member is already ahead of what is left of the group, so it stays; the others sit right after it.
+        let expectedOrder = removed == 0 ? [target] + members : members + [target]
+        #expect(ordered.map(\.id) == (expectedOrder + [d, e]).map(\.id))
+        #expect(ordered.map(\.position) == [0, 1, 2, 3, 4])
+        #expect(ordered.map(\.supersetGroup) == (removed == 0 ? [nil, 1, 1, 2, 2] : [1, 1, nil, 2, 2]))
+    }
+
     @Test func removeFromSupersetOutsideAGroupChangesNothing() throws {
         let (rig, engine, rows3) = try threeRows()
         defer { withExtendedLifetime(rig) {} }

@@ -6,5 +6,6 @@ import os
 nonisolated enum KitLog {
     static let subsystem = "com.ericribeiro.Workouts"
     static let health = Logger(subsystem: subsystem, category: "KitHealth")
+    static let engine = Logger(subsystem: subsystem, category: "KitEngine")
     static let library = Logger(subsystem: subsystem, category: "KitLibrary")
 }

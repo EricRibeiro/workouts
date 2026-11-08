@@ -36,6 +36,28 @@ public nonisolated enum SupersetGrouping {
         normalized(items.filter { $0.id != id })
     }
 
+    /// "Remove from superset": clears `id`'s group. A row that sat inside its group's run (a member on each side) moves
+    /// to just after the run, the reorder parking rule, so the group stays contiguous; a first or last member stays put.
+    /// Groups left with one member dissolve and the rest renumber 1, 2, 3 by first appearance. A row in no group (or an
+    /// unknown id) only gets the dissolve and renumber pass.
+    public static func removingFromGroup<ID: Hashable>(
+        _ id: ID,
+        in items: [(id: ID, group: Int?)]
+    ) -> [(id: ID, group: Int?)] {
+        guard let index = items.firstIndex(where: { $0.id == id }), let group = items[index].group
+        else { return normalized(items) }
+        var result = items
+        result.remove(at: index)
+        // The run's remaining members start at `index`; a row with a member before it too sat inside the run and goes
+        // right after them. A first or last member is already outside what is left.
+        var end = index
+        if index > 0, result[index - 1].group == group {
+            while end < result.count, result[end].group == group { end += 1 }
+        }
+        result.insert((id: id, group: nil), at: end)
+        return normalized(result)
+    }
+
     /// The rows after a drag reorder, in their final order. `old` is the list before (supersets contiguous), `newOrder`
     /// the ids after, `moving` the dragged ids when the caller knows them (it settles which row moved when the order
     /// alone is ambiguous, as in an adjacent swap).

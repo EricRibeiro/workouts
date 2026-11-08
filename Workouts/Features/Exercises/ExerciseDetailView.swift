@@ -34,15 +34,16 @@ struct ExerciseDetailView: View {
     @Environment(ExerciseStore.self) private var store
     @Environment(SettingsStore.self) private var settings: SettingsStore?
     @Environment(StoreGeneration.self) private var generation: StoreGeneration?
+    @Environment(SaveErrors.self) private var saveErrors: SaveErrors?
+    @Environment(\.modelContext) private var context
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Query private var customs: [Exercise]
-    /// Only this exercise's rows in finished workouts (their sets and workouts prefetched), not every workout.
-    @Query private var rows: [WorkoutExercise]
+    /// The newest edit among finished workouts: with the store generation it keys the load without reading any rows. The
+    /// rows themselves are read on a `WorkoutStatsReader`, never on the main thread.
+    @Query(Workout.newestFinishedEdit) private var newest: [Workout]
     @Environment(\.onExerciseSegmentChange) private var onSegmentChange
     @State private var segment: Segment
-    @State private var records: [ExerciseRecord] = []
-    @State private var sessions: [Session] = []
-    @State private var history: [ExerciseHistorySession] = []
+    @State private var detail = ExerciseDetailData.empty
     @State private var isEditing = false
     @State private var removals = 0
 
@@ -52,7 +53,6 @@ struct ExerciseDetailView: View {
         self.inSplitColumn = inSplitColumn
         _segment = State(initialValue: initialSegment)
         _customs = Query(filter: #Predicate<Exercise> { $0.id == exerciseID })
-        _rows = Query(ExerciseBestSets.rowsDescriptor(exerciseID: exerciseID))
     }
 
     var body: some View {
@@ -86,25 +86,34 @@ struct ExerciseDetailView: View {
             }
             .task(
                 id: Fingerprint(
-                    rows,
-                    generation: generation?.value ?? 0,
+                    history: FinishedWorkoutsStamp(
+                        newestEdit: newest.first?.updatedAt,
+                        generation: generation?.value ?? 0
+                    ),
                     unit: unit,
                     formula: options.formula,
                     weightType: info.weightType
                 )
             ) {
                 await SlowLoads.delay()
-                let found = ExerciseBestSets.sessions(forRows: rows, weightType: info.weightType)
-                sessions = found
-                records = WorkoutsKit.records(found, weightType: info.weightType, options: options)
-                history = ExerciseHistory.sessions(
-                    found,
-                    names: ExerciseBestSets.workoutNames(of: rows),
-                    weightType: info.weightType,
-                    options: options
-                )
+                await refreshDetail(weightType: info.weightType)
             }
             .accessibilityIdentifier("screen.exerciseDetail")
+    }
+
+    /// Folds this exercise's history on a `WorkoutStatsReader` (its own context, off the main thread) and publishes the
+    /// sessions, records and history here. What is shown stays until the new values arrive, so a refresh never blanks it.
+    private func refreshDetail(weightType: WeightType) async {
+        // The reader's context reads the store: flush edits the main context has not saved yet.
+        context.saveIfChanged(reportingTo: saveErrors)
+        let loaded = try? await WorkoutStatsReader.loadExerciseDetail(
+            in: context.container,
+            exerciseID: exerciseID,
+            weightType: weightType,
+            options: options
+        )
+        guard !Task.isCancelled, let loaded else { return }
+        detail = loaded
     }
 
     /// The embedded pane (already one side of the logging screen's arrangement) and the compact pushed detail are one
@@ -183,11 +192,11 @@ struct ExerciseDetailView: View {
                 StickyNoteView(exerciseID: info.id)
             }
         case .history:
-            ExerciseHistoryView(sessions: history, embedded: embedded)
+            ExerciseHistoryView(sessions: detail.history, embedded: embedded)
         case .charts:
-            ExerciseChartsView(sessions: sessions, weightType: info.weightType, options: options)
+            ExerciseChartsView(sessions: detail.sessions, weightType: info.weightType, options: options)
         case .records:
-            ExerciseRecordsView(records: records, weightType: info.weightType, unit: unit, embedded: embedded)
+            ExerciseRecordsView(records: detail.records, weightType: info.weightType, unit: unit, embedded: embedded)
         }
     }
 
@@ -236,26 +245,14 @@ private struct DetailChrome: ViewModifier {
     }
 }
 
-/// Changes when a finished workout with this exercise is added, removed or edited, or the display unit, the formula or
-/// the exercise's weight type (a custom exercise's edit) changes.
+/// Changes when a finished workout is added, removed or edited, or the display unit, the formula or the exercise's weight
+/// type (a custom exercise's edit) changes. Built from the newest `updatedAt` and the `StoreGeneration`, so no row is read
+/// per body evaluation; every editor stamps `updatedAt` and the bulk writes (import, delete) bump the generation.
 private struct Fingerprint: Hashable {
-    let count: Int
-    let newestEdit: Date?
-    /// `StoreGeneration`: an import can update an older workout without moving the count or the newest stamp.
-    let generation: Int
+    let history: FinishedWorkoutsStamp
     let unit: WeightUnit
     let formula: E1RMFormula
     let weightType: WeightType
-
-    init(_ rows: [WorkoutExercise], generation: Int, unit: WeightUnit, formula: E1RMFormula, weightType: WeightType) {
-        count = rows.count
-        self.generation = generation
-        // A row's own stamp, or its workout's (a rename or a date change stamps only the workout).
-        newestEdit = rows.flatMap { [$0.updatedAt, $0.workout?.updatedAt] }.compactMap { $0 }.max()
-        self.unit = unit
-        self.formula = formula
-        self.weightType = weightType
-    }
 }
 
 /// In the stacked split (open, taller than wide) the primary pane takes the height of its content, so the secondary

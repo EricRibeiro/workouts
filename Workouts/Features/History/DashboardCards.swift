@@ -247,8 +247,6 @@ struct DashboardColumns: View {
     let openWorkout: (UUID) -> Void
 
     @AppStorage(SettingsKey.weeklyGoal.rawValue) private var storedGoal = SettingsStore.weeklyGoalDefault
-    /// The division's horizontal extent in this view's own coordinate space, nil unless it is active, vertical and inside.
-    @State private var division: ClosedRange<CGFloat>?
 
     var body: some View {
         let cards = DashboardCards(
@@ -259,7 +257,7 @@ struct DashboardColumns: View {
             weekAverageBpm: weekAverageBpm,
             openWorkout: openWorkout
         )
-        TwoColumnLayout(division: division) {
+        FoldColumns {
             VStack(spacing: 12) {
                 WeeklyGoalSection(starts: starts)
                 if let last = HistoryDashboard.lastWorkout(entries: entries) {
@@ -270,6 +268,28 @@ struct DashboardColumns: View {
                 cards.thisWeek
                 cards.recents
             }
+        }
+    }
+}
+
+/// Two columns that keep off the fold: the left one ends at an active vertical division (book pose) and the right one
+/// starts after it, so the gutter is the fold itself; otherwise the gutter is the normal 12 pt. Takes exactly two child
+/// views. Shared by the History dashboard and the workout detail.
+struct FoldColumns<Left: View, Right: View>: View {
+    let left: Left
+    let right: Right
+
+    /// The division's horizontal extent in this view's own coordinate space, nil unless it is active, vertical and inside.
+    @State private var division: ClosedRange<CGFloat>?
+
+    init(@ViewBuilder content: () -> TupleView<(Left, Right)>) {
+        (left, right) = content().value
+    }
+
+    var body: some View {
+        TwoColumnLayout(division: division) {
+            left
+            right
         }
         .onGeometryChange(for: ClosedRange<CGFloat>?.self) { proxy in
             FoldPlacement.columnGap(

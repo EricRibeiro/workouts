@@ -239,6 +239,30 @@ fileprivate func perSessionPRCounts(
         #expect(entries.first?.unit == .lb)
     }
 
+    /// Three kg-logged 11 kg x 1 rows in lb: each row is 24.25 lb (24.5 rounded, 73.5 summed) but the 33 kg total is
+    /// 72.75 lb, which rounds once to 73.
+    @MainActor
+    @Test func volumeIsRoundedOnceNotPerExercise() throws {
+        let container = try makeTestContainer()
+        let context = container.mainContext
+        let workout = Workout(name: "W", startedAt: date(2026, 10, 1), finishedAt: date(2026, 10, 1, 13))
+        context.insert(workout)
+        for name in ["A", "B", "C"] {
+            let row = WorkoutExercise(exerciseID: UUID(), exerciseName: name, unit: .kg, workout: workout)
+            context.insert(row)
+            context.insert(WorkoutSet(weight: 11, reps: 1, completed: true, workoutExercise: row))
+        }
+        try context.save()
+
+        let entries = HistoryList.entries(
+            from: [workout],
+            weightType: { _ in .barbell },
+            options: RecordsOptions(displayUnit: .lb)
+        )
+        #expect(entries.first?.volume == displayedVolume(kg: 33, displayUnit: .lb))
+        #expect(entries.first?.volume == 73)
+    }
+
     @Test func durationClampsBackwardsClocks() {
         #expect(HistoryList.duration(from: date(2026, 11, 1), to: nil) == 0)
         #expect(HistoryList.duration(from: date(2026, 11, 1, 13), to: date(2026, 11, 1, 12)) == 0)

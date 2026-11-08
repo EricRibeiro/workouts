@@ -31,6 +31,24 @@ struct ChartSeriesTests {
         #expect(points.map(\.value) == [5, 5, 5])
     }
 
+    @Test func rowsOfOneExerciseInOneWorkoutAreOnePoint() {
+        let workout = UUID()
+        let other = UUID()
+        let sessions = [
+            session(1, .barbell, [LoggedSet(weight: 100, reps: 5), LoggedSet(weight: 100, reps: 5)], id: workout),
+            session(1, .barbell, [LoggedSet(weight: 80, reps: 10), LoggedSet(weight: 80, reps: 10)], id: workout),
+            session(2, .barbell, [LoggedSet(weight: 90, reps: 5)], id: other),
+        ]
+        let reps = chartSeries(sessions, metric: .totalReps, options: options)
+        #expect(reps.map(\.workoutID) == [workout, other])
+        #expect(reps.map(\.value) == [30, 5])  // 10 + 20, not two points
+        let volumes = chartSeries(sessions, metric: .volume, options: options)
+        #expect(volumes.map(\.value) == [2600, 450])  // 1000 + 1600
+        #expect(chartSeries(sessions, metric: .maxWeight, options: options).map(\.value) == [100, 90])
+        #expect(chartSeries(sessions, metric: .bestReps, options: options).map(\.value) == [10, 5])
+        #expect(chartSeries(sessions, metric: .e1rm, options: options).count == 2)
+    }
+
     @Test func sessionWithoutCountedSetWithRepsHasNoPointForAnyMetric() {
         let sessions = [
             session(1, .barbell, [LoggedSet(kind: .warmup, weight: 60, reps: 10)]),

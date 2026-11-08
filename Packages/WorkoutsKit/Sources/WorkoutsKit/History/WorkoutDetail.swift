@@ -148,13 +148,16 @@ nonisolated extension WorkoutDetail {
             let type = item.session.weightType
             let prs = recordsByRow[index]
             prCount += prs.count
-            volumeTotal += volume(of: item.session.sets, weightType: type, displayUnit: options.displayUnit)
+            volumeTotal += volumeKg(of: item.session.sets, weightType: type)
             blocks.append(block(row: item.row, session: item.session, prs: prs, number: item.number, options: options))
         }
 
         let seconds = HistoryList.duration(from: workout.startedAt, to: workout.finishedAt)
         let duration = HistoryList.durationText(seconds: seconds)
-        let volumeText = HistoryList.volumeText(round05(volumeTotal), unit: options.displayUnit)
+        let volumeText = HistoryList.volumeText(
+            displayedVolume(kg: volumeTotal, displayUnit: options.displayUnit),
+            unit: options.displayUnit
+        )
         let date = dateText(workout.startedAt, calendar: calendar, now: now)
         var parts = [workout.name, date, duration, volumeText]
         if prCount > 0 { parts.append(HistoryList.prText(count: prCount)) }

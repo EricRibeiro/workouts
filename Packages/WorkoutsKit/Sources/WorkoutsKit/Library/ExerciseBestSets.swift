@@ -38,7 +38,6 @@ public nonisolated enum ExerciseBestSets {
     /// predicate instead of walking every workout). Rows whose workout is missing or unfinished are skipped, as
     /// `sessions(from:weightType:exerciseIDs:)` does; the result is oldest first (the workout's start, then the row's
     /// position), and equals `sessions(from:...)[exerciseID]` for the same data in that order.
-    @MainActor
     public static func sessions(forRows rows: [WorkoutExercise], weightType: WeightType) -> [Session] {
         rows.compactMap { row -> (WorkoutExercise, Workout)? in
             guard let workout = row.workout, workout.isFinished else { return nil }
@@ -51,7 +50,6 @@ public nonisolated enum ExerciseBestSets {
     }
 
     /// Workout id to name for the workouts those rows belong to (the History segment's card titles).
-    @MainActor
     public static func workoutNames(of rows: [WorkoutExercise]) -> [UUID: String] {
         Dictionary(
             rows.compactMap { row in row.workout.map { ($0.id, $0.name) } },

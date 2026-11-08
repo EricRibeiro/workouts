@@ -51,10 +51,14 @@ final class FakeLiveActivityProvider: LiveActivityProviding {
 
     var existing: [any LiveActivityHandle] { activities.filter { !$0.isEnded } }
 
+    func existingActivities() async -> [any LiveActivityHandle] { existing }
+
+    func activitiesEnabled() async -> Bool { areActivitiesEnabled }
+
     func request(
         workoutID: UUID,
         content: ActivityContent<WorkoutActivityState>
-    ) throws -> any LiveActivityHandle {
+    ) async throws -> any LiveActivityHandle {
         requestAttempts += 1
         if let failure { throw failure }
         let activity = FakeLiveActivity(workoutID: workoutID, content: content)

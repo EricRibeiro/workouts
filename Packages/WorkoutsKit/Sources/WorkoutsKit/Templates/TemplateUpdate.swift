@@ -86,16 +86,26 @@ public enum TemplateUpdate {
         for plan in orderedRows(of: template) {
             guard let index = available.firstIndex(where: { $0.exerciseID == plan.exerciseID }) else { continue }
             let row = available.remove(at: index)
+            let oldUnit = plan.unit
             plan.unit = row.unit
             plan.barType = row.barType
             plan.barWeight = row.barWeight
             plan.updatedAt = Date()
             let done = orderedSets(of: row)
+            // Weights are numbers in the exercise's unit: sets that keep their own value (no completed counterpart) are
+            // converted to the new unit, like Previous values, so 135 lb does not become 135 kg.
+            var copied = Set<ObjectIdentifier>()
             for isWarmup in [true, false] {
                 let targets = orderedSets(of: plan).filter { ($0.kind == .warmup) == isWarmup }
                 let sources = done.filter { ($0.kind == .warmup) == isWarmup }
                 for (plannedSet, doneSet) in zip(targets, sources) where doneSet.completed {
                     copy(doneSet, into: plannedSet)
+                    copied.insert(ObjectIdentifier(plannedSet))
+                }
+            }
+            if oldUnit != row.unit {
+                for plannedSet in orderedSets(of: plan) where !copied.contains(ObjectIdentifier(plannedSet)) {
+                    plannedSet.weight = plannedSet.weight.map { round05(convert($0, from: oldUnit, to: row.unit)) }
                 }
             }
         }

@@ -149,4 +149,44 @@ public nonisolated enum FoldPlacement {
         let column = max(0, (total - spacing) / 2)
         return (column, spacing, column)
     }
+
+    // MARK: Grid columns around the fold
+
+    /// One column of a grid: its width and the space after it (the gutter to the next column).
+    public nonisolated struct GridColumn: Equatable, Sendable {
+        public var width: CGFloat
+        public var spacingAfter: CGFloat
+
+        public init(width: CGFloat, spacingAfter: CGFloat) {
+            self.width = width
+            self.spacingAfter = spacingAfter
+        }
+    }
+
+    /// The columns of a grid `width` wide whose middle gutter is `division`, so no card crosses the fold: the same number of
+    /// columns before the division and after it, each at least `minimum` wide. The gutter is the division widened to at
+    /// least `spacing` around its centre (an inactive hinge reports no width). The halves are unequal when the grid is off
+    /// the display's centre (a bar strip on one side), so each half sizes its own columns. Nil when there is no division
+    /// inside the grid or a half cannot hold one column at `minimum`; the caller then uses its fold-less column count.
+    public static func foldColumns(
+        width: CGFloat,
+        minimum: CGFloat,
+        spacing: CGFloat,
+        division: ClosedRange<CGFloat>?
+    ) -> [GridColumn]? {
+        guard let division else { return nil }
+        let widen = max(0, spacing - (division.upperBound - division.lowerBound)) / 2
+        let lower = division.lowerBound - widen
+        let upper = division.upperBound + widen
+        guard lower > 0, upper < width else { return nil }
+        let trailing = width - upper
+        func fit(_ half: CGFloat) -> Int { Int(((half + spacing) / (minimum + spacing)).rounded(.down)) }
+        let perHalf = min(fit(lower), fit(trailing))
+        guard perHalf >= 1 else { return nil }
+        func half(_ extent: CGFloat, lastGap: CGFloat) -> [GridColumn] {
+            let column = (extent - spacing * CGFloat(perHalf - 1)) / CGFloat(perHalf)
+            return (0..<perHalf).map { GridColumn(width: column, spacingAfter: $0 == perHalf - 1 ? lastGap : spacing) }
+        }
+        return half(lower, lastGap: upper - lower) + half(trailing, lastGap: 0)
+    }
 }

@@ -88,7 +88,7 @@ final class HealthEnrichmentService {
     }
 
     /// The app came to the foreground: the routine refresh, then the backfill, in one serialised round. Backfill only
-    /// touches workouts never checked, so once everything is stamped this costs an in-memory scan. It does not revisit
+    /// touches workouts never checked, so once everything is stamped this costs one `fetchCount`. It does not revisit
     /// workouts an earlier denied pass stamped unmatched: HealthKit hides a read denial as "no data", so those need
     /// `requestAuthorization` (opt-in) or `refreshNow` (pull to refresh on History), which clear the stamps first.
     func appBecameActive(context: ModelContext) async {
@@ -180,9 +180,8 @@ final class HealthEnrichmentService {
     private func backfillPass(context: ModelContext, source: any HealthSource) async {
         defer { backfillProgress = nil }
         do {
-            let workouts = try context.fetch(HealthEnrichmentRun.allFinishedDescriptor())
-            let outcome = await HealthEnrichmentRun.backfill(
-                workouts: workouts,
+            let outcome = try await HealthEnrichmentRun.backfill(
+                context: context,
                 source: source,
                 now: .now,
                 progress: { [weak self] done, total in

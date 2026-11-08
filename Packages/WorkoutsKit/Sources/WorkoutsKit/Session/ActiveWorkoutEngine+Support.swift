@@ -87,7 +87,7 @@ extension ActiveWorkoutEngine {
     }
 
     func activeWorkout() throws -> Workout {
-        guard let workout else { throw ActiveWorkoutError.noActiveWorkout }
+        guard let workout = liveWorkout else { throw ActiveWorkoutError.noActiveWorkout }
         return workout
     }
 
@@ -384,7 +384,7 @@ extension ActiveWorkoutEngine {
             let weightType = store.exercise(id: id)?.weightType ?? .weighted
             let logged = sets[id] ?? []
             if weightType.category != .assisted {
-                volumeKg += countedSets(logged).reduce(0) { $0 + $1.weightKg * Double($1.reps) }
+                volumeKg += WorkoutsKit.volumeKg(of: logged, weightType: weightType)
             }
             let session = Session(
                 workoutID: workout.id,
@@ -414,7 +414,7 @@ extension ActiveWorkoutEngine {
             duration: max(0, end.timeIntervalSince(workout.startedAt)),
             setCount: setCount,
             exerciseCount: kept.count,
-            volume: round05(convert(volumeKg, from: .kg, to: displayUnit)),
+            volume: displayedVolume(kg: volumeKg, displayUnit: displayUnit),
             volumeUnit: displayUnit,
             prs: prs,
             prCount: prs.reduce(0) { $0 + $1.records.count },
