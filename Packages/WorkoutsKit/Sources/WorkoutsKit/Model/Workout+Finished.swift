@@ -46,3 +46,19 @@ extension Workout {
         return descriptor
     }
 }
+
+extension WorkoutExercise {
+    /// Rows of the exercises `ids` that belong to a finished workout: Previous and PR history fetch these directly
+    /// instead of walking every workout's `exercises`.
+    public static func inFinishedWorkouts(ofExercises ids: Set<UUID>) -> Predicate<WorkoutExercise> {
+        #Predicate<WorkoutExercise> { ids.contains($0.exerciseID) && $0.workout?.finishedAt != nil }
+    }
+
+    /// As ``inFinishedWorkouts(ofExercises:)``, leaving out the workout `id`.
+    public static func inFinishedWorkouts(ofExercises ids: Set<UUID>, excluding id: UUID) -> Predicate<WorkoutExercise>
+    {
+        #Predicate<WorkoutExercise> {
+            ids.contains($0.exerciseID) && $0.workout?.id != id && $0.workout?.finishedAt != nil
+        }
+    }
+}

@@ -24,6 +24,8 @@ final class FakeNotificationCenter: NotificationCenterProviding {
     private var queued: [() -> Void] = []
     private var answer: CheckedContinuation<Void, Never>?
     weak var delegate: (any UNUserNotificationCenterDelegate)?
+    /// The clock the deferred request is built with, as the real center builds it when its queue gets to the call.
+    var now: () -> Date = Date.init
 
     func authorizationStatus() async -> UNAuthorizationStatus { status }
 
@@ -53,7 +55,18 @@ final class FakeNotificationCenter: NotificationCenterProviding {
         calls.forEach { $0() }
     }
 
-    func schedule(_ request: UNNotificationRequest) { perform { self.carryOut(request) } }
+    func schedule(identifier: String, content: UNNotificationContent, fireDate: Date) {
+        perform {
+            self.carryOut(
+                SystemNotificationCenter.request(
+                    identifier: identifier,
+                    content: content,
+                    fireDate: fireDate,
+                    now: self.now()
+                )
+            )
+        }
+    }
 
     private func carryOut(_ request: UNNotificationRequest) {
         // The real center refuses `add` while status is undetermined or denied.
@@ -95,6 +108,8 @@ final class FakeNotificationCenter: NotificationCenterProviding {
 
     init() throws {
         container = try ModelContainer.workouts(inMemory: true, cloudKit: false)
+        let clock = clock
+        center.now = { clock.date }
     }
 
     private func notifier(debounce: Duration = .zero) -> RestNotifier {
@@ -167,6 +182,35 @@ final class FakeNotificationCenter: NotificationCenterProviding {
         let trigger = try #require(request.trigger as? UNTimeIntervalNotificationTrigger)
         #expect(trigger.timeInterval == 90)
         #expect(!trigger.repeats)
+    }
+
+    @Test func aQueueDelayDoesNotShiftTheFireDate() async throws {
+        center.defersUntilFlush = true
+        let notifier = notifier()
+        let plan = plan(in: 90)
+        notifier.sync(plan: plan)
+        // The queue gets to the call 40 s after it was made (a slow daemon): the request is built then, from the
+        // absolute fire date, so the alarm still fires at the planned moment.
+        clock.date = clock.date.addingTimeInterval(40)
+        await center.flush()
+        let request = try #require(center.pending[RestNotificationPlan.identifier])
+        let trigger = try #require(request.trigger as? UNTimeIntervalNotificationTrigger)
+        #expect(trigger.timeInterval == 50)
+        #expect(clock.date.addingTimeInterval(trigger.timeInterval) == plan.fireDate)
+    }
+
+    @Test func aTriggerIntervalIsClampedToOneSecond() throws {
+        let fire = clock.date
+        for now in [fire.addingTimeInterval(-0.2), fire, fire.addingTimeInterval(5)] {
+            let request = SystemNotificationCenter.request(
+                identifier: "x",
+                content: UNMutableNotificationContent(),
+                fireDate: fire,
+                now: now
+            )
+            let trigger = try #require(request.trigger as? UNTimeIntervalNotificationTrigger)
+            #expect(trigger.timeInterval == 1)
+        }
     }
 
     @Test func syncReplacesAndClearsDeliveredFirst() throws {
@@ -454,6 +498,25 @@ final class FakeNotificationCenter: NotificationCenterProviding {
         try engine.startRest(seconds: 60)
         for _ in 0..<10 { await Task.yield() }
         #expect(center.pending.isEmpty)
+    }
+
+    // MARK: Delegate
+
+    /// UIKit calls the delegate off the main thread and needs the completion handler back on it (the async delegate
+    /// variants returned it from the global executor and trapped on a tapped banner).
+    @Test func theResponseCompletionHandlerRunsOnTheMainThread() async throws {
+        let engine = try engine()
+        let notifier = notifier()
+        notifier.observe(engine)
+        let onMain = await withCheckedContinuation { (continuation: CheckedContinuation<Bool, Never>) in
+            // Called from a background thread, as UIKit does.
+            Task.detached {
+                notifier.handleResponse(actionIdentifier: "skip") {
+                    continuation.resume(returning: Thread.isMainThread)
+                }
+            }
+        }
+        #expect(onMain)
     }
 
     // MARK: Coalescing

@@ -257,19 +257,26 @@ extension ActiveWorkoutEngine {
     /// Loads Previous for the ids not loaded yet: per exercise the most recent finished workout (by `startedAt`
     /// descending, then position) with at least one completed set of it.
     func loadPrevious(for ids: Set<UUID>) throws {
-        var pending = ids.subtracting(previousLoaded)
+        let pending = ids.subtracting(previousLoaded)
         guard !pending.isEmpty else { return }
-        let finished = try context.fetch(
-            FetchDescriptor<Workout>(
-                predicate: Workout.finishedPredicate,
-                sortBy: [SortDescriptor(\.startedAt, order: .reverse)]
-            )
+        // Only the rows of the exercises needed, in finished workouts: no walk over every workout. Newest workout
+        // first (by `startedAt`, rows of one workout by position); the first workout with a completed set wins.
+        let rows = try context.fetch(
+            FetchDescriptor<WorkoutExercise>(predicate: WorkoutExercise.inFinishedWorkouts(ofExercises: pending))
         )
-        for past in finished where !pending.isEmpty {
-            let rows = sortedExercises(of: past)
-            for id in pending {
-                let sameExercise = rows.filter { $0.exerciseID == id }
-                let entries = sameExercise.map { row in
+        var byExercise: [UUID: [(startedAt: Date, workoutID: UUID, row: WorkoutExercise)]] = [:]
+        for row in rows {
+            guard let past = row.workout else { continue }
+            byExercise[row.exerciseID, default: []].append((past.startedAt, past.id, row))
+        }
+        for id in pending {
+            guard let candidates = byExercise[id] else { continue }
+            var byWorkout: [UUID: (startedAt: Date, rows: [WorkoutExercise])] = [:]
+            for candidate in candidates {
+                byWorkout[candidate.workoutID, default: (candidate.startedAt, [])].rows.append(candidate.row)
+            }
+            for (_, group) in byWorkout.sorted(by: { $0.value.startedAt > $1.value.startedAt }) {
+                let entries = group.rows.sorted { $0.position < $1.position }.map { row in
                     PreviousEntry(
                         unit: row.unit,
                         sets: sortedSets(of: row).filter(\.completed).map {
@@ -284,7 +291,7 @@ extension ActiveWorkoutEngine {
                 }
                 guard entries.contains(where: { !$0.sets.isEmpty }) else { continue }
                 previousCache[id] = entries
-                pending.remove(id)
+                break
             }
         }
         previousLoaded.formUnion(ids)
@@ -304,22 +311,23 @@ extension ActiveWorkoutEngine {
     /// One session per past finished workout and exercise, by exercise id.
     private func historySessions(for ids: Set<UUID>, excluding workout: Workout) throws -> [UUID: [Session]] {
         let id = workout.id
-        let finished = try context.fetch(
-            FetchDescriptor<Workout>(predicate: Workout.finishedPredicate(excluding: id))
+        let rows = try context.fetch(
+            FetchDescriptor<WorkoutExercise>(
+                predicate: WorkoutExercise.inFinishedWorkouts(ofExercises: ids, excluding: id)
+            )
         )
         var sessions: [UUID: [Session]] = [:]
-        for past in finished {
-            for row in sortedExercises(of: past) where ids.contains(row.exerciseID) {
-                sessions[row.exerciseID, default: []].append(
-                    Session(
-                        workoutID: past.id,
-                        time: past.startedAt,
-                        exerciseID: row.exerciseID,
-                        weightType: store.exercise(id: row.exerciseID)?.weightType ?? .weighted,
-                        sets: loggedSets(of: row, only: sortedSets(of: row).filter(\.completed))
-                    )
+        for row in rows.sorted(by: { $0.position < $1.position }) {
+            guard let past = row.workout else { continue }
+            sessions[row.exerciseID, default: []].append(
+                Session(
+                    workoutID: past.id,
+                    time: past.startedAt,
+                    exerciseID: row.exerciseID,
+                    weightType: store.exercise(id: row.exerciseID)?.weightType ?? .weighted,
+                    sets: loggedSets(of: row, only: sortedSets(of: row).filter(\.completed))
                 )
-            }
+            )
         }
         return sessions
     }

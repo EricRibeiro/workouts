@@ -256,6 +256,7 @@ final class ActivityIntentTests {
         let center = FakeNotificationCenter()
         center.status = .authorized
         let clock = clock
+        center.now = { clock.date }
         let notifier = RestNotifier(center: center, now: { clock.date }, debounce: .seconds(60))
         let provider = FakeLiveActivityProvider()
         let controller = LiveActivityController(provider: provider, debounce: .seconds(60))

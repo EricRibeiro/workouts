@@ -465,6 +465,77 @@ import Testing
         #expect(engine.previous(for: sets(second)[0]) == nil)
     }
 
+    @Test func previousIsNeverTakenFromAnUnfinishedWorkout() throws {
+        let rig = try Rig()
+        rig.finishedWorkout(
+            exercise: LibraryFixture.squat,
+            unit: .lb,
+            sets: [(50, 5, .normal)],
+            startedAt: rig.clock.date.addingTimeInterval(-86_400)
+        )
+        let engine = try rig.makeEngine()
+        try engine.startEmpty()
+        // The running workout is newer and has a completed squat set; it is not finished, so it is not Previous.
+        let first = try engine.addExercise(try rig.info(LibraryFixture.squat))
+        try engine.setValues(sets(first)[0], weight: 200, reps: 1, durationSeconds: nil)
+        try engine.check(sets(first)[0])
+        let second = try engine.addExercise(try rig.info(LibraryFixture.squat))
+        #expect(engine.previous(for: sets(second)[0]) == PreviousSet(kind: .normal, weight: 50, reps: 5))
+    }
+
+    @Test func previousAndPRsAmongManyFinishedWorkoutsOfWhichFewHaveTheExercise() throws {
+        let rig = try Rig()
+        rig.settings.defaultUnit = .kg
+        let day = rig.clock.date
+        // 60 finished workouts of another exercise, interleaved by date with three squat workouts.
+        for index in 1...60 {
+            rig.finishedWorkout(
+                exercise: LibraryFixture.curl,
+                unit: .kg,
+                sets: [(20, 10, .normal)],
+                startedAt: day.addingTimeInterval(-Double(index) * 3600)
+            )
+        }
+        rig.finishedWorkout(
+            exercise: LibraryFixture.squat,
+            unit: .kg,
+            sets: [(60, 5, .normal)],
+            startedAt: day.addingTimeInterval(-50 * 3600 - 1)
+        )
+        rig.finishedWorkout(
+            exercise: LibraryFixture.squat,
+            unit: .kg,
+            sets: [(90, 5, .normal), (95, 3, .normal)],
+            startedAt: day.addingTimeInterval(-20 * 3600 - 1)
+        )
+        // The newest squat workout has no completed set: skipped.
+        let planned = rig.finishedWorkout(
+            exercise: LibraryFixture.squat,
+            unit: .kg,
+            sets: [(300, 1, .normal)],
+            startedAt: day.addingTimeInterval(-3 * 3600 - 1)
+        )
+        for set in planned.exercises?.first?.sets ?? [] { set.completed = false }
+
+        let engine = try rig.makeEngine()
+        try engine.startEmpty()
+        let curl = try engine.addExercise(try rig.info(LibraryFixture.curl))
+        let squat = try engine.addExercise(try rig.info(LibraryFixture.squat))
+        #expect(engine.previous(for: sets(squat)[0]) == PreviousSet(kind: .normal, weight: 90, reps: 5))
+        #expect(engine.previous(for: sets(curl)[0]) == PreviousSet(kind: .normal, weight: 20, reps: 10))
+        #expect(engine.previous(for: sets(squat)[1]) == PreviousSet(kind: .normal, weight: 95, reps: 3))
+
+        // The PR history reads the same few rows: 110 beats the 95 best of the earlier squat workouts.
+        try engine.setValues(sets(squat)[0], weight: 110, reps: 3, durationSeconds: nil)
+        try engine.check(sets(squat)[0])
+        rig.clock.advance(600)
+        let summary = try engine.finishSummary()
+        #expect(summary.workoutNumber == 64)
+        #expect(
+            summary.prs.first { $0.exerciseID == LibraryFixture.squat }?.records.contains { $0.weight == 110 } == true
+        )
+    }
+
     @Test func previousConvertsAcrossUnitsAndRoundsToHalf() throws {
         let rig = try Rig()
         rig.settings.defaultUnit = .lb

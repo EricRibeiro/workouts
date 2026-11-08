@@ -16,7 +16,10 @@ protocol NotificationCenterProviding: AnyObject {
     func authorizationStatus() async -> UNAuthorizationStatus
     func requestAuthorization() async throws -> Bool
     func setCategories(_ categories: Set<UNNotificationCategory>)
-    func schedule(_ request: UNNotificationRequest)
+    /// Schedules a one-shot notification at `fireDate`. The trigger interval is computed when the call is carried out
+    /// (``SystemNotificationCenter/request(identifier:content:fireDate:now:)``), not when it is made, so time spent
+    /// waiting in the center's queue does not push the alarm late.
+    func schedule(identifier: String, content: UNNotificationContent, fireDate: Date)
     func removePending(identifiers: [String])
     func removeDelivered(identifiers: [String])
     func setDelegate(_ delegate: (any UNUserNotificationCenterDelegate)?)
@@ -53,10 +56,29 @@ final class SystemNotificationCenter: NotificationCenterProviding {
         }
     }
 
-    func schedule(_ request: UNNotificationRequest) {
-        let identifier = request.identifier
+    /// The request for `fireDate` as of `now`: the interval is measured from the moment of this call, at least one
+    /// second (a zero or negative interval is refused by the system).
+    nonisolated static func request(
+        identifier: String,
+        content: UNNotificationContent,
+        fireDate: Date,
+        now: Date
+    ) -> UNNotificationRequest {
+        UNNotificationRequest(
+            identifier: identifier,
+            content: content,
+            trigger: UNTimeIntervalNotificationTrigger(
+                timeInterval: max(1, fireDate.timeIntervalSince(now)),
+                repeats: false
+            )
+        )
+    }
+
+    func schedule(identifier: String, content: UNNotificationContent, fireDate: Date) {
         Self.pendingCalls.enter()
         Self.queue.async {
+            // Computed here, inside the queue block, so a backed-up queue does not shift the fire date.
+            let request = Self.request(identifier: identifier, content: content, fireDate: fireDate, now: .now)
             UNUserNotificationCenter.current().add(request) { error in
                 defer { Self.pendingCalls.leave() }
                 if let error {
@@ -86,7 +108,7 @@ final class SystemNotificationCenter: NotificationCenterProviding {
 
     func flush() async {
         await withCheckedContinuation { continuation in
-            Self.pendingCalls.notify(queue: Self.queue) { continuation.resume() }
+            Self.pendingCalls.notify(queue: Self.queue) { @Sendable in continuation.resume() }
         }
     }
 
@@ -206,13 +228,7 @@ final class RestNotifier: NSObject {
         content.sound = .default
         content.interruptionLevel = .timeSensitive
         content.categoryIdentifier = plan.categoryIdentifier
-        center.schedule(
-            UNNotificationRequest(
-                identifier: plan.identifier,
-                content: content,
-                trigger: UNTimeIntervalNotificationTrigger(timeInterval: remaining, repeats: false)
-            )
-        )
+        center.schedule(identifier: plan.identifier, content: content, fireDate: plan.fireDate)
     }
 
     /// Syncs now and again (debounced) after every change to the engine's rest plan. Also asks for permission once a
@@ -310,19 +326,34 @@ final class RestNotifier: NSObject {
 }
 
 extension RestNotifier: UNUserNotificationCenterDelegate {
+    /// UIKit calls its delegate on an arbitrary thread and, for a response that opens the app, requires the completion
+    /// handler back on the main thread. The `async` variants return it from whatever executor the method resumes on
+    /// (the global one, since these are `nonisolated`), which traps; so these are the handler variants, and the handler
+    /// is called on the main actor.
     nonisolated func userNotificationCenter(
         _ center: UNUserNotificationCenter,
-        willPresent notification: UNNotification
-    ) async -> UNNotificationPresentationOptions {
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping @Sendable (UNNotificationPresentationOptions) -> Void
+    ) {
         // Nothing in the foreground: the cover's RestExpiryWatcher (or the resume control) plays the haptic itself.
-        []
+        Task { @MainActor in completionHandler([]) }
     }
 
     nonisolated func userNotificationCenter(
         _ center: UNUserNotificationCenter,
-        didReceive response: UNNotificationResponse
-    ) async {
-        let action = response.actionIdentifier
-        await respond(to: action)
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping @Sendable () -> Void
+    ) {
+        handleResponse(actionIdentifier: response.actionIdentifier, completionHandler: completionHandler)
+    }
+
+    /// The body of ``userNotificationCenter(_:didReceive:withCompletionHandler:)``, split out so a test can drive it
+    /// without a `UNNotificationResponse` (which cannot be constructed). Runs ``respond(to:)`` on the main actor, then
+    /// calls `completionHandler` there.
+    nonisolated func handleResponse(actionIdentifier: String, completionHandler: @escaping @Sendable () -> Void) {
+        Task { @MainActor in
+            await respond(to: actionIdentifier)
+            completionHandler()
+        }
     }
 }
