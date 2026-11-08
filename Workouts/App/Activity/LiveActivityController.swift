@@ -156,12 +156,19 @@ final class LiveActivityController {
     /// Workouts whose activity the person dismissed; no new one is requested for them. Cleared when no workout is left.
     private var dismissedWorkouts: Set<UUID> = []
     private let debounce: Duration
+    private let clock: any Clock<Duration>
     private var pendingReconcile: Task<Void, Never>?
 
     /// `debounce` is how long the activity state must stay quiet before reconciling; tests pass `.zero` or a short value.
-    init(provider: (any LiveActivityProviding)? = nil, debounce: Duration = .milliseconds(300)) {
+    /// `clock` times that wait; tests pass a manual one to drive the debounce without wall time.
+    init(
+        provider: (any LiveActivityProviding)? = nil,
+        debounce: Duration = .milliseconds(300),
+        clock: any Clock<Duration> = ContinuousClock()
+    ) {
         self.provider = provider ?? SystemLiveActivityProvider()
         self.debounce = debounce
+        self.clock = clock
     }
 
     /// The Live Activity content for `state`: stale when the rest ends, most relevant while resting.
@@ -196,9 +203,10 @@ final class LiveActivityController {
         track(engine)
         pendingReconcile?.cancel()
         let debounce = debounce
+        let clock = clock
         pendingReconcile = Task { @MainActor [weak self] in
             if debounce > .zero {
-                do { try await Task.sleep(for: debounce) } catch { return }
+                do { try await clock.sleep(for: debounce) } catch { return }
             }
             guard !Task.isCancelled else { return }
             await self?.reconcile()

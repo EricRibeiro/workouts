@@ -13,22 +13,32 @@ public final class RemoteChangeObserver {
     private let center: NotificationCenter
     private let name: Notification.Name
     private let debounce: Duration
+    private let clock: any Clock<Duration>
     private let onChange: () -> Void
     private var token: (any NSObjectProtocol)?
     private var pending: Task<Void, Never>?
 
+    /// Whether a handler call is waiting out the debounce. Tests read it to prove `stop()` left nothing armed.
+    var isScheduled: Bool { pending != nil }
+    /// How many notifications reached the debounce (not counting ones dropped after `stop()`); tests await it so a burst
+    /// is fully in before they move the clock.
+    private(set) var scheduleCount = 0
+
     /// - Parameters:
     ///   - name: The notification to watch; tests pass their own.
     ///   - debounce: Quiet time after the last notification before `onChange` runs.
+    ///   - clock: Times the debounce; tests pass a manual one.
     public init(
         center: NotificationCenter = .default,
         name: Notification.Name = .NSPersistentStoreRemoteChange,
         debounce: Duration = .seconds(1),
+        clock: any Clock<Duration> = ContinuousClock(),
         onChange: @escaping () -> Void
     ) {
         self.center = center
         self.name = name
         self.debounce = debounce
+        self.clock = clock
         self.onChange = onChange
     }
 
@@ -51,10 +61,12 @@ public final class RemoteChangeObserver {
     private func schedule() {
         // A notification that hopped to the main actor before `stop()` ran must not restart the wait.
         guard token != nil else { return }
+        scheduleCount += 1
         pending?.cancel()
         let wait = debounce
+        let clock = clock
         pending = Task { [weak self] in
-            try? await Task.sleep(for: wait)
+            try? await clock.sleep(for: wait)
             guard !Task.isCancelled else { return }
             self?.onChange()
         }

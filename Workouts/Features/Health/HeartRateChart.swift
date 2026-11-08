@@ -11,7 +11,7 @@ import WorkoutsKit
 /// shaded band per exercise, a tick per completed set), the average and max beneath, and the time in each zone.
 ///
 /// Everything is on one time axis in seconds from the Fitness workout's start, so build `timeline` with
-/// `SetTimeline.make(…, origin: summary.start)`. Offsets before zero are clamped to zero. The caller places the view
+/// `SetTimeline.make(…, origin: summary.start)`. Heart-rate samples before zero are dropped (the last one is kept at zero). The caller places the view
 /// (it draws no card of its own) and checks `canShow(series:)` first.
 struct HeartRateChart: View {
     let series: [HeartRatePoint]
@@ -41,9 +41,9 @@ struct HeartRateChart: View {
 
     // MARK: Data
 
-    /// The series sorted by time with negative offsets clamped to zero.
+    /// The series sorted by time, from the workout's start: samples before it are dropped except the last, kept at zero.
     private var points: [HeartRatePoint] {
-        series.map { HeartRatePoint(offset: max(0, $0.offset), bpm: $0.bpm) }.sorted { $0.offset < $1.offset }
+        HeartRateSeries.clippedToStart(series)
     }
 
     private var blocks: [SetTimeline.Block] {

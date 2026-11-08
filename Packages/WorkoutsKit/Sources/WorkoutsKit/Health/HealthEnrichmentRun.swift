@@ -84,7 +84,7 @@ public enum HealthEnrichmentRun {
     }
 
     /// `backfill` straight from the store, fetching only what it needs: the never-checked finished workouts
-    /// (``backfillCandidatesDescriptor()``) and, separately, the Fitness ids already attached (they count as claimed). When
+    /// (``backfillCandidatesDescriptor(earliest:)``, limited to what Health can show) and, separately, the Fitness ids already attached (they count as claimed). When
     /// no workout is waiting it returns after a `fetchCount`, without faulting a single model or asking the source anything,
     /// so the foreground backfill is cheap once everything has been stamped.
     public static func backfill(
@@ -93,9 +93,13 @@ public enum HealthEnrichmentRun {
         now: Date,
         progress: ((_ done: Int, _ total: Int) -> Void)? = nil
     ) async throws -> Outcome {
-        let descriptor = backfillCandidatesDescriptor()
-        guard try context.fetchCount(descriptor) > 0 else { return Outcome() }
-        let candidates = try context.fetch(descriptor)
+        // Nothing waiting at all: return without asking the source anything.
+        guard try context.fetchCount(backfillCandidatesDescriptor()) > 0 else { return Outcome() }
+        // Workouts older than Health's readable window are never stamped (see `process`), so they would stay "waiting"
+        // for good. Keep them out of the fetch, or every foreground would fault the whole imported history just to drop it.
+        let earliest = await source.earliestReadableDate()
+        let candidates = try context.fetch(backfillCandidatesDescriptor(earliest: earliest))
+        guard !candidates.isEmpty else { return Outcome() }
         let claimedIDs = try Set(context.fetch(claimedDescriptor()).compactMap(\.healthWorkoutID))
         return await process(candidates, claimedIDs: claimedIDs, source: source, now: now, progress: progress)
     }
@@ -192,12 +196,24 @@ public enum HealthEnrichmentRun {
     /// calls this on every opt-in, so each opt-in is a fresh look.
     @discardableResult
     public static func resetUnmatched(context: ModelContext) throws -> Int {
+        try resetUnmatched(context: context, save: { try $0.save() })
+    }
+
+    /// `resetUnmatched` with the save injectable. If the save throws, every stamp is put back (the context would stay
+    /// dirty otherwise, and the next unrelated save would commit the reset despite the error) and the error is rethrown.
+    static func resetUnmatched(context: ModelContext, save: (ModelContext) throws -> Void) throws -> Int {
         let descriptor = FetchDescriptor<Workout>(
             predicate: #Predicate<Workout> { $0.healthWorkoutID == nil && $0.healthCheckedAt != nil }
         )
         let workouts = try context.fetch(descriptor)
+        let stamps = workouts.map(\.healthCheckedAt)
         for workout in workouts { workout.healthCheckedAt = nil }
-        if context.hasChanges { try context.save() }
+        do {
+            if context.hasChanges { try save(context) }
+        } catch {
+            for (workout, stamp) in zip(workouts, stamps) { workout.healthCheckedAt = stamp }
+            throw error
+        }
         return workouts.count
     }
 
@@ -205,21 +221,37 @@ public enum HealthEnrichmentRun {
     /// changed. What "Remove Fitness Data" does.
     @discardableResult
     public static func clearAll(context: ModelContext) throws -> Int {
+        try clearAll(context: context, save: { try $0.save() })
+    }
+
+    /// `clearAll` with the save injectable. If the save throws, every workout's Fitness fields are put back and the error
+    /// is rethrown, so what the failure alert says matches what is stored.
+    static func clearAll(context: ModelContext, save: (ModelContext) throws -> Void) throws -> Int {
         let descriptor = FetchDescriptor<Workout>(
             predicate: #Predicate<Workout> { $0.healthWorkoutID != nil || $0.healthCheckedAt != nil }
         )
         let workouts = try context.fetch(descriptor)
+        let snapshots = workouts.map { $0.healthFieldsSnapshot() }
         for workout in workouts { workout.clearHealth() }
-        if context.hasChanges { try context.save() }
+        do {
+            if context.hasChanges { try save(context) }
+        } catch {
+            for (workout, snapshot) in zip(workouts, snapshots) { workout.restoreHealthFields(snapshot) }
+            throw error
+        }
         return workouts.count
     }
 
     /// Finished workouts that were never checked and have no Fitness match, oldest finish first: the only ones `backfill`
     /// looks at, so the app never has to fault the rest of the history for it.
-    public static func backfillCandidatesDescriptor() -> FetchDescriptor<Workout> {
+    ///
+    /// - Parameter earliest: the source's `earliestReadableDate()`; workouts that started before it are left out (Health
+    ///   cannot show them, so a pass would drop them unstamped anyway). The default keeps everything.
+    public static func backfillCandidatesDescriptor(earliest: Date = .distantPast) -> FetchDescriptor<Workout> {
         FetchDescriptor<Workout>(
             predicate: #Predicate<Workout> {
                 $0.finishedAt != nil && $0.healthWorkoutID == nil && $0.healthCheckedAt == nil
+                    && $0.startedAt >= earliest
             },
             sortBy: [SortDescriptor(\Workout.finishedAt)]
         )

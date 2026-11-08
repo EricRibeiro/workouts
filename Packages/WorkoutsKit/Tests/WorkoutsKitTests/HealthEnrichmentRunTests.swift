@@ -278,6 +278,26 @@ private actor Counter {
         #expect(try HealthEnrichmentRun.clearAll(context: context) == 0)
     }
 
+    @Test func clearAllPutsEverythingBackWhenTheSaveFails() throws {
+        let context = try makeTestContext()
+        let matched = Self.workout(startOffset: 0)
+        matched.applyHealth(Self.summary("HK-1"), checkedAt: Self.t0)
+        let stamped = Self.workout(startOffset: 7200)
+        stamped.applyHealth(nil, checkedAt: Self.t0)
+        for workout in [matched, stamped] { context.insert(workout) }
+        try context.save()
+
+        #expect(throws: HealthSaveFailed.self) {
+            try HealthEnrichmentRun.clearAll(context: context, save: { _ in throw HealthSaveFailed() })
+        }
+        #expect(matched.healthWorkoutID == "HK-1" && matched.healthCheckedAt == Self.t0)
+        #expect(matched.activeEnergyKcal == 300 && matched.avgHeartRate == 120)
+        #expect(stamped.healthCheckedAt == Self.t0)
+        // A later, unrelated save commits what was stored all along, not the removal.
+        try context.save()
+        #expect(matched.healthWorkoutID == "HK-1" && stamped.healthCheckedAt == Self.t0)
+    }
+
     // MARK: Deleted mid-pass
 
     /// Three finished workouts in a real context, each with its own Fitness workout, behind a source whose lookups wait at
@@ -464,6 +484,47 @@ private actor Counter {
         #expect(stamped.updatedAt == Self.t0)
         #expect(!context.hasChanges)
         #expect(try HealthEnrichmentRun.resetUnmatched(context: context) == 0)
+    }
+
+    @Test func resetUnmatchedPutsTheStampsBackWhenTheSaveFails() throws {
+        let context = try makeTestContext()
+        let stamped = Self.workout(startOffset: 7200)
+        stamped.applyHealth(nil, checkedAt: Self.t0)
+        context.insert(stamped)
+        try context.save()
+
+        #expect(throws: HealthSaveFailed.self) {
+            try HealthEnrichmentRun.resetUnmatched(context: context, save: { _ in throw HealthSaveFailed() })
+        }
+        #expect(stamped.healthCheckedAt == Self.t0)
+    }
+
+    @Test func aContextBackfillLeavesOutWorkoutsFromBeforeTheReadableWindow() async throws {
+        let context = try makeTestContext()
+        let tooOld = Self.workout(startOffset: 0, name: "tooOld")
+        let readable = Self.workout(startOffset: 7200, name: "readable")
+        for workout in [tooOld, readable] { context.insert(workout) }
+        try context.save()
+        let earliest = Self.t0.addingTimeInterval(3600)
+
+        #expect(
+            try context.fetch(HealthEnrichmentRun.backfillCandidatesDescriptor(earliest: earliest)).map(\.name)
+                == ["readable"]
+        )
+        // Starting exactly at the boundary counts as readable.
+        let boundary = HealthEnrichmentRun.backfillCandidatesDescriptor(earliest: Self.t0.addingTimeInterval(7200))
+        #expect(try context.fetch(boundary).map(\.name) == ["readable"])
+
+        var fake = Self.source([("HK-1", 0), ("HK-2", 7200)])
+        fake.earliestReadable = earliest
+        let outcome = try await HealthEnrichmentRun.backfill(context: context, source: fake, now: Self.later)
+        #expect(outcome == Outcome(matched: 1, checked: 1, stopped: nil))
+        #expect(tooOld.healthCheckedAt == nil && tooOld.healthWorkoutID == nil)
+        #expect(readable.healthWorkoutID == "HK-2")
+
+        // With only too-old workouts left, nothing is fetched and the source is not asked to look anything up.
+        let again = try await HealthEnrichmentRun.backfill(context: context, source: fake, now: Self.later)
+        #expect(again == Outcome())
     }
 
     @Test func aResetWorkoutIsBackfilledAgainOnceHealthHasItsMatch() async throws {
@@ -777,3 +838,5 @@ private actor Counter {
         #expect(names == ["oldest", "newest"])
     }
 }
+
+private struct HealthSaveFailed: Error {}

@@ -165,30 +165,51 @@ import Testing
         let name = Notification.Name("test.remoteChange")
         var calls = 0
         let signal = CallSignal()
-        let observer = RemoteChangeObserver(center: center, name: name, debounce: .milliseconds(100)) {
+        // The debounce runs on a manual clock, so "nothing more happens" is structural: no sleeper left, no task armed.
+        let clock = ManualClock()
+        let debounce = Duration.milliseconds(100)
+        let observer = RemoteChangeObserver(center: center, name: name, debounce: debounce, clock: clock) {
             calls += 1
             signal.fire()
         }
-        // "Nothing more happens" is a quiet window of several debounces: it can only pass too early, never fail for the wrong
-        // reason. Every positive wait below awaits the handler's own signal (a backstop timeout only).
-        let quiet = Duration.milliseconds(100) * 3
         observer.start()
         observer.start()
         for _ in 0..<5 { center.post(name: name, object: nil) }
+        // The whole burst is in (each notification hops to the main actor) and one wait is armed.
+        #expect(try await eventually { observer.scheduleCount == 5 }, "the burst never reached the observer")
+        #expect(try await eventually { clock.sleeperCount == 1 })
+        #expect(calls == 0)
+        clock.advance(by: debounce)
         #expect(await signal.wait(), "the burst never reached the handler")
-        // A burst is one call, however long the wait that follows.
-        try await Task.sleep(for: quiet)
+        // A burst is one call, however long time runs on afterwards.
+        clock.advance(by: debounce * 3)
+        for _ in 0..<20 { await Task.yield() }
         #expect(calls == 1)
+        #expect(clock.sleeperCount == 0)
 
         center.post(name: name, object: nil)
+        #expect(try await eventually { observer.scheduleCount == 6 })
+        #expect(try await eventually { clock.sleeperCount == 1 })
+        clock.advance(by: debounce)
         #expect(await signal.wait(), "the later change never reached the handler")
-
-        center.post(name: name, object: nil)
-        observer.stop()
-        try await Task.sleep(for: quiet)
         #expect(calls == 2)
+
+        // Stopping drops the wait that is armed and holds nothing, whatever the clock does.
         center.post(name: name, object: nil)
-        try await Task.sleep(for: quiet)
+        #expect(try await eventually { observer.scheduleCount == 7 })
+        #expect(try await eventually { clock.sleeperCount == 1 })
+        observer.stop()
+        #expect(!observer.isScheduled)
+        #expect(try await eventually { clock.sleeperCount == 0 }, "stop() left a wait armed")
+        clock.advance(by: debounce * 3)
+        for _ in 0..<20 { await Task.yield() }
+        #expect(calls == 2)
+        // A notification after stop() is not even heard.
+        center.post(name: name, object: nil)
+        for _ in 0..<20 { await Task.yield() }
+        #expect(observer.scheduleCount == 7)
+        #expect(!observer.isScheduled)
+        #expect(clock.sleeperCount == 0)
         #expect(calls == 2)
     }
 

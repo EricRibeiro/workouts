@@ -29,8 +29,14 @@ struct EvenColumnGrid<Content: View>: View {
     }
 
     var body: some View {
-        LazyVGrid(columns: columns, alignment: .leading, spacing: spacing) {
-            content
+        // `ProposedWidth` keeps the grid exactly as wide as the parent offers, so the width and the fold are measured on
+        // it, never on the grid. Fixed columns make the grid as wide as their sum, so a width read from the grid feeds
+        // back: one pass at a stale, too-wide width kept the columns that wide, and the `List` centred the overflow,
+        // pushing the cards past both margins.
+        ProposedWidth {
+            LazyVGrid(columns: columns, alignment: .leading, spacing: spacing) {
+                content
+            }
         }
         .onGeometryChange(for: CGFloat.self) {
             $0.size.width
@@ -67,5 +73,25 @@ struct EvenColumnGrid<Content: View>: View {
     static func columnCount(width: CGFloat, minimum: CGFloat, spacing: CGFloat) -> Int {
         let fit = max(1, Int(((width + spacing) / (minimum + spacing)).rounded(.down)))
         return fit >= 3 && fit.isMultiple(of: 2) == false ? fit - 1 : fit
+    }
+}
+
+/// Sizes itself to the width it is offered, whatever its one child's own width, and gives the child exactly that width
+/// from the leading edge. The child's height is the one it has at that width. With no offered width the child's ideal
+/// width is used.
+private struct ProposedWidth: Layout {
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        guard let child = subviews.first else { return .zero }
+        let width = proposal.width ?? child.sizeThatFits(.unspecified).width
+        let height = child.sizeThatFits(ProposedViewSize(width: width, height: nil)).height
+        return CGSize(width: width, height: height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        subviews.first?.place(
+            at: bounds.origin,
+            anchor: .topLeading,
+            proposal: ProposedViewSize(width: bounds.width, height: bounds.height)
+        )
     }
 }

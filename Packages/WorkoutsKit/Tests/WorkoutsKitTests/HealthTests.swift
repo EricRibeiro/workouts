@@ -151,6 +151,30 @@ struct HealthHeartRateSeriesTests {
         #expect(down[1] == HeartRatePoint(offset: 11, bpm: 150))  // the peak sample itself
     }
 
+    @Test func clippedToStartDropsEarlierSamplesKeepingTheLastAtZero() {
+        let points = [
+            HeartRatePoint(offset: 5, bpm: 120), HeartRatePoint(offset: -300, bpm: 80),
+            HeartRatePoint(offset: -60, bpm: 95), HeartRatePoint(offset: -120, bpm: 90),
+            HeartRatePoint(offset: 10, bpm: 130),
+        ]
+        #expect(
+            HeartRateSeries.clippedToStart(points) == [
+                HeartRatePoint(offset: 0, bpm: 95), HeartRatePoint(offset: 5, bpm: 120),
+                HeartRatePoint(offset: 10, bpm: 130),
+            ]
+        )
+    }
+
+    @Test func clippedToStartLeavesNonNegativeSeriesAndHandlesEdges() {
+        let ok = [HeartRatePoint(offset: 0, bpm: 100), HeartRatePoint(offset: 4, bpm: 110)]
+        #expect(HeartRateSeries.clippedToStart(ok.reversed()) == ok)
+        #expect(HeartRateSeries.clippedToStart([]).isEmpty)
+        #expect(
+            HeartRateSeries.clippedToStart([HeartRatePoint(offset: -9, bpm: 70), HeartRatePoint(offset: -3, bpm: 75)])
+                == [HeartRatePoint(offset: 0, bpm: 75)]
+        )
+    }
+
     @Test func degenerateInputs() {
         #expect(HeartRateSeries.downsample([], maxPoints: 10).isEmpty)
         #expect(HeartRateSeries.downsample(series(count: 5, peakAt: 2), maxPoints: 0).isEmpty)

@@ -73,7 +73,11 @@ struct HealthEnrichmentServiceTests {
     }
 
     /// A service over a gated source holding one Fitness workout that matches the one finished workout, opted in.
-    private func makeSetup(followUpDelay: Duration = .seconds(120), endedAgo: TimeInterval = 600) throws -> Setup {
+    private func makeSetup(
+        followUpDelay: Duration = .seconds(120),
+        endedAgo: TimeInterval = 600,
+        clock: any Clock<Duration> = ContinuousClock()
+    ) throws -> Setup {
         let end = Date.now.addingTimeInterval(-endedAgo)
         let start = end.addingTimeInterval(-3000)
         let candidate = HealthWorkoutCandidate(id: "HK-1", kind: .functionalStrength, start: start, end: end)
@@ -96,7 +100,12 @@ struct HealthEnrichmentServiceTests {
         context.insert(workout)
         try context.save()
         return Setup(
-            service: HealthEnrichmentService(source: source, settings: settings, followUpDelay: followUpDelay),
+            service: HealthEnrichmentService(
+                source: source,
+                settings: settings,
+                followUpDelay: followUpDelay,
+                clock: clock
+            ),
             settings: settings,
             context: context,
             workout: workout,
@@ -453,14 +462,22 @@ struct HealthEnrichmentServiceTests {
 
     @Test func turnOffCancelsTheFollowUp() async throws {
         let followUpDelay = Duration.milliseconds(50)
-        let setup = try makeSetup(followUpDelay: followUpDelay)
+        let clock = ManualClock()
+        let setup = try makeSetup(followUpDelay: followUpDelay, clock: clock)
         await setup.gate.release()
         setup.service.workoutFinished(context: setup.context)
+        let followUp = try #require(setup.service.followUp)
         // The immediate lookup applies the data; clear it, then make sure the follow-up does not bring it back.
         await waitUntilInFlight(setup.gate)
+        #expect(await eventually { clock.sleeperCount == 1 }, "the follow-up never started waiting")
         try await setup.service.turnOff(remove: true, context: setup.context)
-        // The follow-up's own sleep has no completion signal: wait several follow-up delays, which can only pass early.
-        try await Task.sleep(for: followUpDelay * 4)
+        // Time reaching the follow-up's deadline would run its lookup, unless turnOff cancelled it. Awaiting the task
+        // itself (not a wall-clock window) settles it either way, so a follow-up that is merely late cannot pass.
+        clock.advance(by: followUpDelay * 4)
+        await followUp.value
+        #expect(followUp.isCancelled)
+        #expect(clock.sleeperCount == 0)
+        #expect(await setup.gate.lookups == 1)
         #expect(setup.workout.healthWorkoutID == nil)
         #expect(setup.workout.healthCheckedAt == nil)
     }

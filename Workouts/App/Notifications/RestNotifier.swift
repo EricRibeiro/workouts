@@ -139,6 +139,7 @@ final class RestNotifier: NSObject {
     private var engine: ActiveWorkoutEngine?
     private var didRequestAuthorization = false
     private let debounce: Duration
+    private let clock: any Clock<Duration>
     private var pendingSync: Task<Void, Never>?
     /// Awaited after a notification button's effect, to bring the rest of the app's system state (the Live Activity)
     /// up to date before the response handler returns. The app sets it; tests may leave it nil.
@@ -147,15 +148,17 @@ final class RestNotifier: NSObject {
     var flushLiveActivity: (@MainActor () async -> Void)?
 
     /// `debounce` is how long the engine must stay quiet before the schedule is re-synced; tests pass `.zero` or a short
-    /// value.
+    /// value. `clock` times that wait; tests pass a manual one to drive the debounce without wall time.
     init(
         center: any NotificationCenterProviding = SystemNotificationCenter(),
         now: @escaping () -> Date = Date.init,
-        debounce: Duration = .milliseconds(300)
+        debounce: Duration = .milliseconds(300),
+        clock: any Clock<Duration> = ContinuousClock()
     ) {
         self.center = center
         self.now = now
         self.debounce = debounce
+        self.clock = clock
         super.init()
     }
 
@@ -257,8 +260,9 @@ final class RestNotifier: NSObject {
         pendingSync = nil
         guard debounce > .zero else { return syncNow(engine) }
         let debounce = debounce
+        let clock = clock
         pendingSync = Task { @MainActor [weak self] in
-            do { try await Task.sleep(for: debounce) } catch { return }
+            do { try await clock.sleep(for: debounce) } catch { return }
             guard !Task.isCancelled else { return }
             self?.syncNow(engine)
         }

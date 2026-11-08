@@ -1,6 +1,22 @@
 import Foundation
 
 public nonisolated enum HeartRateSeries {
+    /// Drops the samples from before the workout started (negative offsets, which the matcher allows when the Watch
+    /// workout began early), keeping the last of them as a single point at offset 0 so the line still starts at the
+    /// right value. Returns the points sorted by offset. Clamping them to 0 instead would stack the warm-up at x=0.
+    public static func clippedToStart(_ points: [HeartRatePoint]) -> [HeartRatePoint] {
+        let sorted = points.sorted { $0.offset < $1.offset }
+        guard let firstOnOrAfter = sorted.firstIndex(where: { $0.offset >= 0 }) else {
+            // Every sample is before the start: only the last one carries over.
+            return sorted.last.map { [HeartRatePoint(offset: 0, bpm: $0.bpm)] } ?? []
+        }
+        var result = Array(sorted[firstOnOrAfter...])
+        if firstOnOrAfter > 0, result.first?.offset != 0 {
+            result.insert(HeartRatePoint(offset: 0, bpm: sorted[firstOnOrAfter - 1].bpm), at: 0)
+        }
+        return result
+    }
+
     /// Reduces `points` to at most `maxPoints` for a small chart.
     ///
     /// Points are sorted by offset and split into `maxPoints` equal-width time buckets. Each non-empty bucket becomes one

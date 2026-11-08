@@ -96,6 +96,60 @@ extension Workout {
         healthDetailsData = nil
     }
 
+    /// Every stored Fitness field, to put back when a save fails after `clearHealth()` (or `healthCheckedAt = nil`).
+    struct HealthFieldsSnapshot {
+        let healthWorkoutID: String?
+        let healthCheckedAt: Date?
+        let activeEnergyKcal: Double?
+        let totalEnergyKcal: Double?
+        let avgHeartRate: Double?
+        let maxHeartRate: Double?
+        let heartRateSeriesData: Data?
+        let effortScore: Double?
+        let effortIsEstimated: Bool?
+        let heartRateZonesData: Data?
+        let weatherTemperatureCelsius: Double?
+        let weatherHumidityPercent: Double?
+        let healthTimeZone: String?
+        let healthDetailsData: Data?
+    }
+
+    func healthFieldsSnapshot() -> HealthFieldsSnapshot {
+        HealthFieldsSnapshot(
+            healthWorkoutID: healthWorkoutID,
+            healthCheckedAt: healthCheckedAt,
+            activeEnergyKcal: activeEnergyKcal,
+            totalEnergyKcal: totalEnergyKcal,
+            avgHeartRate: avgHeartRate,
+            maxHeartRate: maxHeartRate,
+            heartRateSeriesData: heartRateSeriesData,
+            effortScore: effortScore,
+            effortIsEstimated: effortIsEstimated,
+            heartRateZonesData: heartRateZonesData,
+            weatherTemperatureCelsius: weatherTemperatureCelsius,
+            weatherHumidityPercent: weatherHumidityPercent,
+            healthTimeZone: healthTimeZone,
+            healthDetailsData: healthDetailsData
+        )
+    }
+
+    func restoreHealthFields(_ snapshot: HealthFieldsSnapshot) {
+        healthWorkoutID = snapshot.healthWorkoutID
+        healthCheckedAt = snapshot.healthCheckedAt
+        activeEnergyKcal = snapshot.activeEnergyKcal
+        totalEnergyKcal = snapshot.totalEnergyKcal
+        avgHeartRate = snapshot.avgHeartRate
+        maxHeartRate = snapshot.maxHeartRate
+        heartRateSeriesData = snapshot.heartRateSeriesData
+        effortScore = snapshot.effortScore
+        effortIsEstimated = snapshot.effortIsEstimated
+        heartRateZonesData = snapshot.heartRateZonesData
+        weatherTemperatureCelsius = snapshot.weatherTemperatureCelsius
+        weatherHumidityPercent = snapshot.weatherHumidityPercent
+        healthTimeZone = snapshot.healthTimeZone
+        healthDetailsData = snapshot.healthDetailsData
+    }
+
     /// True when the app should look for a Fitness match: the workout is finished, not matched yet, was never checked or
     /// last checked more than `recheckAfter` ago, and finished less than `giveUpAfter` ago (Fitness data for older
     /// workouts is not worth chasing).

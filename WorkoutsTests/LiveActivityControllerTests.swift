@@ -403,7 +403,11 @@ final class FakeLiveActivityProvider: LiveActivityProviding {
     // MARK: Coalescing
 
     @Test func aBurstOfChangesUpdatesOnceWithTheFinalState() async throws {
-        let debounced = LiveActivityController(provider: provider, debounce: .milliseconds(80))
+        // The debounce runs on a manual clock: it fires only when the test advances it, so "nothing more is coming" is
+        // exact (no sleeper left) instead of a wall-clock quiet window that can pass early under load.
+        let debounceClock = ManualClock()
+        let debounce = Duration.milliseconds(80)
+        let debounced = LiveActivityController(provider: provider, debounce: debounce, clock: debounceClock)
         try engine.startEmpty()
         debounced.observe(engine)
         #expect(await eventually { provider.requested.first?.contents.count == 1 }, "the activity was never requested")
@@ -411,20 +415,28 @@ final class FakeLiveActivityProvider: LiveActivityProviding {
 
         try engine.startRest(seconds: 60)
         for _ in 0..<5 { try engine.adjustRest(by: 30) }
-        // Inside the window nothing has been sent yet.
+        // The whole burst coalesced into one armed debounce, and inside the window nothing has been sent yet.
+        #expect(await eventually { debounceClock.sleeperCount == 1 }, "the burst never armed the debounce")
         #expect(activity.contents.count == 1)
 
+        debounceClock.advance(by: debounce)
         #expect(await eventually { activity.contents.count >= 2 }, "the burst never reached the activity")
-        // No completion signal for "nothing more is coming": a quiet window of several debounces, which can only pass early.
-        try await Task.sleep(for: .milliseconds(240))
+        // Nothing is armed, so time passing alone sends nothing more.
+        debounceClock.advance(by: debounce * 3)
+        for _ in 0..<20 { await Task.yield() }
+        #expect(debounceClock.sleeperCount == 0)
         #expect(activity.contents.count == 2)
         #expect(activity.contents.last?.staleDate == clock.date.addingTimeInterval(210))
         #expect(activity.contents.last?.state == engine.activityState)
 
         // A change after the window is its own update.
         try engine.adjustRest(by: 30)
+        #expect(await eventually { debounceClock.sleeperCount == 1 }, "the later change never armed the debounce")
+        debounceClock.advance(by: debounce)
         #expect(await eventually { activity.contents.count >= 3 }, "the later change never reached the activity")
-        try await Task.sleep(for: .milliseconds(240))
+        debounceClock.advance(by: debounce * 3)
+        for _ in 0..<20 { await Task.yield() }
+        #expect(debounceClock.sleeperCount == 0)
         #expect(activity.contents.count == 3)
         #expect(activity.contents.last?.staleDate == clock.date.addingTimeInterval(240))
     }

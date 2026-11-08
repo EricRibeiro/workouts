@@ -33,6 +33,7 @@ final class HealthEnrichmentService {
     private static let followUpRecheck: TimeInterval = 60
 
     @ObservationIgnored private let followUpDelay: Duration
+    @ObservationIgnored private let clock: any Clock<Duration>
     /// The pass loop in flight, if any. Stored so `turnOff` can wait for it: a pass applies results after each `await`,
     /// so clearing the data while one runs would be undone.
     @ObservationIgnored private var runningRefresh: Task<Void, Never>?
@@ -41,16 +42,23 @@ final class HealthEnrichmentService {
     @ObservationIgnored private var queuedRecheck: TimeInterval?
     /// Set when a backfill was requested while the loop ran; it follows the refresh in the next round.
     @ObservationIgnored private var queuedBackfill = false
-    @ObservationIgnored private var followUp: Task<Void, Never>?
+    /// The pending follow-up lookup; read by tests, which await it instead of sleeping.
+    @ObservationIgnored private(set) var followUp: Task<Void, Never>?
 
     /// While a backfill runs, how many of the workouts it will look at are done; nil otherwise. Settings shows it.
     private(set) var backfillProgress: (done: Int, total: Int)?
     @ObservationIgnored private let logger = Logger(subsystem: "com.ericribeiro.Workouts", category: "Health")
 
-    init(source: (any HealthSource)?, settings: SettingsStore, followUpDelay: Duration = .seconds(120)) {
+    init(
+        source: (any HealthSource)?,
+        settings: SettingsStore,
+        followUpDelay: Duration = .seconds(120),
+        clock: any Clock<Duration> = ContinuousClock()
+    ) {
         self.source = source
         self.settings = settings
         self.followUpDelay = followUpDelay
+        self.clock = clock
     }
 
     /// The service for this launch. DEBUG `-healthFixture <name>` wins; UI tests (`-uiTesting`) otherwise never touch real
@@ -228,9 +236,10 @@ final class HealthEnrichmentService {
         guard isActive else { return }
         followUp?.cancel()
         let delay = followUpDelay
+        let clock = clock
         Task { await refresh(context: context) }
         followUp = Task { [weak self] in
-            do { try await Task.sleep(for: delay) } catch { return }
+            do { try await clock.sleep(for: delay) } catch { return }
             await self?.refresh(context: context, recheckAfter: Self.followUpRecheck)
         }
     }
