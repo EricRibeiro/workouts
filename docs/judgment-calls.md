@@ -253,8 +253,8 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
 75. **Exercise info is a sheet, closed from the top** (2026-11-05): an informational, glanceable view over the current
     task is a sheet per the HIG; its system close button stays in the top bar (Eric asked for a bottom button, then agreed:
     every system sheet closes there, and a swipe down is the thumb gesture). The template preview presents the same sheet
-    over itself rather than pushing, so the two entry points look identical. A segment tap grows it to the large detent
-    (removed in JC107, restored in JC109).
+    over itself rather than pushing, so the two entry points look identical. A segment tap does not grow it
+    (removed in JC107, restored in JC109, removed again in JC117).
 76. **Health data has no section of its own** (2026-11-05, Fable spec): values sit in the workout header as peers of
     Duration/Volume; the only branding is "Data from Apple Health" (HealthKit HIG naming). No Activity-ring visuals (Apple
     reserves them for Move/Exercise/Stand). Zones collapse to one line when the workout never left zone 1.
@@ -302,7 +302,7 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
     exercise info sheet opts out of the Duo's vertical bar (`toolbarVerticalBehavior(.disabled)`) so its content uses the
     full width, and drops its ✕: it is a read-only, resizable sheet with a grabber, dismissed by swiping (HIG Modality:
     "a button in the top toolbar or swipe down"). This replaces the close-button half of JC75. The medium detent keeps
-    the full-size video; the rest of the content is one swipe or a segment tap away (true again since JC109; the segments
+    the full-size video; the rest of the content is one swipe or a segment tap away (true again since JC109, and kept by JC117 through the layout, not by growing the sheet; the segments
     sit right under the name at the medium detent).
 86. **The simulator pool looks after itself, and the full UI suite runs sharded** (2026-11-05, two Fable reviews):
     `./dev` shuts down pool clones idle 30 min (never the original, never one running the app), erases a clone after two
@@ -447,3 +447,4 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
 - **JC114 (2026-11-08, orchestrator, Eric asleep): the set keyboard's +/− on an empty cell steps from the greyed placeholder (Previous or plan) rather than from 0, the same source that checking a set fills from. Review R3W-4.**
 - **JC115 (2026-11-08, orchestrator, Eric asleep): folder headers put the chevron right after the title (no trailing spacer), so on the open Duo the header stays on one panel and its tap area no longer spans the hinge. Review R2-6.**
 - **JC116 (2026-11-08, orchestrator, review r5 nit): the heart-rate chart's Avg, like its Max, describes the plotted line (time-weighted over the clipped series, lead-in dropped), while the detail header's "Avg HR"/"Max" stats keep the Fitness workout's own stored numbers. The header reports what Apple Fitness recorded; the chart captions what it draws, so the two may differ by a few bpm when the Watch workout started early.**
+- **JC117 (2026-11-08, Eric): the exercise info sheet never grows on a segment tap, from any entry point. A sheet presented over the template preview sheet inside the tab shell ignores programmatic detent changes on iOS 27.2 (verified: the binding flips, the sheet stays at medium; deferring the change does not help), the active-workout path is a cover so it worked there, and Eric wants one behaviour everywhere rather than a hack. Supersedes the grow part of JC109; JC109's layout (segments right under the name at medium, sticky note leads About) stands.**

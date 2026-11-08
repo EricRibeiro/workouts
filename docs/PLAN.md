@@ -345,7 +345,7 @@ Live Activity → notifications → logging, then templates, exercises, history.
   - [x] Rest arc accent-coloured while running (toolbar ring, resume control, bench header), green in the grace.
   - [x] No rest caption under exercise names during a workout (template editor keeps it).
   - [x] Exercise info during a workout: tap the name (chevron after it) or the block menu's Exercise Info → shared
-    `ExerciseInfoSheet` (medium/large, system close, full-width uncropped media); a segment tap grows it to large (JC109). The
+    `ExerciseInfoSheet` (medium/large, system close, full-width uncropped media); the person drags it between medium and large (JC117). The
     template preview's ⓘ uses the same sheet.
   - [x] One-line exercise names in the active workout and the template preview (two at accessibility sizes).
   - [x] Resume control: ring + `dumbbell.fill` in every state (JC74).

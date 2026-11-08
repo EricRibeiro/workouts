@@ -7,12 +7,6 @@ import SwiftData
 import SwiftUI
 import WorkoutsKit
 
-extension EnvironmentValues {
-    /// Called when the person picks another segment (About, History, Charts, Records). Only the exercise info sheet sets
-    /// it, to expand from the medium to the large detent; nil everywhere else.
-    @Entry var onExerciseSegmentChange: (() -> Void)?
-}
-
 /// The exercise detail (task 4.2): a media header, the full wrapping name, and a segmented control over About,
 /// History, Charts and Records (4.3). `embedded` drops the navigation chrome (title, Edit) and the
 /// edge-to-edge hero (a rounded media card instead), for the logging pane; the sticky note leads the About segment (editable in both). Edit exists for custom exercises only.
@@ -41,7 +35,6 @@ struct ExerciseDetailView: View {
     /// The newest edit among finished workouts: with the store generation it keys the load without reading any rows. The
     /// rows themselves are read on a `WorkoutStatsReader`, never on the main thread.
     @Query(Workout.newestFinishedEdit) private var newest: [Workout]
-    @Environment(\.onExerciseSegmentChange) private var onSegmentChange
     @State private var segment: Segment
     @State private var detail = ExerciseDetailData.empty
     /// False until the first load lands: History, Charts and Records show a redacted placeholder rather than their empty
@@ -51,6 +44,10 @@ struct ExerciseDetailView: View {
     @State private var loadFailed = false
     /// Bumped by Retry; part of the load task's id, so it re-runs the read.
     @State private var retries = 0
+    /// Bumped at the start of every load; a result applies only while its serial is still the latest. This replaces a
+    /// `Task.isCancelled` check: a stray cancellation (iOS fires onDisappear right after a re-push's onAppear) must not
+    /// drop the data, while a superseded fingerprint's late result still must.
+    @State private var loadSerial = 0
     @State private var isEditing = false
     @State private var removals = 0
 
@@ -103,15 +100,18 @@ struct ExerciseDetailView: View {
                     retries: retries
                 )
             ) {
+                loadSerial += 1
+                let serial = loadSerial
                 await SlowLoads.delay()
-                await refreshDetail(weightType: info.weightType)
+                await refreshDetail(weightType: info.weightType, serial: serial)
             }
             .accessibilityIdentifier("screen.exerciseDetail")
     }
 
     /// Folds this exercise's history on a `WorkoutStatsReader` (its own context, off the main thread) and publishes the
     /// sessions, records and history here. What is shown stays until the new values arrive, so a refresh never blanks it.
-    private func refreshDetail(weightType: WeightType) async {
+    /// A result is dropped only when a newer load (`serial`) has started, never because this task was cancelled.
+    private func refreshDetail(weightType: WeightType, serial: Int) async {
         // The reader's context reads the store: flush edits the main context has not saved yet.
         context.saveIfChanged(reportingTo: saveErrors)
         do {
@@ -121,13 +121,13 @@ struct ExerciseDetailView: View {
                 weightType: weightType,
                 options: options
             )
-            guard !Task.isCancelled else { return }
+            guard serial == loadSerial else { return }
             detail = loaded
             detailLoaded = true
             loadFailed = false
         } catch {
             // Keep what is already on screen; with nothing loaded yet, say so and offer Retry instead of empty states.
-            if !detailLoaded, !Task.isCancelled { loadFailed = true }
+            if !detailLoaded, serial == loadSerial { loadFailed = true }
         }
     }
 
@@ -185,8 +185,6 @@ struct ExerciseDetailView: View {
             .pickerStyle(.segmented)
             .accessibilityLabel("Section")
             .accessibilityIdentifier("exerciseDetail.segment")
-            // `onChange` ignores the initial value, so this fires only for a tap on another segment.
-            .onChange(of: segment) { onSegmentChange?() }
         }
         .padding(.horizontal)
     }

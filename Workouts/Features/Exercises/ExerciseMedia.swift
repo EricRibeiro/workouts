@@ -138,6 +138,10 @@ struct ExerciseMediaHeader: View {
     @State private var videoReady = false
     /// Reduce Motion only: whether the person has started the video (it never autoplays then).
     @State private var userPlaying = false
+    /// Bumped by every video load; a fetched video is installed only while its serial is still the latest. Not
+    /// `Task.isCancelled`: iOS fires a stray onDisappear right after a re-push's onAppear, which cancels the task but
+    /// must not lose the video, while a colour-scheme change mid-fetch (a new load) still must.
+    @State private var videoSerial = 0
     @State private var heroCap: CGFloat = .infinity
     @Environment(\.exerciseHeroCapped) private var heroCapped
     @Environment(\.exerciseInfoSheetContent) private var inInfoSheet
@@ -252,19 +256,11 @@ struct ExerciseMediaHeader: View {
         ZStack {
             Color.videoBackground
             if let startURL {
-                AsyncImage(url: startURL) {
-                    $0.resizable().scaledToFit()
-                } placeholder: {
-                    Color.clear
-                }
+                BundledStill(url: startURL)
             }
             if let endURL {
-                AsyncImage(url: endURL) {
-                    $0.resizable().scaledToFit()
-                } placeholder: {
-                    Color.clear
-                }
-                .opacity(showsEnd ? 1 : 0)
+                BundledStill(url: endURL)
+                    .opacity(showsEnd ? 1 : 0)
             }
         }
         .accessibilityElement(children: .ignore)
@@ -273,6 +269,8 @@ struct ExerciseMediaHeader: View {
     }
 
     private func loadVideo() async {
+        videoSerial += 1
+        let serial = videoSerial
         video = nil
         videoReady = false
         userPlaying = false
@@ -280,10 +278,24 @@ struct ExerciseMediaHeader: View {
         let scheme: MediaScheme = colorScheme == .dark ? .dark : .light
         guard let url = try? await ExerciseMedia.store.video(for: library.sourceId, scheme: scheme) else { return }
         // The store's fetch is not cancelled with this task: a stale scheme's result must not replace the current one.
-        guard !Task.isCancelled else { return }
+        guard serial == videoSerial else { return }
         let looping = LoopingPlayer(url: url)
         video = looping
         if !reduceMotion { looping.player.play() }
+    }
+}
+
+/// A still read straight from the app bundle (~10 KB PNGs). `AsyncImage` is not used: it never retries a load that a stray
+/// disappearance cancelled, which left the hero blank.
+private struct BundledStill: View {
+    let url: URL
+
+    var body: some View {
+        if let image = UIImage(contentsOfFile: url.path) {
+            Image(uiImage: image).resizable().scaledToFit()
+        } else {
+            Color.clear
+        }
     }
 }
 

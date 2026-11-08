@@ -16,7 +16,8 @@ struct ExerciseInfoItem: Identifiable {
 /// Close button: the sheet dismisses by swiping down (and VoiceOver's escape gesture), and its grabber stays visible.
 struct ExerciseInfoSheet: View {
     let exerciseID: UUID
-    /// Starts at half height; picking a segment means "show me what is below", so it grows to full height. DEBUG can start it large.
+    /// Starts at half height and only the person's drag changes it. A segment tap does not grow it: a sheet nested in the tab
+    /// shell ignores programmatic detent changes on iOS 27.2, so the behaviour would differ by entry point. DEBUG can start it large.
     @State private var detent: PresentationDetent = Self.initialDetent
     /// The size the sheet's content has right now (it changes with the detent and the pose).
     @State private var contentSize: CGSize = CGSize(width: CGFloat.infinity, height: CGFloat.infinity)
@@ -65,7 +66,6 @@ struct ExerciseInfoSheet: View {
                 // A sheet over the tab shell cannot navigate it: opening a workout would switch tabs behind the sheet.
                 // Without `AppNavigation` the history sessions and records render as plain rows (as in the cover).
                 .environment(AppNavigation?.none)
-                .environment(\.onExerciseSegmentChange) { detent = .large }
                 // The closed Duo gives a sheet a vertical bar strip by default, which reserves the trailing column
                 // for one Close button. This sheet is better with the full width, so its bar stays horizontal
                 // (docs: `toolbarVerticalBehavior(_:)`, "opt out of the vertical bar"). A fixed choice, never toggled.
