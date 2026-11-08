@@ -136,13 +136,14 @@ struct WorkoutDetailView: View {
         }
     }
 
-    private var inputs: Inputs {
-        Inputs(
+    private var inputs: WorkoutDetailInputs {
+        WorkoutDetailInputs(
             workout: current.first,
             newestEdit: newest.first?.updatedAt,
             generation: generation?.value ?? 0,
             unit: settings?.defaultUnit,
-            formula: settings?.e1rmFormula
+            formula: settings?.e1rmFormula,
+            weightTypes: store.weightTypes
         )
     }
 
@@ -300,7 +301,7 @@ struct WorkoutDetailView: View {
 
 /// What the detail is derived from: changes when a finished workout is added, removed or edited, or a setting that
 /// changes the numbers does, so the detail is recomputed then and not on every body evaluation.
-private struct Inputs: Hashable {
+struct WorkoutDetailInputs: Hashable {
     /// The workout's own identity and stamp: nil once it is gone, a new stamp after an edit of it.
     let workoutID: UUID?
     let workoutEdit: Date?
@@ -309,14 +310,25 @@ private struct Inputs: Hashable {
     let generation: Int
     let unit: WeightUnit?
     let formula: E1RMFormula?
+    /// A custom exercise's weight type edit changes the volume, best set and PRs without touching any workout
+    /// (the same signal `HistoryView` and `ExercisesView` reload on).
+    let weightTypes: [UUID: WeightType]
 
-    init(workout: Workout?, newestEdit: Date?, generation: Int, unit: WeightUnit?, formula: E1RMFormula?) {
+    init(
+        workout: Workout?,
+        newestEdit: Date?,
+        generation: Int,
+        unit: WeightUnit?,
+        formula: E1RMFormula?,
+        weightTypes: [UUID: WeightType]
+    ) {
         workoutID = workout?.id
         workoutEdit = workout?.updatedAt
         self.newestEdit = newestEdit
         self.generation = generation
         self.unit = unit
         self.formula = formula
+        self.weightTypes = weightTypes
     }
 }
 

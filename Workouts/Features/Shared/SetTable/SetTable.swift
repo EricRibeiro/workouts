@@ -85,7 +85,9 @@ struct SetTable: View {
         .animation(.snappy, value: sections.flatMap { $0.rows.map(\.id) })
         .setKeyboardToolbar(
             step: { direction in step(direction, in: sections) },
-            previous: { if let field = focus { source.applyPrevious(to: field.setID) } },
+            // Only the active workout has a previous set to copy; the template and past editors get no Previous key.
+            previous: source.mode == .active
+                ? { if let field = focus { source.applyPrevious(to: field.setID) } } : nil,
             next: { focusNext(in: sections) },
             done: { focus = nil },
             rest: source.rest,
@@ -390,7 +392,8 @@ struct SetTable: View {
             column: field.column,
             direction: direction,
             unit: row.unit,
-            weightType: row.weightType
+            weightType: row.weightType,
+            placeholder: field.column == .weight ? row.weightPlaceholder : row.repsPlaceholder
         )
         switch field.column {
         case .weight: source.commitWeight(SetInputFormat.parseWeight(text), for: row.id)

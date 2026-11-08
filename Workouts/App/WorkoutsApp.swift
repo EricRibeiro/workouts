@@ -79,6 +79,7 @@ struct WorkoutsApp: App {
             #if DEBUG
                 try Self.startSampleWorkoutIfRequested(engine: engine, context: context)
                 try Self.seedOldWorkoutIfRequested(context: context)
+                RestExpirySeam.install(engine: engine, context: context)
             #endif
             notifier.observe(engine)
             if Self.wantsLiveActivity {

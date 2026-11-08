@@ -53,6 +53,38 @@ import Testing
         #expect(go("0.333", .increment) == "1.58")
     }
 
+    @Test func emptyCellStepsFromItsPlaceholder() {
+        func weight(_ text: String, _ placeholder: String, _ direction: SetKeyboard.Direction) -> String {
+            SetKeyboard.stepped(
+                text,
+                column: .weight,
+                direction: direction,
+                unit: .kg,
+                weightType: .barbell,
+                placeholder: placeholder
+            )
+        }
+        func reps(_ text: String, _ placeholder: String, _ direction: SetKeyboard.Direction) -> String {
+            SetKeyboard.stepped(
+                text,
+                column: .reps,
+                direction: direction,
+                unit: .kg,
+                weightType: .barbell,
+                placeholder: placeholder
+            )
+        }
+        #expect(weight("", "60", .increment) == "62.5")
+        #expect(weight("", "60", .decrement) == "57.5")
+        #expect(reps("", "8", .increment) == "9")
+        #expect(reps("", "8", .decrement) == "7")
+        // A typed value wins over the placeholder; no usable placeholder steps from 0.
+        #expect(weight("70", "60", .increment) == "72.5")
+        #expect(weight("", "–", .increment) == "2.5")
+        #expect(reps("", "–", .decrement) == "0")
+        #expect(reps("", "", .increment) == "1")
+    }
+
     @Test func steppingRepsAndTime() {
         func go(_ text: String, _ direction: SetKeyboard.Direction) -> String {
             SetKeyboard.stepped(text, column: .reps, direction: direction, unit: .kg, weightType: .barbell)

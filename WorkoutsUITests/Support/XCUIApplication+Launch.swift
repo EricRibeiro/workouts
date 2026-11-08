@@ -38,6 +38,18 @@ extension XCUIApplication {
         return result
     }
 
+    /// Expires the running rest at once through the app's Debug seam (`RestExpirySeam`): the ring/label then go through the
+    /// real "over" state and the 3 s grace, without the test waiting on a countdown. Start the rest, assert it runs, then call this.
+    func expireRestNow() {
+        CFNotificationCenterPostNotification(
+            CFNotificationCenterGetDarwinNotifyCenter(),
+            CFNotificationName("com.ericribeiro.Workouts.debug.expireRest" as CFString),
+            nil,
+            nil,
+            true
+        )
+    }
+
     /// The `-preview <name>` gallery screen, waiting for `screen` when given.
     @MainActor
     static func launchedPreview(

@@ -119,6 +119,25 @@ final class LoggingUITests: XCTestCase {
         )
     }
 
+    /// The Previous key belongs to the active workout (the template and past editors hide it): once the keyboard is up it is there.
+    @MainActor
+    func testKeyboardOffersPreviousInAnActiveWorkout() throws {
+        let app = XCUIApplication.launchedInActiveWorkout()
+        let weight = app.textFields.matching(
+            NSPredicate(format: "identifier BEGINSWITH 'setrow.' AND identifier ENDSWITH '.weight'")
+        )
+        .element(boundBy: 0)
+        XCTAssertTrue(weight.waitForExistence(timeout: 10))
+        weight.tap()
+        XCTAssertTrue(app.buttons["setkeyboard.plus"].firstMatch.waitForExistence(timeout: 5), "keyboard group missing")
+        // On the compact (closed) display the system folds Previous into the keyboard bar's More menu.
+        let key = app.descendants(matching: .any)["setkeyboard.previous"].firstMatch
+        if !key.exists { app.buttons["More"].firstMatch.tap() }
+        // Folded, the key has no identifier but keeps its "Previous" label (the set rows' buttons read "Previous 55 kg × 5").
+        let copy = app.buttons["Previous"].firstMatch
+        XCTAssertTrue(key.exists || copy.waitForExistence(timeout: 5), "no Previous key in the active workout")
+    }
+
     /// PLAN 7.7: checking a set clears focus, so the system keyboard goes down and the set reads Done.
     @MainActor
     func testCheckingSetDismissesKeyboard() throws {

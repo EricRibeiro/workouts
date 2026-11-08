@@ -211,7 +211,8 @@ struct SetRow: View {
                     column: .weight,
                     direction: direction,
                     unit: model.unit,
-                    weightType: model.weightType
+                    weightType: model.weightType,
+                    placeholder: model.weightPlaceholder
                 )
                 onCommitWeight(SetInputFormat.parseWeight(text))
             }
@@ -237,7 +238,8 @@ struct SetRow: View {
                     column: .reps,
                     direction: direction,
                     unit: model.unit,
-                    weightType: model.weightType
+                    weightType: model.weightType,
+                    placeholder: model.repsPlaceholder
                 )
                 onCommitReps(SetInputFormat.parseCount(text))
             }

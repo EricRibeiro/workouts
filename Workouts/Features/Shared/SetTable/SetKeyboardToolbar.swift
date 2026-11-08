@@ -15,7 +15,8 @@ import WorkoutsKit
 /// While a rest runs (`rest` non-nil) the bar starts with its countdown (never folded), Skip and +30 s (folded first).
 struct SetKeyboardToolbar: ViewModifier {
     let step: (SetKeyboard.Direction) -> Void
-    let previous: () -> Void
+    /// nil hides the Previous key: only the active-workout table has a previous set to copy.
+    let previous: (() -> Void)?
     let next: () -> Void
     let done: () -> Void
     var rest: SetTableRest?
@@ -78,11 +79,13 @@ struct SetKeyboardToolbar: ViewModifier {
                     .accessibilityLabel("Increase by \(stepDescription)")
                     .accessibilityIdentifier("setkeyboard.plus")
 
-                    Button(action: previous) {
-                        Label("Previous", systemImage: "arrow.uturn.backward")
+                    if let previous {
+                        Button(action: previous) {
+                            Label("Previous", systemImage: "arrow.uturn.backward")
+                        }
+                        .accessibilityLabel("Copy previous set")
+                        .accessibilityIdentifier("setkeyboard.previous")
                     }
-                    .accessibilityLabel("Copy previous set")
-                    .accessibilityIdentifier("setkeyboard.previous")
                 }
 
                 ToolbarItemGroup(placement: .keyboard) {
@@ -108,7 +111,7 @@ extension View {
     /// Installs the set keyboard's accessory group; see `SetKeyboardToolbar`.
     func setKeyboardToolbar(
         step: @escaping (SetKeyboard.Direction) -> Void,
-        previous: @escaping () -> Void,
+        previous: (() -> Void)?,
         next: @escaping () -> Void,
         done: @escaping () -> Void,
         rest: SetTableRest? = nil,

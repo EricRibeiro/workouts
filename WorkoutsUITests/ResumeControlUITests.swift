@@ -38,15 +38,26 @@ final class ResumeControlUITests: XCTestCase {
     /// falls back to the elapsed time.
     @MainActor
     func testRingSaysRestOverThenElapsed() throws {
-        let app = XCUIApplication.launchedInActiveWorkout(["-sampleRestSeconds", "8"])
+        let app = XCUIApplication.launchedInActiveWorkout(["-sampleNoRest"])
         let ring = app.buttons["resume.ring"].firstMatch
+        // Start a rest from the cover's ring, then minimise.
+        let restRing = app.buttons["rest.ring"].firstMatch
+        XCTAssertTrue(restRing.waitForExistence(timeout: 10), "no rest ring")
+        restRing.tap()
+        let preset = app.buttons["rest.preset.60"].firstMatch
+        XCTAssertTrue(preset.waitForExistence(timeout: 5))
+        preset.tap()
         app.buttons["cover.minimise"].firstMatch.tap()
         XCTAssertTrue(ring.waitForExistence(timeout: 10))
-        XCTAssertTrue(ring.label.contains("rest "), "label \(ring.label)")
+        // Running: "Resume workout, rest m:ss" (not "rest over", which also contains "rest ").
+        let running = NSPredicate(format: "label MATCHES '.*rest [0-9]+:[0-9]{2}.*'")
+        expectation(for: running, evaluatedWith: ring)
+        waitForExpectations(timeout: 10)
 
+        app.expireRestNow()
         let over = NSPredicate(format: "label CONTAINS 'rest over'")
         expectation(for: over, evaluatedWith: ring)
-        waitForExpectations(timeout: 15)
+        waitForExpectations(timeout: 10)
         XCTAssertFalse(ring.label.contains("0:00"), "label \(ring.label)")
 
         // 3 s grace, then the engine forgets the rest and the label reads the elapsed time.

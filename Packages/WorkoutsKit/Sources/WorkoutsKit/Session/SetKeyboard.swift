@@ -53,16 +53,20 @@ public nonisolated enum SetKeyboard {
         }
     }
 
-    /// The field text after a −/+ press: the current value (empty or unparsable counts as 0) moved by one step, never below
-    /// 0, weights at most 2 decimals, reps and time whole numbers (web `applyKey`).
+    /// The field text after a −/+ press: the current value moved by one step, never below 0, weights at most 2 decimals,
+    /// reps and time whole numbers (web `applyKey`). An empty cell steps from its greyed `placeholder` (the Previous / plan
+    /// value checking the set would fill in; JC114), so a cell showing 60 goes to 62.5 on +. Without a usable placeholder
+    /// (the default, or "–"), and for unparsable text, the base is 0.
     public static func stepped(
         _ text: String,
         column: Column,
         direction: Direction,
         unit: WeightUnit,
-        weightType: WeightType
+        weightType: WeightType,
+        placeholder: String = ""
     ) -> String {
         let size = step(column: column, unit: unit, weightType: weightType)
+        let text = text.trimmingCharacters(in: .whitespaces).isEmpty ? placeholder : text
         switch column {
         case .weight:
             let current = SetInputFormat.parseWeight(text) ?? 0

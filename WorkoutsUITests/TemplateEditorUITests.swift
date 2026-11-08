@@ -51,11 +51,19 @@ final class TemplateEditorUITests: XCTestCase {
         )
         .element(boundBy: 0)
         XCTAssertTrue(weight.waitForExistence(timeout: 5), "no weight field")
-        XCTAssertEqual(app.descendants(matching: .any).matching(identifier: "setkeyboard.previous").count, 0)
         let before = (weight.value as? String) ?? ""
         weight.tap()
         let plus = app.buttons["setkeyboard.plus"].firstMatch
         XCTAssertTrue(plus.waitForExistence(timeout: 5), "keyboard group missing")
+        // Not drawn, and nothing is folded into the bar's More menu that could hide it (a folded key keeps its "Previous"
+        // label, no identifier).
+        XCTAssertFalse(app.buttons["More"].exists, "the keyboard bar folded a key into More")
+        XCTAssertEqual(
+            app.descendants(matching: .any).matching(identifier: "setkeyboard.previous").count,
+            0,
+            "the template editor has no previous set to copy"
+        )
+        XCTAssertFalse(app.buttons["Previous"].exists, "the template editor has no previous set to copy")
         plus.tap()
         XCTAssertNotEqual(before, (weight.value as? String) ?? "", "the step did not change the weight")
         app.buttons["setkeyboard.done"].firstMatch.tap()

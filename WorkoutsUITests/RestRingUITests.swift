@@ -108,38 +108,59 @@ final class RestRingUITests: XCTestCase {
         XCTAssertEqual(preset45.label, "Rest 0:45")
     }
 
+    /// Starts a rest of `seconds` from the idle ring's menu and waits until the ring shows it running ("Rest timer, m:ss").
+    @MainActor
+    private func startRest(_ seconds: Int, in app: XCUIApplication) {
+        let ring = app.buttons["rest.ring"].firstMatch
+        XCTAssertTrue(ring.waitForExistence(timeout: 10), "no rest ring")
+        XCTAssertEqual(ring.label, "Rest timer", "a rest was already running")
+        ring.tap()
+        let preset = app.buttons["rest.preset.\(seconds)"].firstMatch
+        XCTAssertTrue(preset.waitForExistence(timeout: 5), "no \(seconds) s preset")
+        preset.tap()
+        expectation(for: NSPredicate(format: "label BEGINSWITH 'Rest timer, '"), evaluatedWith: ring)
+        waitForExpectations(timeout: 5)
+    }
+
     /// The running sheet left open while the rest expires goes away with it and does not reopen at the next rest.
     @MainActor
     func testRunningSheetClosesWithTheRestAndStaysClosedForTheNext() throws {
-        let app = XCUIApplication.launchedInActiveWorkout(["-sampleRestSeconds", "8"])
+        let app = XCUIApplication.launchedInActiveWorkout(["-sampleNoRest"])
         let ring = app.buttons["rest.ring"].firstMatch
         let sheet = app.buttons["rest.plus10"].firstMatch
-        XCTAssertTrue(ring.waitForExistence(timeout: 10))
+        startRest(60, in: app)
         ring.tap()
         XCTAssertTrue(sheet.waitForExistence(timeout: 5), "the running sheet did not open")
-        // 8 s rest + 3 s grace: the engine forgets the rest and the sheet must close with it.
+        // The rest expires (the Debug seam); after the 3 s grace the engine forgets it and the sheet must close with it.
+        app.expireRestNow()
         XCTAssertTrue(sheet.waitForNonExistence(timeout: 25), "the sheet stayed open after the rest ended")
 
         XCTAssertTrue(ring.waitForExistence(timeout: 5))
+        expectation(for: NSPredicate(format: "label == 'Rest timer'"), evaluatedWith: ring)
+        waitForExpectations(timeout: 10)
         ring.tap()
         let preset = app.buttons["rest.preset.60"].firstMatch
         XCTAssertTrue(preset.waitForExistence(timeout: 5))
         preset.tap()
         XCTAssertTrue(ring.waitForExistence(timeout: 5))
+        expectation(for: NSPredicate(format: "label BEGINSWITH 'Rest timer, '"), evaluatedWith: ring)
+        waitForExpectations(timeout: 5)
         XCTAssertFalse(sheet.waitForExistence(timeout: 2), "the sheet reopened by itself at the next rest")
     }
 
-    /// A 3 s rest ends on its own: the ring returns to idle after the grace. The success haptic and ok tint are
-    /// timer-driven but cannot be asserted from XCUITest.
+    /// A rest that expires reads "Rest over" through the grace, then the ring returns to idle. The success haptic and ok tint
+    /// are timer-driven but cannot be asserted from XCUITest.
     @MainActor
     func testRestEndsAndRingReturnsToIdle() throws {
-        let app = XCUIApplication.launchedInActiveWorkout(["-sampleRestSeconds", "3"])
-        let any = app.descendants(matching: .any)
+        let app = XCUIApplication.launchedInActiveWorkout(["-sampleNoRest"])
         let ring = app.buttons["rest.ring"].firstMatch
-        XCTAssertTrue(ring.waitForExistence(timeout: 10))
-        // 3 s rest + 3 s grace + loop tick; the idle ring's label is plain "Rest timer" (the grace reads "Rest over").
-        let idle = NSPredicate(format: "label == 'Rest timer'")
-        expectation(for: idle, evaluatedWith: ring)
+        startRest(30, in: app)
+        app.expireRestNow()
+        // The grace reads "Rest over" (an exact label: the idle label is also what a rest that never started shows)...
+        expectation(for: NSPredicate(format: "label == 'Rest over'"), evaluatedWith: ring)
+        waitForExpectations(timeout: 10)
+        // ...and 3 s later the engine forgets the rest and the idle label is back.
+        expectation(for: NSPredicate(format: "label == 'Rest timer'"), evaluatedWith: ring)
         waitForExpectations(timeout: 12)
         XCTAssertEqual(ring.label, "Rest timer")
     }
@@ -148,8 +169,8 @@ final class RestRingUITests: XCTestCase {
     /// accessory's countdown goes away and focus stays. The cover's `RestExpiryWatcher` owns this, not the ring.
     @MainActor
     func testRestEndsWhileSetFieldHasFocus() throws {
-        let app = XCUIApplication.launchedInActiveWorkout(["-sampleRestSeconds", "10"])
-        XCTAssertTrue(app.buttons["rest.ring"].firstMatch.waitForExistence(timeout: 10), "no rest running")
+        let app = XCUIApplication.launchedInActiveWorkout(["-sampleNoRest"])
+        startRest(30, in: app)
         let weight = app.textFields.matching(
             NSPredicate(format: "identifier BEGINSWITH 'setrow.' AND identifier ENDSWITH '.weight'")
         )
@@ -158,7 +179,8 @@ final class RestRingUITests: XCTestCase {
         weight.tap()
         let countdown = app.staticTexts["rest.keyboard.countdown"].firstMatch
         XCTAssertTrue(countdown.waitForExistence(timeout: 5), "no countdown in the keyboard accessory")
-        // Up to 10 s rest + 3 s grace + loop tick.
+        // The rest expires (the Debug seam); 3 s grace + loop tick later it is forgotten.
+        app.expireRestNow()
         XCTAssertTrue(countdown.waitForNonExistence(timeout: 20), "the over rest stayed in the keyboard accessory")
         XCTAssertTrue(app.buttons["setkeyboard.done"].firstMatch.exists, "focus left the set field")
     }
