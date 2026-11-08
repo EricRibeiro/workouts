@@ -74,9 +74,14 @@ struct SetTable: View {
                     let section = sections.first(where: { $0.rows.contains { $0.id == field.setID } })
                 else { return }
                 focusedSection.wrappedValue = section.id
-                // Keyboard avoidance lifts the content above the keyboard but not above the floating keyboard toolbar
-                // pill, which would hide the focused row; centring it keeps it clear of both.
-                withAnimation(.snappy) { proxy.scrollTo(field.setID, anchor: .center) }
+                revealFocusedRow(proxy)
+            }
+            // The keyboard inset settles after the focus change when the keyboard is still animating (a tap on another
+            // cell while a check or Done dismissal is in flight), so the one scroll above was computed against a stale
+            // inset; centre again whenever it grows. Only growth: an interactive drag-to-dismiss shrinks it while the
+            // field is still focused, and re-centring then would fight the drag.
+            .onGeometryChange(for: CGFloat.self, of: { $0.safeAreaInsets.bottom.rounded() }) { old, new in
+                if new > old { revealFocusedRow(proxy) }
             }
         }
         .swipeActionsContainer()
@@ -427,6 +432,13 @@ struct SetTable: View {
         let accepted = source.toggleCheck(of: row.id)
         if accepted && !wasChecked { focus = nil }
         return accepted
+    }
+
+    /// Keyboard avoidance lifts the content above the keyboard but not above the floating keyboard toolbar pill, which
+    /// would hide the focused row; centring it keeps it clear of both.
+    private func revealFocusedRow(_ proxy: ScrollViewProxy) {
+        guard let field = focus else { return }
+        withAnimation(.snappy) { proxy.scrollTo(field.setID, anchor: .center) }
     }
 
     private func focusNext(in sections: [SetTableSection]) {

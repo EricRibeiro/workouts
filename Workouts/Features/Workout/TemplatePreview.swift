@@ -86,11 +86,13 @@ struct TemplatePreview: View {
         VStack(alignment: .leading, spacing: 4) {
             if let folder = template.folder {
                 Label(folder.name, systemImage: "folder")
+                    .labelStyle(.fixedIcon)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
             if !indexLoaded {
                 Label("Last performed · Yesterday", systemImage: "clock")
+                    .labelStyle(.fixedIcon)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .redacted(reason: .placeholder)
@@ -98,6 +100,7 @@ struct TemplatePreview: View {
                     .accessibilityIdentifier("template.preview.lastPerformed.loading")
             } else if let lastPerformed {
                 Label("Last performed · \(lastPerformed)", systemImage: "clock")
+                    .labelStyle(.fixedIcon)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .accessibilityIdentifier("template.preview.lastPerformed")

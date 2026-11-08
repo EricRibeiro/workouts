@@ -19,6 +19,9 @@ enum Metrics {
     static let supersetBarWidth: CGFloat = 4
     /// Text indent that clears the superset bar on a template card or preview line.
     static let supersetBarIndent: CGFloat = 9
+    /// Base width of the set-label column (1, 2, W, F…) in every set list; each view scales it with `@ScaledMetric(relativeTo: .body)`
+    /// so the "175 kg × 5" text starts at the same x in every row and on every screen.
+    static let setLabelWidth: CGFloat = 28
     /// Corner radius of a sticky note, in the exercise detail and under a set row.
     static let stickyNoteCornerRadius: CGFloat = 10
 }

@@ -334,8 +334,9 @@ struct WorkoutDetailInputs: Hashable {
 
 // MARK: - Header
 
-/// Date (with the weather, when Health had it), the stats and the note. Duration, volume and records are always
-/// there; Active, Avg HR and Effort join them only when the matched Health workout has the value.
+/// Date (with the weather, when Health had it), the stats and the note. Duration and volume are always there, Records
+/// when there are any; Active, Total, Avg HR, Max HR and Effort join them only when the matched Health workout has the
+/// value. Every tile is one caption line plus one value line, so the grid rows stay aligned.
 struct DetailHeader: View {
     let detail: WorkoutDetail
     let health: HealthWorkoutSummary?
@@ -380,44 +381,34 @@ struct DetailHeader: View {
         stat("Duration", detail.durationText)
         stat("Volume", detail.volumeText)
         if detail.prCount > 0 {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Records")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Label(HistoryList.prText(count: detail.prCount), systemImage: "trophy.fill")
-                    .font(.headline)
-                    .foregroundStyle(.primary)
-            }
+            stat("Records", HistoryList.prText(count: detail.prCount), symbol: "trophy.fill", tint: .yellow)
         }
         if let health {
             if let active = health.activeEnergyKcal {
-                stat(
-                    "Active",
-                    FitnessFormat.wholeNumber(active),
-                    unit: "kcal",
-                    symbol: "flame.fill",
-                    tint: .orange,
-                    secondary: health.totalEnergyKcal.map { "Total \(FitnessFormat.wholeNumber($0))" }
-                )
+                stat("Active", FitnessFormat.wholeNumber(active), unit: "kcal", symbol: "flame.fill", tint: .orange)
+            }
+            if let total = health.totalEnergyKcal {
+                stat("Total", FitnessFormat.wholeNumber(total), unit: "kcal", symbol: "flame", tint: .orange)
             }
             if let average = health.avgHeartRate {
+                stat("Avg HR", FitnessFormat.wholeNumber(average), unit: "bpm", symbol: "heart.fill", tint: .red)
+            }
+            if let maximum = health.maxHeartRate {
                 stat(
-                    "Avg HR",
-                    FitnessFormat.wholeNumber(average),
+                    "Max HR",
+                    FitnessFormat.wholeNumber(maximum),
                     unit: "bpm",
-                    symbol: "heart.fill",
-                    tint: .red,
-                    secondary: health.maxHeartRate.map { "Max \(FitnessFormat.wholeNumber($0))" }
+                    symbol: "arrow.up.heart.fill",
+                    tint: .red
                 )
             }
             if let effort = health.effort {
                 stat(
-                    "Effort",
+                    effort.isEstimated ? "Est. Effort" : "Effort",
                     "\(FitnessFormat.wholeScore(effort.score))",
                     unit: effort.word,
                     symbol: "gauge.with.dots.needle.67percent",
                     tint: .purple,
-                    secondary: effort.isEstimated ? "Estimated" : nil,
                     hierarchical: true
                 )
             }
@@ -430,7 +421,6 @@ struct DetailHeader: View {
         unit: String? = nil,
         symbol: String? = nil,
         tint: Color = .primary,
-        secondary: String? = nil,
         hierarchical: Bool = false
     ) -> some View {
         VStack(alignment: .leading, spacing: 2) {
@@ -451,11 +441,6 @@ struct DetailHeader: View {
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
-            }
-            if let secondary {
-                Text(secondary)
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
             }
         }
     }
@@ -496,6 +481,8 @@ struct DetailHeader: View {
 private struct ExerciseBlockView: View {
     let block: WorkoutDetail.ExerciseBlock
 
+    @ScaledMetric(relativeTo: .body) private var labelWidth = Metrics.setLabelWidth
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             if let number = block.supersetNumber {
@@ -515,7 +502,7 @@ private struct ExerciseBlockView: View {
                     Text(line.label)
                         .font(.subheadline.bold().monospacedDigit())
                         .foregroundStyle(line.kind.color)
-                        .frame(minWidth: 28, alignment: .leading)
+                        .frame(width: labelWidth, alignment: .leading)
                     Text(line.text)
                         .font(.body.monospacedDigit())
                     Spacer(minLength: 0)

@@ -59,6 +59,7 @@ struct ExerciseRow: View {
         if !trailing.isEmpty {
             Text(trailing)
                 .font(.subheadline)
+                .monospacedDigit()
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(dynamicTypeSize.isAccessibilitySize ? .leading : .trailing)
         }

@@ -17,6 +17,7 @@ struct ExerciseHistoryView: View {
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(AppNavigation.self) private var navigation: AppNavigation?
+    @ScaledMetric(relativeTo: .body) private var labelWidth = Metrics.setLabelWidth
 
     var body: some View {
         if sessions.isEmpty {
@@ -117,7 +118,7 @@ struct ExerciseHistoryView: View {
             Text(set.label)
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(set.kind == .normal ? Color.secondary : set.kind.color)
-                .frame(minWidth: 24, alignment: .leading)
+                .frame(width: labelWidth, alignment: .leading)
             Text(set.text)
                 .font(.body)
                 .monospacedDigit()

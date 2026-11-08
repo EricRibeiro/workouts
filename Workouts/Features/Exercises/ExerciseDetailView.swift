@@ -312,6 +312,8 @@ extension View {
 /// What History, Charts and Records show while their first load is in flight: two session-shaped cards of redacted
 /// placeholder rows, so the segment keeps its footprint and nothing claims "no history" before the data has arrived.
 private struct ExerciseDetailLoadingPlaceholder: View {
+    @ScaledMetric(relativeTo: .body) private var labelWidth = Metrics.setLabelWidth
+
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             ForEach(0..<2, id: \.self) { _ in card }
@@ -332,7 +334,7 @@ private struct ExerciseDetailLoadingPlaceholder: View {
             ForEach(1...3, id: \.self) { number in
                 Divider()
                 HStack(alignment: .firstTextBaseline, spacing: 12) {
-                    Text("\(number)").font(.subheadline.weight(.semibold)).frame(minWidth: 24, alignment: .leading)
+                    Text("\(number)").font(.subheadline.weight(.semibold)).frame(width: labelWidth, alignment: .leading)
                     Text("100 kg × 10").font(.body)
                     Spacer(minLength: 8)
                 }

@@ -29,7 +29,7 @@ struct SetRow: View {
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @ScaledMetric(relativeTo: .body) private var touch = 44.0
-    @ScaledMetric(relativeTo: .body) private var labelWidth = 28.0
+    @ScaledMetric(relativeTo: .body) private var labelWidth = Metrics.setLabelWidth
     @State private var refusedCount = 0
     @State private var showsRefusal = false
 

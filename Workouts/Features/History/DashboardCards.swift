@@ -33,6 +33,7 @@ struct DashboardCard<Content: View>: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
                 Label(title, systemImage: systemImage)
+                    .labelStyle(.fixedIcon)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.tint)
                 Spacer(minLength: 4)
@@ -153,11 +154,13 @@ struct DashboardCards: View {
             }
             if let calories {
                 Label(calories + " active", systemImage: "flame.fill")
+                    .labelStyle(.fixedIcon)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
             if let heartRate {
                 Label(heartRate + " avg", systemImage: "heart.fill")
+                    .labelStyle(.fixedIcon)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }

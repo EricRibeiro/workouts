@@ -330,7 +330,7 @@ struct HistoryView: View {
                     .accessibilityHidden(true)
             }
             .padding(12)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .background(.background.secondary, in: .rect(cornerRadius: 12))
             .contentShape(.rect(cornerRadius: 12))
         }

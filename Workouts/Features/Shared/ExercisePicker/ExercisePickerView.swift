@@ -177,6 +177,8 @@ private struct ExercisePickerRow: View {
     let action: () -> Void
     let about: () -> Void
 
+    @ScaledMetric(relativeTo: .body) private var glyphWidth = 28.0
+
     var body: some View {
         let subtitle = ExerciseFilter.subtitle(for: info, labels: labels)
         HStack(spacing: 12) {
@@ -186,6 +188,7 @@ private struct ExercisePickerRow: View {
                         Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                             .foregroundStyle(isSelected ? Color.accentColor : .secondary)
                             .imageScale(.large)
+                            .frame(width: glyphWidth)
                             .accessibilityHidden(true)
                     }
                     ExerciseRow(info: info, subtitle: subtitle)

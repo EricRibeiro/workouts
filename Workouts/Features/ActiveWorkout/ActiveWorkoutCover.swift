@@ -219,7 +219,7 @@ struct ActiveWorkoutCover: View {
         } message: {
             Text(renameError ?? "")
         }
-        .navigationSubtitle(subtitle(startedAt: workout.startedAt))
+        .liveElapsedSubtitle(startedAt: workout.startedAt)
     }
 
     /// What the cover shows between Finish or Discard and the end of its dismissal: the last content, read-only.
@@ -227,7 +227,7 @@ struct ActiveWorkoutCover: View {
         arrangement(source: FrozenSetTableSource(sections: last.sections), sections: last.sections)
             .allowsHitTesting(false)
             .navigationTitle(last.name)
-            .navigationSubtitle(subtitle(startedAt: last.startedAt))
+            .liveElapsedSubtitle(startedAt: last.startedAt)
     }
 
     /// One ArrangementView in both widths, so folding never swaps the table's identity (draft, focus and scroll stay);
@@ -271,12 +271,6 @@ struct ActiveWorkoutCover: View {
                 sections: sections.map { (id: $0.id, setChecks: $0.rows.map(\.isChecked)) }
             )
         return sections.first { $0.id == id }
-    }
-
-    /// "Nov 4 · 12:34", the elapsed time counting up by itself (a `.timer` Text), so nothing re-evaluates each second.
-    private func subtitle(startedAt: Date) -> Text {
-        let started = startedAt.formatted(.dateTime.month(.abbreviated).day())
-        return Text("\(started) · ") + Text(startedAt, style: .timer)
     }
 
     /// Saves a new name; blank or whitespace-only input is ignored, anything else is trimmed.

@@ -73,33 +73,38 @@ struct TemplateCard: View {
                         .font(.footnote.weight(.semibold))
                         .foregroundStyle(.tertiary)
                 }
-                Text(summary.countText)
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.primary)
-                if !summary.lines.isEmpty {
-                    VStack(alignment: .leading, spacing: 2) {
-                        ForEach(summary.lines) { line in
-                            Text(line.text)
-                                .font(.footnote)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
-                                .padding(.leading, hasSuperset ? Metrics.supersetBarIndent : 0)
-                                .background(alignment: .leading) {
-                                    if let group = line.supersetGroup {
-                                        Capsule()
-                                            .fill(Color.superset(group))
-                                            .frame(width: Metrics.supersetBarWidth)
+                // Takes the slack in a grid row, so the clock line sits at every card's bottom (a Spacer would add the
+                // stack's spacing twice).
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(summary.countText)
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(.primary)
+                    if !summary.lines.isEmpty {
+                        VStack(alignment: .leading, spacing: 2) {
+                            ForEach(summary.lines) { line in
+                                Text(line.text)
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+                                    .padding(.leading, hasSuperset ? Metrics.supersetBarIndent : 0)
+                                    .background(alignment: .leading) {
+                                        if let group = line.supersetGroup {
+                                            Capsule()
+                                                .fill(Color.superset(group))
+                                                .frame(width: Metrics.supersetBarWidth)
+                                        }
                                     }
-                                }
-                        }
-                        if let more = summary.overflowText {
-                            Text(more)
-                                .font(.footnote)
-                                .foregroundStyle(.secondary)
-                                .padding(.leading, hasSuperset ? Metrics.supersetBarIndent : 0)
+                            }
+                            if let more = summary.overflowText {
+                                Text(more)
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                                    .padding(.leading, hasSuperset ? Metrics.supersetBarIndent : 0)
+                            }
                         }
                     }
                 }
+                .frame(maxHeight: .infinity, alignment: .topLeading)
                 if let last = summary.lastPerformed {
                     Label(last, systemImage: "clock")
                         .font(.caption)
