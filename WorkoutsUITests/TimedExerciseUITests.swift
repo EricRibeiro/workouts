@@ -144,5 +144,26 @@ final class TimedExerciseUITests: XCTestCase {
             "Plank has no Time cell"
         )
         XCTAssertEqual(fields(in: plank, ending: ".weight").count, 0, "Plank rows show a weight cell")
+
+        // Saved and reopened, the block is still timed (the draft is rebuilt from the stored sets).
+        app.buttons["templateEditor.save"].tap()
+        XCTAssertTrue(any["screen.templateEditor"].waitUntilGone(), "Save did not close the editor")
+        // Compact: back on the grid (the sheet closed); regular: back on the pushed preview.
+        if !any["template.preview"].waitForExistence(timeout: 3) {
+            let again = app.firstTemplateCard
+            XCTAssertTrue(again.waitForExistence(timeout: 5))
+            again.tap()
+            XCTAssertTrue(any["template.preview"].waitForExistence(timeout: 5))
+        }
+        let reopen = app.buttons["template.edit"].firstMatch
+        XCTAssertTrue(reopen.waitForExistence(timeout: 5), "no Edit item in the preview")
+        reopen.tap()
+        XCTAssertTrue(any["screen.templateEditor"].waitForExistence(timeout: 10), "Edit did not push the editor")
+        let reopened = section(named: "Plank", in: app)
+        XCTAssertTrue(
+            fields(in: reopened, ending: ".reps").firstMatch.waitForExistence(timeout: 5),
+            "the reopened Plank block has no Time cell"
+        )
+        XCTAssertEqual(fields(in: reopened, ending: ".weight").count, 0, "the reopened Plank block shows a weight cell")
     }
 }

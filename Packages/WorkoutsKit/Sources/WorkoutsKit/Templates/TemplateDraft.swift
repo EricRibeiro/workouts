@@ -51,8 +51,9 @@ public struct TemplateDraft: Equatable, Sendable {
         exercises = []
     }
 
-    /// The draft of an existing template.
-    public init(_ template: Template) {
+    /// The draft of an existing template. `timedByDefault` (exercise id → Bool) makes a row timed even when none of its sets
+    /// carries a duration yet, so a template saved before an exercise became timed opens with a Time column.
+    public init(_ template: Template, timedByDefault: (UUID) -> Bool = { _ in false }) {
         name = template.name
         note = template.note
         exercises = (template.exercises ?? [])
@@ -69,7 +70,7 @@ public struct TemplateDraft: Equatable, Sendable {
                     unit: row.unit,
                     barType: row.barType,
                     barWeight: row.barWeight,
-                    isTimed: sets.contains { $0.durationSeconds != nil },
+                    isTimed: sets.contains { $0.durationSeconds != nil } || timedByDefault(row.exerciseID),
                     sets: sets.map {
                         SetValues(
                             id: $0.id,
@@ -375,8 +376,13 @@ public struct TemplateDraft: Equatable, Sendable {
     /// Writes the draft to `template` and saves `context`. On a failed save the context rolls back (so no half-applied
     /// edit is left in the store) and the error is rethrown; the draft itself is untouched and can be saved again.
     @MainActor
-    public func save(to template: Template, in context: ModelContext, now: Date = .now) throws {
-        apply(to: template, in: context, now: now)
+    public func save(
+        to template: Template,
+        in context: ModelContext,
+        now: Date = .now,
+        timedByDefault: (UUID) -> Bool = { _ in false }
+    ) throws {
+        apply(to: template, in: context, now: now, timedByDefault: timedByDefault)
         try commit(context)
     }
 
@@ -418,8 +424,13 @@ public struct TemplateDraft: Equatable, Sendable {
     /// Writes the draft to `template` without saving. Rows and sets are matched by id: kept ones are updated in place,
     /// new ones inserted, removed ones deleted. The template and a row are stamped only when their values changed.
     @MainActor
-    public func apply(to template: Template, in context: ModelContext, now: Date = .now) {
-        let before = TemplateDraft(template)
+    public func apply(
+        to template: Template,
+        in context: ModelContext,
+        now: Date = .now,
+        timedByDefault: (UUID) -> Bool = { _ in false }
+    ) {
+        let before = TemplateDraft(template, timedByDefault: timedByDefault)
         if before != self { template.updatedAt = now }
         template.name = name
         template.note = note

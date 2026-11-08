@@ -48,7 +48,8 @@ public struct PastWorkoutDraft: Equatable, Sendable {
     private let originalDurationSeconds: Int
 
     /// The draft of a finished workout (a missing `finishedAt` reads as zero duration).
-    public init(_ workout: Workout) {
+    /// `timedByDefault` (exercise id → Bool) makes a row timed even when none of its logged sets carries a duration.
+    public init(_ workout: Workout, timedByDefault: (UUID) -> Bool = { _ in false }) {
         name = workout.name
         startedAt = workout.startedAt
         durationSeconds = max(0, Int((workout.finishedAt ?? workout.startedAt).timeIntervalSince(workout.startedAt)))
@@ -65,7 +66,7 @@ public struct PastWorkoutDraft: Equatable, Sendable {
                     supersetGroup: row.supersetGroup,
                     note: row.note,
                     unit: row.unit,
-                    isTimed: sets.contains { $0.durationSeconds != nil },
+                    isTimed: sets.contains { $0.durationSeconds != nil } || timedByDefault(row.exerciseID),
                     sets: sets.map {
                         SetValues(
                             id: $0.id,

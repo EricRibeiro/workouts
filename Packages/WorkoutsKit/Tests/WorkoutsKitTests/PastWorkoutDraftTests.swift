@@ -59,6 +59,16 @@ import Testing
         #expect(sets.allSatisfy { $0.completed })
     }
 
+    @Test func timedByDefaultMakesARepsOnlyRowTimed() throws {
+        let holder = try makeTestContainer()
+        defer { withExtendedLifetime(holder) {} }
+        let model = workout(holder.mainContext)
+        #expect(PastWorkoutDraft(model).exercises.allSatisfy { !$0.isTimed })
+        let timed = PastWorkoutDraft(model, timedByDefault: { _ in true })
+        #expect(timed.exercises.allSatisfy { $0.isTimed })
+        #expect(!timed.hasChanges(from: PastWorkoutDraft(model, timedByDefault: { _ in true })))
+    }
+
     @Test func freshDraftIsCleanAndReadsTheWorkout() throws {
         let holder = try makeTestContainer()
         defer { withExtendedLifetime(holder) {} }

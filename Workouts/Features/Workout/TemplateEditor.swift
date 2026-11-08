@@ -17,6 +17,31 @@ import WorkoutsKit
 ///
 /// `init(template:)` edits an existing template; `init(newIn:)` edits a new, unsaved one that is created on Save.
 struct TemplateEditor: View {
+    private enum Source {
+        case existing(Template)
+        case new(TemplateFolder?)
+    }
+
+    private let source: Source
+    @Environment(ExerciseStore.self) private var store
+
+    /// Edits `template`.
+    init(template: Template) { source = .existing(template) }
+
+    /// Edits a new template, created in `folder` (nil: unfiled) when saved.
+    init(newIn folder: TemplateFolder?) { source = .new(folder) }
+
+    /// Resolved here, where the environment is readable, because the content's draft is built in its `init`.
+    var body: some View {
+        let timedByDefault: (UUID) -> Bool = { [store] in store.exercise(id: $0)?.isTimed ?? false }
+        switch source {
+        case .existing(let template): TemplateEditorContent(template: template, timedByDefault: timedByDefault)
+        case .new(let folder): TemplateEditorContent(newIn: folder, timedByDefault: timedByDefault)
+        }
+    }
+}
+
+private struct TemplateEditorContent: View {
     private let template: Template?
     private let folder: TemplateFolder?
 
@@ -40,18 +65,20 @@ struct TemplateEditor: View {
     /// The block menu's pending prompts (task 3.6).
     @State private var blockSheets = BlockActionState()
 
-    /// Edits `template`.
-    init(template: Template) {
+    private let timedByDefault: (UUID) -> Bool
+
+    init(template: Template, timedByDefault: @escaping (UUID) -> Bool) {
         self.template = template
+        self.timedByDefault = timedByDefault
         folder = template.folder
-        let initial = TemplateDraft(template)
+        let initial = TemplateDraft(template, timedByDefault: timedByDefault)
         _draft = State(initialValue: initial)
         _original = State(initialValue: initial)
     }
 
-    /// Edits a new template, created in `folder` (nil: unfiled) when saved.
-    init(newIn folder: TemplateFolder?) {
+    init(newIn folder: TemplateFolder?, timedByDefault: @escaping (UUID) -> Bool) {
         template = nil
+        self.timedByDefault = timedByDefault
         self.folder = folder
         let initial = TemplateDraft()
         _draft = State(initialValue: initial)
@@ -265,7 +292,7 @@ struct TemplateEditor: View {
         do {
             if let template {
                 // Unchanged and not new: just closes.
-                if isDirty { try draft.save(to: template, in: context) }
+                if isDirty { try draft.save(to: template, in: context, timedByDefault: timedByDefault) }
             } else {
                 try draft.insertNew(in: folder, context: context, siblings: templates)
             }

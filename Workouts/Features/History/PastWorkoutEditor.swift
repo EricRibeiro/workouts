@@ -18,6 +18,7 @@ struct PastWorkoutEditor: View {
 
     /// This workout alone (zero or one row), not every finished workout.
     @Query private var found: [Workout]
+    @Environment(ExerciseStore.self) private var store
 
     init(workoutID: UUID) {
         self.workoutID = workoutID
@@ -26,7 +27,7 @@ struct PastWorkoutEditor: View {
 
     var body: some View {
         if let workout = found.first {
-            Editor(workout: workout)
+            Editor(workout: workout, timedByDefault: { [store] in store.exercise(id: $0)?.isTimed ?? false })
         } else {
             ContentUnavailableView(
                 "Workout Not Found",
@@ -59,9 +60,9 @@ private struct Editor: View {
     @State private var blockSheets = BlockActionState()
     @FocusState private var isDurationFocused: Bool
 
-    init(workout: Workout) {
+    init(workout: Workout, timedByDefault: @escaping (UUID) -> Bool) {
         self.workout = workout
-        let initial = PastWorkoutDraft(workout)
+        let initial = PastWorkoutDraft(workout, timedByDefault: timedByDefault)
         _draft = State(initialValue: initial)
         _original = State(initialValue: initial)
     }

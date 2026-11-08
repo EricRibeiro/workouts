@@ -47,6 +47,21 @@ import Testing
         #expect(draft.exercises[0].unit == .kg)
     }
 
+    @Test func timedByDefaultMakesARepsOnlyRowTimedAndStaysCleanWhenBothSidesAgree() throws {
+        let holder = try makeTestContainer()
+        defer { withExtendedLifetime(holder) {} }
+        let context = holder.mainContext
+        let model = template(context)
+        #expect(TemplateDraft(model).exercises.allSatisfy { !$0.isTimed })
+        let timed = TemplateDraft(model, timedByDefault: { _ in true })
+        #expect(timed.exercises.allSatisfy { $0.isTimed })
+        #expect(!timed.hasChanges(from: TemplateDraft(model, timedByDefault: { _ in true })))
+        // An untouched save with the same closure stamps nothing.
+        let before = model.updatedAt
+        try timed.save(to: model, in: context, now: stamp.addingTimeInterval(60), timedByDefault: { _ in true })
+        #expect(model.updatedAt == before)
+    }
+
     @Test func templateNoteTrimsClearsAndSaves() throws {
         let holder = try makeTestContainer()
         defer { withExtendedLifetime(holder) {} }
