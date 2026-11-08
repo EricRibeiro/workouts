@@ -137,7 +137,7 @@ struct ExerciseChartsView: View {
                         .font(.title3.weight(.semibold))
                         .fontDesign(.rounded)
                         .monospacedDigit()
-                        .foregroundStyle(.tint)
+                        .foregroundStyle(.primary)
                     if point.lowConfidence {
                         Text("from over 12 reps").font(.footnote).foregroundStyle(.secondary)
                     }

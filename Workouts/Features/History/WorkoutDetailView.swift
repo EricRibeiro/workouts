@@ -374,7 +374,7 @@ struct DetailHeader: View {
                     .foregroundStyle(.secondary)
                 Label(HistoryList.prText(count: detail.prCount), systemImage: "trophy.fill")
                     .font(.headline)
-                    .foregroundStyle(.tint)
+                    .foregroundStyle(.primary)
             }
         }
         if let health {

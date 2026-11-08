@@ -85,7 +85,7 @@ struct ExerciseHistoryView: View {
                     systemImage: "trophy.fill"
                 )
                 .font(.footnote.weight(.semibold))
-                .foregroundStyle(.tint)
+                .foregroundStyle(.primary)
             }
             if opens {
                 Image(systemName: "chevron.right")

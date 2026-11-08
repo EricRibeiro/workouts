@@ -122,7 +122,7 @@ struct ExerciseRecordsView: View {
                     .font(.title3.weight(.semibold))
                     .fontDesign(.rounded)
                     .monospacedDigit()
-                    .foregroundStyle(.tint)
+                    .foregroundStyle(.primary)
                 if let detail {
                     Text(detail).font(.footnote).foregroundStyle(.secondary)
                 }
@@ -186,7 +186,7 @@ struct ExerciseRecordsView: View {
     private func repsRow(_ record: ExerciseRecord, index: Int) -> some View {
         GridRow {
             Text(RecordFormat.weight(record.weight, unit: unit)).monospacedDigit()
-            Text("\(record.reps)").monospacedDigit().foregroundStyle(.tint).fontWeight(.semibold)
+            Text("\(record.reps)").monospacedDigit().foregroundStyle(.primary).fontWeight(.semibold)
             Text(RecordFormat.date(record.time)).foregroundStyle(.secondary)
         }
         .font(.subheadline)

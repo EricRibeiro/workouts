@@ -63,7 +63,7 @@ private struct CardValue: View {
         Text(text)
             .font(.system(.largeTitle, design: .rounded, weight: .semibold))
             .monospacedDigit()
-            .foregroundStyle(.tint)
+            .foregroundStyle(.primary)
             .minimumScaleFactor(0.6)
             .lineLimit(1)
     }
@@ -232,7 +232,7 @@ struct DashboardCards: View {
             ) {
                 Text(entry.name)
                     .font(.system(.title2, design: .rounded, weight: .semibold))
-                    .foregroundStyle(.tint)
+                    .foregroundStyle(.primary)
                     .lineLimit(2)
                 Text(date)
                     .font(.subheadline)

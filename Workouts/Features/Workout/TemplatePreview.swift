@@ -175,7 +175,7 @@ struct TemplatePreview: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .foregroundStyle(.tint)
+            .foregroundStyle(.secondary)
             .accessibilityLabel("About \(row.name)")
             .accessibilityIdentifier("template.exercise.about")
         }

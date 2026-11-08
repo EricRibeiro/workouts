@@ -75,7 +75,7 @@ struct TemplateCard: View {
                 }
                 Text(summary.countText)
                     .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.tint)
+                    .foregroundStyle(.primary)
                 if !summary.lines.isEmpty {
                     VStack(alignment: .leading, spacing: 2) {
                         ForEach(summary.lines) { line in

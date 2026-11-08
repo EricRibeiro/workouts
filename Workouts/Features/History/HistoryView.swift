@@ -420,7 +420,7 @@ private struct HistoryRow: View {
                     Text(HistoryList.prText(count: entry.prCount))
                 }
                 .font(.subheadline)
-                .foregroundStyle(.tint)
+                .foregroundStyle(.primary)
             }
         }
         .padding(.vertical, 2)
