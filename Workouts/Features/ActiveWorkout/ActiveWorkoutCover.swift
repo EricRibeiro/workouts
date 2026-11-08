@@ -43,10 +43,6 @@ struct ActiveWorkoutCover: View {
     /// A set cell has keyboard focus (`SetTableEditingKey`): the number pad leaves the closed display's trailing strip about
     /// three items tall, so only Minimise and Finish stay; the rest timer lives in the keyboard accessory meanwhile.
     @State private var isEditingSet = false
-    /// The header-return rule (`HeaderRevealState`): `.automatic` title minimisation hides the header while the table is
-    /// scrolled down; `restoreDelay` after a scroll ends it is pinned (`.never`), which brings the header back with the
-    /// system's animation, and the next scroll unpins it. There is no API to re-expand a minimised bar directly.
-    @State private var headerReveal = HeaderRevealState()
 
     var body: some View {
         NavigationStack {
@@ -63,17 +59,7 @@ struct ActiveWorkoutCover: View {
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarMinimizationBehavior(headerReveal.isPinned ? .never : .automatic, for: .navigationBar)
-            .onScrollPhaseChange { old, new in
-                headerReveal.phaseChanged(from: old.headerPhase, to: new.headerPhase)
-            }
-            .task(id: headerReveal.generation) {
-                guard headerReveal.isRestorePending else { return }
-                let generation = headerReveal.generation
-                try? await Task.sleep(for: HeaderRevealState.restoreDelay)
-                guard !Task.isCancelled else { return }
-                withAnimation { _ = headerReveal.restoreTimerFired(generation: generation) }
-            }
+            .toolbarMinimizationBehavior(.onScrollDown, for: .navigationBar)
             .onPreferenceChange(SetTableEditingKey.self) { isEditingSet = $0 }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -390,18 +376,4 @@ private struct FrozenSetTableSource: SetTableDataSource {
     func addSet(to sectionID: UUID) {}
     func deleteSet(_ setID: UUID) {}
     func reorder(_ order: [UUID], moving: [UUID]) {}
-}
-
-extension ScrollPhase {
-    /// The kit's model of this phase, so the header rule can be tested without SwiftUI.
-    fileprivate var headerPhase: HeaderScrollPhase {
-        switch self {
-        case .idle: .idle
-        case .tracking: .tracking
-        case .interacting: .interacting
-        case .decelerating: .decelerating
-        case .animating: .animating
-        @unknown default: .interacting
-        }
-    }
 }

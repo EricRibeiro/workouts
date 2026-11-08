@@ -322,8 +322,9 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
 89. **Expanded Island is one row** (Eric: "polluted compared to Apple's workout app", then "remove the grey text"):
     round buttons leading (Skip and +30 while resting, a blue Done otherwise), one large tinted time trailing. No app
     glyph, no exercise caption, no "n of m sets", no "Elapsed" label.
-90. **The workout header comes back 1.5 s after a scroll stops**: the system's own minimisation is switched to `.never`
-    after the scroll settles (no API re-expands a minimised bar) and back to `.automatic` on the next scroll.
+90. **The workout header minimises on scroll down and the system restores it on scroll up**: `.toolbarMinimizationBehavior(.onScrollDown)`
+    and nothing else. A timed auto-return was rejected: it would have to flip the behaviour to `.never`, which the system
+    applies in one frame (no public API animates it), and the HIG ties restoring hidden chrome to a user gesture.
 91. **Turning off "Download all videos" asks Keep / Remove / Cancel**, like the Fitness toggle; with nothing cached it
     just turns off. Remove clears the whole video cache, including videos only watched.
 92. **Pull to refresh on History forces a Fitness lookup** (Eric, 2026-11-05): the native `.refreshable`, attached only
@@ -334,7 +335,7 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
     selection still names the exercise of the set. A band label is drawn only when the band spans ≥ 8% of the axis.
 94. **Test-gap research adopted where simple** (Eric: "adopt where it makes sense, not if too complicated or hacky"):
     in-process tests for the Live Activity intents, a CloudKit model-rules check on the schema, a unit test of the
-    Wi-Fi-only media configuration, the header-return rule as a kit state machine, in-flight refresh tests. Skipped as
+    Wi-Fi-only media configuration, in-flight refresh tests. Skipped as
     too fragile: driving the real Island / notification banners through SpringBoard, moving the hinge from the test runner.
 95. **Health passes skip workouts before the earliest readable date without stamping them** (iOS 27 shares the past 30
     days by default): the later of `earliestPermittedSampleDate` and the workout type's `earliestAuthorizedSampleDate`.
