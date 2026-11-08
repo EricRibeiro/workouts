@@ -47,7 +47,7 @@ Eric deferred the technical choices to Claude. These close every item in `docs/p
   **History · Workout · Exercises**; **Workout is the default selection**. Templates live on the Workout tab's card grid only
   (the 3.7 sidebar `TabSection`s, their `.sidebarOnly` tabs and the sidebar resume card were removed). Never assume where the
   bar lands.
-- **Settings**: the gear `toolbar` button on the Workout tab, in every pose, opening a `Form` sheet.
+- **Settings**: the gear `toolbar` button on every tab (Workout, History, Exercises), in every pose, opening a `Form` sheet (judgment-calls.md: Settings moved from the sidebar bottom bar to the toolbar everywhere).
 - **Toolbar items** carry a symbol and a title; the ellipsis belongs to the system's `ToolbarOverflowMenu`, so no `⋯` menus.
   Workout: Settings (`gearshape`), Add (`plus`, a `Menu`: **Empty Workout** / New Template / New Folder); other screens' items
   are in their specs. Row and card actions are `contextMenu` + `swipeActions` only; only content blocks inside the set table
