@@ -63,3 +63,63 @@ Slop verdict: **pass**.
 
 View `TemplatePreview-{light,dark,axxl}`, `Loading-TemplatePreview-light`, `Root-*`, `Workout-*`, `Empty-workout-*`,
 `ExercisePicker-*`, `ExercisePickerMulti-*`; score States; capture a checked set in light and dark.
+
+## Round 2d (finishes part A)
+
+Read-only, same method and evidence folder; no new captures, no simulator. **Viewed (light, dark, axxl where captured):**
+`TemplatePreview-*`, `Loading-TemplatePreview-light`, `Root-{light,dark}`, `Workout-*`, `Empty-workout-{light,dark}`,
+`ExercisePicker-*`, `ExercisePickerMulti-*`. Round 2c's findings and JC109–JC112 are not re-filed (the preview's small
+bar-only title at axxl is JC112; one-line exercise names in the preview rows are the `exerciseNameLineLimit` rule).
+
+**Slop test: pass.** Symbol-only items in the trailing strip (+ / gear, Close / Edit, Close / superset / Add / search),
+the empty Workout tab is a `ContentUnavailableView` with one bordered-prominent action, filter pills are system `Menu`s,
+the preview's Start Workout is the single prominent action, no bottom chrome, no hand-placed glass.
+
+### Findings
+
+| P | Screen · file:line | What (evidence: png) | Rule | Fix (one worker task) | Taste? |
+|---|---|---|---|---|---|
+| P2 | Exercise picker, single mode, accessibility sizes · `Workouts/Features/Shared/ExerciseRow.swift:25-29` (compact branch) with `Workouts/Features/Shared/ExercisePicker/ExercisePickerView.swift:183-209` | At AX sizes the compact `VStack` has no `Spacer`/max width, so `ExerciseRow` hugs its text and the trailing ⓘ follows the last word: it sits right after "Hyperextension" in row 1 and mid-row under "Side Bend" in row 2, a different x in every row. In multiple mode the same row keeps the ⓘ in a trailing column only because the selection circle happens to widen it. (`.build/review-ui-r2b/ExercisePicker-axxl.png` vs `.build/review-ui-r2b/ExercisePickerMulti-axxl.png`) | design-review §3.2 (consistent alignment, controls where the hand expects them), §3.4 (reflow at AX) | *local defect*: give the compact `VStack` in `ExerciseRow` `.frame(maxWidth: .infinity, alignment: .leading)` so the row fills its width at AX sizes and the ⓘ is pinned trailing in both modes (also fixes the same row in `ExercisesView`). Proof: `./dev test SnapshotTests/ExerciseRowSnapshots` (re-record the AX3 reference after viewing the `.actual.png`) | no |
+| P2 | Template preview, loading frame · `Workouts/Features/Workout/TemplatePreview.swift:88-93` (row gated on `lastPerformed`, which stays nil until the `.task` at `:68-74` fills `lastPerformedIndex`, `:31`) | Chrome is already final in the loading frame (bar title, Close, Edit, enabled Start Workout: §4 chrome check passes), but the "Last performed · 4 days ago" line is absent, then inserted when the index arrives, pushing Start Workout and the whole list down about one subheadline row (~32 pt). The primary button moves under a thumb that is about to tap it. (`.build/review-ui-r2b/Loading-TemplatePreview-light.png` vs `.build/review-ui-r2b/TemplatePreview-light.png`) | design-review §4 (loading is a rendered state whose layout is final; nothing jumps when content arrives) | *local defect*: keep an `indexLoaded` flag set in the `.task`; until it is true render the row as `Label("Last performed · 4 days ago", systemImage: "clock")` with `.redacted(reason: .placeholder)` (hidden from VoiceOver), and after it the real row or nothing. Proof: `./dev test SnapshotTests` (add a held-loader snapshot of the preview if none exists) | no |
+
+No P0, P1 or P3 this round.
+
+### Checked without a finding
+
+- **Dark:** template cards are `#1C1C1E` fills on black with no rim; "N exercises" in the dark accent and the `.secondary`
+  exercise lines and "4 days ago" stay legible; the empty state's grey symbol and subtitle read on black; picker rows,
+  pills and the disabled Add (+) read correctly in dark. (`Root-dark.png`, `Workout-dark.png`, `Empty-workout-dark.png`,
+  `ExercisePicker-dark.png`, `ExercisePickerMulti-dark.png`, `TemplatePreview-dark.png`)
+- **axxl reflow:** cards drop to one column and the exercise lines wrap in full; picker thumbnails go and the two filter
+  pills stack; the preview's folder / Last performed / note wrap without clipping and Start Workout stays full-width.
+  (`Workout-axxl.png`, `ExercisePicker-axxl.png`, `TemplatePreview-axxl.png`)
+- **Disabled:** with nothing selected the multi picker's Add (+) is the greyed prominent slot and superset is dimmed
+  (`ExercisePickerView.swift:101,109`, `.disabled` on `canAdd` / `canSuperset`). (`ExercisePickerMulti-light.png`)
+
+### State inventory (part A)
+
+| State | Evidence | Verdict |
+|---|---|---|
+| Empty (no templates) | `Empty-workout-{light,dark}`: `ContentUnavailableView`, copy names the action, New Template button | ok |
+| Loading (template preview) | `Loading-TemplatePreview-light`: chrome final; content shifts on arrival | P2 above |
+| Disabled (Add (N) / superset at 0) | `ExercisePickerMulti-*` | ok |
+| Overflow (5+ exercises per card) | "+ 1 more" / "+ 2 more" lines in `Root-*` | ok |
+| Not captured | Empty-workout at axxl; picker with no search hit; picker with a selection (Add (N) enabled); a checked set row (carried from 2c) | add to the next shot batch |
+
+### Scores (part A, complete)
+
+| Dimension | Score | Key finding |
+|---|---|---|
+| Colour and appearance | 4 | Dark designed throughout; only the light trophy (2c P3) |
+| Hierarchy and layout | 3 | Picker ⓘ drifts at AX sizes (P2); one primary action per screen holds |
+| States and resilience | 3 | Empty and Disabled drawn; the preview's loading frame shifts its primary button (P2); four states not yet captured |
+
+Slop verdict: **pass**.
+
+### Taste calls for Eric (round 2d, from images)
+
+1. **Colour of the ⓘ (About) button: tint or grey?** The template preview draws it in the accent (`.tint`,
+   `TemplatePreview.swift:167`); the exercise picker draws the same glyph in `.secondary` (`ExercisePickerView.swift:206`).
+   Compare `.build/review-ui-r2b/TemplatePreview-light.png` with `.build/review-ui-r2b/ExercisePicker-light.png` (and the
+   `-dark` pair). Tint says "tappable" (one tint for interactive elements); grey keeps a 1,000-row list calm. Whichever
+   wins, the other file changes one `foregroundStyle` — one worker task.

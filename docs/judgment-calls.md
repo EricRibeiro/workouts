@@ -443,3 +443,4 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
   rejected (hard-coded heights, overlaps the exercise-name button above). A true 44 pt row visibly loosens the block header;
   that is Eric's taste call, open in the review.
 - **JC112 (2026-11-07, Eric, from screenshots): the exercise detail keeps no bar title (JC29 stands); the template preview shows the bar title only (in-content name removed); the sticky band and note line are 44 pt tall, which resolves JC111.**
+- **JC113 (2026-11-07, Eric, from screenshots): durations stay "40min"; the template preview sheet stays Liquid Glass; values you can't tap (records, reps, chart headline, PR counts) use primary text, not the accent; info (i) buttons are secondary grey; exercise names stay one line cut off at accessibility sizes; Settings keeps segmented pickers at accessibility sizes; below-goal weeks keep their own `ChartBelowGoal` blue.**

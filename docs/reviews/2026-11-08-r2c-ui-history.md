@@ -75,3 +75,61 @@ Other dimensions are not rescored here (see r2). Slop verdict: **pass**.
 - `PastEditor-axxl.png` shows a large empty gap between the block name and its first set, with the column headers apparently
   dropped, and the block's `ellipsis.circle` sits inset from the set cells' trailing edge. The source (`Features/Shared/SetTable`)
   was not read, so this is not filed. Confirm it against `SetTable.swift` before filing it as a P3.
+
+## Round 2e (2026-11-08): Calendar dark/axxl, Settings, PastEditor axxl
+
+This pass finishes part C. Evidence is the same `.build/review-ui-r2b/` set. No new captures were taken and no simulator was
+used. Viewed: `Calendar-dark.png`, `Calendar-axxl.png`, `Settings-{light,dark,axxl}.png`, `PastEditor-axxl.png`, plus
+`SetTable-axxl.png` for comparison. Read: `Workouts/Features/Settings/SettingsView.swift`,
+`Workouts/Features/Shared/SetTable/SetTable.swift`, `SetRow.swift` (layouts), `SetTableSources.swift:185-247` and
+`CalendarSheet.swift:140-155`.
+
+**Slop test: pass.** Settings is a system `Form` in a sheet with an inline title, a symbol-only Done
+(`confirmationAction`, `checkmark`), section headers and footers, a menu picker, a stepper and system toggles. Calendar
+uses the system sheet, an inline title, symbol chevrons and the tint for marked days.
+
+### Findings
+
+| P | Screen · file:line | What (evidence: png) | Rule | Fix (one worker task) | Taste? |
+|---|---|---|---|---|---|
+| P2 | Past editor and template editor at accessibility sizes · `Workouts/Features/Shared/SetTable/SetTable.swift:104`, `Workouts/Features/Shared/SetTable/SetRow.swift:87-101` (Previous and check hidden: `SetTableSources.swift:196-197,245-246`) | This confirms the r2c suspicion, and it is worse than a P3. At `isAccessibilitySize` the table drops the column header (line 104) and every row switches to `twoLine`. Line one of `twoLine` is the kind label plus Previous. These editors hide Previous, so line one holds only "W" in a `minHeight: touch` frame (44 pt scaled, about 100 pt at axxl), and the header adds 8 pt below. The result is the large empty band between "Deadlift" and its first set. The fields then stand unlabelled on line two. Nothing on screen says which cell is weight and which is reps, or which **unit** a set was logged in. That matters in the past editor, where sets keep their logged unit (spec rule 3, `f2580b7`). In the active workout Previous ("35 kg × 8") supplies that context (`SetTable-axxl.png`), so only these two editors are affected. (`.build/review-ui-r2b/PastEditor-axxl.png` vs `.build/review-ui-r2b/SetTable-axxl.png`) | design-review §3.4 (the real content fits and reads at accessibility sizes); §3.2 (tight groups, no dead space inside a group) | *local defect*: in `SetRow`, when `!model.showsPrevious`, use a single `HStack { kindButton; fields; check }` at accessibility sizes instead of `twoLine`. In `SetTable.block`, show `columnHeader(for:)` at accessibility sizes when `!first.showsPrevious` (its columns then match that one line, including the unit). The active workout is unchanged. Proof: `./dev test SnapshotTests` (add or extend an accessibility-3 snapshot of a template-mode `SetTable`), then `./dev shot` of `-preview PastEditor` at `accessibility-extra-large`. | no |
+| P3 | Same editors, block options menu · `Workouts/Features/Shared/SetTable/SetTable.swift:286-287` | The `ellipsis.circle` sits centred in a `minWidth: touch` frame. At default size that centres it over the 44 pt check column, which is correct in the active workout. The past and template editors have no check column, so their cells run to the trailing edge, and the glyph sits inset from them. At axxl the scaled 44 pt frame makes the inset about 28 pt (`.build/review-ui-r2b/PastEditor-axxl.png`: glyph ends near x≈1010 px, cells near x≈1097 px). | design-review §3.2 (one alignment edge per group) | *local defect*: give the label frame `alignment: .trailing` when the block's rows show no check (`section.rows.first?.showsCheck == false`). The hit target stays 44 pt. Proof: `./dev test SnapshotTests` (re-record the affected template or past snapshot after viewing its `.actual.png`). | no |
+
+No P0 or P1. Seen in passing, and not filed:
+
+- **Calendar dark:** marked days put black digits on the accent fill (`Color.onAccent`, `CalendarSheet.swift:148`). This is a
+  designed token, not an inversion: about 5.9:1 against `#0A84FF`, where white would be about 3.6:1. Today's ring and the
+  selection ring stay distinct. Weekday letters in `.secondary` are legible on the dark sheet.
+- **Calendar axxl:** the month title wraps to "November / 2026" between the chevrons, and the chevrons keep their circles and
+  stay vertically centred. Day numbers hold (`.body` with `minimumScaleFactor(0.6)`, `CalendarSheet.swift:144-149`), so the grid
+  keeps seven columns with no truncation. The hint wraps to two lines. All acceptable.
+- **Settings light/dark:** dark is designed (grouped fills, the segmented thumb lifts, the toggle uses system green). The
+  Weekly goal value "3" in `.secondary` comes from `LabeledContent`'s system styling, not a hand-picked prompt colour. The
+  iCloud row "Not available yet", with a footer that names the later version, is a clear disabled state, not a dead end.
+- **Settings axxl:** row labels and footers scale and wrap, and nothing truncates. Segmented control labels do not grow
+  ("lb"/"kg", "Epley"/"Brzycki" stay at about body size under a two-line label). That is the system `UISegmentedControl`
+  ceiling, not a defect in this code; it is a taste call below.
+- Settings has no pushed screens, so the loading-frame chrome check does not apply. Import and Export results arrive as an
+  alert named after the outcome ("Could Not Import" plus the message), which matches §5 (errors name the problem).
+
+### Scores (round 2e scope)
+
+| Dimension | Score | Key finding |
+|---|---|---|
+| Platform conformance | 4 | `Form` sheet, system pickers, stepper, toggles, `fileImporter`, `ShareLink`, decided alerts |
+| Hierarchy and layout | 3 | At accessibility sizes the editors show a label-only line that leaves dead space above each set, and the options menu is inset from the cells |
+| Colour and appearance | 4 | Calendar's `onAccent` digits and dark Settings are designed |
+| Type and content | 3 | At accessibility sizes the past and template editors show no column header and no unit |
+| States and resilience | 4 | iCloud unavailable, video-download confirmation, Fitness off with keep or remove, import outcome alert |
+
+Slop verdict: **pass**. Part C is now complete: History, Calendar, WorkoutDetail, PastEditor and Settings have all been
+reviewed.
+
+### Taste calls for Eric (PNG pairs)
+
+1. **Settings two-option choices: segmented vs menu or inline rows.** Weight unit, 1RM formula and Appearance are a text label
+   stacked over a segmented control. At default size this reads well. At accessibility sizes the label grows to about
+   three times the size of the segment text, because segmented controls stop scaling. The same Form already uses a menu
+   picker for Default rest timer. Pair: `.build/review-ui-r2b/Settings-light.png` vs `.build/review-ui-r2b/Settings-axxl.png`.
+   Options: keep segmented, which is one tap and glanceable. Switch to `.pickerStyle(.menu)` rows, which scale, are one line
+   each and match the rest timer row. Or switch only at `isAccessibilitySize` (`SettingsView.swift:154-174,185-194`).

@@ -27,6 +27,8 @@ struct ExerciseRow: View {
                     details
                     trailingText
                 }
+                // Fill the row so a sibling (the picker's info button) sits at the trailing edge, not after the text.
+                .frame(maxWidth: .infinity, alignment: .leading)
             } else {
                 details
                 Spacer(minLength: 0)

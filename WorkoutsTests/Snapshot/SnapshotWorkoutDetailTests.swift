@@ -19,7 +19,11 @@ extension SnapshotTests {
         private static let variant = SnapshotVariant.all[0]
         private static let height: CGFloat = 844
 
-        private func render(workoutID: UUID, environment: SampleEnvironment, held: Bool) async throws -> Data {
+        private func render(
+            workoutID: UUID,
+            environment: SampleEnvironment,
+            held: Bool
+        ) async throws -> Snapshot.SettledFrames {
             let defaults = UserDefaults.standard
             let key = "slowLoads"
             let previous = defaults.object(forKey: key)
@@ -29,14 +33,15 @@ extension SnapshotTests {
                 if let previous { defaults.set(previous, forKey: key) } else { defaults.removeObject(forKey: key) }
             }
             return try #require(
-                await Snapshot.renderSettling(
+                await Snapshot.renderSettled(
                     NavigationStack { WorkoutDetailView(workoutID: workoutID) },
                     variant: Self.variant,
                     width: 390,
                     height: Self.height,
                     environment: environment,
                     // The loaded frame waits for the off-main load (50 workouts of history) to land.
-                    settle: held ? .seconds(1) : .seconds(3)
+                    settle: held ? .seconds(1) : .seconds(3),
+                    topPoints: 80
                 )
             )
         }
@@ -51,13 +56,15 @@ extension SnapshotTests {
             let loaded = try await render(workoutID: newest.id, environment: environment, held: false)
 
             // The bar's glass varies per simulator, so the references skip it; the chrome check below compares it in-run.
-            Snapshot.assert(png: loading, named: "loading", variant: Self.variant, excludingTop: 80)
-            Snapshot.assert(png: loaded, named: "loaded", variant: Self.variant, excludingTop: 80)
+            // The references take the draw at the fixed settle (the spinner's phase is time-based and recorded there).
+            Snapshot.assert(png: loading.atSettle, named: "loading", variant: Self.variant, excludingTop: 80)
+            Snapshot.assert(png: loaded.atSettle, named: "loaded", variant: Self.variant, excludingTop: 80)
+            // The chrome check takes the draws after each bar stopped animating (`renderSettled`), not a fixed sleep.
             // The hosted frame has no status bar, so the inline bar ends at ~80 pt and the first card starts right under it.
-            Snapshot.assertSameChrome(loading, loaded, topPoints: 80)
+            Snapshot.assertSameChrome(loading.stable, loaded.stable, topPoints: 80)
             // The two states must really differ below the chrome, or the hold did nothing.
             #expect(
-                Snapshot.difference(between: loading, and: loaded) != nil,
+                Snapshot.difference(between: loading.atSettle, and: loaded.atSettle) != nil,
                 "the loading and loaded frames are identical: the detail load was not held"
             )
         }

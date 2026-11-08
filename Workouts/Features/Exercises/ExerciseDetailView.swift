@@ -130,7 +130,6 @@ struct ExerciseDetailView: View {
                     ExerciseMediaHeader(info: info, library: library)
                     summary(info)
                     sections(info, library: library)
-                        .padding(.horizontal)
                 }
                 .padding(.bottom, 24)
             }
@@ -143,7 +142,6 @@ struct ExerciseDetailView: View {
                         summary(info)
                         if !splits {
                             sections(info, library: library)
-                                .padding(.horizontal)
                         }
                     }
                     .padding(.bottom, 24)
@@ -153,7 +151,7 @@ struct ExerciseDetailView: View {
                 if splits {
                     ScrollView {
                         sections(info, library: library)
-                            .padding([.horizontal, .top])
+                            .padding(.top)
                             .padding(.bottom, 24)
                     }
                 }
@@ -178,7 +176,7 @@ struct ExerciseDetailView: View {
         .padding(.horizontal)
     }
 
-    /// The selected segment's content.
+    /// The selected segment's content, inset by the screen margin. Charts insets itself: its metric chips scroll to the edge.
     @ViewBuilder
     private func sections(_ info: ExerciseInfo, library: LibraryExercise?) -> some View {
         switch segment {
@@ -191,12 +189,15 @@ struct ExerciseDetailView: View {
             ) {
                 StickyNoteView(exerciseID: info.id)
             }
+            .padding(.horizontal)
         case .history:
             ExerciseHistoryView(sessions: detail.history, embedded: embedded)
+                .padding(.horizontal)
         case .charts:
             ExerciseChartsView(sessions: detail.sessions, weightType: info.weightType, options: options)
         case .records:
             ExerciseRecordsView(records: detail.records, weightType: info.weightType, unit: unit, embedded: embedded)
+                .padding(.horizontal)
         }
     }
 

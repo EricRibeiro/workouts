@@ -102,13 +102,21 @@ struct CustomExerciseFormView: View {
 
     private func nameSection(_ issues: [CustomExerciseForm.Issue]) -> some View {
         Section {
-            TextField("Exercise name", text: $draft.name)
+            TextField("Exercise name", text: $draft.name, axis: .vertical)
+                .lineLimit(1...3)
                 .focused($nameFocused)
                 .textInputAutocapitalization(.words)
                 .submitLabel(.done)
                 .accessibilityLabel("Name")
                 .accessibilityIdentifier("customExercise.name")
-                .onChange(of: draft.name) { nameTouched = true }
+                .onChange(of: draft.name) {
+                    nameTouched = true
+                    // A vertical-axis field wraps long names but Return would add a line: treat it as Done.
+                    if draft.name.contains("\n") {
+                        draft.name = draft.name.replacingOccurrences(of: "\n", with: "")
+                        nameFocused = false
+                    }
+                }
         } header: {
             Text("Name")
         } footer: {

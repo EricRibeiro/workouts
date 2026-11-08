@@ -41,11 +41,13 @@ struct ExerciseChartsView: View {
     var body: some View {
         let points = points
         VStack(alignment: .leading, spacing: 16) {
+            // The detail leaves this view the full width: the chips scroll to the screen edge, everything else keeps the margin.
             chips
             Picker("Range", selection: $range) {
                 ForEach(ChartRange.allCases) { Text($0.rawValue).tag($0) }
             }
             .pickerStyle(.segmented)
+            .padding(.horizontal)
             .accessibilityLabel("Range")
             .accessibilityIdentifier("exerciseDetail.chart.range")
             if points.isEmpty {
@@ -53,6 +55,7 @@ struct ExerciseChartsView: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal)
                     .accessibilityIdentifier("exerciseDetail.chart.empty")
             } else {
                 VStack(alignment: .leading, spacing: 12) {
@@ -60,6 +63,7 @@ struct ExerciseChartsView: View {
                     chart(points)
                 }
                 .detailCardStyle()
+                .padding(.horizontal)
             }
         }
         // A custom exercise's weight type can change while this view lives: keep the metric among the offered ones.
@@ -94,6 +98,8 @@ struct ExerciseChartsView: View {
                 }
             }
         }
+        // Content inset by the margin, scrolling to the screen edge: the next chip peeks out, so the row reads as a scroller.
+        .contentMargins(.horizontal, Metrics.cardPadding, for: .scrollContent)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("exerciseDetail.chart.metric")
     }
@@ -165,11 +171,13 @@ struct ExerciseChartsView: View {
             if let highlighted {
                 RuleMark(x: .value("Date", highlighted.time))
                     .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
-                    .foregroundStyle(.secondary.opacity(0.6))
+                    .foregroundStyle(.tertiary)
             }
         }
         .chartXSelection(value: $selectedDate)
         .chartYScale(domain: .automatic(includesZero: false))
+        // Room after the newest point, so its large symbol and rule end before the trailing y-axis labels.
+        .chartXScale(range: .plotDimension(endPadding: 12))
         .chartXAxis {
             AxisMarks(values: .automatic(desiredCount: 4)) { _ in
                 AxisGridLine()

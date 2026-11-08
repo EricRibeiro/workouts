@@ -42,4 +42,19 @@ struct SnapshotChromeTests {
             Snapshot.assertSameChrome(bar(glass: 0.90, glyphX: 20), bar(glass: 0.80, glyphX: nil), topPoints: 60)
         }
     }
+
+    @Test
+    func failedCheckWritesBothFramesAndADiffMask() throws {
+        let loading = bar(glass: 0.90, glyphX: 20)
+        let loaded = bar(glass: 0.90, glyphX: 30)
+        let directory = Snapshot.writeChromeEvidence(loading: loading, loaded: loaded, topPoints: 60)
+        defer { try? FileManager.default.removeItem(atPath: directory) }
+        for name in ["loading.png", "loaded.png", "diff-mask.png"] {
+            let data = try #require(
+                FileManager.default.contents(atPath: directory + "/" + name),
+                "\(name) was not written"
+            )
+            #expect(UIImage(data: data) != nil, "\(name) is not an image")
+        }
+    }
 }

@@ -170,6 +170,66 @@ enum Snapshot {
         return capture(hosted)
     }
 
+    /// A hosted frame drawn twice: `atSettle` is the draw after the fixed settle (what `renderSettling` returns, spinner
+    /// phase and all), `stable` the first later draw whose bar matches the draw before it.
+    struct SettledFrames {
+        let atSettle: Data
+        let stable: Data
+    }
+
+    /// Like `renderSettling`, then keeps drawing the hosted frame every `interval` until its top `topPoints` (the bar) are
+    /// pixel-identical in two consecutive draws. The bar's Liquid Glass and its toolbar items animate on their own clock
+    /// (475 px of the bar still change between the draws at 1.0 s and 1.25 s after the window appears), so a fixed sleep
+    /// can capture them mid-animation, depending on machine load. Fails (and returns the last draw) if the bar has not
+    /// stopped after `limit`, so a never-settling bar is reported instead of compared.
+    static func renderSettled<Content: View>(
+        _ view: Content,
+        variant: SnapshotVariant,
+        width: CGFloat,
+        height: CGFloat,
+        environment: SampleEnvironment?,
+        settle: Duration,
+        topPoints: CGFloat,
+        interval: Duration = .milliseconds(250),
+        limit: Duration = .seconds(10),
+        sourceLocation: SourceLocation = #_sourceLocation
+    ) async -> SettledFrames? {
+        let content = frame(view, variant: variant, width: width, environment: environment)
+        guard let hosted = host(content, variant: variant, width: width, height: height) else {
+            return nil
+        }
+        defer { hosted.window.isHidden = true }
+        try? await Task.sleep(for: settle)
+        guard let atSettle = draw(hosted) else { return nil }
+        let clock = ContinuousClock()
+        let deadline = clock.now + limit
+        var previous = atSettle
+        while clock.now < deadline {
+            try? await Task.sleep(for: interval)
+            guard let next = draw(hosted) else { return nil }
+            if bandDifference(previous, next, topPoints: topPoints) == 0 {
+                return SettledFrames(atSettle: atSettle, stable: next)
+            }
+            previous = next
+        }
+        Issue.record(
+            "The top \(Int(topPoints)) pt never stopped changing within \(limit)",
+            sourceLocation: sourceLocation
+        )
+        return SettledFrames(atSettle: atSettle, stable: previous)
+    }
+
+    /// Pixels in the top `topPoints` of two draws that differ in any channel at all.
+    private static func bandDifference(_ a: Data, _ b: Data, topPoints: CGFloat) -> Int {
+        guard let x = pixels(a), let y = pixels(b), x.width == y.width else { return Int.max }
+        let end = min(Int(topPoints * scale), x.height, y.height) * x.width * 4
+        var count = 0
+        for index in stride(from: 0, to: end, by: 4) {
+            if (0..<4).contains(where: { x.bytes[index + $0] != y.bytes[index + $0] }) { count += 1 }
+        }
+        return count
+    }
+
     private static func frame<Content: View>(
         _ view: Content,
         variant: SnapshotVariant,
@@ -240,6 +300,11 @@ enum Snapshot {
     /// Draws the hosted hierarchy and takes the window down.
     private static func capture(_ hosted: Hosted) -> Data? {
         defer { hosted.window.isHidden = true }
+        return draw(hosted)
+    }
+
+    /// Draws the hosted hierarchy once and leaves the window up.
+    private static func draw(_ hosted: Hosted) -> Data? {
         hosted.controller.view.layoutIfNeeded()
         let format = UIGraphicsImageRendererFormat()
         format.scale = scale
@@ -297,11 +362,65 @@ enum Snapshot {
         }
         let total = rows * a.width
         guard Double(differing) / Double(max(1, total)) > maxDifferingFraction else { return }
+        let evidence = writeChromeEvidence(loading: loading, loaded: loaded, topPoints: topPoints)
         let message: String =
             "The top \(Int(topPoints)) pt (navigation bar and title) of the loading frame differs from the loaded frame: "
             + "\(differing) of \(total) pixels, first at row \(firstRow ?? 0) px. "
-            + "Chrome must not wait for data; see DECISIONS.md, Pushed-screen chrome."
+            + "Chrome must not wait for data; see DECISIONS.md, Pushed-screen chrome. Evidence: \(evidence)"
         Issue.record(Comment(rawValue: message), sourceLocation: sourceLocation)
+    }
+
+    /// Writes both frames and a diff mask (red = differs by more than `chromeChannelThreshold`, the rest of the loading
+    /// frame faded) of a failed chrome check to a fresh temp directory, and returns its path for the failure message.
+    static func writeChromeEvidence(loading: Data, loaded: Data, topPoints: CGFloat) -> String {
+        guard let a = pixels(loading), let b = pixels(loaded), a.width == b.width else {
+            return "none (the frames could not be compared)"
+        }
+        let rows = min(Int(topPoints * scale), a.height, b.height)
+        let directory = FileManager.default.temporaryDirectory.appending(
+            path: "chrome-diff-\(UUID().uuidString.prefix(8))"
+        )
+        do {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            try loading.write(to: directory.appending(path: "loading.png"))
+            try loaded.write(to: directory.appending(path: "loaded.png"))
+            var mask = [UInt8](repeating: 255, count: a.width * rows * 4)
+            for row in 0..<rows {
+                for column in 0..<a.width {
+                    let index = (row * a.width + column) * 4
+                    let differs = (0..<4).contains {
+                        abs(Int(a.bytes[index + $0]) - Int(b.bytes[index + $0])) > chromeChannelThreshold
+                    }
+                    for channel in 0..<3 {
+                        mask[index + channel] =
+                            differs ? (channel == 0 ? 255 : 0) : UInt8(128 + Int(a.bytes[index + channel]) / 2)
+                    }
+                }
+            }
+            let data = Data(mask)
+            if let provider = CGDataProvider(data: data as CFData),
+                let space = CGColorSpace(name: CGColorSpace.sRGB),
+                let image = CGImage(
+                    width: a.width,
+                    height: rows,
+                    bitsPerComponent: 8,
+                    bitsPerPixel: 32,
+                    bytesPerRow: a.width * 4,
+                    space: space,
+                    bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.noneSkipLast.rawValue),
+                    provider: provider,
+                    decode: nil,
+                    shouldInterpolate: false,
+                    intent: .defaultIntent
+                ),
+                let png = UIImage(cgImage: image).pngData()
+            {
+                try png.write(to: directory.appending(path: "diff-mask.png"))
+            }
+            return directory.path()
+        } catch {
+            return "could not be written (\(error))"
+        }
     }
 
     // MARK: Comparison

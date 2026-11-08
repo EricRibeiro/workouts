@@ -205,6 +205,10 @@ final class AccessibilityAuditUITests: XCTestCase {
     @MainActor
     func testSettings() throws {
         let app = XCUIApplication.launchedPreview("Settings", waitingFor: "screen.settings")
+        // The gallery presents Settings as a sheet: audit only once its content is on screen and the presentation
+        // animation has settled (an audit during the animation reports "Dynamic Type font sizes are unsupported").
+        XCTAssertTrue(app.buttons["settings.done"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["settings.done"].isHittable)
         try audit(app)
     }
 
