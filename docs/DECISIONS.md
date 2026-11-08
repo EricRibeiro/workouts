@@ -34,6 +34,10 @@ Eric deferred the technical choices to Claude. These close every item in `docs/p
 - Migration and backup: one `WorkoutsJSON` document (folders, templates, custom exercises, sticky notes, workouts; exercise ids
   via `LibraryID`) with an idempotent `Importer` (1.7); `scripts/export-web` (Postgres → JSON) runs on this Mac; Settings has
   **Import** and **Export…** (5.7); Eric's export is gitignored in `docs/port/fixtures/`.
+- Schema changes: `OnDiskStoreMigrationTests` (kit) opens a committed on-disk V1 store (`Tests/WorkoutsKitTests/Fixtures/store-v1/`)
+  with `WorkoutsMigrationPlan` and checks counts and field values. Any model change must keep it green. A change SwiftData cannot
+  infer (rename, type change, new required attribute without a default, a new enum case in a stored attribute) needs a new
+  `VersionedSchema` plus a migration stage; never regenerate the fixture to silence the test (P-03, 2026-11-07).
 - Errors: a failed `ModelContext.save()` is an alert with the message; the draft is never discarded.
 
 ## Navigation and layout

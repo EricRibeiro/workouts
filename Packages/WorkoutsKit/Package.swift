@@ -18,6 +18,7 @@ let package = Package(
         .testTarget(
             name: "WorkoutsKitTests",
             dependencies: ["WorkoutsKit"],
+            resources: [.copy("Fixtures/store-v1")],
             swiftSettings: [
                 .defaultIsolation(MainActor.self),
                 .enableUpcomingFeature("MemberImportVisibility"),
