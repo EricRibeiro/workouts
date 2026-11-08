@@ -10,8 +10,8 @@ before it.
 
 ## 0. The proof of record needs no MCP
 
-Xcode's MCP (steps 1 and 3 below) is optional and has failed to connect in every session so far; a proof must not depend on
-it. The fallback is the proof of record:
+Xcode's MCP (steps 1 and 3 below) is the first shortcut; a proof must not depend on it. The fallback is the proof of
+record:
 
 - **Screens**: `./dev run -- -preview <Name>` launches the `#if DEBUG` `PreviewGallery` root, which hosts the same views as the
   `#Preview`s on the sample container (PLAN task 0.10). Dynamic Type and dark: `xcrun simctl ui booted content_size
@@ -27,12 +27,15 @@ it. The fallback is the proof of record:
 
 Every view file should carry a `#Preview`. Render it through Xcode's MCP:
 
-1. `XcodeOpenWorkspace` with `/Users/ericribeiro/Projects/workouts/Workouts.xcodeproj` → note the
-   `workspaceIdentifier` (it changes per Xcode launch; don't hardcode it).
-2. `RenderPreview` with `sourceFilePath: "Workouts/<File>.swift"` and that identifier. Add
-   `previewDefinitionIndexInFile` for a second `#Preview` in the same file.
+1. `XcodeOpenWorkspace` with the current checkout's absolute `Workouts.xcodeproj` path (worktrees differ; never hardcode
+   one) → note the `workspaceIdentifier` (it changes per Xcode launch; don't hardcode it). Opening it writes a
+   `project.xcworkspace` stub under the project; it is git-ignored, leave it alone.
+2. `RenderPreview` with `sourceFilePath: "Workouts/<File>.swift"`, that identifier and an iPhone Duo render destination (the
+   default is an iPad). Add `previewDefinitionIndexInFile` for a second `#Preview` in the same file.
 3. Look at the returned PNG yourself. A successful render does not reveal clipped or truncated
    text; check it.
+
+Default herdr workers lack the MCP tools; use them from the orchestrator or a `--full` worker.
 
 Previews are the right tool for layout, colours, Dynamic Type (`previewVariantOverrides`), and
 dark mode. They are the wrong tool for navigation flows and state.
@@ -51,7 +54,7 @@ Logs: `xcrun simctl spawn booted log stream --predicate 'subsystem == "com.ericr
 
 ## 3. Drive the UI (flows, taps, typing)
 
-Use Apple's device-interaction tools (skill `device-interaction` has the command syntax):
+This is for exploration and hierarchy reads; a flow's proof of record is still an XCUITest. Use Apple's device-interaction tools (skill `device-interaction` has the command syntax):
 `DeviceInteractionStartWorkspaceSession` (device `iPhone Duo`, pass the workspace identifier) →
 `DeviceInteractionInstallAndRun` → `DeviceInteractionSynthesize` (`t x y` tap, `w 1` wait, typing,
 orientation) → `DeviceInteractionEndSession`. Each synthesize returns a screenshot **and** the

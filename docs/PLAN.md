@@ -78,7 +78,7 @@ Workouts.xcodeproj
 ## 5. Agentic workflow for this project
 
 - **One worker, one task, one proving command**; a worker reporting two features means split next time. **Order of proof**: `./dev
-  kit <filter>` → `./dev build` → preview (`./dev run -- -preview <Name>` + `./dev screenshot`; MCP `RenderPreview` is a bonus) →
+  kit <filter>` → `./dev build` → preview (`./dev run -- -preview <Name>` + `./dev screenshot`; MCP `RenderPreview` first when available, the gallery screenshot is the record) →
   `./dev test` → flow (an XCUITest, `./dev ui-test Suite/test()`) → the four poses before a screen is done. "Proof: preview" and
   "flow" below mean exactly this; every UI task registers its views in the gallery (0.10).
 - **Skills to add as patterns appear**: `new-screen`, `swiftdata-model`, `live-activity`, `testflight-release`. **Ask Eric only

@@ -103,17 +103,17 @@ Rules for the loop:
 - **Flows need the harness.** `WorkoutsUITests/SmokeUITests` is the one XCUITest to copy from; PLAN task 0.10 extends it
   with the `-preview` gallery, and every task whose proof is a preview or a flow lists 0.10 in its `Needs`.
   UI tests launch with `-uiTesting` (in-memory store, no leftover state).
-- **The UI proof of record is the fallback, not the MCP.** A screen is proven by `./dev run -- -preview <Name>` (PLAN
+- **The UI proof of record is `./dev`; the Xcode MCP is the first shortcut.** A screen is proven by `./dev run -- -preview <Name>` (PLAN
   task 0.10; until it lands, plain `./dev run`; a `#if DEBUG` `PreviewGallery` hosting the same views as the `#Preview`s, fed by the sample container; set Dynamic Type and
   dark with `xcrun simctl ui booted ...`) followed by `./dev screenshot`; a flow is proven by an XCUITest in `WorkoutsUITests`
   (`./dev ui-test Suite/test()`), which also forces the accessibility identifiers below. Xcode's MCP tools (plugin
-  `xcode-integration` in Claude Code, `xcrun agent plugin path --plugin-format codex` in Codex) are an **optional**
-  shortcut when they connect: `RenderPreview` returns a preview image without launching the app, `DeviceInteraction*` taps
-  and reads the accessibility tree (they need `workspaceIdentifier` from `XcodeOpenWorkspace` on the absolute `.xcodeproj`
-  path first). The bridge is a stdio process that Claude Code marks failed once it drops, and nothing an agent can do
-  restarts it: only Eric typing `/mcp reconnect all` (or picking Reconnect in `/mcp`) does. If the `mcp__…xcode__*`
-  tools are missing, say so once and ask him to run it, then continue with the fallback proofs above; a task's proof must
-  never depend on the MCP. Skill: `verify-ui`.
+  `xcode-integration` in Claude Code, `xcrun agent plugin path --plugin-format codex` in Codex) connect by default; reach
+  for them first. `RenderPreview` checks layout, Dynamic Type and dark without a simulator (`XcodeOpenWorkspace` on this
+  checkout's absolute `.xcodeproj` path first, then pass an iPhone Duo render destination: the default is an iPad);
+  `DeviceInteraction*` drives the UI and reads the accessibility tree for exploration. If the `mcp__…xcode__*` tools are
+  missing, say so once and fall back to the proofs above (only Eric can reconnect, with `/mcp reconnect all`). A task's
+  proof never depends on the MCP, and its `BuildProject`/`RunSomeTests` tools never count as the gate (Xcode's own
+  DerivedData, no `.build/check.stamp`). Default herdr workers lack the MCP tools (orchestrator or `--full` workers only). Skill: `verify-ui`.
 - **Never toggle the simulator's displays** (`simctl io … screenConfig`, display power, device defaults): it crash-loops
   SpringBoard and floods Eric's Mac with crash dialogs. `./dev` fails any simulator command during which SpringBoard
   crashed; treat that as a stop and report (never `simctl shutdown all`: it kills other agents' simulators; a pool clone

@@ -36,3 +36,6 @@ docs/port/fixtures/
 
 # Snapshot test output; the references (WorkoutsTests/__Snapshots__/**/*.png) are tracked
 *.actual.png
+
+# Xcode writes this self-referencing workspace stub when the MCP (or the GUI) opens the project; the folder-based project does not need it
+Workouts.xcodeproj/project.xcworkspace/
