@@ -365,9 +365,15 @@ nonisolated final class GatedMediaSource: MediaSource, @unchecked Sendable {
         let store = MediaStore(source: source, bundle: .main, cacheDirectory: root.appendingPathComponent("cache"))
 
         let bulk = Task { try await store.video(for: "abc", scheme: .light, allowsCellular: false) }
-        while source.allowsCellularFlags.isEmpty { try await Task.sleep(for: .milliseconds(5)) }
+        try #require(
+            try await eventually { !source.allowsCellularFlags.isEmpty },
+            "the fetch never reached the source"
+        )
         let onDemand = Task { try await store.video(for: "abc", scheme: .light, allowsCellular: true) }
-        while source.allowsCellularFlags.count < 2 { try await Task.sleep(for: .milliseconds(5)) }
+        try #require(
+            try await eventually { source.allowsCellularFlags.count >= 2 },
+            "the on-demand fetch never reached the source"
+        )
         // The on-demand request made its own cellular-allowed fetch instead of joining the Wi-Fi-only one.
         #expect(source.allowsCellularFlags == [false, true])
         source.release()
@@ -384,7 +390,10 @@ nonisolated final class GatedMediaSource: MediaSource, @unchecked Sendable {
         let store = MediaStore(source: source, bundle: .main, cacheDirectory: root.appendingPathComponent("cache"))
 
         let fetch = Task { try await store.video(for: "abc", scheme: .light) }
-        while source.allowsCellularFlags.isEmpty { try await Task.sleep(for: .milliseconds(5)) }
+        try #require(
+            try await eventually { !source.allowsCellularFlags.isEmpty },
+            "the fetch never reached the source"
+        )
         await store.clearCache()
         source.release()
 

@@ -58,7 +58,7 @@ final class HistoryRefreshUITests: XCTestCase {
             waitingFor: "screen.history"
         )
         pullToRefresh(app)
-        XCTAssertFalse(app.otherElements["Refreshing content"].exists, "a refresh spinner with Apple Fitness off")
+        app.otherElements["Refreshing content"].assertStaysAbsent(for: 1.5, "a refresh spinner with Apple Fitness off")
         // Same search as the opted-in test, so a miss here means the lookup did not run, not that it was not looked for.
         let row = calorieElements(app).firstMatch
         for _ in 0..<6 where !row.waitForExistence(timeout: 2) { app.swipeUp() }

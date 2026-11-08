@@ -160,26 +160,20 @@ import Testing
 
     // MARK: RemoteChangeObserver
 
-    /// Polls until `condition` holds, up to ten seconds (the full suite runs loaded, so fixed sleeps are flaky).
-    private func eventually(_ condition: () -> Bool) async throws -> Bool {
-        for _ in 0..<500 {
-            if condition() { return true }
-            try await Task.sleep(for: .milliseconds(20))
-        }
-        return condition()
-    }
-
     @Test func observerRunsOnceAfterABurstAndStopsWhenAsked() async throws {
         let center = NotificationCenter()
         let name = Notification.Name("test.remoteChange")
         var calls = 0
         let observer = RemoteChangeObserver(center: center, name: name, debounce: .milliseconds(100)) { calls += 1 }
+        // The debounce task has no completion signal, so "nothing more happens" is a quiet window of several debounces: it can
+        // only pass too early, never fail for the wrong reason. Every positive wait below polls with a deadline.
+        let quiet = Duration.milliseconds(100) * 3
         observer.start()
         observer.start()
         for _ in 0..<5 { center.post(name: name, object: nil) }
         #expect(try await eventually { calls >= 1 })
         // A burst is one call, however long the wait that follows.
-        try await Task.sleep(for: .milliseconds(500))
+        try await Task.sleep(for: quiet)
         #expect(calls == 1)
 
         center.post(name: name, object: nil)
@@ -187,10 +181,10 @@ import Testing
 
         center.post(name: name, object: nil)
         observer.stop()
-        try await Task.sleep(for: .milliseconds(500))
+        try await Task.sleep(for: quiet)
         #expect(calls == 2)
         center.post(name: name, object: nil)
-        try await Task.sleep(for: .milliseconds(500))
+        try await Task.sleep(for: quiet)
         #expect(calls == 2)
     }
 

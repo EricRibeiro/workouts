@@ -538,19 +538,21 @@ final class FakeNotificationCenter: NotificationCenterProviding {
         // Inside the window nothing has been touched yet.
         #expect(center.log.isEmpty)
 
-        try await Task.sleep(for: .milliseconds(400))
+        #expect(await eventually { center.log.contains("add") }, "the burst never scheduled")
+        // No completion signal for "nothing more is coming": a quiet window of several debounces, which can only pass early.
+        try await Task.sleep(for: .milliseconds(240))
         #expect(center.log.filter { $0 == "add" }.count == 1)
         #expect(center.log.filter { $0 == "removePending" }.count == 1)
         #expect(scheduledSeconds() == 210)
 
         // A change after the window is its own sync.
         try engine.adjustRest(by: 30)
-        try await Task.sleep(for: .milliseconds(400))
+        #expect(await eventually { center.log.filter { $0 == "add" }.count >= 2 }, "the later change never scheduled")
+        try await Task.sleep(for: .milliseconds(240))
         #expect(center.log.filter { $0 == "add" }.count == 2)
         #expect(scheduledSeconds() == 240)
 
         try engine.skipRest()
-        try await Task.sleep(for: .milliseconds(400))
-        #expect(center.pending.isEmpty)
+        #expect(await eventually { center.pending.isEmpty }, "skipping the rest never cleared the notification")
     }
 }

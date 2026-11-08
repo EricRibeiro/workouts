@@ -11,7 +11,8 @@ final class ResumeControlUITests: XCTestCase {
         let app = XCUIApplication.launchedInActiveWorkout()
         let any = app.descendants(matching: .any)
         let ring = app.buttons["resume.ring"].firstMatch
-        XCTAssertFalse(ring.exists, "the ring shows while the cover is open")
+        XCTAssertTrue(any["screen.activeWorkout"].waitForExistence(timeout: 10), "the cover is not open")
+        ring.assertStaysAbsent(for: 1, "the ring shows while the cover is open")
 
         app.buttons["cover.minimise"].firstMatch.tap()
         XCTAssertTrue(any["screen.workout"].waitForExistence(timeout: 10))

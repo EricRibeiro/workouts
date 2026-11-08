@@ -49,7 +49,7 @@ final class HistoryCalendarUITests: XCTestCase {
         if firstOfDay.waitForExistence(timeout: 2) { firstOfDay.tap() }
 
         XCTAssertTrue(any["history.detail"].waitForExistence(timeout: 8), "the workout did not open")
-        XCTAssertFalse(any["screen.calendar"].exists, "the sheet is still up")
+        XCTAssertTrue(any["screen.calendar"].waitUntilGone(timeout: 5), "the sheet is still up")
     }
 
     @MainActor

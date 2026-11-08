@@ -97,7 +97,7 @@ final class FoldersUITests: XCTestCase {
         if app.alerts.firstMatch.waitForExistence(timeout: 1) { rename.tap() }
         let renamed = toggle(app, named: "Stretching")
         XCTAssertTrue(renamed.waitForExistence(timeout: 5), "rename did not show")
-        XCTAssertFalse(toggle(app, named: "Mobility").exists)
+        XCTAssertTrue(toggle(app, named: "Mobility").waitUntilGone(timeout: 5), "the old folder name is still shown")
 
         // Move Up swaps it with Lower Body.
         openMenu(of: renamed, app, item: "workout.folder.moveUp")

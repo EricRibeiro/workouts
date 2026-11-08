@@ -406,23 +406,25 @@ final class FakeLiveActivityProvider: LiveActivityProviding {
         let debounced = LiveActivityController(provider: provider, debounce: .milliseconds(80))
         try engine.startEmpty()
         debounced.observe(engine)
-        try await Task.sleep(for: .milliseconds(300))
+        #expect(await eventually { provider.requested.first?.contents.count == 1 }, "the activity was never requested")
         let activity = try #require(provider.requested.first)
-        #expect(activity.contents.count == 1)
 
         try engine.startRest(seconds: 60)
         for _ in 0..<5 { try engine.adjustRest(by: 30) }
         // Inside the window nothing has been sent yet.
         #expect(activity.contents.count == 1)
 
-        try await Task.sleep(for: .milliseconds(400))
+        #expect(await eventually { activity.contents.count >= 2 }, "the burst never reached the activity")
+        // No completion signal for "nothing more is coming": a quiet window of several debounces, which can only pass early.
+        try await Task.sleep(for: .milliseconds(240))
         #expect(activity.contents.count == 2)
         #expect(activity.contents.last?.staleDate == clock.date.addingTimeInterval(210))
         #expect(activity.contents.last?.state == engine.activityState)
 
         // A change after the window is its own update.
         try engine.adjustRest(by: 30)
-        try await Task.sleep(for: .milliseconds(400))
+        #expect(await eventually { activity.contents.count >= 3 }, "the later change never reached the activity")
+        try await Task.sleep(for: .milliseconds(240))
         #expect(activity.contents.count == 3)
         #expect(activity.contents.last?.staleDate == clock.date.addingTimeInterval(240))
     }

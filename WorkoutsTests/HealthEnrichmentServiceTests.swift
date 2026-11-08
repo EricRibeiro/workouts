@@ -288,7 +288,8 @@ struct HealthEnrichmentServiceTests {
             finished = true
         }
         await waitUntilInFlight(setup.gate)
-        try await Task.sleep(for: .milliseconds(100))
+        // The gate holds the source open, so nothing can finish: a few turns give a wrongly returning call time to show.
+        for _ in 0..<20 { await Task.yield() }
         #expect(!finished)
         #expect(setup.workout.healthWorkoutID == nil)
 
@@ -311,7 +312,7 @@ struct HealthEnrichmentServiceTests {
             await setup.service.refreshNow(context: setup.context)
             finished.second = true
         }
-        try await Task.sleep(for: .milliseconds(100))
+        for _ in 0..<20 { await Task.yield() }
         #expect(!finished.first && !finished.second)
         // The second call joined: only the first call's lookup is open, no concurrent second one.
         #expect(await setup.gate.lookups == 1)
@@ -341,7 +342,8 @@ struct HealthEnrichmentServiceTests {
         let lookups = await setup.gate.lookups
 
         // The queued round was dropped (setting off, nothing re-queued), and the removal was not undone.
-        try await Task.sleep(for: .milliseconds(200))
+        // Every task that could run the queued round has been awaited above; the turns below only let a stray one show itself.
+        for _ in 0..<20 { await Task.yield() }
         #expect(await setup.gate.lookups == lookups)
         #expect(lookups == 1)
         #expect(setup.workout.healthWorkoutID == nil)
@@ -450,13 +452,15 @@ struct HealthEnrichmentServiceTests {
     }
 
     @Test func turnOffCancelsTheFollowUp() async throws {
-        let setup = try makeSetup(followUpDelay: .milliseconds(200))
+        let followUpDelay = Duration.milliseconds(50)
+        let setup = try makeSetup(followUpDelay: followUpDelay)
         await setup.gate.release()
         setup.service.workoutFinished(context: setup.context)
         // The immediate lookup applies the data; clear it, then make sure the follow-up does not bring it back.
         await waitUntilInFlight(setup.gate)
         try await setup.service.turnOff(remove: true, context: setup.context)
-        try await Task.sleep(for: .milliseconds(500))
+        // The follow-up's own sleep has no completion signal: wait several follow-up delays, which can only pass early.
+        try await Task.sleep(for: followUpDelay * 4)
         #expect(setup.workout.healthWorkoutID == nil)
         #expect(setup.workout.healthCheckedAt == nil)
     }

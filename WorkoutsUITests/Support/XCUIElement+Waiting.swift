@@ -8,6 +8,21 @@ extension XCUIElement {
     }
 }
 
+extension XCUIElement {
+    /// Asserts the element is absent now and does not show up within `duration`. For an element that must never appear: call
+    /// it after a positive anchor proved the screen settled (a bare `XCTAssertFalse(x.exists)` right after a tap passes
+    /// when `x` has merely not appeared yet). A wait on appearance, not a sleep: it fails as soon as the element shows.
+    @MainActor
+    func assertStaysAbsent(
+        for duration: TimeInterval = 1,
+        _ message: @autoclosure () -> String = "",
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        XCTAssertFalse(waitForExistence(timeout: duration), message(), file: file, line: line)
+    }
+}
+
 extension XCUIApplication {
     /// Dismisses the sheet whose content starts at `top` (any element near the sheet's top, such as its detail's name) by
     /// dragging down from just above that element to the bottom of the window: the grabber's area, which dismisses at

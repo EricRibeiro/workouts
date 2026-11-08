@@ -32,7 +32,7 @@ final class FitnessFixtureUITests: XCTestCase {
         let zones = any["heartRateChart.zones"].firstMatch
         XCTAssertTrue(zones.exists, "no zones under the chart")
         XCTAssertTrue(zones.label.contains("Zone 1"), "label was \(zones.label)")
-        XCTAssertFalse(any["fitness.card"].exists, "the retired Fitness card is back")
+        any["fitness.card"].assertStaysAbsent(for: 1, "the retired Fitness card is back")
     }
 
     @MainActor

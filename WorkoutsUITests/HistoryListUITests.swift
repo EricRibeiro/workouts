@@ -61,7 +61,7 @@ final class HistoryListUITests: XCTestCase {
                 .press(forDuration: 0.1, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.5)))
         }
         XCTAssertTrue(rows.element(boundBy: 0).waitForExistence(timeout: 5), "back did not return to the list")
-        XCTAssertFalse(any["history.detail"].exists)
+        XCTAssertTrue(any["history.detail"].waitUntilGone(timeout: 5), "the detail is still up after back")
     }
 
     /// The detail's title and toolbar belong to the first frame of the push (backlog: "History detail jumps after the
@@ -104,7 +104,7 @@ final class HistoryListUITests: XCTestCase {
         XCTAssertTrue(any["screen.pastEditor"].waitForExistence(timeout: 5), "Edit did not open the editor")
         app.buttons["pastEditor.cancel"].tap()
         XCTAssertTrue(firstRow(app).waitForExistence(timeout: 5), "Cancel did not return to the list")
-        XCTAssertFalse(any["screen.pastEditor"].exists)
+        XCTAssertTrue(any["screen.pastEditor"].waitUntilGone(timeout: 5), "the editor is still up after Cancel")
 
         // Save as Template presents the sheet; Cancel dismisses it.
         firstRow(app).press(forDuration: 1.0)
@@ -117,7 +117,10 @@ final class HistoryListUITests: XCTestCase {
         )
         app.buttons["workoutDetail.saveTemplate.cancel"].tap()
         XCTAssertTrue(firstRow(app).waitForExistence(timeout: 5), "Cancel did not return to the list")
-        XCTAssertFalse(any["workoutDetail.saveTemplate.sheet"].exists)
+        XCTAssertTrue(
+            any["workoutDetail.saveTemplate.sheet"].waitUntilGone(timeout: 5),
+            "the sheet is still up after Cancel"
+        )
     }
 
     @MainActor

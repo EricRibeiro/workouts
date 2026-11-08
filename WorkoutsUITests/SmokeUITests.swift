@@ -56,7 +56,10 @@ final class SmokeUITests: XCTestCase {
         XCTAssertTrue(done.waitForExistence(timeout: 5))
         done.tap()
         XCTAssertTrue(app.descendants(matching: .any)["screen.workout"].waitForExistence(timeout: 5))
-        XCTAssertFalse(app.descendants(matching: .any)["screen.settings"].exists)
+        XCTAssertTrue(
+            app.descendants(matching: .any)["screen.settings"].waitUntilGone(timeout: 5),
+            "Settings is still up after Done"
+        )
     }
 
     /// JC52: the tab bar is the three main tabs and nothing else (no app sidebar, no template tabs), sample templates or not.

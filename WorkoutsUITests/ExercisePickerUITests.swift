@@ -62,7 +62,7 @@ final class ExercisePickerUITests: XCTestCase {
         XCTAssertTrue(close.waitForExistence(timeout: 5))
         close.tap()
         XCTAssertTrue(any["screen.exercisePicker"].waitForExistence(timeout: 5))
-        XCTAssertFalse(any["screen.exerciseAbout"].exists)
+        XCTAssertTrue(any["screen.exerciseAbout"].waitUntilGone(timeout: 5), "the info sheet is still up")
         XCTAssertTrue(add.label.contains("2"))
     }
 }

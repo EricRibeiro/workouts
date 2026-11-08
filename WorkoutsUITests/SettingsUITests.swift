@@ -124,7 +124,7 @@ final class SettingsUITests: XCTestCase {
         let (app, toggle) = launchWithVideoDownloads(cache: "empty")
         flip(toggle)
         expectValue(toggle, "0")
-        XCTAssertFalse(app.alerts["Turn Off Video Downloads?"].exists)
+        app.alerts["Turn Off Video Downloads?"].assertStaysAbsent(for: 1.5, "an empty cache asked before turning off")
     }
 
     @MainActor
@@ -163,7 +163,7 @@ final class SettingsUITests: XCTestCase {
         expectValue(toggle, "1")
         flip(toggle)
         expectValue(toggle, "0")
-        XCTAssertFalse(app.alerts["Turn Off Video Downloads?"].exists, "Remove left videos behind")
+        app.alerts["Turn Off Video Downloads?"].assertStaysAbsent(for: 1.5, "Remove left videos behind")
     }
 
     // MARK: Download progress

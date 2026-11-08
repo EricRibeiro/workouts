@@ -48,11 +48,12 @@ final class StickyNoteUITests: XCTestCase {
 
         // Add.
         XCTAssertEqual(edit.label, "Add Sticky Note")
-        XCTAssertFalse(any["exerciseDetail.stickyNote.text"].exists)
+        XCTAssertTrue(any["exerciseDetail.stickyNote.text"].waitUntilGone(timeout: 2), "the removed note still shows")
         edit.tap()
         let field = any["stickyNote.field"].firstMatch
         XCTAssertTrue(field.waitForExistence(timeout: 5), "the editor did not open")
-        XCTAssertFalse(app.buttons["stickyNote.remove"].exists, "Remove shown with no note")
+        XCTAssertTrue(app.buttons["stickyNote.save"].waitForExistence(timeout: 5), "the editor has no Save")
+        app.buttons["stickyNote.remove"].assertStaysAbsent(for: 1, "Remove shown with no note")
         field.tap()
         field.typeText("Elbows in")
         app.buttons["stickyNote.save"].tap()

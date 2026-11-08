@@ -73,7 +73,7 @@ final class OpenWorkoutURLUITests: XCTestCase {
         XCTAssertFalse(cover.exists, "the cover presented before the editor closed")
         discard.tap()
         XCTAssertTrue(cover.waitForExistence(timeout: 10), "the deferred cover did not present after the editor closed")
-        XCTAssertFalse(any[screen].exists)
+        XCTAssertTrue(any[screen].waitUntilGone(timeout: 5), "the editor is still up under the cover")
     }
 
     @MainActor
