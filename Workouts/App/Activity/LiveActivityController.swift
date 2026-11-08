@@ -46,19 +46,46 @@ protocol LiveActivityProviding {
 struct SystemLiveActivityProvider: LiveActivityProviding {
     private nonisolated static let queue = DispatchQueue(label: "com.ericribeiro.Workouts.liveactivity")
 
+    /// The three ActivityKit calls, as a seam: they always run on ``queue``, and tests substitute their own to prove
+    /// that (a test fails if a call is made from the main thread again).
+    struct Operations: Sendable {
+        nonisolated var activities: @Sendable () -> [Activity<WorkoutActivityAttributes>]
+        nonisolated var areActivitiesEnabled: @Sendable () -> Bool
+        nonisolated var request:
+            @Sendable (UUID, ActivityContent<WorkoutActivityState>) throws -> Activity<WorkoutActivityAttributes>
+
+        nonisolated static let activityKit = Operations(
+            activities: { Activity<WorkoutActivityAttributes>.activities },
+            areActivitiesEnabled: { ActivityAuthorizationInfo().areActivitiesEnabled },
+            request: { workoutID, content in
+                try Activity.request(
+                    attributes: WorkoutActivityAttributes(workoutID: workoutID),
+                    content: content,
+                    pushType: nil
+                )
+            }
+        )
+    }
+
+    private let operations: Operations
+
+    init(operations: Operations = .activityKit) { self.operations = operations }
+
     func existingActivities() async -> [any LiveActivityHandle] {
+        let operations = operations
         let activities = await withCheckedContinuation { continuation in
             Self.queue.async {
-                continuation.resume(returning: Activity<WorkoutActivityAttributes>.activities)
+                continuation.resume(returning: operations.activities())
             }
         }
         return activities.map(SystemLiveActivity.init)
     }
 
     func activitiesEnabled() async -> Bool {
-        await withCheckedContinuation { continuation in
+        let operations = operations
+        return await withCheckedContinuation { continuation in
             Self.queue.async {
-                continuation.resume(returning: ActivityAuthorizationInfo().areActivitiesEnabled)
+                continuation.resume(returning: operations.areActivitiesEnabled())
             }
         }
     }
@@ -67,17 +94,10 @@ struct SystemLiveActivityProvider: LiveActivityProviding {
         workoutID: UUID,
         content: ActivityContent<WorkoutActivityState>
     ) async throws -> any LiveActivityHandle {
+        let operations = operations
         let activity = try await withCheckedThrowingContinuation { continuation in
             Self.queue.async {
-                continuation.resume(
-                    with: Result {
-                        try Activity.request(
-                            attributes: WorkoutActivityAttributes(workoutID: workoutID),
-                            content: content,
-                            pushType: nil
-                        )
-                    }
-                )
+                continuation.resume(with: Result { try operations.request(workoutID, content) })
             }
         }
         return SystemLiveActivity(activity)

@@ -208,11 +208,10 @@ struct SetRow: View {
         AccessibilityNotification.Announcement("Enter weight and reps first").post()
     }
 
-    /// Done: dark on the green fill. Not done: `.primary` when the set can be checked, `.secondary` when checking would be
-    /// refused (nothing to record). Both sit on `.quaternary`; no new tint.
+    /// Done: dark on the green fill. Not done: `.secondary` on `.quaternary`, so a column of unchecked sets does not read as
+    /// a column of done ones; the green fill is the one strong state. No new tint.
     private var checkGlyphStyle: AnyShapeStyle {
-        if model.isChecked { return AnyShapeStyle(Color.onOkFill) }
-        return model.canCheck ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary)
+        model.isChecked ? AnyShapeStyle(Color.onOkFill) : AnyShapeStyle(.secondary)
     }
 
     private var checkButton: some View {

@@ -164,20 +164,24 @@ import Testing
         let center = NotificationCenter()
         let name = Notification.Name("test.remoteChange")
         var calls = 0
-        let observer = RemoteChangeObserver(center: center, name: name, debounce: .milliseconds(100)) { calls += 1 }
-        // The debounce task has no completion signal, so "nothing more happens" is a quiet window of several debounces: it can
-        // only pass too early, never fail for the wrong reason. Every positive wait below polls with a deadline.
+        let signal = CallSignal()
+        let observer = RemoteChangeObserver(center: center, name: name, debounce: .milliseconds(100)) {
+            calls += 1
+            signal.fire()
+        }
+        // "Nothing more happens" is a quiet window of several debounces: it can only pass too early, never fail for the wrong
+        // reason. Every positive wait below awaits the handler's own signal (a backstop timeout only).
         let quiet = Duration.milliseconds(100) * 3
         observer.start()
         observer.start()
         for _ in 0..<5 { center.post(name: name, object: nil) }
-        #expect(try await eventually { calls >= 1 })
+        #expect(await signal.wait(), "the burst never reached the handler")
         // A burst is one call, however long the wait that follows.
         try await Task.sleep(for: quiet)
         #expect(calls == 1)
 
         center.post(name: name, object: nil)
-        #expect(try await eventually { calls == 2 })
+        #expect(await signal.wait(), "the later change never reached the handler")
 
         center.post(name: name, object: nil)
         observer.stop()
@@ -191,10 +195,15 @@ import Testing
     @Test func observerListensToThePersistentStoreRemoteChangeNotificationByDefault() async throws {
         let center = NotificationCenter()
         var calls = 0
-        let observer = RemoteChangeObserver(center: center, debounce: .milliseconds(20)) { calls += 1 }
+        let signal = CallSignal()
+        let observer = RemoteChangeObserver(center: center, debounce: .milliseconds(20)) {
+            calls += 1
+            signal.fire()
+        }
         observer.start()
         center.post(name: .NSPersistentStoreRemoteChange, object: nil)
-        #expect(try await eventually { calls == 1 })
+        #expect(await signal.wait(), "the default notification never reached the handler")
+        #expect(calls == 1)
         observer.stop()
     }
 }

@@ -258,13 +258,13 @@ struct DashboardColumns: View {
             openWorkout: openWorkout
         )
         FoldColumns {
-            VStack(spacing: 12) {
+            VStack(spacing: Metrics.dashboardSpacing) {
                 WeeklyGoalSection(starts: starts)
                 if let last = HistoryDashboard.lastWorkout(entries: entries) {
                     cards.lastWorkout(last)
                 }
             }
-            VStack(spacing: 12) {
+            VStack(spacing: Metrics.dashboardSpacing) {
                 cards.thisWeek
                 cards.recents
             }

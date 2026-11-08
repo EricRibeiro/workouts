@@ -107,13 +107,18 @@ struct ExerciseThumbnail: View {
         baseHeight = height
     }
 
+    /// Reduce Motion, and UI tests (`-uiTesting`, which need still frames: the 30 fps cross-fade kept every list with
+    /// thumbnails from ever settling for a screenshot), hold the start frame.
+    private var animates: Bool { !reduceMotion && !Self.freezesStills }
+    private static let freezesStills = ProcessInfo.processInfo.arguments.contains("-uiTesting")
+
     /// Scaling is capped so a large Dynamic Type size cannot blow the thumbnail up (rows hide it at accessibility sizes).
     private var height: CGFloat { baseHeight * min(scale, 1.4) }
 
     var body: some View {
         Group {
             if let id, let startURL = Self.media.thumbnailURL(for: id, phase: .start) {
-                frames(start: startURL, end: reduceMotion ? nil : Self.media.thumbnailURL(for: id, phase: .end))
+                frames(start: startURL, end: animates ? Self.media.thumbnailURL(for: id, phase: .end) : nil)
             } else {
                 Image(systemName: "figure.strengthtraining.traditional")
                     .foregroundStyle(.secondary)

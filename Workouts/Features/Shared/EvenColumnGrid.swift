@@ -12,7 +12,7 @@ import WorkoutsKit
 /// the display's centre) the middle gutter is the fold itself (`FoldPlacement.foldColumns`). One column when not even two fit (large accessibility sizes).
 /// Shared by the History dashboard and the Workout tab's template grid.
 struct EvenColumnGrid<Content: View>: View {
-    var spacing: CGFloat = 12
+    var spacing: CGFloat = Metrics.dashboardSpacing
     @ViewBuilder let content: Content
 
     @ScaledMetric private var minimum: CGFloat
@@ -22,7 +22,7 @@ struct EvenColumnGrid<Content: View>: View {
     @State private var division: ClosedRange<CGFloat>?
 
     /// `minimum` is the narrowest a column may be at the default text size; it scales with Dynamic Type.
-    init(minimum: CGFloat, spacing: CGFloat = 12, @ViewBuilder content: () -> Content) {
+    init(minimum: CGFloat, spacing: CGFloat = Metrics.dashboardSpacing, @ViewBuilder content: () -> Content) {
         _minimum = ScaledMetric(wrappedValue: minimum, relativeTo: .body)
         self.spacing = spacing
         self.content = content()

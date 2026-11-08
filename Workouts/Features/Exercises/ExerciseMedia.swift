@@ -119,6 +119,10 @@ extension EnvironmentValues {
     /// Whether the exercise detail is the info sheet's content. A library exercise's sheet has no top bar, so the hero card
     /// takes the same inset above it as at its sides, which leaves the grabber clear space on the sheet's own background.
     @Entry var exerciseInfoSheetContent = false
+    /// The tallest the hero may be inside the info sheet: the sheet's own height minus what must stay visible under it (name
+    /// and segments). Infinite outside the sheet. Closed portrait's 16:9 hero is already under it, so only the short poses
+    /// (closed landscape, open wide) shrink the hero, letterboxed, instead of pushing the name below the medium detent.
+    @Entry var exerciseHeroSheetMaxHeight: CGFloat = .infinity
 }
 
 /// The hero of the exercise detail: the exercise video when the cache has (or can fetch) one, else the bundled start
@@ -137,6 +141,7 @@ struct ExerciseMediaHeader: View {
     @State private var heroCap: CGFloat = .infinity
     @Environment(\.exerciseHeroCapped) private var heroCapped
     @Environment(\.exerciseInfoSheetContent) private var inInfoSheet
+    @Environment(\.exerciseHeroSheetMaxHeight) private var sheetMaxHeight
 
     private var startURL: URL? { info.isCustom ? nil : ExerciseMedia.store.thumbnailURL(for: info.id, phase: .start) }
     private var endURL: URL? { info.isCustom ? nil : ExerciseMedia.store.thumbnailURL(for: info.id, phase: .end) }
@@ -186,7 +191,7 @@ struct ExerciseMediaHeader: View {
         }
         .aspectRatio(16 / 9, contentMode: .fit)
         .frame(maxWidth: .infinity)
-        .frame(maxHeight: heroCapped ? heroCap : .infinity)
+        .frame(maxHeight: heroCapped ? heroCap : sheetMaxHeight)
         .background {
             // `containerRelativeFrame` only sets an exact size, so a probe measures the cap (35 % of the container's
             // height) and the hero takes it as a maximum. One rule in every pose; the closed Duo stays under it.

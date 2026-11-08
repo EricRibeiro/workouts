@@ -13,6 +13,8 @@ enum Metrics {
     static let cardPadding: CGFloat = 16
     /// Vertical padding of a card that wraps rows which already carry their own height (exercise detail lists).
     static let cardRowsVerticalPadding: CGFloat = 6
+    /// Gap between the History dashboard's cards: in a grid row, in a column, and between the chart and the cards under it.
+    static let dashboardSpacing: CGFloat = 12
     /// Width of the superset bar on a template card, template preview, set table and History detail.
     static let supersetBarWidth: CGFloat = 4
     /// Text indent that clears the superset bar on a template card or preview line.

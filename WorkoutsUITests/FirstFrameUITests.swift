@@ -70,10 +70,15 @@ final class FirstFrameUITests: XCTestCase {
         XCTAssertTrue(any["exerciseDetail.records.e1rm"].waitForExistence(timeout: 10), "the records never loaded")
     }
 
-    /// The preview's title and Edit are synchronous; only "Last performed" waits for the index.
+    /// The preview's nav-bar title and Edit are synchronous; only "Last performed" waits for the index.
+    ///
+    /// The hold is longer than `slow` because "not there yet" is a race against the hold: it starts at the push, while every
+    /// XCUITest query before the absence check waits for the app to idle and snapshots the tree, which on a busy shard
+    /// took longer than 3 s (the 2026-11-08 flake: "last performed was there before its load finished"). The absence check
+    /// also runs first, right after the push is confirmed, so the chrome queries cannot eat into the window.
     @MainActor
     func testTemplatePreviewChromeBeforeLastPerformed() throws {
-        let app = XCUIApplication.launchedForTesting(["-seedSampleData"] + Self.slow)
+        let app = XCUIApplication.launchedForTesting(["-seedSampleData", "-slowLoads", "10000"])
         let any = app.descendants(matching: .any)
         let card = app.firstTemplateCard
         XCTAssertTrue(card.waitForExistence(timeout: 10))
@@ -81,14 +86,13 @@ final class FirstFrameUITests: XCTestCase {
         card.tap()
         XCTAssertTrue(any["template.preview"].waitForExistence(timeout: 5))
 
-        app.assertChromeImmediately(buttons: ["template.edit", "template.start"])
-        XCTAssertTrue(app.navigationBars[name].exists, "the preview's bar title was not there at the push")
         XCTAssertFalse(
             any["template.preview.lastPerformed"].exists,
             "last performed was there before its load finished"
         )
+        app.assertChromeImmediately(title: name, buttons: ["template.edit", "template.start"])
         XCTAssertTrue(
-            any["template.preview.lastPerformed"].waitForExistence(timeout: 10),
+            any["template.preview.lastPerformed"].waitForExistence(timeout: 20),
             "last performed never loaded"
         )
     }

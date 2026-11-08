@@ -22,6 +22,8 @@ public nonisolated struct HistoryEntry: Identifiable, Hashable, Sendable {
     public var durationSeconds: Int
     /// Sum of weight x reps over counted sets, in `unit`, rounded to 0.5.
     public var volume: Double
+    /// The same volume unrounded, in kg: sum these across workouts and round once (``displayedVolume(kg:displayUnit:)``).
+    public var volumeKg: Double
     public var unit: WeightUnit
     /// Records the workout newly set, summed over its exercises, against sessions strictly before it.
     public var prCount: Int
@@ -34,6 +36,7 @@ public nonisolated struct HistoryEntry: Identifiable, Hashable, Sendable {
         startedAt: Date,
         durationSeconds: Int,
         volume: Double,
+        volumeKg: Double? = nil,
         unit: WeightUnit,
         prCount: Int,
         exerciseNames: [String]
@@ -43,6 +46,7 @@ public nonisolated struct HistoryEntry: Identifiable, Hashable, Sendable {
         self.startedAt = startedAt
         self.durationSeconds = durationSeconds
         self.volume = volume
+        self.volumeKg = volumeKg ?? convert(volume, from: unit, to: .kg)
         self.unit = unit
         self.prCount = prCount
         self.exerciseNames = exerciseNames
@@ -97,6 +101,7 @@ public nonisolated enum HistoryList {
                 startedAt: workout.startedAt,
                 durationSeconds: duration(from: workout.startedAt, to: workout.finishedAt),
                 volume: displayedVolume(kg: volumes[workout.id] ?? 0, displayUnit: options.displayUnit),
+                volumeKg: volumes[workout.id] ?? 0,
                 unit: options.displayUnit,
                 prCount: prCounts[workout.id] ?? 0,
                 exerciseNames: rows.map(\.exerciseName)

@@ -48,22 +48,27 @@
             case .history: HistoryDemo()
             case .workout: WorkoutView()
             case .exercises: ExercisesView()
-            case .settings: SettingsView()
+            case .settings: SheetHost { SettingsView() }
             case .activeWorkoutCover: ActiveWorkoutCoverDemo()
-            case .calendar: CalendarDemo()
+            case .calendar: SheetHost { CalendarDemo() }
             case .swatches: SwatchesView()
-            case .exercisePicker: ExercisePickerView(title: "Add Exercise") { _ in }
+            case .exercisePicker: SheetHost { ExercisePickerView(title: "Add Exercise") { _ in } }
             case .setRow: SetRowDemo()
             case .setTable: SetTableDemo()
             case .finishSummary:
                 // `-staticCelebration` draws the Reduce Motion scatter instead of the falling stars, so the
                 // accessibility audit measures the same pixels on every run.
-                FinishSummaryView(summary: .sample)
-                    .environment(\.staticCelebration, ProcessInfo.processInfo.arguments.contains("-staticCelebration"))
+                SheetHost {
+                    FinishSummaryView(summary: .sample)
+                        .environment(
+                            \.staticCelebration,
+                            ProcessInfo.processInfo.arguments.contains("-staticCelebration")
+                        )
+                }
             case .exerciseDetail: ExerciseDetailDemo()
             case .workoutDetail: WorkoutDetailDemo()
             case .pastEditor: PastEditorDemo()
-            case .customExerciseForm: CustomExerciseFormView(prefill: "Zz Sled Drag")
+            case .customExerciseForm: SheetHost { CustomExerciseFormView(prefill: "Zz Sled Drag") }
             case .customExerciseFormEdit: CustomExerciseFormEditDemo()
             case .templatePreview: TemplatePreviewDemo()
             case .templateEditor: TemplateEditorDemo()
@@ -102,6 +107,16 @@
             case .success(let environment):
                 if let entry = GalleryEntry(rawValue: name) {
                     entry.view.sampleEnvironment(environment)
+                        // A 1 pt invisible marker, so `./dev tree` can wait for the requested screen to be up instead of
+                        // dumping whatever is on screen first. An overlay, not an identifier on the content, which would
+                        // leak onto descendants without one.
+                        .overlay(alignment: .topLeading) {
+                            Color.clear
+                                .frame(width: 1, height: 1)
+                                .allowsHitTesting(false)
+                                .accessibilityElement()
+                                .accessibilityIdentifier("gallery.host.\(entry.rawValue)")
+                        }
                 } else {
                     ContentUnavailableView(
                         "Unknown preview \"\(name)\"",
@@ -139,6 +154,22 @@
         /// Hosts the view on the sample container and exercise store.
         func sampleEnvironment(_ environment: SampleEnvironment) -> some View {
             modelContainer(environment.container).environment(environment.store)
+        }
+    }
+
+    /// Presents `content` as a sheet over an empty screen, the way the app does (a centred card on the regular-width Duo
+    /// via `presentationPlacement(.center)`, default detents: none of these five call sites set any), so the gallery's
+    /// open and book-pose captures prove the real presentation. Presented at launch; DEBUG only.
+    struct SheetHost<Content: View>: View {
+        @ViewBuilder let content: () -> Content
+        @State private var isPresented = false
+
+        var body: some View {
+            Color.clear
+                .sheet(isPresented: $isPresented) {
+                    content().presentationPlacement(.center)
+                }
+                .task { isPresented = true }
         }
     }
 

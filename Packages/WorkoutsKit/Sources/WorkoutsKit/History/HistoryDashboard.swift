@@ -86,11 +86,13 @@ public nonisolated enum HistoryDashboard {
             guard let week else { return false }
             return entry.startedAt >= week.start && entry.startedAt < week.end
         }
+        let weekUnit = inWeek.first?.unit ?? entries.first?.unit ?? unit
         return ThisWeekSummary(
             workouts: inWeek.count,
             durationSeconds: inWeek.reduce(0) { $0 + $1.durationSeconds },
-            volume: round05(inWeek.reduce(0) { $0 + $1.volume }),
-            unit: inWeek.first?.unit ?? entries.first?.unit ?? unit
+            // Sum the unrounded kg and round once, so the total does not drift by up to 0.25 per workout.
+            volume: displayedVolume(kg: inWeek.reduce(0) { $0 + $1.volumeKg }, displayUnit: weekUnit),
+            unit: weekUnit
         )
     }
 

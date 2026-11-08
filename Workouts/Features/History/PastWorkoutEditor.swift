@@ -195,8 +195,18 @@ private struct Editor: View {
                 .keyboardType(.numberPad)
                 .multilineTextAlignment(.trailing)
                 .monospacedDigit()
-                .textFieldStyle(.roundedBorder)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
                 .frame(minWidth: 72, maxWidth: isLarge ? .infinity : 72)
+                // A grey fill (accent while typing), matching the date pills and the stepper beside it.
+                .background(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(
+                            isDurationFocused
+                                ? AnyShapeStyle(Color.accentColor.opacity(0.2))
+                                : AnyShapeStyle(Color(.quaternarySystemFill))
+                        )
+                )
                 .focused($isDurationFocused)
                 .toolbar {
                     // The number pad has no Return; shown only while this field has focus so the set keyboard's

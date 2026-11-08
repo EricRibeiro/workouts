@@ -167,7 +167,8 @@ struct SetTable: View {
                     .foregroundStyle(Self.supersetColor(supersetNumber))
                     .accessibilityIdentifier("settable.superset.\(section.id.uuidString)")
             }
-            HStack(alignment: .top, spacing: 0) {
+            // The menu's glyph shares the name's first line (its centre on the line's centre) while its frame keeps 44 pt.
+            HStack(alignment: .firstTextBaseline, spacing: 0) {
                 Button {
                     focusedSection.wrappedValue = section.id
                     onSelectExercise?(section)
@@ -285,6 +286,9 @@ struct SetTable: View {
             Image(systemName: "ellipsis.circle")
                 .frame(minWidth: touch, minHeight: touch)
                 .contentShape(.rect)
+                // For the header's first-baseline alignment: a baseline 6 pt below the glyph's centre puts the circle's
+                // centre on the name's x-height centre instead of sitting it on the baseline.
+                .alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] + 6 }
         }
         .accessibilityLabel("\(section.name) options")
         .accessibilityIdentifier("settable.menu.\(section.id.uuidString)")

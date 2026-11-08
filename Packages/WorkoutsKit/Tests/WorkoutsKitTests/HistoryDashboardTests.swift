@@ -42,6 +42,27 @@ import Testing
         #expect(week.unit == .lb)
     }
 
+    /// Three workouts of 0.2 kg remainder (100.2 kg each, shown as 100.0 per row) total 300.6 kg: the card shows the
+    /// single-rounded 300.5, not the 300.0 that summing the rounded rows gives.
+    @Test func thisWeekRoundsTheUnroundedKgTotalOnce() {
+        let rows = (0..<3).map { index in
+            HistoryEntry(
+                id: UUID(),
+                name: "W\(index)",
+                startedAt: date(2026, 11, 2 + index),
+                durationSeconds: 60,
+                volume: displayedVolume(kg: 100.2, displayUnit: .kg),
+                volumeKg: 100.2,
+                unit: .kg,
+                prCount: 0,
+                exerciseNames: []
+            )
+        }
+        #expect(rows.allSatisfy { $0.volume == 100 })
+        let week = HistoryDashboard.thisWeek(entries: rows, calendar: Self.toronto, now: date(2026, 11, 4))
+        #expect(week.volume == 300.5)
+    }
+
     @Test func thisWeekIgnoresALocaleThatStartsOnSunday() {
         var sunday = Self.toronto
         sunday.firstWeekday = 1

@@ -264,18 +264,26 @@ extension ActiveWorkoutEngine {
         let rows = try context.fetch(
             FetchDescriptor<WorkoutExercise>(predicate: WorkoutExercise.inFinishedWorkouts(ofExercises: pending))
         )
-        var byExercise: [UUID: [(startedAt: Date, workoutID: UUID, row: WorkoutExercise)]] = [:]
+        var byExercise: [UUID: [(startedAt: Date, finishedAt: Date, workoutID: UUID, row: WorkoutExercise)]] = [:]
         for row in rows {
             guard let past = row.workout else { continue }
-            byExercise[row.exerciseID, default: []].append((past.startedAt, past.id, row))
+            byExercise[row.exerciseID, default: []].append(
+                (past.startedAt, past.finishedAt ?? .distantPast, past.id, row)
+            )
         }
         for id in pending {
             guard let candidates = byExercise[id] else { continue }
-            var byWorkout: [UUID: (startedAt: Date, rows: [WorkoutExercise])] = [:]
+            var byWorkout: [UUID: (startedAt: Date, finishedAt: Date, rows: [WorkoutExercise])] = [:]
             for candidate in candidates {
-                byWorkout[candidate.workoutID, default: (candidate.startedAt, [])].rows.append(candidate.row)
+                byWorkout[candidate.workoutID, default: (candidate.startedAt, candidate.finishedAt, [])].rows.append(
+                    candidate.row
+                )
             }
-            for (_, group) in byWorkout.sorted(by: { $0.value.startedAt > $1.value.startedAt }) {
+            for (_, group) in byWorkout.sorted(by: {
+                // Same start time (an import, a CloudKit duplicate): finishedAt, then id, so the pick is stable.
+                ($0.value.startedAt, $0.value.finishedAt, $0.key.uuidString)
+                    > ($1.value.startedAt, $1.value.finishedAt, $1.key.uuidString)
+            }) {
                 let entries = group.rows.sorted { $0.position < $1.position }.map { row in
                     PreviousEntry(
                         unit: row.unit,
@@ -329,7 +337,8 @@ extension ActiveWorkoutEngine {
                 )
             )
         }
-        return sessions
+        // Rows of one exercise in one workout are one session, as History and the charts judge them.
+        return sessions.mapValues(mergedByWorkout)
     }
 
     private func loggedSets(of row: WorkoutExercise, only sets: [WorkoutSet]) -> [LoggedSet] {

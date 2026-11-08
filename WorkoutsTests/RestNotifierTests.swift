@@ -1,4 +1,5 @@
 import Foundation
+import ObjectiveC
 import SwiftData
 import Testing
 import UserNotifications
@@ -517,6 +518,66 @@ final class FakeNotificationCenter: NotificationCenterProviding {
             }
         }
         #expect(onMain)
+    }
+
+    // The real delegate methods. `UNNotification` and `UNNotificationResponse` have no public initialiser, so the tests
+    // allocate subclass instances without running one (`class_createInstance`) and override only what the delegate reads.
+    // Not covered: a system-built response (its `actionIdentifier` comes from the OS) and UIKit's own off-main call
+    // into the delegate; the tests call from a detached task to stand in for it.
+
+    private final class StubNotification: UNNotification {
+        nonisolated static func make() -> StubNotification {
+            unsafeDowncast(class_createInstance(StubNotification.self, 0) as AnyObject, to: StubNotification.self)
+        }
+    }
+
+    private final class StubResponse: UNNotificationResponse {
+        nonisolated(unsafe) var action = ""
+        override nonisolated var actionIdentifier: String { action }
+        nonisolated static func make(action: String) -> StubResponse {
+            let object = class_createInstance(StubResponse.self, 0) as AnyObject
+            let response = unsafeDowncast(object, to: StubResponse.self)
+            response.action = action
+            return response
+        }
+    }
+
+    @Test func willPresentShowsNothingAndCompletesOnTheMainThread() async throws {
+        let notifier = notifier()
+        let notification = StubNotification.make()
+        let result = await withCheckedContinuation {
+            (continuation: CheckedContinuation<(UNNotificationPresentationOptions, Bool), Never>) in
+            Task.detached {
+                notifier.userNotificationCenter(.current(), willPresent: notification) { options in
+                    continuation.resume(returning: (options, Thread.isMainThread))
+                }
+            }
+        }
+        #expect(result.0 == [])
+        #expect(result.1, "the completion handler must run on the main thread")
+    }
+
+    @Test func didReceiveActsOnTheResponseThenCompletesOnTheMainThread() async throws {
+        let engine = try engine()
+        let notifier = notifier()
+        notifier.observe(engine)
+        try engine.startRest(seconds: 60)
+        await notifier.syncNow()
+        #expect(engine.restTimer.endsAt != nil)
+        var flushed = false
+        notifier.flushLiveActivity = { flushed = true }
+        let response = StubResponse.make(action: "skip")
+        let onMain = await withCheckedContinuation { (continuation: CheckedContinuation<Bool, Never>) in
+            Task.detached {
+                notifier.userNotificationCenter(.current(), didReceive: response) {
+                    continuation.resume(returning: Thread.isMainThread)
+                }
+            }
+        }
+        #expect(onMain, "the completion handler must run on the main thread")
+        #expect(flushed, "the completion ran before the response was handled")
+        #expect(engine.restTimer.endsAt == nil, "the skip action never reached the engine")
+        #expect(center.pending.isEmpty)
     }
 
     // MARK: Coalescing

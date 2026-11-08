@@ -368,6 +368,15 @@ public enum Importer {
                     countSkipped(dto.exercises)
                     continue
                 }
+                // A demoted workout is finished by Finish's rule: unchecked sets and emptied exercises go, and one with
+                // no completed set at all is dropped entirely (as `InProgressResolution` deletes it), not left as a blank row.
+                let demoted = isDemoted(dto)
+                let exercises = demoted ? Self.completedOnly(dto.exercises) : dto.exercises
+                if demoted && exercises.isEmpty {
+                    report[.workouts].skipped += 1
+                    countSkipped(dto.exercises)
+                    continue
+                }
                 let row: Workout
                 if let existing = workouts[dto.id] {
                     guard isNewer(dto.updatedAt, than: existing.updatedAt) else {
@@ -386,7 +395,6 @@ public enum Importer {
                 row.name = dto.name
                 row.note = dto.note
                 row.startedAt = dto.startedAt
-                let demoted = isDemoted(dto)
                 row.finishedAt = dto.finishedAt ?? finishedAtForDemoted(dto)
                 row.createdAt = dto.createdAt
                 row.updatedAt = dto.updatedAt
@@ -396,7 +404,11 @@ public enum Importer {
                 row.restSetID = demoted ? nil : dto.restSetId
                 try importHealth(dto, into: row)
                 row.template = resolve(dto.templateId, in: templates)
-                syncExercises(of: row, with: demoted ? Self.completedOnly(dto.exercises) : dto.exercises)
+                // What Finish's rule dropped from a demoted workout is skipped, so the counts add up to the file's.
+                report[.workoutExercises].skipped += dto.exercises.count - exercises.count
+                report[.workoutSets].skipped +=
+                    dto.exercises.reduce(0) { $0 + $1.sets.count } - exercises.reduce(0) { $0 + $1.sets.count }
+                syncExercises(of: row, with: exercises)
             }
         }
 

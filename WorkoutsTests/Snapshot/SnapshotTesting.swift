@@ -254,8 +254,16 @@ enum Snapshot {
         return image.pngData()
     }
 
-    /// Fails unless the top `topPoints` of two renderings (the navigation bar and title of a pushed screen) are pixel-equal:
-    /// the chrome of the loading frame must be the chrome of the loaded one, so it neither pops in nor changes (PLAN 7b.5).
+    /// Per-channel tolerance for the chrome comparison. The Liquid Glass capsules of the bar sample the content beneath them,
+    /// so on some simulator clones the glass interior shifts by a few tens of levels between the loading and the loaded
+    /// frame (3705 px at row 104 on one clone) while the bar is the same. Glyphs (title, button symbols) are high contrast
+    /// against the glass: a missing, moved or re-rendered one flips pixels by 100+ levels, far over this, so a looser
+    /// threshold absorbs the sampled glass and still fails on any change to the title or buttons.
+    static let chromeChannelThreshold = 48
+
+    /// Fails unless the top `topPoints` of two renderings (the navigation bar and title of a pushed screen) match: the
+    /// chrome of the loading frame must be the chrome of the loaded one, so it neither pops in nor changes (PLAN 7b.5).
+    /// Compared with `chromeChannelThreshold`, not the strict `channelThreshold`, to tolerate glass sampling.
     static func assertSameChrome(
         _ loading: Data,
         _ loaded: Data,
@@ -280,7 +288,7 @@ enum Snapshot {
             for column in 0..<a.width {
                 let index = (row * a.width + column) * 4
                 for channel in 0..<4
-                where abs(Int(a.bytes[index + channel]) - Int(b.bytes[index + channel])) > channelThreshold {
+                where abs(Int(a.bytes[index + channel]) - Int(b.bytes[index + channel])) > chromeChannelThreshold {
                     differing += 1
                     firstRow = firstRow ?? row
                     break

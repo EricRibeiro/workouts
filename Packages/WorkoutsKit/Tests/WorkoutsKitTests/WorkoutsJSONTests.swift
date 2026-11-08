@@ -519,12 +519,7 @@ import Testing
             ]
             return copy
         }
-        // No completed set: falls back to the start.
-        var empty = older
-        empty.id = UUID()
-        empty.startedAt = Self.t(4_000)
-        empty.exercises = []
-        doc.workouts = [older, newest, empty]
+        doc.workouts = [older, newest]
 
         let report = try Importer.apply(doc, to: store.context, catalog: try Self.catalog())
 
@@ -533,8 +528,44 @@ import Testing
         #expect(running.map(\.id) == [newest.id])
         let demoted = try #require(try store.context.fetch(FetchDescriptor<Workout>()).first { $0.id == older.id })
         #expect(demoted.finishedAt == Self.t(5_500))
-        let startOnly = try #require(try store.context.fetch(FetchDescriptor<Workout>()).first { $0.id == empty.id })
-        #expect(startOnly.finishedAt == Self.t(4_000))
+    }
+
+    @Test func aDemotedWorkoutWithNoCompletedSetIsDroppedAndCounted() throws {
+        let store = try Store()
+        var doc = Self.fixture()
+        let newest = try #require(doc.workouts.first { $0.id == Self.id(50) })
+        var empty = newest
+        empty.id = UUID()
+        empty.startedAt = Self.t(4_000)
+        empty.exercises = newest.exercises.map { exercise in
+            var copy = exercise
+            copy.id = UUID()
+            copy.sets = exercise.sets.map { set in
+                var unchecked = set
+                unchecked.id = UUID()
+                unchecked.completed = false
+                unchecked.completedAt = nil
+                return unchecked
+            }
+            return copy
+        }
+        let droppedExercises = empty.exercises.count
+        let droppedSets = empty.exercises.reduce(0) { $0 + $1.sets.count }
+        #expect(droppedSets > 0)
+        var blank = empty
+        blank.id = UUID()
+        blank.exercises = []
+        doc.workouts = [newest, empty, blank]
+
+        let report = try Importer.apply(doc, to: store.context, catalog: try Self.catalog())
+
+        let ids = try store.context.fetch(FetchDescriptor<Workout>()).map(\.id)
+        #expect(!ids.contains(empty.id), "no blank History row")
+        #expect(!ids.contains(blank.id))
+        #expect(report[.workouts].skipped == 2)
+        #expect(report[.workouts].inserted == doc.workouts.count - 2)
+        #expect(report[.workoutExercises].skipped == droppedExercises)
+        #expect(report[.workoutSets].skipped == droppedSets)
     }
 
     @Test func aDemotedWorkoutDropsUncheckedSetsAndEmptiedExercisesLikeFinishAndClearsItsRest() throws {

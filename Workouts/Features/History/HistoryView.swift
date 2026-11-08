@@ -151,16 +151,18 @@ struct HistoryView: View {
                             .listRowSeparator(.hidden)
                             .listRowBackground(Color.clear)
                         } else {
-                            WeeklyGoalSection(starts: finished.map(\.startedAt))
-                                .listRowSeparator(.hidden)
-                                .listRowBackground(Color.clear)
-                            DashboardSection(
-                                entries: entries,
-                                recentPRs: recentPRs,
-                                weekActiveKcal: weekKcal,
-                                weekAverageBpm: weekBpm
-                            ) {
-                                path.append(.workout($0))
+                            // One row, so the chart and the cards under it share the grid's gap (separate list rows
+                            // would add the row insets between them).
+                            VStack(spacing: Metrics.dashboardSpacing) {
+                                WeeklyGoalSection(starts: finished.map(\.startedAt))
+                                DashboardSection(
+                                    entries: entries,
+                                    recentPRs: recentPRs,
+                                    weekActiveKcal: weekKcal,
+                                    weekAverageBpm: weekBpm
+                                ) {
+                                    path.append(.workout($0))
+                                }
                             }
                             .listRowSeparator(.hidden)
                             .listRowBackground(Color.clear)
@@ -169,8 +171,22 @@ struct HistoryView: View {
                 }
                 ForEach(sections) { section in
                     Section(section.title) {
-                        ForEach(section.entries) { entry in
-                            row(entry, activeKcal: activeKcal[entry.id], avgBpm: heartRates[entry.id])
+                        if horizontalSizeClass == .regular {
+                            // One list row per month holding a grid whose gutter is the fold, so no session straddles it.
+                            // A `List` row is full width and `swipeActions` are per row, so the actions live in each
+                            // card's context menu here (and as VoiceOver actions).
+                            EvenColumnGrid(minimum: 280) {
+                                ForEach(section.entries) { entry in
+                                    card(entry, activeKcal: activeKcal[entry.id], avgBpm: heartRates[entry.id])
+                                }
+                            }
+                            .padding(.vertical, 4)
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
+                        } else {
+                            ForEach(section.entries) { entry in
+                                row(entry, activeKcal: activeKcal[entry.id], avgBpm: heartRates[entry.id])
+                            }
                         }
                     }
                 }
@@ -252,6 +268,47 @@ struct HistoryView: View {
             editButton(entry)
             saveTemplateButton(entry)
         }
+        .contextMenu {
+            editButton(entry)
+            saveTemplateButton(entry)
+            Divider()
+            deleteButton(entry)
+        }
+    }
+
+    /// A session as a card in the regular-width grid: the same content as `row`, a chevron at the card's own trailing edge
+    /// (inside one column, so never across the fold), and Edit / Save as Template / Delete in the context menu and as
+    /// accessibility actions in place of the swipe.
+    private func card(_ entry: HistoryEntry, activeKcal: Double?, avgBpm: Double?) -> some View {
+        Button {
+            path.append(.workout(entry.id))
+        } label: {
+            HStack(spacing: 8) {
+                HistoryRow(entry: entry, activeKcal: activeKcal, avgBpm: avgBpm)
+                Image(systemName: "chevron.right")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+                    .accessibilityHidden(true)
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(.background.secondary, in: .rect(cornerRadius: 12))
+            .contentShape(.rect(cornerRadius: 12))
+        }
+        .buttonStyle(.plain)
+        .matchedTransitionSource(id: entry.id, in: zoom)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(
+            HistoryList.accessibilityLabel(for: entry, activeKcal: activeKcal)
+                + (avgBpm.map { ", \(HistoryDashboard.heartRateSpoken($0))" } ?? "")
+        )
+        .accessibilityAddTraits(.isButton)
+        .accessibilityIdentifier("history.row.\(entry.id.uuidString)")
+        .accessibilityAction(named: "Edit") { editing = PastEditorTarget(id: entry.id) }
+        .accessibilityAction(named: "Save as Template") {
+            templateSource = finished.first { $0.id == entry.id }
+        }
+        .accessibilityAction(named: "Delete") { pendingDelete = entry }
         .contextMenu {
             editButton(entry)
             saveTemplateButton(entry)

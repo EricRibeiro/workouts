@@ -428,4 +428,61 @@ final class FakeLiveActivityProvider: LiveActivityProviding {
         #expect(activity.contents.count == 3)
         #expect(activity.contents.last?.staleDate == clock.date.addingTimeInterval(240))
     }
+
+    // MARK: System provider threading
+
+    /// Records which thread each ActivityKit call ran on (the calls come from the provider's queue, so this is
+    /// `nonisolated` and lock-protected).
+    private final class ThreadLog: @unchecked Sendable {
+        private let lock = NSLock()
+        private var calls: [String: Bool] = [:]
+
+        nonisolated func record(_ name: String) {
+            lock.lock()
+            defer { lock.unlock() }
+            calls[name] = Thread.isMainThread
+        }
+
+        nonisolated func ranOnMain(_ name: String) -> Bool? {
+            lock.lock()
+            defer { lock.unlock() }
+            return calls[name]
+        }
+    }
+
+    private struct Stopped: Error {}
+
+    /// ActivityKit's calls can stall the launch watchdog when made from the main thread (JC80), so the system provider
+    /// must make all three on its queue. Fails if any call moves back to the main thread.
+    @Test func theSystemProviderCallsActivityKitOffTheMainThread() async throws {
+        let log = ThreadLog()
+        let provider = SystemLiveActivityProvider(
+            operations: .init(
+                activities: {
+                    log.record("activities")
+                    return []
+                },
+                areActivitiesEnabled: {
+                    log.record("enabled")
+                    return true
+                },
+                request: { _, _ in
+                    log.record("request")
+                    throw Stopped()
+                }
+            )
+        )
+        #expect(Thread.isMainThread, "the test itself must call from the main thread")
+
+        #expect(await provider.existingActivities().isEmpty)
+        #expect(await provider.activitiesEnabled())
+        let state = WorkoutActivityState(workoutName: "Push", startedAt: Date(timeIntervalSince1970: 0))
+        await #expect(throws: Stopped.self) {
+            try await provider.request(workoutID: UUID(), content: LiveActivityController.content(for: state))
+        }
+
+        #expect(log.ranOnMain("activities") == false)
+        #expect(log.ranOnMain("enabled") == false)
+        #expect(log.ranOnMain("request") == false)
+    }
 }

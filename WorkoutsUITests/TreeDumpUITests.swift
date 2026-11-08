@@ -17,8 +17,11 @@ final class TreeDumpUITests: XCTestCase {
         app.launchArguments += ["-uiTesting", "-preview", name]
         app.launch()
         XCTAssertTrue(app.wait(for: .runningForeground, timeout: 10))
-        // The first query makes XCUITest wait for the app to be idle before it snapshots the hierarchy.
-        _ = app.descendants(matching: .any).firstMatch.waitForExistence(timeout: 10)
+        // Wait for the gallery host's marker, not for "any element" (which the Workout tab behind the launch satisfies, so
+        // the dump caught the wrong screen). `PreviewGallery.host` sets it on every known entry; waiting also makes XCUITest
+        // idle-wait before the snapshot below.
+        let marker = app.descendants(matching: .any)["gallery.host.\(name)"]
+        XCTAssertTrue(marker.waitForExistence(timeout: 20), "the -preview \(name) screen never appeared")
 
         let tree = app.debugDescription
         let attachment = XCTAttachment(string: tree)

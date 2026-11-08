@@ -454,6 +454,56 @@ import Testing
         #expect(engine.previous(for: fourth) == nil)
     }
 
+    /// Two finished workouts with the same start time (an import, a duplicate after a CloudKit merge): Previous picks the
+    /// one that finished last, then the larger id, the same way on every launch.
+    @Test func previousBreaksAStartTimeTieByFinishedAtThenId() throws {
+        let rig = try Rig()
+        rig.settings.defaultUnit = .kg
+        let start = rig.clock.date.addingTimeInterval(-86_400)
+        // Ten workouts with the same start and finish time and different weights: the largest id must win, whatever
+        // order the dictionary happens to hold them in.
+        let tied = (1...10).map { index in
+            rig.finishedWorkout(
+                exercise: LibraryFixture.squat,
+                unit: .kg,
+                sets: [(Double(50 + index), 5, .normal)],
+                startedAt: start
+            )
+        }
+        let expected = try #require(tied.max { $0.id.uuidString < $1.id.uuidString })
+        let expectedWeight = try #require(expected.exercises?.first?.sets?.first?.weight)
+
+        let engine = try rig.makeEngine()
+        try engine.startEmpty()
+        let row = try engine.addExercise(try rig.info(LibraryFixture.squat))
+        #expect(engine.previous(for: sets(row)[0])?.weight == expectedWeight)
+    }
+
+    @Test func previousTieOnStartTimeGoesToTheLaterFinish() throws {
+        let rig = try Rig()
+        rig.settings.defaultUnit = .kg
+        let start = rig.clock.date.addingTimeInterval(-86_400)
+        for _ in 0..<20 {
+            rig.finishedWorkout(
+                exercise: LibraryFixture.squat,
+                unit: .kg,
+                sets: [(60, 5, .normal)],
+                startedAt: start
+            )
+        }
+        let late = rig.finishedWorkout(
+            exercise: LibraryFixture.squat,
+            unit: .kg,
+            sets: [(70, 5, .normal)],
+            startedAt: start
+        )
+        late.finishedAt = start.addingTimeInterval(7200)
+        let engine = try rig.makeEngine()
+        try engine.startEmpty()
+        let row = try engine.addExercise(try rig.info(LibraryFixture.squat))
+        #expect(engine.previous(for: sets(row)[0])?.weight == 70)
+    }
+
     @Test func previousIgnoresTheInProgressWorkout() throws {
         let rig = try Rig()
         let engine = try rig.makeEngine()
@@ -804,6 +854,41 @@ import Testing
         )
         #expect(summary.volume == 48.5)
         #expect(entries.first?.volume == summary.volume)
+    }
+
+    /// A past workout with the same exercise in two rows is one session for the Finish sheet, as it is for History and
+    /// the charts: the sheet's records for today's workout are the ones History then shows for it.
+    @Test func finishSummaryJudgesAPastWorkoutsRepeatedExerciseAsOneSession() throws {
+        let rig = try Rig()
+        rig.settings.defaultUnit = .kg
+        let past = rig.finishedWorkout(
+            exercise: LibraryFixture.squat,
+            unit: .kg,
+            sets: [(100, 10, .normal)],  // 1000 kg of volume
+            startedAt: rig.clock.date.addingTimeInterval(-86_400)
+        )
+        let second = WorkoutExercise(exerciseID: LibraryFixture.squat, exerciseName: "Past", position: 1, unit: .kg)
+        rig.context.insert(second)
+        second.workout = past
+        let extra = WorkoutSet(position: 0, weight: 100, reps: 10, completed: true, completedAt: past.startedAt)
+        rig.context.insert(extra)
+        extra.workoutExercise = second
+
+        let engine = try rig.makeEngine()
+        try engine.startEmpty()
+        let row = try engine.addExercise(try rig.info(LibraryFixture.squat))
+        try engine.setValues(sets(row)[0], weight: 150, reps: 10, durationSeconds: nil)  // 1500 kg
+        try engine.check(sets(row)[0])
+        rig.clock.advance(600)
+        let summary = try engine.finish(unfinished: .discard)
+
+        let entries = HistoryList.entries(
+            from: try rig.context.fetch(FetchDescriptor<Workout>()),
+            weightType: { rig.store.exercise(id: $0)?.weightType },
+            options: RecordsOptions(displayUnit: .kg)
+        )
+        let today = try #require(entries.first { $0.startedAt > past.startedAt })
+        #expect(summary.prCount == today.prCount)
     }
 
     @Test func finishSummaryWithoutARecordHasNoPRs() throws {
