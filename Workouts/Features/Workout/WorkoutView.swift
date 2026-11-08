@@ -137,6 +137,7 @@ struct WorkoutView: View {
             Button("Create") {
                 perform { try FolderOperations.create(named: newFolderName, in: context) }
             }
+            .disabled(FolderOperations.cleanedName(newFolderName) == nil)
             .accessibilityIdentifier("workout.folderName.confirm")
         }
         .alert("Rename Folder", isPresented: $isRenaming) {
@@ -150,6 +151,7 @@ struct WorkoutView: View {
                     perform { try FolderOperations.rename(folder, to: renameText, in: context) }
                 }
             }
+            .disabled(FolderOperations.cleanedName(renameText) == nil)
             .accessibilityIdentifier("workout.folderName.confirm")
         }
         // Alerts, not dialogs: both are raised from context menus, which are gone by then, so a popover's arrow would

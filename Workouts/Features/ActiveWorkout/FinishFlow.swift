@@ -16,7 +16,10 @@ final class FinishFlowState {
     /// The dialog being shown, if any.
     fileprivate var dialog: FinishDialog?
     /// The text of the "Could not save" alert, if it is showing.
-    fileprivate var errorMessage: String?
+    fileprivate(set) var errorMessage: String?
+    /// The text of the "Workout Saved" alert, shown when Finish saved the workout but building the summary then failed.
+    /// Acknowledging it ends the workout and closes the cover (``acknowledgeSavedWithoutSummary()``).
+    fileprivate(set) var savedMessage: String?
     /// Whether the title menu's "Discard workout?" confirmation is showing.
     fileprivate var isDiscardConfirmationShown = false
     /// Counts confirmed destructive choices; drives the `.warning` haptic.
@@ -35,8 +38,7 @@ final class FinishFlowState {
         onDiscarded: @escaping () -> Void
     ) {
         self.engine = engine
-        self.onFinished = onFinished
-        self.onDiscarded = onDiscarded
+        configure(onFinished: onFinished, onDiscarded: onDiscarded)
         do {
             let dialog = try engine.finishDialog()
             if dialog == .none {
@@ -51,6 +53,12 @@ final class FinishFlowState {
         }
     }
 
+    /// Sets what a finished or ended workout hands on to (also how the tests drive ``run(finish:isWorkoutGone:retry:)``).
+    func configure(onFinished: @escaping (FinishSummary) -> Void, onDiscarded: @escaping () -> Void) {
+        self.onFinished = onFinished
+        self.onDiscarded = onDiscarded
+    }
+
     /// Title menu, Discard Workout: asks for confirmation; confirming runs the same discard as the Finish dialog.
     func requestDiscard(engine: ActiveWorkoutEngine, onDiscarded: @escaping () -> Void) {
         self.engine = engine
@@ -60,12 +68,37 @@ final class FinishFlowState {
 
     fileprivate func finish(_ unfinished: UnfinishedSets) {
         guard let engine else { return }
+        run(
+            finish: { try engine.finish(unfinished: unfinished) },
+            isWorkoutGone: { engine.workout == nil },
+            retry: { [weak self] in self?.finish(unfinished) }
+        )
+    }
+
+    /// Runs `finish` and hands its summary to `onFinished`. A throw while the workout is still there is a failed save
+    /// (Retry offered). A throw after the engine let go of the workout means the save succeeded and only the summary
+    /// failed: Retry would find nothing to finish, so the person is told it is saved and the cover closes to History.
+    func run(
+        finish: () throws -> FinishSummary,
+        isWorkoutGone: () -> Bool,
+        retry: @escaping () -> Void
+    ) {
         do {
-            let summary = try engine.finish(unfinished: unfinished)
-            onFinished(summary)
+            onFinished(try finish())
         } catch {
-            fail(error) { [weak self] in self?.finish(unfinished) }
+            if isWorkoutGone() {
+                savedMessage =
+                    "The workout was saved, but its summary could not be built: \(error.localizedDescription). You can find it in History."
+            } else {
+                fail(error, retry: retry)
+            }
         }
+    }
+
+    /// OK on the "Workout Saved" alert: the workout is already saved, so end it as a discard does (the cover closes).
+    func acknowledgeSavedWithoutSummary() {
+        savedMessage = nil
+        onDiscarded()
     }
 
     fileprivate func discardWorkout() {
@@ -78,7 +111,7 @@ final class FinishFlowState {
         }
     }
 
-    fileprivate func retryAfterError() {
+    func retryAfterError() {
         let action = retry
         retry = nil
         action?()
@@ -92,9 +125,16 @@ final class FinishFlowState {
 }
 
 extension View {
-    /// Presents the Finish confirmation dialogs and the failure alert driven by `state`.
+    /// Presents the Finish confirmation dialogs driven by `state`. Attach it to the Finish button, so a popover (regular
+    /// width) points at it.
     func finishFlow(_ state: FinishFlowState) -> some View {
         modifier(FinishFlow(state: state))
+    }
+
+    /// Presents the failure alerts driven by `state`. Attach it to a view that stays mounted through the finish
+    /// transition (the cover's stack): the Finish button is gone once the workout is saved.
+    func finishFlowAlerts(_ state: FinishFlowState) -> some View {
+        modifier(FinishFlowAlerts(state: state))
     }
 }
 
@@ -159,20 +199,6 @@ private struct FinishFlow: ViewModifier {
             } message: {
                 Text("This workout and everything logged in it will be deleted. It cannot be undone.")
             }
-            .alert(
-                "Could Not Finish",
-                isPresented: Binding(
-                    get: { state.errorMessage != nil },
-                    set: { if !$0 { state.errorMessage = nil } }
-                )
-            ) {
-                Button("Retry") { state.retryAfterError() }
-                    .accessibilityIdentifier("finish.retry")
-                Button("Dismiss", role: .cancel) {}
-                    .accessibilityIdentifier("finish.dismiss")
-            } message: {
-                Text(state.errorMessage ?? "")
-            }
             .sensoryFeedback(.warning, trigger: state.destructiveCount)
     }
 
@@ -189,5 +215,36 @@ private struct FinishFlow: ViewModifier {
             get: { state.dialog.map(matches) ?? false },
             set: { if !$0 { state.dialog = nil } }
         )
+    }
+}
+
+private struct FinishFlowAlerts: ViewModifier {
+    @Bindable var state: FinishFlowState
+
+    func body(content: Content) -> some View {
+        content
+            .alert(
+                "Could Not Finish",
+                isPresented: Binding(
+                    get: { state.errorMessage != nil },
+                    set: { if !$0 { state.errorMessage = nil } }
+                )
+            ) {
+                Button("Retry") { state.retryAfterError() }
+                    .accessibilityIdentifier("finish.retry")
+                Button("Dismiss", role: .cancel) {}
+                    .accessibilityIdentifier("finish.dismiss")
+            } message: {
+                Text(state.errorMessage ?? "")
+            }
+            .alert(
+                "Workout Saved",
+                isPresented: Binding(get: { state.savedMessage != nil }, set: { _ in })
+            ) {
+                Button("OK") { state.acknowledgeSavedWithoutSummary() }
+                    .accessibilityIdentifier("finish.savedOK")
+            } message: {
+                Text(state.savedMessage ?? "")
+            }
     }
 }

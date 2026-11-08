@@ -211,6 +211,10 @@ struct TemplatePreviewSheet: View {
                 }
         }
         .presentationDetents([.medium, .large])
+        // Like every other sheet: a centered card on the regular-width Duo, the detents on compact.
+        .presentationPlacement(.center)
+        // A failed Start is reported by the root's alert, which sits under this sheet: host the alert here.
+        .sheetSaveErrorHost()
     }
 }
 

@@ -19,11 +19,9 @@ final class PerfDriverUITests: XCTestCase {
         try XCTSkipUnless(env["PERF_DRIVER"] != nil, "Profiling driver: run scripts/perf-record.sh")
     }
 
+    @MainActor
     private func launch() -> XCUIApplication {
-        let app = XCUIApplication()
-        app.launchArguments += ["-uiTesting", "-sampleWorkouts", env["PERF_WORKOUTS"] ?? "600"]
-        app.launch()
-        return app
+        XCUIApplication.launchedForTesting(["-sampleWorkouts", env["PERF_WORKOUTS"] ?? "600"])
     }
 
     private func beginScenario() {

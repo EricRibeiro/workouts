@@ -12,7 +12,7 @@ extension XCUIApplication {
         line: UInt = #line
     ) -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments += ["-uiTesting"] + extraArguments
+        app.launchArguments += ["-uiTesting"] + withDefaultEnvironment(extraArguments)
         app.launch()
         if let screen {
             XCTAssertTrue(
@@ -23,6 +23,19 @@ extension XCUIApplication {
             )
         }
         return app
+    }
+
+    /// `arguments` plus the pinned environment: Large text and the light interface style, so a run never depends on what a
+    /// pool simulator was left at. A caller's own `-UIPreferredContentSizeCategoryName` / `-AppleInterfaceStyle` wins.
+    static func withDefaultEnvironment(_ arguments: [String]) -> [String] {
+        var result = arguments
+        if !arguments.contains("-UIPreferredContentSizeCategoryName") {
+            result += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryL"]
+        }
+        if !arguments.contains("-AppleInterfaceStyle") {
+            result += ["-AppleInterfaceStyle", "Light"]
+        }
+        return result
     }
 
     /// The `-preview <name>` gallery screen, waiting for `screen` when given.

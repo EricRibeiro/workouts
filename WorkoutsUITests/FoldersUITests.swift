@@ -76,6 +76,21 @@ final class FoldersUITests: XCTestCase {
         toggle(app, named: "Upper Body").tap()
         expectCount(templateRows(app), 3)
 
+        // A blank name cannot be confirmed: the button is disabled for spaces and enabled once a letter is typed.
+        let addButton = app.buttons["toolbar.add"].firstMatch
+        addButton.tap()
+        app.buttons["toolbar.add.newFolder"].firstMatch.tap()
+        let blankField = app.alerts.textFields.firstMatch
+        XCTAssertTrue(blankField.waitForExistence(timeout: 5))
+        let blankConfirm = app.alerts.buttons["workout.folderName.confirm"].firstMatch
+        XCTAssertFalse(blankConfirm.isEnabled, "Create should be disabled for an empty name")
+        blankField.typeText("   ")
+        XCTAssertFalse(blankConfirm.isEnabled, "Create should be disabled for a whitespace-only name")
+        blankField.typeText("x")
+        XCTAssertTrue(blankConfirm.isEnabled, "Create should enable once the name has a letter")
+        app.alerts.buttons["workout.folderName.cancel"].firstMatch.tap()
+        expectCount(toggles(app), 2)
+
         // New Folder lands last, empty.
         addFolder(app, named: "Mobility")
         let mobility = toggle(app, named: "Mobility")

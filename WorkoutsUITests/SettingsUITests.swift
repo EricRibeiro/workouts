@@ -8,15 +8,13 @@ final class SettingsUITests: XCTestCase {
 
     @MainActor
     private func launch(_ extra: [String] = []) -> XCUIApplication {
-        let app = XCUIApplication()
         // Launch-argument defaults override the stored values, so a run never depends on an earlier one.
-        app.launchArguments +=
+        XCUIApplication.launchedForTesting(
             [
-                "-uiTesting", "-preview", "Settings",
+                "-preview", "Settings",
                 "-defaultUnit", "lb", "-defaultRestSeconds", "90", "-weeklyGoal", "3", "-e1rmFormula", "epley",
             ] + extra
-        app.launch()
-        return app
+        )
     }
 
     @MainActor
@@ -52,9 +50,7 @@ final class SettingsUITests: XCTestCase {
 
     @MainActor
     func testLaunchArgumentSelectsDark() throws {
-        let app = XCUIApplication()
-        app.launchArguments += ["-uiTesting", "-preview", "Settings", "-appearance", "dark"]
-        app.launch()
+        let app = XCUIApplication.launchedForTesting(["-preview", "Settings", "-appearance", "dark"])
         let appearance = app.segmentedControls["settings.appearance"]
         for _ in 0..<3 where !appearance.exists { app.swipeUp() }
         XCTAssertTrue(appearance.waitForExistence(timeout: 10), "no appearance control")

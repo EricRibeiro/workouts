@@ -185,6 +185,26 @@ import Testing
         #expect(tiny.left == 0 && tiny.right == 0)
     }
 
+    @Test func columnWidthsWidenAFlatHingeToTheSpacing() {
+        // A flat-open hinge reports no width: the gutter is 12 pt centred on it, so the columns never touch.
+        let flat = FoldPlacement.columnWidths(total: 800, division: 400...400, spacing: 12)
+        #expect(flat.left == 394 && flat.gap == 12 && flat.right == 394)
+        // Off centre (a bar strip on one side): still centred on the hinge.
+        let offCentre = FoldPlacement.columnWidths(total: 853, division: 458.5...458.5, spacing: 12)
+        #expect(offCentre.left == 452.5 && offCentre.gap == 12 && offCentre.right == 388.5)
+        // A fold wider than the spacing keeps its own width.
+        let wide = FoldPlacement.columnWidths(total: 800, division: 390...410, spacing: 12)
+        #expect(wide.gap == 20)
+    }
+
+    @Test func columnWidthsFallBackToEvenWhenASideIsTooNarrow() {
+        // The hinge sits 20 pt from the leading edge: the left column would be below the minimum.
+        let narrow = FoldPlacement.columnWidths(total: 800, division: 20...20, spacing: 12, minimumColumn: 44)
+        #expect(narrow.left == 394 && narrow.gap == 12 && narrow.right == 394)
+        let trailing = FoldPlacement.columnWidths(total: 800, division: 780...780, spacing: 12, minimumColumn: 44)
+        #expect(trailing.left == 394 && trailing.right == 394)
+    }
+
     // MARK: Grid columns around the fold
 
     @Test func foldColumnsPutTheMiddleGutterOnAnOffCentreHinge() throws {

@@ -203,5 +203,37 @@ final class HistoryListUITests: XCTestCase {
         for label in narrowed {
             XCTAssertTrue(label.contains(" PR"), "row without PRs in the PRs scope: \(label)")
         }
+
+        // Cancelling the search must also drop the scope: the scope bar is gone with the search, so a PRs scope left
+        // behind would filter the list (and hide the dashboard) with nothing on screen saying so.
+        // (The search field's dismiss button is labelled "close" on this OS; older ones say "Cancel".)
+        let cancel = app.buttons.matching(NSPredicate(format: "label IN {'close', 'Cancel'}")).firstMatch
+        XCTAssertTrue(cancel.waitForExistence(timeout: 5), "no Cancel button\n\(app.debugDescription)")
+        cancel.tap()
+        XCTAssertTrue(
+            app.descendants(matching: .any)["history.weeklyChart"].waitForExistence(timeout: 5),
+            "the dashboard did not come back after cancelling a PRs search\n\(app.debugDescription)"
+        )
+    }
+
+    /// A failed summary read must say so, with Retry (review H3-4), instead of a dashboard over no rows. `-failHistoryLoads`
+    /// fails the first read only; Retry runs the load again and the rows arrive.
+    @MainActor
+    func testFailedLoadShowsRetryAndRecovers() throws {
+        let app = XCUIApplication.launchedPreview(
+            "History",
+            extraArguments: ["-failHistoryLoads", "1"],
+            waitingFor: "screen.history"
+        )
+        let any = app.descendants(matching: .any)
+        XCTAssertTrue(any["history.loadFailed"].waitForExistence(timeout: 10), "no load error\n\(app.debugDescription)")
+        XCTAssertFalse(rows(app).element(boundBy: 0).exists, "rows shown beside the load error")
+
+        let retry = app.buttons["Retry"]
+        XCTAssertTrue(retry.waitForExistence(timeout: 5), "no Retry button\n\(app.debugDescription)")
+        retry.tap()
+
+        XCTAssertTrue(firstRow(app, timeout: 5).exists, "Retry did not bring the rows back")
+        XCTAssertTrue(any["history.loadFailed"].waitUntilGone(timeout: 5), "the error stayed after a good load")
     }
 }

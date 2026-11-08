@@ -109,6 +109,7 @@ struct TemplateEditor: View {
                 TextField("Name", text: $renameText)
                     .accessibilityIdentifier("templateEditor.rename.field")
                 Button("Save") { draft.rename(to: renameText) }
+                    .disabled(FolderOperations.cleanedName(renameText) == nil)
                     .accessibilityIdentifier("templateEditor.rename.save")
                 Button("Cancel", role: .cancel) {}
                     .accessibilityIdentifier("templateEditor.rename.cancel")

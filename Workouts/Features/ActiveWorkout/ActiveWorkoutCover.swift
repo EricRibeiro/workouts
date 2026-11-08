@@ -146,6 +146,8 @@ struct ActiveWorkoutCover: View {
         .sensoryFeedback(.selection, trigger: minimiseCount)
         // The cover is a presentation of its own, so it hosts its own save-error alert.
         .saveErrorAlert()
+        // On the cover itself, not the Finish button: that button is gone once Finish has saved the workout.
+        .finishFlowAlerts(finishFlow)
         .accessibilityIdentifier("screen.activeWorkout")
     }
 
@@ -311,7 +313,8 @@ struct ActiveWorkoutCover: View {
             removeMessage: "Its sets, checked or not, are removed from the workout.",
             setNote: { id, text in
                 guard let row = row(id) else { return }
-                perform { try engine.setNote(text, for: row) }
+                // Rethrown: NoteSheet stays open with its own error and the typed text when the save fails.
+                try engine.setNote(text, for: row)
             },
             addWarmups: { id in
                 guard let row = row(id) else { return true }

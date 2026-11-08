@@ -34,7 +34,8 @@ struct BlockActionHost {
     var idPrefix: String
     /// The remove confirmation's message.
     var removeMessage: String
-    var setNote: (UUID, String) -> Void
+    /// Throws when the save fails: the note sheet then stays open with its error and the typed text.
+    var setNote: (UUID, String) throws -> Void
     /// Returns false when there was no working weight to build the ramp from (the prompt then asks for one).
     var addWarmups: (UUID) -> Bool
     var setRest: (UUID, Int?) -> Void
@@ -106,7 +107,7 @@ private struct BlockActionSheets: ViewModifier {
         content
             .sheet(item: $state.note) { target in
                 NoteSheet(initialText: block(target.id)?.note ?? "", idPrefix: "\(host.idPrefix).note") {
-                    host.setNote(target.id, $0)
+                    try host.setNote(target.id, $0)
                 }
                 .presentationPlacement(.center)
             }

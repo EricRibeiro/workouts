@@ -13,9 +13,7 @@ final class TreeDumpUITests: XCTestCase {
         let name = ProcessInfo.processInfo.environment["TREE_PREVIEW"] ?? ""
         try XCTSkipIf(name.isEmpty, "Tree dump: run with ./dev tree <PreviewName>")
 
-        let app = XCUIApplication()
-        app.launchArguments += ["-uiTesting", "-preview", name]
-        app.launch()
+        let app = XCUIApplication.launchedForTesting(["-preview", name])
         XCTAssertTrue(app.wait(for: .runningForeground, timeout: 10))
         // Wait for the gallery host's marker, not for "any element" (which the Workout tab behind the launch satisfies, so
         // the dump caught the wrong screen). `PreviewGallery.host` sets it on every known entry; waiting also makes XCUITest

@@ -37,6 +37,13 @@ struct HistoryView: View {
     @State private var hasLoadedSummary = false
     @State private var query = ""
     @State private var scope: HistoryScope = .all
+    /// Whether the search field is up. Dismissing it resets `scope`: the scope bar goes with the search, so a PRs scope
+    /// left behind would filter the list and hide the dashboard with no control on screen to undo it.
+    @State private var isSearchPresented = false
+    /// The last summary read failed and no earlier one is on screen; the list is replaced by an error with Retry.
+    @State private var loadFailed = false
+    /// Bumped by Retry so the load task restarts.
+    @State private var loadAttempt = 0
     @State private var pendingDelete: HistoryEntry?
     /// The workout whose delete just failed, and why; the alert's Retry deletes it again.
     @State private var deleteFailure: DeleteFailure?
@@ -75,7 +82,10 @@ struct HistoryView: View {
                         .presentationPlacement(.center)
                 }
                 .sensoryFeedback(.success, trigger: savedTemplates)
-                .searchable(text: $query, prompt: "Search workouts")
+                .searchable(text: $query, isPresented: $isSearchPresented, prompt: "Search workouts")
+                .onChange(of: isSearchPresented) { _, isPresented in
+                    if !isPresented { scope = .all }
+                }
                 .searchScopes($scope, activation: .onSearchPresentation) {
                     ForEach(HistoryScope.allCases, id: \.self) { scope in
                         Text(scope.title).tag(scope)
@@ -92,7 +102,8 @@ struct HistoryView: View {
                 generation: generation?.value ?? 0,
                 unit: unitRaw,
                 formula: formulaRaw,
-                weightTypes: store.weightTypes
+                weightTypes: store.weightTypes,
+                attempt: loadAttempt
             )
         ) {
             await refreshSummary()
@@ -107,14 +118,22 @@ struct HistoryView: View {
         // The reader's context reads the store: flush edits the main context has not saved yet.
         context.saveIfChanged(reportingTo: saveErrors)
         let options = RecordsOptions(formula: settings.e1rmFormula, displayUnit: settings.defaultUnit)
-        let summary = try? await WorkoutStatsReader.loadHistorySummary(
-            in: context.container,
-            weightTypes: store.weightTypes,
-            options: options
-        )
+        let summary =
+            FailLoads.consumeHistory()
+            ? nil
+            : try? await WorkoutStatsReader.loadHistorySummary(
+                in: context.container,
+                weightTypes: store.weightTypes,
+                options: options
+            )
         guard !Task.isCancelled else { return }
         defer { hasLoadedSummary = true }
-        guard let summary else { return }
+        guard let summary else {
+            // Keep rows already on screen; with none, say the read failed instead of showing a bare dashboard.
+            loadFailed = true
+            return
+        }
+        loadFailed = false
         entries = summary.entries
         recentPRs = summary.recentPRs
     }
@@ -130,6 +149,20 @@ struct HistoryView: View {
                 description: Text("Finish one from the Workout tab and it shows up here.")
             )
             .accessibilityIdentifier("history.empty")
+        } else if loadFailed && entries.isEmpty {
+            ContentUnavailableView {
+                Label("Could Not Load History", systemImage: "exclamationmark.triangle")
+            } description: {
+                Text("Your workouts could not be read. Nothing is lost.")
+            } actions: {
+                Button("Retry") {
+                    loadFailed = false
+                    hasLoadedSummary = false
+                    loadAttempt += 1
+                }
+                .accessibilityIdentifier("history.loadFailed.retry")
+            }
+            .accessibilityIdentifier("history.loadFailed")
         } else {
             let sections = HistoryList.sections(HistoryList.filter(entries, query: query, scope: scope))
             // The list filter ignores surrounding whitespace, so a whitespace-only search keeps the dashboard.
@@ -440,8 +473,18 @@ private struct Inputs: Hashable {
     let formula: String
     /// A custom exercise's weight type edit changes its volume and PRs without touching any workout.
     let weightTypes: [UUID: WeightType]
+    /// Retry after a failed read.
+    let attempt: Int
 
-    init(_ workouts: [Workout], generation: Int, unit: String, formula: String, weightTypes: [UUID: WeightType]) {
+    init(
+        _ workouts: [Workout],
+        generation: Int,
+        unit: String,
+        formula: String,
+        weightTypes: [UUID: WeightType],
+        attempt: Int
+    ) {
+        self.attempt = attempt
         ids = workouts.map(\.id)
         self.generation = generation
         newestEdit = workouts.map(\.updatedAt).max()

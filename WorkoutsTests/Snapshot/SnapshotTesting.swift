@@ -14,6 +14,25 @@ struct SnapshotVariant: Sendable, CustomTestStringConvertible {
 
     var testDescription: String { name }
 
+    /// UIKit's category for `dynamicTypeSize`, set on hosted windows so the real-window path matches the SwiftUI environment.
+    var contentSizeCategory: UIContentSizeCategory {
+        switch dynamicTypeSize {
+        case .xSmall: .extraSmall
+        case .small: .small
+        case .medium: .medium
+        case .large: .large
+        case .xLarge: .extraLarge
+        case .xxLarge: .extraExtraLarge
+        case .xxxLarge: .extraExtraExtraLarge
+        case .accessibility1: .accessibilityMedium
+        case .accessibility2: .accessibilityLarge
+        case .accessibility3: .accessibilityExtraLarge
+        case .accessibility4: .accessibilityExtraExtraLarge
+        case .accessibility5: .accessibilityExtraExtraExtraLarge
+        @unknown default: .large
+        }
+    }
+
     /// Default size and the accessibility size the app's own previews check, each in light and dark.
     static let all: [SnapshotVariant] = [
         SnapshotVariant(name: "large-light", colorScheme: .light, dynamicTypeSize: .large),
@@ -286,6 +305,7 @@ enum Snapshot {
         // its own fixed frame inside a container instead of the window's bounds.
         let window = UIWindow(windowScene: scene)
         window.overrideUserInterfaceStyle = variant.colorScheme == .dark ? .dark : .light
+        window.traitOverrides.preferredContentSizeCategory = variant.contentSizeCategory
         let container = UIViewController()
         window.rootViewController = container
         window.isHidden = false

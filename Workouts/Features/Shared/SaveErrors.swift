@@ -95,7 +95,24 @@ private struct EditorCoverHost: ViewModifier {
     }
 }
 
+private struct SheetSaveErrorHost: ViewModifier {
+    @Environment(SaveErrors.self) private var errors: SaveErrors?
+
+    func body(content: Content) -> some View {
+        content
+            .saveErrorAlert()
+            .onAppear { errors?.editorCovers += 1 }
+            .onDisappear { errors?.editorCovers = max(0, (errors?.editorCovers ?? 1) - 1) }
+    }
+}
+
 extension View {
+    /// The root of a sheet that can report a save failure (the root's alert sits under it and cannot present): hosts the
+    /// sheet's own alert and makes the root's stand down while the sheet is up.
+    func sheetSaveErrorHost() -> some View {
+        modifier(SheetSaveErrorHost())
+    }
+
     /// The root of an editor's full-screen cover: hosts the cover's own save-error alert and makes the root's stand down.
     func editorCoverHost() -> some View {
         modifier(EditorCoverHost())

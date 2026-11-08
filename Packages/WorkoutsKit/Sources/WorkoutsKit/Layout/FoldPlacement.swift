@@ -136,15 +136,23 @@ public nonisolated enum FoldPlacement {
         return frame.minX > 0 && frame.maxX < width ? frame.minX...frame.maxX : nil
     }
 
-    /// Left width, gutter width and right width for two columns in `total`: split around `division` when there is one
-    /// that leaves room, else two equal columns around `spacing`.
+    /// Left width, gutter width and right width for two columns in `total`: split around `division` when there is one that
+    /// leaves room, else two equal columns around `spacing`. The gutter is the division widened to at least `spacing`
+    /// around its centre (a flat-open hinge reports almost no width, and the columns must not touch). When either side
+    /// would be narrower than `minimumColumn`, the split is even instead.
     public static func columnWidths(
         total: CGFloat,
         division: ClosedRange<CGFloat>?,
-        spacing: CGFloat
+        spacing: CGFloat,
+        minimumColumn: CGFloat = 44
     ) -> (left: CGFloat, gap: CGFloat, right: CGFloat) {
-        if let division, division.upperBound < total {
-            return (division.lowerBound, division.upperBound - division.lowerBound, total - division.upperBound)
+        if let division {
+            let widen = max(0, spacing - (division.upperBound - division.lowerBound)) / 2
+            let lower = division.lowerBound - widen
+            let upper = division.upperBound + widen
+            if lower >= minimumColumn, total - upper >= minimumColumn {
+                return (lower, upper - lower, total - upper)
+            }
         }
         let column = max(0, (total - spacing) / 2)
         return (column, spacing, column)

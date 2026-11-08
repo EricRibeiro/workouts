@@ -295,14 +295,15 @@ struct DashboardColumns: View {
     }
 }
 
-/// Two columns that keep off the fold: the left one ends at an active vertical division (book pose) and the right one
-/// starts after it, so the gutter is the fold itself; otherwise the gutter is the normal 12 pt. Takes exactly two child
+/// Two columns that keep off the fold: the left one ends at the vertical fold (half-open or flat open) and the right one
+/// starts after it, so the gutter is the fold itself (at least 12 pt); otherwise the gutter is the normal 12 pt. Takes exactly two child
 /// views. Shared by the History dashboard and the workout detail.
 struct FoldColumns<Left: View, Right: View>: View {
     let left: Left
     let right: Right
 
-    /// The division's horizontal extent in this view's own coordinate space, nil unless it is active, vertical and inside.
+    /// The fold's horizontal extent in this view's own coordinate space, nil unless a vertical division lies inside it.
+    /// Inactive regions count, so the gutter already sits on the hinge when the Duo is open flat.
     @State private var division: ClosedRange<CGFloat>?
 
     init(@ViewBuilder content: () -> TupleView<(Left, Right)>) {
@@ -316,7 +317,7 @@ struct FoldColumns<Left: View, Right: View>: View {
         }
         .onGeometryChange(for: ClosedRange<CGFloat>?.self) { proxy in
             FoldPlacement.columnGap(
-                divisions: proxy.reservedRegions(kind: .division).filter(\.isActive).map(\.frame),
+                divisions: proxy.reservedRegions(kind: .division, options: .includeInactive).map(\.frame),
                 width: proxy.size.width
             )
         } action: {

@@ -15,9 +15,7 @@ final class HealthKitIntegrationUITests: XCTestCase {
 
     @MainActor
     func testSeededWorkoutIsReadBackFromTheRealStore() throws {
-        let app = XCUIApplication()
-        app.launchArguments += ["-uiTesting", "-seedHealth", "-healthReal", "-preview", "WorkoutDetail"]
-        app.launch()
+        let app = XCUIApplication.launchedForTesting(["-seedHealth", "-healthReal", "-preview", "WorkoutDetail"])
 
         // The detail's header exists before the enrichment lands; its label carries the Health values afterwards, so the
         // test waits for the header to say so.

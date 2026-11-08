@@ -9,29 +9,24 @@ final class SmokeUITests: XCTestCase {
     /// Every UI test launches with `-uiTesting`: an in-memory store, so no state is left over from earlier runs.
     @MainActor
     private func makeApp(_ extraArguments: [String] = []) -> XCUIApplication {
-        let app = XCUIApplication()
-        app.launchArguments += ["-uiTesting"] + extraArguments
-        return app
+        XCUIApplication.launchedForTesting(extraArguments)
     }
 
     @MainActor
     func testAppLaunches() throws {
         let app = makeApp()
-        app.launch()
         XCTAssertTrue(app.wait(for: .runningForeground, timeout: 10))
     }
 
     @MainActor
     func testGallerySwatches() throws {
         let app = makeApp(["-preview", "Swatches"])
-        app.launch()
         XCTAssertTrue(app.descendants(matching: .any)["Accent"].waitForExistence(timeout: 10))
     }
 
     @MainActor
     func testTabsAndSettings() throws {
         let app = makeApp()
-        app.launch()
 
         XCTAssertTrue(app.descendants(matching: .any)["screen.workout"].waitForExistence(timeout: 10))
 
@@ -66,7 +61,6 @@ final class SmokeUITests: XCTestCase {
     @MainActor
     func testTabBarHasOnlyTheThreeTabs() throws {
         let app = makeApp(["-seedSampleData"])
-        app.launch()
         XCTAssertTrue(app.descendants(matching: .any)["screen.workout"].waitForExistence(timeout: 10))
         // Template cards are on screen, so the seed is in.
         XCTAssertTrue(app.descendants(matching: .any)["workout.list"].waitForExistence(timeout: 5))

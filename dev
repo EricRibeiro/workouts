@@ -208,6 +208,16 @@ report_failures() {
   fi
 }
 
+# A pool simulator keeps whatever text size and appearance an earlier session left it at (an accessibility size once
+# failed UI tests that pass at Large). Reset both before a test run; `simctl ui` needs a booted device, so boot it headless
+# first. Not display toggles: these are the same settings as Settings > Display & Brightness / Display Size.
+sim_reset_ui() { # sim_reset_ui <udid>
+  xcrun simctl boot "$1" >/dev/null 2>&1 || true
+  xcrun simctl bootstatus "$1" -b >/dev/null 2>&1 || true
+  xcrun simctl ui "$1" content_size large >/dev/null 2>&1 || true
+  xcrun simctl ui "$1" appearance light >/dev/null 2>&1 || true
+}
+
 run_tests() { # run_tests <name> <target> [filter]
   local name="$1" target="$2" filter="${3:-}"
   local only="$target" bundle="$RESULTS/$name-$$.xcresult" rc=0
@@ -217,6 +227,7 @@ run_tests() { # run_tests <name> <target> [filter]
   if [[ "$name" == ui-test ]]; then
     XCB_VERBOSE=1 RUN_LOGGED_TAP=ui_progress_tap UI_PROG_SIM=$(sim_name_by_udid "$SIM_UDID")
   fi
+  sim_reset_ui "$SIM_UDID"
   [[ -n "$filter" ]] && only="$target/$filter"
   mkdir -p "$RESULTS"
   find "$RESULTS" -maxdepth 1 -name '*.xcresult' ! -name 'latest-*' -mmin +240 -exec rm -rf {} + 2>/dev/null || true
@@ -444,6 +455,7 @@ ui_shard() { # ui_shard <index> <udid> <xctestrun> <suite...>; runs in a backgro
   local idx="$1" udid="$2" xr="$3" bundle only=() s attempt rc=0 t0=$SECONDS
   shift 3
   bundle="$PWD/$UI_SHARDS_DIR/shard-$idx.xcresult" # absolute: ui_cleanup finds this checkout's xcodebuilds by it
+  sim_reset_ui "$udid"
   for s in "$@"; do only+=(-only-testing:"WorkoutsUITests/$s"); done
   # Progress: no -quiet here, so xcodebuild prints each test's result and ui_progress_tap (between it and the log filter)
   # turns them into this shard's line in the progress file. The planned test count comes from the enumeration, if it worked.
