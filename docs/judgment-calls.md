@@ -442,3 +442,4 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
   and note line (~18 pt) under a block name are below 44 pt. A pad / contentShape / negative-pad overhang was proposed and
   rejected (hard-coded heights, overlaps the exercise-name button above). A true 44 pt row visibly loosens the block header;
   that is Eric's taste call, open in the review.
+- **JC112 (2026-11-07, Eric, from screenshots): the exercise detail keeps no bar title (JC29 stands); the template preview shows the bar title only (in-content name removed); the sticky band and note line are 44 pt tall, which resolves JC111.**

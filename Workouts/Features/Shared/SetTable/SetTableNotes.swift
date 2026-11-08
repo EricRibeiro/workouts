@@ -40,7 +40,7 @@ struct SetTableStickyBand: View {
             .multilineTextAlignment(.leading)
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
             .background(Color.stickyNote, in: .rect(cornerRadius: Metrics.stickyNoteCornerRadius))
             .contentShape(.rect(cornerRadius: Metrics.stickyNoteCornerRadius))
     }
@@ -71,7 +71,7 @@ struct SetTableNoteLine: View {
             .font(.footnote)
             .foregroundStyle(.secondary)
             .multilineTextAlignment(.leading)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
             .contentShape(.rect)
     }
 }

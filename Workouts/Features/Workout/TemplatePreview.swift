@@ -80,11 +80,6 @@ struct TemplatePreview: View {
 
     private func header(lastPerformed: String?) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(template.name)
-                .font(.title.bold())
-                .fixedSize(horizontal: false, vertical: true)
-                .accessibilityAddTraits(.isHeader)
-                .accessibilityIdentifier("template.preview.title")
             if let folder = template.folder {
                 Label(folder.name, systemImage: "folder")
                     .font(.subheadline)

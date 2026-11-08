@@ -82,7 +82,7 @@ final class FirstFrameUITests: XCTestCase {
         XCTAssertTrue(any["template.preview"].waitForExistence(timeout: 5))
 
         app.assertChromeImmediately(buttons: ["template.edit", "template.start"])
-        XCTAssertEqual(any["template.preview.title"].label, name, "the preview's title was not there at the push")
+        XCTAssertTrue(app.navigationBars[name].exists, "the preview's bar title was not there at the push")
         XCTAssertFalse(
             any["template.preview.lastPerformed"].exists,
             "last performed was there before its load finished"

@@ -114,6 +114,7 @@ Eric deferred the technical choices to Claude. These close every item in `docs/p
   first with an unchecked set.
 - **SetTable** (`Workouts/Features/Shared/SetTable`, 2.2–2.3): one component, three modes (template / active / past).
   `isIdleTimerDisabled` while logging when `keepScreenOn`.
+  - Note rows: the sticky band and the block note line are at least 44 pt tall, text vertically centred, button or not (Eric, 2026-11-07; JC112).
 
 ## Native layer
 
