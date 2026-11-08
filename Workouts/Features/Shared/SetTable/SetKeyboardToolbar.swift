@@ -19,6 +19,8 @@ struct SetKeyboardToolbar: ViewModifier {
     let next: () -> Void
     let done: () -> Void
     var rest: SetTableRest?
+    /// The focused field's step as spoken ("5 pounds"), for the − / + labels.
+    var stepDescription = "one step"
 
     func body(content: Content) -> some View {
         content
@@ -65,7 +67,7 @@ struct SetKeyboardToolbar: ViewModifier {
                     } label: {
                         Label("Decrease", systemImage: "minus")
                     }
-                    .accessibilityLabel("Decrease by one step")
+                    .accessibilityLabel("Decrease by \(stepDescription)")
                     .accessibilityIdentifier("setkeyboard.minus")
 
                     Button {
@@ -73,7 +75,7 @@ struct SetKeyboardToolbar: ViewModifier {
                     } label: {
                         Label("Increase", systemImage: "plus")
                     }
-                    .accessibilityLabel("Increase by one step")
+                    .accessibilityLabel("Increase by \(stepDescription)")
                     .accessibilityIdentifier("setkeyboard.plus")
 
                     Button(action: previous) {
@@ -109,8 +111,18 @@ extension View {
         previous: @escaping () -> Void,
         next: @escaping () -> Void,
         done: @escaping () -> Void,
-        rest: SetTableRest? = nil
+        rest: SetTableRest? = nil,
+        stepDescription: String = "one step"
     ) -> some View {
-        modifier(SetKeyboardToolbar(step: step, previous: previous, next: next, done: done, rest: rest))
+        modifier(
+            SetKeyboardToolbar(
+                step: step,
+                previous: previous,
+                next: next,
+                done: done,
+                rest: rest,
+                stepDescription: stepDescription
+            )
+        )
     }
 }

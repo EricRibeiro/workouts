@@ -19,8 +19,20 @@ final class SaveErrors {
     /// the root's stands down while any is.
     var editorCovers = 0
 
-    func report(_ error: Error) {
+    /// Re-runs the save that failed; `nil` when the reporter has nothing to re-run, and the alert then offers only OK.
+    private(set) var retry: (() -> Void)?
+
+    func report(_ error: Error, retry: (() -> Void)? = nil) {
         message = "Could not save: \(error.localizedDescription)."
+        self.retry = retry
+    }
+
+    /// Clears the alert, optionally running the retry it offered.
+    func acknowledge(retrying: Bool = false) {
+        let action = retry
+        message = nil
+        retry = nil
+        if retrying { action?() }
     }
 }
 
@@ -32,7 +44,7 @@ extension ModelContext {
         do {
             try save()
         } catch {
-            errors?.report(error)
+            errors?.report(error) { [weak errors, weak self] in self?.saveIfChanged(reportingTo: errors) }
         }
     }
 }
@@ -47,11 +59,18 @@ private struct SaveErrorAlert: ViewModifier {
                 "Could Not Save",
                 isPresented: Binding(
                     get: { isEnabled && errors?.message != nil },
-                    set: { if !$0 { errors?.message = nil } }
+                    set: { if !$0 { errors?.acknowledge() } }
                 )
             ) {
-                Button("OK", role: .cancel) {}
-                    .accessibilityIdentifier("saveError.ok")
+                if errors?.retry != nil {
+                    Button("Retry") { errors?.acknowledge(retrying: true) }
+                        .accessibilityIdentifier("saveError.retry")
+                    Button("Cancel", role: .cancel) {}
+                        .accessibilityIdentifier("saveError.cancel")
+                } else {
+                    Button("OK", role: .cancel) {}
+                        .accessibilityIdentifier("saveError.ok")
+                }
             } message: {
                 Text(errors?.message ?? "")
             }

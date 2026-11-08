@@ -437,3 +437,8 @@ Decisions the orchestrator made without asking, for Eric to review. Newest last.
   exercise; remove) are split with `Divider`, which renders the same separators. `pin.badge.plus` is not an SF Symbol,
   so Add/Edit Sticky Note… both use `pin` and the title carries the difference. The detail's `StickyNoteView` stays
   uncapped (it is where the full text is read); the set-table band caps at 3 lines.
+
+- **JC111 (2026-11-07, review r1 A11Y-5): note rows keep their visual height; no hit-area overhang.** The sticky band (~26 pt)
+  and note line (~18 pt) under a block name are below 44 pt. A pad / contentShape / negative-pad overhang was proposed and
+  rejected (hard-coded heights, overlaps the exercise-name button above). A true 44 pt row visibly loosens the block header;
+  that is Eric's taste call, open in the review.

@@ -32,4 +32,26 @@ final class ResumeControlUITests: XCTestCase {
         XCTAssertTrue(any["screen.activeWorkout"].waitForExistence(timeout: 10), "the ring did not restore the cover")
         XCTAssertTrue(ring.waitForNonExistence(timeout: 5), "the ring stayed under the open cover")
     }
+
+    /// A rest that ends while the workout is minimised: the ring says "rest over" (not "0:00") through the grace, then
+    /// falls back to the elapsed time.
+    @MainActor
+    func testRingSaysRestOverThenElapsed() throws {
+        let app = XCUIApplication.launchedInActiveWorkout(["-sampleRestSeconds", "8"])
+        let ring = app.buttons["resume.ring"].firstMatch
+        app.buttons["cover.minimise"].firstMatch.tap()
+        XCTAssertTrue(ring.waitForExistence(timeout: 10))
+        XCTAssertTrue(ring.label.contains("rest "), "label \(ring.label)")
+
+        let over = NSPredicate(format: "label CONTAINS 'rest over'")
+        expectation(for: over, evaluatedWith: ring)
+        waitForExpectations(timeout: 15)
+        XCTAssertFalse(ring.label.contains("0:00"), "label \(ring.label)")
+
+        // 3 s grace, then the engine forgets the rest and the label reads the elapsed time.
+        let elapsed = NSPredicate(format: "label ENDSWITH 'elapsed'")
+        expectation(for: elapsed, evaluatedWith: ring)
+        waitForExpectations(timeout: 12)
+        XCTAssertTrue(ring.label.hasPrefix("Resume workout, "), "label \(ring.label)")
+    }
 }

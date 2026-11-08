@@ -137,8 +137,8 @@ final class RestRingUITests: XCTestCase {
         let any = app.descendants(matching: .any)
         let ring = app.buttons["rest.ring"].firstMatch
         XCTAssertTrue(ring.waitForExistence(timeout: 10))
-        // 3 s rest + 3 s grace + loop tick; the idle ring's label has no ", ".
-        let idle = NSPredicate(format: "NOT (label CONTAINS ', ')")
+        // 3 s rest + 3 s grace + loop tick; the idle ring's label is plain "Rest timer" (the grace reads "Rest over").
+        let idle = NSPredicate(format: "label == 'Rest timer'")
         expectation(for: idle, evaluatedWith: ring)
         waitForExpectations(timeout: 12)
         XCTAssertEqual(ring.label, "Rest timer")

@@ -55,6 +55,7 @@ struct TemplatePreview: View {
             .padding(.horizontal)
             .padding(.bottom)
         }
+        .navigationTitle(template.name)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
@@ -173,12 +174,12 @@ struct TemplatePreview: View {
             .accessibilityIdentifier("template.exercise.about")
         }
         .padding(.vertical, 8)
-        .padding(.leading, indented ? 9 : 0)
+        .padding(.leading, indented ? Metrics.supersetBarIndent : 0)
         .background(alignment: .leading) {
             if let group = row.supersetGroup {
                 Capsule()
                     .fill(Color.superset(group))
-                    .frame(width: 3)
+                    .frame(width: Metrics.supersetBarWidth)
                     .padding(.vertical, 8)
             }
         }

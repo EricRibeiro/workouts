@@ -49,11 +49,12 @@ struct SetTable: View {
     var body: some View {
         let sections = source.sections
         let numbers = supersetNumbers(for: sections)
+        let order = sections.map(\.id)
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 24) {
                     ForEach(sections) { section in
-                        block(section, supersetNumber: numbers[section.id])
+                        block(section, supersetNumber: numbers[section.id], order: order)
                     }
                     .reorderable()
                 }
@@ -87,7 +88,8 @@ struct SetTable: View {
             previous: { if let field = focus { source.applyPrevious(to: field.setID) } },
             next: { focusNext(in: sections) },
             done: { focus = nil },
-            rest: source.rest
+            rest: source.rest,
+            stepDescription: stepDescription(in: sections)
         )
         .setHaptics(checkedSetCount: source.mode == .active ? source.checkedSetCount : 0)
         .preference(key: SetTableEditingKey.self, value: focus != nil)
@@ -96,9 +98,9 @@ struct SetTable: View {
 
     // MARK: Block
 
-    private func block(_ section: SetTableSection, supersetNumber: Int?) -> some View {
+    private func block(_ section: SetTableSection, supersetNumber: Int?, order: [UUID]) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            header(section, supersetNumber: supersetNumber)
+            header(section, supersetNumber: supersetNumber, order: order)
             if let first = section.rows.first, !dynamicTypeSize.isAccessibilitySize {
                 columnHeader(for: first)
             }
@@ -110,7 +112,8 @@ struct SetTable: View {
                     onApplyPrevious: { source.applyPrevious(to: row.id) },
                     onCommitWeight: { source.commitWeight($0, for: row.id) },
                     onCommitReps: { source.commitReps($0, for: row.id) },
-                    onToggleCheck: { toggleCheck(row) }
+                    onToggleCheck: { toggleCheck(row) },
+                    onDelete: { source.deleteSet(row.id) }
                 )
                 .id(row.id)
                 .swipeActions(edge: .trailing, allowsFullSwipe: true) {
@@ -121,7 +124,6 @@ struct SetTable: View {
                     }
                     .accessibilityIdentifier("setrow.\(row.id.uuidString).delete")
                 }
-                .accessibilityAction(named: "Delete set") { source.deleteSet(row.id) }
             }
             addSetRow(section)
         }
@@ -130,7 +132,7 @@ struct SetTable: View {
             if let supersetNumber {
                 Capsule()
                     .fill(Self.supersetColor(supersetNumber))
-                    .frame(width: 4)
+                    .frame(width: Metrics.supersetBarWidth)
                     .accessibilityHidden(true)
             }
         }
@@ -157,7 +159,7 @@ struct SetTable: View {
         }
     }
 
-    private func header(_ section: SetTableSection, supersetNumber: Int?) -> some View {
+    private func header(_ section: SetTableSection, supersetNumber: Int?, order: [UUID]) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             if let supersetNumber {
                 Text("Superset \(supersetNumber)")
@@ -182,6 +184,15 @@ struct SetTable: View {
                 .accessibilityAddTraits(.isHeader)
                 .accessibilityHint(onSelectExercise == nil ? "" : "Opens the exercise")
                 .accessibilityIdentifier("settable.name.\(section.id.uuidString)")
+                .accessibilityActions {
+                    // Only where the move is possible: no "Move up" on the first block, no "Move down" on the last.
+                    if SetTableLayout.moved(order, id: section.id, by: -1) != nil {
+                        Button("Move up") { moveBlock(section.id, order, by: -1) }
+                    }
+                    if SetTableLayout.moved(order, id: section.id, by: 1) != nil {
+                        Button("Move down") { moveBlock(section.id, order, by: 1) }
+                    }
+                }
                 if let blockActions {
                     blockMenu(section, actions: blockActions)
                 }
@@ -335,6 +346,13 @@ struct SetTable: View {
 
     // MARK: Reorder
 
+    /// The accessibility "Move Up" / "Move Down" actions of a block header: the drag's alternative, through the same
+    /// `source.reorder` path (`SetTableLayout.moved` builds the order the drag's `reordered` would).
+    private func moveBlock(_ id: UUID, _ order: [UUID], by offset: Int) {
+        guard let moved = SetTableLayout.moved(order, id: id, by: offset) else { return }
+        source.reorder(moved, moving: [id])
+    }
+
     private func reorder(
         _ sections: [SetTableSection],
         _ difference: ReorderDifference<UUID, ReorderableSingleCollectionIdentifier>
@@ -366,6 +384,25 @@ struct SetTable: View {
         case .weight: source.commitWeight(SetInputFormat.parseWeight(text), for: row.id)
         case .reps: source.commitReps(SetInputFormat.parseCount(text), for: row.id)
         }
+        // VoiceOver stays on the − / + key, so say what the field now holds.
+        let spoken: String
+        switch field.column {
+        case .weight: spoken = "Weight \(text) \(row.unit == .kg ? "kilograms" : "pounds")"
+        case .reps: spoken = "\(row.measure == .duration ? "Duration \(text) seconds" : "Reps \(text)")"
+        }
+        AccessibilityNotification.Announcement(spoken).post()
+    }
+
+    /// The focused field's step as spoken, for the keyboard's − / + labels.
+    private func stepDescription(in sections: [SetTableSection]) -> String {
+        guard let field = focus, let row = sections.lazy.flatMap(\.rows).first(where: { $0.id == field.setID })
+        else { return "one step" }
+        return SetKeyboard.stepDescription(
+            column: field.column,
+            unit: row.unit,
+            weightType: row.weightType,
+            measure: row.measure
+        )
     }
 
     /// Checking a set (not unchecking, not a refused check) clears the focus, so the keyboard goes down and the rest countdown

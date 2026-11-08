@@ -210,11 +210,11 @@ struct ExerciseRecordsView: View {
 }
 
 extension View {
-    /// The grouped-card surface of the exercise detail (same shape as the dashboard cards).
+    /// The grouped-card surface of the exercise detail (same shape and horizontal padding as `dashboardCardStyle()`; rows supply their own height).
     func detailCardStyle() -> some View {
-        padding(.horizontal)
-            .padding(.vertical, 6)
+        padding(.horizontal, Metrics.cardPadding)
+            .padding(.vertical, Metrics.cardRowsVerticalPadding)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 20))
+            .cardBackground()
     }
 }

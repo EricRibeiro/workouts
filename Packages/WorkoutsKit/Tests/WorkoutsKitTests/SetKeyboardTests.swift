@@ -18,6 +18,17 @@ import Testing
         #expect(SetKeyboard.step(column: .reps, unit: .kg, weightType: type) == 1)
     }
 
+    @Test func stepDescriptionIsSpoken() {
+        #expect(SetKeyboard.stepDescription(column: .weight, unit: .lb, weightType: .weighted) == "2.5 pounds")
+        #expect(SetKeyboard.stepDescription(column: .weight, unit: .lb, weightType: .barbell) == "5 pounds")
+        #expect(SetKeyboard.stepDescription(column: .weight, unit: .kg, weightType: .weighted) == "1.25 kilograms")
+        #expect(SetKeyboard.stepDescription(column: .reps, unit: .kg, weightType: .barbell) == "1 rep")
+        #expect(
+            SetKeyboard.stepDescription(column: .reps, unit: .kg, weightType: .barbell, measure: .duration)
+                == "1 second"
+        )
+    }
+
     @Test func steppingWeight() {
         func go(
             _ text: String,

@@ -40,6 +40,19 @@ public nonisolated enum SetTableLayout {
         return rest
     }
 
+    /// `order` after moving `id` one place up (`offset` -1) or down (`offset` +1), the VoiceOver "Move Up" / "Move Down"
+    /// actions' counterpart of a drag. Nil when `id` is not in `order` or is already at that end, so the caller offers no
+    /// action there. Goes through `reordered`, so a drag and an action produce the same order.
+    public static func moved<ID: Hashable>(_ order: [ID], id: ID, by offset: Int) -> [ID]? {
+        guard offset == -1 || offset == 1, let index = order.firstIndex(of: id) else { return nil }
+        let target = index + offset
+        guard order.indices.contains(target) else { return nil }
+        // Up: before the previous block. Down: before the block after next, or the end when next is last.
+        let destination: ID? =
+            offset < 0 ? order[target] : (order.indices.contains(target + 1) ? order[target + 1] : nil)
+        return reordered(order, moving: [id], before: destination)
+    }
+
     /// The exercise the logging screen's pane shows when nothing was focused or tapped yet (`DECISIONS.md` "Active
     /// workout"): the first block with an unchecked set. When every set is checked (or no block has sets) it is the first
     /// block, so the pane never goes blank while a workout has exercises; nil only when there are none.

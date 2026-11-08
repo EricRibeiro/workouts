@@ -33,6 +33,10 @@ final class TemplatePreviewUITests: XCTestCase {
         XCTAssertTrue(any["template.preview"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts[name].firstMatch.exists, "the preview should be titled \(name)")
         XCTAssertTrue(
+            app.navigationBars[name].waitForExistence(timeout: 5),
+            "the preview's navigation bar should carry the template name \(name)"
+        )
+        XCTAssertTrue(
             app.buttons["template.exercise.about"].firstMatch.exists,
             "the preview should list the exercises with an About button"
         )

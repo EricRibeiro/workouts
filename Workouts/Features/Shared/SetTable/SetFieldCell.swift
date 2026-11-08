@@ -4,6 +4,7 @@
 //
 
 import SwiftUI
+import WorkoutsKit
 
 /// One number cell of a set row (weight, reps or duration): a centred `TextField` on a filled cell that turns to a tinted fill
 /// while focused. Keeps its own text while typing and reports every change as `commit`; the stored `value` wins again whenever it
@@ -23,10 +24,12 @@ struct SetFieldCell: View {
     /// The text a typed string normalises to (parse, clamp, format); empty when it means nothing.
     let normalize: (String) -> String
     let commit: (String) -> Void
+    /// A VoiceOver swipe up / down: the same step as the keyboard's − / + keys.
+    let adjust: (SetKeyboard.Direction) -> Void
 
     @State private var text = ""
     @State private var selection: TextSelection?
-    @ScaledMetric(relativeTo: .body) private var minHeight = 40.0
+    @ScaledMetric(relativeTo: .body) private var minHeight = 44.0
     /// The width the cell asks for when `SetRow`'s `ViewThatFits` measures it. Fixed (it scales with Dynamic Type only), so the
     /// one-line or two-line choice cannot follow what is typed: a text-sized ideal width flipped the branch mid-typing,
     /// rebuilt the field and dropped focus. The cell still grows to fill the row.
@@ -77,6 +80,7 @@ struct SetFieldCell: View {
         // An empty field would otherwise report its placeholder (the Previous value) as if it were typed.
         .accessibilityValue(text.isEmpty ? "Empty" : text)
         .accessibilityHint(hint)
+        .accessibilityAdjustableAction { adjust($0 == .increment ? .increment : .decrement) }
         .accessibilityIdentifier(identifier)
     }
 }

@@ -31,7 +31,8 @@ struct WorkoutDetailView: View {
     @State private var editing: PastEditorTarget?
     @State private var isTemplatePresented = false
     @State private var isDeleteConfirming = false
-    @State private var deleteFailed = false
+    /// Why the last delete failed; non-nil shows the alert, whose Retry deletes again.
+    @State private var deleteFailureMessage: String?
     @State private var isDeleted = false
     @State private var savedTemplates = 0
     /// Derived in `.task(id:)` when the history or a setting changes, never in `body`.
@@ -119,8 +120,19 @@ struct WorkoutDetailView: View {
             }
         }
         .sensoryFeedback(.success, trigger: savedTemplates)
-        .alert("Could not delete the workout.", isPresented: $deleteFailed) {
-            Button("OK", role: .cancel) {}
+        .alert(
+            "Could Not Delete Workout",
+            isPresented: Binding(
+                get: { deleteFailureMessage != nil },
+                set: { if !$0 { deleteFailureMessage = nil } }
+            )
+        ) {
+            Button("Retry", action: delete)
+                .accessibilityIdentifier("workoutDetail.delete.retry")
+            Button("Cancel", role: .cancel) {}
+                .accessibilityIdentifier("workoutDetail.delete.failed.cancel")
+        } message: {
+            Text(deleteFailureMessage ?? "")
         }
     }
 
@@ -281,7 +293,7 @@ struct WorkoutDetailView: View {
             dismiss()
         } catch {
             context.rollback()
-            deleteFailed = true
+            deleteFailureMessage = DeleteFailure.message(for: error)
         }
     }
 }
@@ -516,7 +528,7 @@ private struct ExerciseBlockView: View {
             if let number = block.supersetNumber {
                 Capsule()
                     .fill(Color.superset(number))
-                    .frame(width: 4)
+                    .frame(width: Metrics.supersetBarWidth)
                     .padding(.vertical, 8)
                     .padding(.leading, 6)
                     .accessibilityHidden(true)
@@ -589,7 +601,7 @@ struct SaveTemplateSheet: View {
 
     @State private var choice: Choice?
     @State private var name: String
-    @State private var failed = false
+    @State private var failureMessage: String?
 
     init(workout: Workout, saved: @escaping () -> Void = {}) {
         self.workout = workout
@@ -632,8 +644,16 @@ struct SaveTemplateSheet: View {
                         .accessibilityIdentifier("workoutDetail.saveTemplate.confirm")
                 }
             }
-            .alert("Could not save the template.", isPresented: $failed) {
-                Button("OK", role: .cancel) {}
+            .alert(
+                "Could Not Save Template",
+                isPresented: Binding(get: { failureMessage != nil }, set: { if !$0 { failureMessage = nil } })
+            ) {
+                Button("Retry", action: save)
+                    .accessibilityIdentifier("workoutDetail.saveTemplate.retry")
+                Button("Cancel", role: .cancel) {}
+                    .accessibilityIdentifier("workoutDetail.saveTemplate.failed.cancel")
+            } message: {
+                Text(failureMessage ?? "")
             }
         }
         .accessibilityIdentifier("workoutDetail.saveTemplate.sheet")
@@ -669,7 +689,7 @@ struct SaveTemplateSheet: View {
             saved()
             dismiss()
         } catch {
-            failed = true
+            failureMessage = "Could not save the template: \(error.localizedDescription). Nothing was changed."
         }
     }
 }

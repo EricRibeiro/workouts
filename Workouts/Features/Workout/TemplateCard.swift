@@ -83,12 +83,12 @@ struct TemplateCard: View {
                                 .font(.footnote)
                                 .foregroundStyle(.secondary)
                                 .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
-                                .padding(.leading, hasSuperset ? 9 : 0)
+                                .padding(.leading, hasSuperset ? Metrics.supersetBarIndent : 0)
                                 .background(alignment: .leading) {
                                     if let group = line.supersetGroup {
                                         Capsule()
                                             .fill(Color.superset(group))
-                                            .frame(width: 3)
+                                            .frame(width: Metrics.supersetBarWidth)
                                     }
                                 }
                         }
@@ -96,7 +96,7 @@ struct TemplateCard: View {
                             Text(more)
                                 .font(.footnote)
                                 .foregroundStyle(.secondary)
-                                .padding(.leading, hasSuperset ? 9 : 0)
+                                .padding(.leading, hasSuperset ? Metrics.supersetBarIndent : 0)
                         }
                     }
                 }
@@ -109,7 +109,7 @@ struct TemplateCard: View {
             }
             .frame(maxHeight: .infinity, alignment: .top)
             .dashboardCardStyle()
-            .contentShape(RoundedRectangle(cornerRadius: 20))
+            .cardContentShape()
         }
         .buttonStyle(.plain)
         .matchedTransitionSource(id: template.id, in: namespace)

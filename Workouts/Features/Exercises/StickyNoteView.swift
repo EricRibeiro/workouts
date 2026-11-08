@@ -58,7 +58,7 @@ struct StickyNoteView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background {
             if text != nil {
-                RoundedRectangle(cornerRadius: 12).fill(Color.stickyNote)
+                RoundedRectangle(cornerRadius: Metrics.stickyNoteCornerRadius).fill(Color.stickyNote)
             }
         }
         .accessibilityElement(children: .contain)

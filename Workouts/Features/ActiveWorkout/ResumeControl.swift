@@ -66,26 +66,31 @@ private struct ResumeRingButton: View {
     var body: some View {
         let timer = engine.restTimer
         Group {
-            // Only a rest needs the per-second redraw; the idle ring is static and its elapsed time rides in the
-            // accessibility label, read when VoiceOver asks.
+            // Only a rest needs the per-second redraw. The idle ring is visually static, but its elapsed time rides in
+            // the accessibility label (minute granularity), so a minute timeline keeps that label at most a minute old.
             if timer.endsAt != nil, timer.total != nil {
                 TimelineView(.periodic(from: .now, by: 1)) { context in
                     button(now: context.date, timer: timer)
                 }
             } else {
-                button(now: .now, timer: timer)
+                TimelineView(.periodic(from: .now, by: 60)) { context in
+                    button(now: context.date, timer: timer)
+                }
             }
         }
         // The engine keeps an over rest for a few seconds (the flash); with the cover closed nothing else forgets it.
         .sensoryFeedback(.success, trigger: restEndCount)
         .task(id: timer.endsAt) {
             guard let endsAt = timer.endsAt else { return }
-            await engine.awaitRestExpiry(endsAt: endsAt) { restEndCount += 1 }
+            await engine.awaitRestExpiry(endsAt: endsAt) {
+                restEndCount += 1
+                AccessibilityNotification.Announcement(RestAccessibility.overAnnouncement).post()
+            }
         }
     }
 
     private func button(now: Date, timer: RestTimer) -> some View {
-        let state = Self.state(startedAt: startedAt, endsAt: timer.endsAt, now: now)
+        let state = RestAccessibility.resumeState(startedAt: startedAt, endsAt: timer.endsAt, now: now)
         return Button(action: restore) {
             Label {
                 Text("Resume workout")
@@ -113,14 +118,5 @@ private struct ResumeRingButton: View {
         }
         .accessibilityLabel("Resume workout, \(state)")
         .accessibilityIdentifier("resume.ring")
-    }
-
-    /// "rest 4:57" while a rest runs, "12:34 elapsed" otherwise.
-    private static func state(startedAt: Date, endsAt: Date?, now: Date) -> String {
-        if let endsAt {
-            let remaining = Int(max(0, endsAt.timeIntervalSince(now)).rounded(.up))
-            return "rest \(ClockFormat.clock(seconds: remaining))"
-        }
-        return "\(ClockFormat.clock(seconds: Int(now.timeIntervalSince(startedAt)))) elapsed"
     }
 }

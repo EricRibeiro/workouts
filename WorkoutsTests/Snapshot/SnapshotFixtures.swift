@@ -43,7 +43,8 @@ struct SnapshotSetRowHost: View {
                     onApplyPrevious: {},
                     onCommitWeight: { _ in },
                     onCommitReps: { _ in },
-                    onToggleCheck: { true }
+                    onToggleCheck: { true },
+                    onDelete: {}
                 )
             }
         }

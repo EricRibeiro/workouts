@@ -37,6 +37,22 @@ public nonisolated enum SetKeyboard {
         return weightType == .barbell ? base * 2 : base
     }
 
+    /// The step as spoken for VoiceOver: "2.5 pounds", "1.25 kilograms", "1 rep", "1 second".
+    public static func stepDescription(
+        column: Column,
+        unit: WeightUnit,
+        weightType: WeightType,
+        measure: SetInputFormat.Measure = .reps
+    ) -> String {
+        let size = step(column: column, unit: unit, weightType: weightType)
+        switch column {
+        case .weight:
+            return "\(SetInputFormat.weightText(size)) \(unit == .kg ? "kilograms" : "pounds")"
+        case .reps:
+            return measure == .duration ? "1 second" : "1 rep"
+        }
+    }
+
     /// The field text after a −/+ press: the current value (empty or unparsable counts as 0) moved by one step, never below
     /// 0, weights at most 2 decimals, reps and time whole numbers (web `applyKey`).
     public static func stepped(

@@ -41,8 +41,8 @@ struct SetTableStickyBand: View {
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.stickyNote, in: .rect(cornerRadius: 8))
-            .contentShape(.rect(cornerRadius: 8))
+            .background(Color.stickyNote, in: .rect(cornerRadius: Metrics.stickyNoteCornerRadius))
+            .contentShape(.rect(cornerRadius: Metrics.stickyNoteCornerRadius))
     }
 }
 

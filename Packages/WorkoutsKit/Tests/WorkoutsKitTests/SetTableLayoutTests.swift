@@ -40,6 +40,18 @@ import Testing
         #expect(SetTableLayout.reordered([1, 2, 3], moving: [1], before: 1) == [2, 3, 1])
     }
 
+    @Test func movedShiftsOnePlaceAndStopsAtTheEnds() {
+        #expect(SetTableLayout.moved([1, 2, 3, 4], id: 3, by: -1) == [1, 3, 2, 4])
+        #expect(SetTableLayout.moved([1, 2, 3, 4], id: 2, by: 1) == [1, 3, 2, 4])
+        #expect(SetTableLayout.moved([1, 2, 3, 4], id: 3, by: 1) == [1, 2, 4, 3])
+        #expect(SetTableLayout.moved([1, 2, 3, 4], id: 2, by: -1) == [2, 1, 3, 4])
+        #expect(SetTableLayout.moved([1, 2, 3, 4], id: 1, by: -1) == nil)
+        #expect(SetTableLayout.moved([1, 2, 3, 4], id: 4, by: 1) == nil)
+        #expect(SetTableLayout.moved([1, 2, 3, 4], id: 9, by: 1) == nil)
+        #expect(SetTableLayout.moved([1, 2, 3, 4], id: 2, by: 2) == nil)
+        #expect(SetTableLayout.moved([1], id: 1, by: 1) == nil)
+    }
+
     @Test func reorderedIgnoresUnknownIDs() {
         #expect(SetTableLayout.reordered([1, 2, 3], moving: [9], before: 2) == [1, 2, 3])
     }

@@ -7,12 +7,12 @@ import SwiftUI
 import WorkoutsKit
 
 /// The Fitness card shape shared by the History dashboard: a rounded `secondarySystemBackground` fill, no border,
-/// 20 pt corners. `WeeklyGoalChart` wears the same container.
+/// continuous 20 pt corners (`Metrics.cardCornerRadius`). `WeeklyGoalChart` wears the same container.
 extension View {
     func dashboardCardStyle() -> some View {
-        padding()
+        padding(Metrics.cardPadding)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 20))
+            .cardBackground()
     }
 }
 
@@ -44,7 +44,7 @@ struct DashboardCard<Content: View>: View {
         // Cards in one grid row share the tallest card's height; content stays pinned to the top.
         .frame(maxHeight: .infinity, alignment: .top)
         .dashboardCardStyle()
-        .contentShape(RoundedRectangle(cornerRadius: 20))
+        .cardContentShape()
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(label)
         .accessibilityAddTraits(opens ? .isButton : [])

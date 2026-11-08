@@ -36,7 +36,8 @@ struct HistoryView: View {
     @State private var query = ""
     @State private var scope: HistoryScope = .all
     @State private var pendingDelete: HistoryEntry?
-    @State private var deleteFailed = false
+    /// The workout whose delete just failed, and why; the alert's Retry deletes it again.
+    @State private var deleteFailure: DeleteFailure?
     @State private var isCalendarPresented = false
     @State private var pendingOpen: UUID?
     @State private var templateSource: Workout?
@@ -203,8 +204,17 @@ struct HistoryView: View {
             } message: { entry in
                 Text("\"\(entry.name)\" and every set in it will be deleted. This cannot be undone.")
             }
-            .alert("Could not delete the workout.", isPresented: $deleteFailed) {
-                Button("OK", role: .cancel) {}
+            .alert(
+                "Could Not Delete Workout",
+                isPresented: Binding(get: { deleteFailure != nil }, set: { if !$0 { deleteFailure = nil } }),
+                presenting: deleteFailure
+            ) { failure in
+                Button("Retry") { delete(failure.entry) }
+                    .accessibilityIdentifier("history.delete.retry")
+                Button("Cancel", role: .cancel) {}
+                    .accessibilityIdentifier("history.delete.failed.cancel")
+            } message: { failure in
+                Text(failure.message)
             }
         }
     }
@@ -290,7 +300,7 @@ struct HistoryView: View {
             entries.removeAll { $0.id == entry.id }
         } catch {
             context.rollback()
-            deleteFailed = true
+            deleteFailure = DeleteFailure(entry: entry, message: DeleteFailure.message(for: error))
         }
     }
 

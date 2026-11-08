@@ -6,7 +6,7 @@
 import SwiftUI
 import WorkoutsKit
 
-/// Watches the running rest for as long as the active-workout cover is up: at zero it plays the success haptic, and
+/// Watches the running rest for as long as the active-workout cover is up: at zero it plays the success haptic and posts a VoiceOver "Rest over" announcement, and
 /// ``RestTimer/expiredGraceSeconds`` later it forgets the rest (``ActiveWorkoutEngine/tickRest()``).
 ///
 /// It lives on the cover's `NavigationStack`, not on the rest ring, because the ring leaves the toolbar while a set field
@@ -22,7 +22,11 @@ private struct RestExpiryWatcher: ViewModifier {
             .sensoryFeedback(.success, trigger: restEndCount)
             .task(id: engine?.restTimer.endsAt) {
                 guard let engine, let endsAt = engine.restTimer.endsAt else { return }
-                await engine.awaitRestExpiry(endsAt: endsAt) { restEndCount += 1 }
+                await engine.awaitRestExpiry(endsAt: endsAt) {
+                    restEndCount += 1
+                    // The banner is suppressed in the foreground, so VoiceOver would otherwise get nothing.
+                    AccessibilityNotification.Announcement(RestAccessibility.overAnnouncement).post()
+                }
             }
     }
 }

@@ -202,7 +202,7 @@ struct ExerciseMediaHeader: View {
         // letterbox area and the not-yet-loaded stills sit on the same colour and the video edge is invisible.
         frame
             .background(Color.videoBackground)
-            .clipShape(.rect(cornerRadius: 20, style: .continuous))
+            .clipShape(.rect(cornerRadius: Metrics.cardCornerRadius, style: .continuous))
             .padding(.horizontal)
             .padding(.top, inInfoSheet && !info.isCustom ? 16 : 0)
     }

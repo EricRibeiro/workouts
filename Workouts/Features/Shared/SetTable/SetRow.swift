@@ -23,6 +23,9 @@ struct SetRow: View {
     let onCommitReps: (Int?) -> Void
     /// Returns `false` when the check was refused (nothing to record); the row then wiggles, buzzes and rings red.
     let onToggleCheck: () -> Bool
+    /// The VoiceOver "Delete set" action. Attached to the kind and check buttons, not to the row: the row is a `.contain`
+    /// container that VoiceOver never focuses, so an action on it is not offered anywhere (A11Y-4).
+    let onDelete: () -> Void
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @ScaledMetric(relativeTo: .body) private var touch = 44.0
@@ -116,6 +119,7 @@ struct SetRow: View {
         .buttonStyle(.plain)
         .accessibilityLabel(SetInputFormat.setAccessibilityLabel(number: model.number, kind: model.kind))
         .accessibilityHint("Changes the set type")
+        .accessibilityAction(named: "Delete set", onDelete)
         .accessibilityIdentifier("setrow.\(model.id.uuidString).kind")
     }
 
@@ -157,7 +161,17 @@ struct SetRow: View {
             hint: model.unit == .kg ? "Kilograms" : "Pounds",
             identifier: "setrow.\(model.id.uuidString).weight",
             normalize: { SetInputFormat.weightText(SetInputFormat.parseWeight($0)) },
-            commit: { onCommitWeight(SetInputFormat.parseWeight($0)) }
+            commit: { onCommitWeight(SetInputFormat.parseWeight($0)) },
+            adjust: { direction in
+                let text = SetKeyboard.stepped(
+                    model.weightText,
+                    column: .weight,
+                    direction: direction,
+                    unit: model.unit,
+                    weightType: model.weightType
+                )
+                onCommitWeight(SetInputFormat.parseWeight(text))
+            }
         )
     }
 
@@ -173,7 +187,17 @@ struct SetRow: View {
             hint: model.measure == .duration ? "Seconds" : "",
             identifier: "setrow.\(model.id.uuidString).reps",
             normalize: { SetInputFormat.countText(SetInputFormat.parseCount($0)) },
-            commit: { onCommitReps(SetInputFormat.parseCount($0)) }
+            commit: { onCommitReps(SetInputFormat.parseCount($0)) },
+            adjust: { direction in
+                let text = SetKeyboard.stepped(
+                    model.repsText,
+                    column: .reps,
+                    direction: direction,
+                    unit: model.unit,
+                    weightType: model.weightType
+                )
+                onCommitReps(SetInputFormat.parseCount(text))
+            }
         )
     }
 
@@ -210,6 +234,7 @@ struct SetRow: View {
         // Not `.disabled`: a refused tap must still reach `toggleCheck` so it wiggles, buzzes and announces itself.
         .accessibilityHint(model.isChecked || model.canCheck ? "" : "Enter weight and reps first")
         .accessibilityAddTraits(.isToggle)
+        .accessibilityAction(named: "Delete set", onDelete)
         .accessibilityIdentifier("setrow.\(model.id.uuidString).check")
     }
 }
@@ -237,7 +262,8 @@ struct SetRow: View {
                             onToggleCheck: {
                                 update(row.id) { $0.isChecked.toggle() }
                                 return true
-                            }
+                            },
+                            onDelete: { rows.removeAll { $0.id == row.id } }
                         )
                     }
                 }

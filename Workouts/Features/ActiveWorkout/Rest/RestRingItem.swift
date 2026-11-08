@@ -97,7 +97,6 @@ struct RestRingItem: View {
         TimelineView(.periodic(from: .now, by: 1)) { context in
             let remaining = max(0, endsAt.timeIntervalSince(context.date))
             let fraction = min(1, remaining / Double(max(1, total)))
-            let time = ClockFormat.clock(seconds: Int(remaining.rounded(.up)))
             // An over rest stays in the engine for ``RestTimer/expiredGraceSeconds``: the arc is ok-coloured meanwhile, accent-coloured while it runs.
             let tint: Color = remaining <= 0 ? .ok : .accentColor
             Button {
@@ -110,8 +109,8 @@ struct RestRingItem: View {
                     arcImage(fraction: fraction, tint: tint, isOver: remaining <= 0)
                 }
             }
-            // The strip drops accessibilityValue, so the remaining time rides in the label.
-            .accessibilityLabel("Rest timer, \(time)")
+            // The strip drops accessibilityValue, so the remaining time rides in the label ("Rest over" in the grace).
+            .accessibilityLabel(RestAccessibility.ringLabel(remaining: remaining))
             .accessibilityAddTraits(.updatesFrequently)
             .accessibilityIdentifier("rest.ring")
         }
