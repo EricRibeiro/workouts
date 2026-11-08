@@ -226,7 +226,12 @@
         private func start() {
             guard engine == nil else { return }
             do {
-                let engine = try ActiveWorkoutEngine(context: context, store: store, settings: settings)
+                let engine = try ActiveWorkoutEngine(
+                    context: context,
+                    store: store,
+                    settings: settings,
+                    timedByDefault: { [store] in store.exercise(id: $0)?.isTimed ?? false }
+                )
                 if engine.workout == nil {
                     var descriptor = FetchDescriptor<Template>(
                         sortBy: [SortDescriptor(\.position), SortDescriptor(\.name)]

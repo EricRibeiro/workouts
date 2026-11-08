@@ -120,6 +120,13 @@ import Testing
         #expect(added.reps == 5)
     }
 
+    @Test func addingATimedExerciseStartsTheRowTimed() {
+        var draft = TemplateDraft()
+        let plank = ExerciseInfo(id: UUID(), name: "Plank", weightType: .bodyweight, isCustom: false, isTimed: true)
+        draft.addExercises([plank, info("Squat")], defaultUnit: .kg)
+        #expect(draft.exercises.map(\.isTimed) == [true, false])
+    }
+
     @Test func addExercisesStartFromDefaultsAndCustomOverrides() {
         var draft = TemplateDraft()
         let custom = ExerciseInfo(

@@ -114,6 +114,8 @@ Eric deferred the technical choices to Claude. These close every item in `docs/p
   first with an unchecked set.
 - **SetTable** (`Workouts/Features/Shared/SetTable`, 2.2–2.3): one component, three modes (template / active / past).
   `isIdleTimerDisabled` while logging when `keepScreenOn`.
+  - Timed rows: a library exercise tagged `isometric` is timed from its first set (`ExerciseInfo.isTimed`; the engine's
+    `timedByDefault` lookup; `TemplateDraft.add`); a timed row of a non-strength weight type has no weight column (JC120).
   - Note row: the block note line is at least 44 pt tall, text vertically centred, button or not (Eric, 2026-11-07; JC112). Block notes
     are the only note kind; sticky notes were removed (JC118).
 

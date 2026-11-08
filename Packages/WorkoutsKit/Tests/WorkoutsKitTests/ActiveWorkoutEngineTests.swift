@@ -412,6 +412,32 @@ import Testing
         #expect(engine.isTimed(curl))
     }
 
+    @Test func timedByDefaultMakesAFreshRowTimedWithoutAnySet() throws {
+        let rig = try Rig()
+        let clock = rig.clock
+        let timedID = LibraryFixture.squat
+        // A second engine on the same store stands in for a relaunch: the default is a lookup, not remembered state.
+        func engine(timed: Set<UUID>) throws -> ActiveWorkoutEngine {
+            try ActiveWorkoutEngine(
+                context: rig.context,
+                store: rig.store,
+                settings: rig.settings,
+                now: { clock.date },
+                timedByDefault: { timed.contains($0) }
+            )
+        }
+        let first = try engine(timed: [timedID])
+        try first.startEmpty()
+        let plank = try first.addExercise(try rig.info(timedID))
+        let curl = try first.addExercise(try rig.info(LibraryFixture.curl))
+        #expect(first.isTimed(plank))
+        #expect(!first.isTimed(curl))
+        let resumed = try engine(timed: [timedID])
+        let resumedRows = rows(try #require(resumed.workout))
+        #expect(resumed.isTimed(resumedRows[0]))
+        #expect(!resumed.isTimed(resumedRows[1]))
+    }
+
     // MARK: Previous
 
     @Test func previousIsTheSameKindAndIndexOfTheMostRecentFinishedWorkout() throws {

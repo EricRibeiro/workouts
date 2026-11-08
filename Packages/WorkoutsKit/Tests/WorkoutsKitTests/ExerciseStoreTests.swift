@@ -22,6 +22,30 @@ import Testing
         #expect(info.unit == nil && info.barType == nil && info.restSeconds == nil)
     }
 
+    @Test func isometricLibraryExercisesAreTimedByDefault() throws {
+        let plankID = UUID()
+        let json = LibraryFixture.json.replacingOccurrences(
+            of: "\"exercises\": [",
+            with: "\"exercises\": [\n"
+                + LibraryFixture.exercise(
+                    id: plankID,
+                    name: "Plank",
+                    bodyPart: "abs",
+                    weightType: "bodyweight",
+                    aliases: nil,
+                    retired: false,
+                    tags: ["isometric"]
+                ) + ","
+        )
+        let catalog = try LibraryCatalog(data: Data(json.utf8))
+        let plank = ExerciseInfo(try #require(catalog.exercise(id: plankID)))
+        let squat = ExerciseInfo(try #require(catalog.exercise(id: LibraryFixture.squat)))
+        let custom = ExerciseInfo(Exercise(name: "Hold", weightType: .bodyweight))
+        #expect(plank.isTimed)
+        #expect(!squat.isTimed)
+        #expect(!custom.isTimed)
+    }
+
     @Test func infoFromCustomExercise() {
         let custom = Exercise(
             name: "Sled Push",

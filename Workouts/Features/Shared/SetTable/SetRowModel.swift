@@ -35,6 +35,11 @@ struct SetRowModel: Identifiable, Hashable {
     var showsPrevious: Bool = true
     /// False in template mode and in a past workout; only the active workout checks sets off.
     var showsCheck: Bool = true
+
+    /// A timed bodyweight, unweighted or band row (a plank) has no weight column; weighted holds keep it.
+    static func showsWeight(timed: Bool, weightType: WeightType) -> Bool {
+        !(timed && weightType.category != .strength)
+    }
 }
 
 /// One focusable cell of a set row. The set table owns a single `@FocusState<SetRowField?>` so the keyboard's Next can move

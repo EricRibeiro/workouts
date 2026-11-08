@@ -24,6 +24,9 @@ public final class ActiveWorkoutEngine {
     @ObservationIgnored let store: ExerciseStore
     @ObservationIgnored let settings: SettingsStore
     @ObservationIgnored let now: () -> Date
+    /// Whether an exercise (by library or custom id) records a duration from its first set, e.g. an isometric hold.
+    /// A lookup, not a one-time insert, so it still holds for the persisted workout after a relaunch.
+    @ObservationIgnored let timedByDefault: (UUID) -> Bool
     /// Previous entries by exercise id, loaded at start/resume and when exercises are added or replaced.
     /// Per exercise id, one entry per row of that exercise in the chosen past workout, by position (an entry may have no sets).
     @ObservationIgnored var previousCache: [UUID: [PreviousEntry]] = [:]
@@ -41,9 +44,11 @@ public final class ActiveWorkoutEngine {
         context: ModelContext,
         store: ExerciseStore,
         settings: SettingsStore,
-        now: @escaping () -> Date = Date.init
+        now: @escaping () -> Date = Date.init,
+        timedByDefault: @escaping (UUID) -> Bool = { _ in false }
     ) throws {
         self.context = context
+        self.timedByDefault = timedByDefault
         self.store = store
         self.settings = settings
         self.now = now
@@ -339,12 +344,13 @@ public final class ActiveWorkoutEngine {
     }
 
     /// Whether `row` records a duration instead of reps: any of its sets has one, or the Previous or the template plan
-    /// behind a set has one (a plank planned at 60 s with no history is already timed).
+    /// behind a set has one (a plank planned at 60 s with no history is already timed), or the exercise is timed by default.
     ///
     /// Once true it stays true for the life of the engine, like `TemplateDraft.isTimed` is fixed at row creation:
     /// clearing the only set that has a duration must not turn the column back into reps mid-edit.
     public func isTimed(_ row: WorkoutExercise) -> Bool {
         if timedExercises.contains(row.id) { return true }
+        if timedByDefault(row.exerciseID) { return true }
         let timed = sortedSets(of: row).contains {
             $0.durationSeconds != nil || previous(for: $0)?.durationSeconds != nil
                 || plan(for: $0)?.durationSeconds != nil

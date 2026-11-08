@@ -74,6 +74,15 @@ extension SnapshotTests {
                     isChecked: true,
                     measure: .duration
                 ),
+                SetRowModel(
+                    id: UUID(),
+                    number: 7,
+                    previousText: "60 s",
+                    repsText: "60",
+                    isChecked: true,
+                    measure: .duration,
+                    showsWeight: false
+                ),
             ]
             Snapshot.assert(
                 SnapshotSetRowHost(rows: rows),

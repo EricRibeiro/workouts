@@ -40,7 +40,8 @@ enum LibraryFixture {
         bodyPart: String,
         weightType: String,
         aliases: [String]?,
-        retired: Bool
+        retired: Bool,
+        tags: [String] = ["strength"]
     ) -> String {
         let aliasField =
             aliases.map { list in
@@ -68,7 +69,7 @@ enum LibraryFixture {
               "sourceCreatedAt": "2026-10-08T20:31:00Z",
               "sourceId": "src-\(name.count)",
               "sourceUrl": "https://example.com",
-              "tags": ["strength"],
+              "tags": [\(tags.map { "\"\($0)\"" }.joined(separator: ","))],
               "tips": [],
               "mistakes": [],
               "usedCount": 3,

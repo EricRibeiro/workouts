@@ -162,7 +162,7 @@ public struct TemplateDraft: Equatable, Sendable {
                 unit: info.unit ?? defaultUnit,
                 barType: info.barType ?? (info.weightType == .barbell ? .olympic : .none),
                 barWeight: info.barWeight,
-                isTimed: false,
+                isTimed: info.isTimed,
                 sets: (0..<Self.defaultSetCount).map { _ in
                     SetValues(
                         id: UUID(),

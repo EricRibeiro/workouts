@@ -16,6 +16,9 @@ public nonisolated struct ExerciseInfo: Sendable, Hashable, Identifiable {
     public let barType: BarType?
     public let barWeight: Double?
     public let restSeconds: Int?
+    /// Library exercises tagged `isometric` (holds): a new row records a duration instead of reps. Custom: false, the
+    /// row's own sets decide.
+    public let isTimed: Bool
 
     public init(
         id: UUID,
@@ -29,7 +32,8 @@ public nonisolated struct ExerciseInfo: Sendable, Hashable, Identifiable {
         unit: WeightUnit? = nil,
         barType: BarType? = nil,
         barWeight: Double? = nil,
-        restSeconds: Int? = nil
+        restSeconds: Int? = nil,
+        isTimed: Bool = false
     ) {
         self.id = id
         self.name = name
@@ -43,6 +47,7 @@ public nonisolated struct ExerciseInfo: Sendable, Hashable, Identifiable {
         self.barType = barType
         self.barWeight = barWeight
         self.restSeconds = restSeconds
+        self.isTimed = isTimed
     }
 
     public init(_ library: LibraryExercise) {
@@ -54,7 +59,8 @@ public nonisolated struct ExerciseInfo: Sendable, Hashable, Identifiable {
             equipment: library.equipment,
             weightType: library.weightType,
             isCustom: false,
-            isRetired: library.retired
+            isRetired: library.retired,
+            isTimed: library.tags.contains("isometric")
         )
     }
 

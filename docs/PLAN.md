@@ -413,7 +413,9 @@ Live Activity → notifications → logging, then templates, exercises, history.
   re-applies it); the set table re-centres the focused row when the keyboard inset grows (a tap during a dismissal left
   the row behind the keyboard pill). **Sticky notes removed** (Eric: "I don't like it much"; JC118): UI, kit API, JSON
   field and schema entity (SchemaV2, lightweight stage); block notes stay. Proof: `./dev check`, CoverTimer,
-  SetTableKeyboardReveal, SetKeyboard, LoggingBlockMenu, ExerciseDetail UI suites, kit migration test.
+  SetTableKeyboardReveal, SetKeyboard, LoggingBlockMenu, ExerciseDetail UI suites, kit migration test. **Holds are timed
+  by default** (Plank showed lb + Reps; JC120): `isometric`-tagged library exercises start with a Time column and, unless
+  weighted, no weight column. Proof: `./dev kit`, SetRow snapshot row, TimedExercise UI suite.
 
 ### Phase 7b — Test coverage for transient and repeat states (Eric, 2026-11-07)
 

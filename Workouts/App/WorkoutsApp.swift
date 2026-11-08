@@ -75,7 +75,12 @@ struct WorkoutsApp: App {
                 catalog: try LibraryCatalog.bundled(in: .main),
                 custom: try context.fetch(FetchDescriptor<Exercise>())
             )
-            let engine = try ActiveWorkoutEngine(context: context, store: store, settings: settings)
+            let engine = try ActiveWorkoutEngine(
+                context: context,
+                store: store,
+                settings: settings,
+                timedByDefault: { [store] in store.exercise(id: $0)?.isTimed ?? false }
+            )
             #if DEBUG
                 try Self.startSampleWorkoutIfRequested(engine: engine, context: context)
                 try Self.seedOldWorkoutIfRequested(context: context)

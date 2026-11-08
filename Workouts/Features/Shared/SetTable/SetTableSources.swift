@@ -60,7 +60,8 @@ struct EngineSetTableSource: SetTableDataSource {
                         ),
                         unit: row.unit,
                         weightType: weightType,
-                        measure: timed ? .duration : .reps
+                        measure: timed ? .duration : .reps,
+                        showsWeight: SetRowModel.showsWeight(timed: timed, weightType: weightType)
                     )
                 }
             )
@@ -193,6 +194,7 @@ struct TemplateSetTableSource: SetTableDataSource {
                         unit: row.unit,
                         weightType: weightType,
                         measure: row.isTimed ? .duration : .reps,
+                        showsWeight: SetRowModel.showsWeight(timed: row.isTimed, weightType: weightType),
                         showsPrevious: false,
                         showsCheck: false
                     )
@@ -242,6 +244,7 @@ struct PastSetTableSource: SetTableDataSource {
                         unit: row.unit,
                         weightType: weightType,
                         measure: row.isTimed ? .duration : .reps,
+                        showsWeight: SetRowModel.showsWeight(timed: row.isTimed, weightType: weightType),
                         showsPrevious: false,
                         showsCheck: false
                     )
