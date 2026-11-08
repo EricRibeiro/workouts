@@ -46,7 +46,7 @@ struct SetTable: View {
 
     var body: some View {
         let sections = source.sections
-        let numbers = supersetNumbers(for: sections)
+        let numbers = SetTableSection.supersetNumbers(for: sections)
         let order = sections.map(\.id)
         ScrollViewReader { proxy in
             ScrollView {
@@ -329,15 +329,6 @@ struct SetTable: View {
     }
 
     // MARK: Superset
-
-    private func supersetNumbers(for sections: [SetTableSection]) -> [UUID: Int] {
-        let numbers = SetTableLayout.supersetNumbers(for: sections.map(\.supersetGroup))
-        var result: [UUID: Int] = [:]
-        for (section, number) in zip(sections, numbers) {
-            if let number { result[section.id] = number }
-        }
-        return result
-    }
 
     /// The palette is shared with the History detail (`Color.superset(_:)`).
     private static func supersetColor(_ number: Int) -> Color {

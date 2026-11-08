@@ -31,6 +31,18 @@ struct SetTableSection: Identifiable, Hashable {
     var rows: [SetRowModel]
 }
 
+extension SetTableSection {
+    /// Display numbers of the supersets by section id (`SetTableLayout.supersetNumbers`); sections outside a superset are absent.
+    static func supersetNumbers(for sections: [SetTableSection]) -> [UUID: Int] {
+        let numbers = SetTableLayout.supersetNumbers(for: sections.map(\.supersetGroup))
+        var result: [UUID: Int] = [:]
+        for (section, number) in zip(sections, numbers) {
+            if let number { result[section.id] = number }
+        }
+        return result
+    }
+}
+
 /// A rest in progress as the keyboard group shows it (`DECISIONS.md` "Rest UI"): when it ends and the two actions. The table
 /// stays engine-agnostic; only the active source supplies one.
 struct SetTableRest {

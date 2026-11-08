@@ -197,6 +197,31 @@ final class TemplateEditorUITests: XCTestCase {
         XCTAssertTrue(note.waitForExistence(timeout: 5), "the preview does not show the edited note")
     }
 
+    /// Reorder Exercises… in the title menu opens the compact list with a row per exercise; Done closes it. The drag itself is
+    /// not driven (XCUITest drags are unreliable).
+    @MainActor
+    func testReorderExercisesFromTitleMenuListsTheExercisesAndDismisses() throws {
+        let app = launch()
+        let any = app.descendants(matching: .any)
+        _ = openPreview(app)
+        openEditor(app)
+        let title = app.navigationBars.buttons.matching(
+            NSPredicate(format: "NOT identifier BEGINSWITH 'templateEditor.'")
+        )
+        .firstMatch
+        XCTAssertTrue(title.waitForExistence(timeout: 5), "no title menu button")
+        title.tap()
+        let item = app.buttons.matching(NSPredicate(format: "label == 'Reorder Exercises…'")).firstMatch
+        XCTAssertTrue(item.waitForExistence(timeout: 5), "no Reorder Exercises item")
+        item.tap()
+
+        let rows = any.matching(NSPredicate(format: "identifier BEGINSWITH 'reorder.row.'"))
+        XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: 5), "the reorder sheet lists no exercises")
+        XCTAssertGreaterThanOrEqual(rows.count, 2, "the reorder sheet lists fewer than two exercises")
+        app.buttons["reorder.done"].tap()
+        XCTAssertTrue(rows.firstMatch.waitUntilGone(), "Done did not close the reorder sheet")
+    }
+
     /// A note set from the title menu shows as a line above the first block in the editor; tapping it reopens the note sheet
     /// with the text.
     @MainActor

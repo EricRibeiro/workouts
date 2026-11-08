@@ -60,6 +60,7 @@ private struct TemplateEditorContent: View {
     @State private var isRenaming = false
     @State private var renameText = ""
     @State private var isNoteEditing = false
+    @State private var isReordering = false
     @State private var isPickerPresented = false
     @State private var focusedSectionID: UUID?
     /// The block menu's pending prompts (task 3.6).
@@ -101,6 +102,9 @@ private struct TemplateEditorContent: View {
                 .accessibilityIdentifier("templateEditor.titleMenu.rename")
                 Button("Edit Note…", systemImage: "note.text") { isNoteEditing = true }
                     .accessibilityIdentifier("templateEditor.titleMenu.note")
+                Button("Reorder Exercises…", systemImage: "arrow.up.arrow.down") { isReordering = true }
+                    .disabled(sections.count < 2)
+                    .accessibilityIdentifier("templateEditor.titleMenu.reorder")
             }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -144,6 +148,13 @@ private struct TemplateEditorContent: View {
             .sheet(isPresented: $isNoteEditing) {
                 NoteSheet(initialText: draft.note, idPrefix: "templateEditor.templateNote") { draft.setNote($0) }
                     .presentationPlacement(.center)
+            }
+            .sheet(isPresented: $isReordering) {
+                ReorderExercisesSheet(sections: sections) { offsets, destination in
+                    var ids = sections.map(\.id)
+                    ids.move(fromOffsets: offsets, toOffset: destination)
+                    source.reorder(ids, moving: offsets.map { sections[$0].id })
+                }
             }
             .sheet(isPresented: $isPickerPresented) {
                 ExercisePickerView(
