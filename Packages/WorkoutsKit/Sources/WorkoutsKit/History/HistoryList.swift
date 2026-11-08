@@ -132,9 +132,10 @@ public nonisolated enum HistoryList {
         }
     }
 
-    /// The first instant of the month containing `date`.
+    /// The first instant of the Gregorian month containing `date`, in `calendar`'s time zone.
     public static func monthStart(of date: Date, calendar: Calendar = .current) -> Date {
-        calendar.dateInterval(of: .month, for: date)?.start ?? calendar.startOfDay(for: date)
+        let calendar = gregorian(like: calendar)
+        return calendar.dateInterval(of: .month, for: date)?.start ?? calendar.startOfDay(for: date)
     }
 
     /// `November 2026`.
@@ -158,9 +159,7 @@ public nonisolated enum HistoryList {
 
     /// `Sunday, Nov 1`; the year (`Sunday, Nov 1, 2025`) only when it is not the year of `now`.
     public static func dateText(_ date: Date, now: Date = .now, calendar: Calendar = .current) -> String {
-        var gregorian = Calendar(identifier: .gregorian)
-        gregorian.timeZone = calendar.timeZone
-        let sameYear = gregorian.isDate(date, equalTo: now, toGranularity: .year)
+        let sameYear = gregorian(like: calendar).isDate(date, equalTo: now, toGranularity: .year)
         return date.formatted(sameYear ? dayStyle(in: calendar) : dayWithYearStyle(in: calendar))
     }
 

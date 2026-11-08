@@ -119,8 +119,8 @@ final class SystemNotificationCenter: NotificationCenterProviding {
 
 /// Schedules the rest-end notification (`DECISIONS.md`, "Active workout behaviour"): a `.timeSensitive` local
 /// notification at `restEndsAt` with the next set in the body and **Skip** / **+30 s** actions. In the foreground the
-/// system banner is suppressed (``willPresent`` returns `[]`); the cover's ``RestExpiryWatcher`` and the resume control
-/// play the haptic themselves when the countdown reaches zero (`restEndCount`).
+/// system banner is suppressed (``willPresent`` returns `[]`); the ``RestExpiryWatcher`` (the cover's, or the root's while the
+/// cover is closed) plays the haptic itself when the countdown reaches zero (`restEndCount`).
 ///
 /// It is also the `UNUserNotificationCenterDelegate`, so the owner must keep it alive (the center holds it weakly).
 ///
@@ -335,7 +335,7 @@ extension RestNotifier: UNUserNotificationCenterDelegate {
         willPresent notification: UNNotification,
         withCompletionHandler completionHandler: @escaping @Sendable (UNNotificationPresentationOptions) -> Void
     ) {
-        // Nothing in the foreground: the cover's RestExpiryWatcher (or the resume control) plays the haptic itself.
+        // Nothing in the foreground: the RestExpiryWatcher (the cover's, or the root's while it is closed) plays the haptic itself.
         Task { @MainActor in completionHandler([]) }
     }
 

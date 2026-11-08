@@ -10,6 +10,7 @@ import ActivityKit
 import OSLog
 import SwiftData
 import SwiftUI
+import UIKit
 import WorkoutsKit
 
 @main
@@ -41,6 +42,7 @@ struct WorkoutsApp: App {
     private let remoteChanges: RemoteChangeObserver?
     /// A tap on the rest notification's body asks the root view, through this, to show the workout.
     private let workoutLinks = WorkoutLinkRouter()
+    @Environment(\.scenePhase) private var scenePhase
 
     @MainActor
     init() {
@@ -161,6 +163,11 @@ struct WorkoutsApp: App {
             // One call at the scene root (app and gallery alike): sheets and full-screen covers inherit it.
             content.preferredColorScheme(settings.appearance.colorScheme)
         }
+        // The rest notification and the Live Activity are debounced (300 ms); a change just before the screen locks must
+        // reach them before the system suspends the app.
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .background { flushBeforeSuspension() }
+        }
     }
 
     @ViewBuilder
@@ -212,11 +219,25 @@ struct WorkoutsApp: App {
         #endif
     }
 
-    /// Ends any activity a previous run left behind.
+    /// Brings the rest notification and the Live Activity up to date now, inside a short background task so the system
+    /// does not suspend the app mid-flush. The task ends when the flush returns or the system's time runs out.
+    private func flushBeforeSuspension() {
+        guard let intentHandler else { return }
+        let task = BackgroundTask(name: "Flush rest sync")
+        task.begin()
+        Task { @MainActor in
+            await intentHandler.flush()
+            task.end()
+        }
+    }
+
+    /// Ends any activity a previous run left behind. Through ``SystemLiveActivityProvider``, so the synchronous
+    /// `chronod` round trips stay off the main thread (JC80).
     private static func endLiveActivities() {
         Task {
-            for activity in Activity<WorkoutActivityAttributes>.activities {
-                await activity.end(nil, dismissalPolicy: .immediate)
+            let provider = SystemLiveActivityProvider()
+            for activity in await provider.existingActivities() {
+                await activity.end(dismissalPolicy: .immediate)
             }
         }
     }
@@ -332,5 +353,24 @@ extension WorkoutsApp {
             Logger(subsystem: "com.ericribeiro.Workouts", category: "Audio")
                 .error("Could not set the ambient audio category: \(error.localizedDescription, privacy: .public)")
         }
+    }
+}
+
+/// One `UIApplication.beginBackgroundTask` / `endBackgroundTask` pair; ending twice (the flush and the expiry handler) is harmless.
+@MainActor
+private final class BackgroundTask {
+    private let name: String
+    private var identifier = UIBackgroundTaskIdentifier.invalid
+
+    init(name: String) { self.name = name }
+
+    func begin() {
+        identifier = UIApplication.shared.beginBackgroundTask(withName: name) { [self] in end() }
+    }
+
+    func end() {
+        guard identifier != .invalid else { return }
+        UIApplication.shared.endBackgroundTask(identifier)
+        identifier = .invalid
     }
 }

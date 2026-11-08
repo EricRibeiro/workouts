@@ -165,7 +165,8 @@ public nonisolated enum ChartRange: String, CaseIterable, Sendable, Identifiable
 
     /// The earliest included instant for `now`; nil for `all`.
     public func start(now: Date, calendar: Calendar = .current) -> Date? {
-        switch self {
+        let calendar = gregorian(like: calendar)
+        return switch self {
         case .month: calendar.date(byAdding: .month, value: -1, to: now)
         case .threeMonths: calendar.date(byAdding: .month, value: -3, to: now)
         case .sixMonths: calendar.date(byAdding: .month, value: -6, to: now)

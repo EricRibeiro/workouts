@@ -971,6 +971,55 @@ import Testing
         #expect(workout.finishedAt != nil)
     }
 
+    @Test func finishCompleteFillsEmptyFieldsFromPlanLikeCheck() throws {
+        let rig = try Rig()
+        let engine = try rig.makeEngine()
+        let template = try rig.pushTemplate()
+        let workout = try engine.start(from: template)
+        let squat = sets(rows(workout)[0])
+        let curl = sets(rows(workout)[1])
+        try engine.check(squat[0])
+        try engine.check(squat[1])
+        try engine.check(curl[0])
+        // Only reps typed on the unchecked third set; its weight cell shows the planned 100 as a placeholder.
+        try engine.setValues(squat[2], weight: nil, reps: 3, durationSeconds: nil)
+        rig.clock.advance(600)
+        try engine.finish(unfinished: .complete)
+        #expect(squat[2].completed && squat[2].weight == 100 && squat[2].reps == 3)
+        // "Update values" then keeps the planned weight instead of copying nil into the template.
+        #expect(TemplateUpdate.diff(template: template, workout: workout) == .valuesOnly)
+        try TemplateUpdate.apply(.valuesOnly, template: template, workout: workout, in: rig.context)
+        let planned = (template.exercises ?? []).min { $0.position < $1.position }
+        let plannedSets = (planned?.sets ?? []).sorted { $0.position < $1.position }
+        #expect(plannedSets[2].weight == 100 && plannedSets[2].reps == 3)
+    }
+
+    @Test func finishCompleteFillsEmptyFieldsFromPreviousAndDropsSetsWithNothing() throws {
+        let rig = try Rig()
+        rig.settings.defaultUnit = .kg
+        rig.finishedWorkout(
+            exercise: LibraryFixture.squat,
+            unit: .kg,
+            sets: [(90, 6, .normal), (90, 6, .normal), (92.5, 6, .normal)],
+            startedAt: rig.clock.date.addingTimeInterval(-86_400)
+        )
+        let engine = try rig.makeEngine()
+        _ = try engine.startEmpty()
+        let squat = try loggedSquat(rig, engine: engine)
+        let working = sets(squat)
+        // The third set is the second working set (warm-ups are indexed apart): Previous 90 fills the weight. A fourth
+        // set with nothing typed is still dropped although a Previous (92.5 x 6) exists for it.
+        try engine.setValues(working[2], weight: nil, reps: 4, durationSeconds: nil)
+        let extra = try engine.addSet(to: squat)
+        try engine.setValues(extra, weight: nil, reps: nil, durationSeconds: nil)
+        let summary = try engine.finish(unfinished: .complete)
+        let kept = sets(squat)
+        #expect(kept.count == 3)
+        #expect(kept[2].reps == 4 && kept[2].weight == 90)
+        #expect(!kept.contains { $0.id == extra.id })
+        #expect(summary.setCount == 3)
+    }
+
     @Test func finishClampsFinishedAtToStartedAt() throws {
         let rig = try Rig()
         let engine = try rig.makeEngine()

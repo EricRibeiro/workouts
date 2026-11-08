@@ -16,6 +16,38 @@ import Testing
         }
     }
 
+    // MARK: save decision
+
+    @Test func saveWithoutAnIDCreatesAndWithAnIDUpdates() throws {
+        let rig = try Rig()
+        let created = try CustomExerciseForm.save(
+            .init(name: "Sled Pull"),
+            editing: nil,
+            in: rig.context,
+            store: rig.store
+        )
+        let updated = try CustomExerciseForm.save(
+            .init(name: "Sled Drag"),
+            editing: created.id,
+            in: rig.context,
+            store: rig.store
+        )
+        #expect(updated === created)
+        #expect(rig.store.exercise(id: created.id)?.name == "Sled Drag")
+    }
+
+    @Test func saveOfADeletedExerciseThrowsAndCreatesNothing() throws {
+        let rig = try Rig()
+        let created = try CustomExerciseForm.create(.init(name: "Sled Pull"), in: rig.context, store: rig.store)
+        let id = created.id
+        #expect(try CustomExerciseForm.delete(created, in: rig.context, store: rig.store))
+        #expect(throws: CustomExerciseForm.SaveError.exerciseDeleted) {
+            try CustomExerciseForm.save(.init(name: "Sled Drag"), editing: id, in: rig.context, store: rig.store)
+        }
+        #expect(try rig.context.fetchCount(FetchDescriptor<Exercise>()) == 0)
+        #expect(rig.store.exercise(id: id) == nil)
+    }
+
     // MARK: default bar
 
     @Test func defaultBarFollowsWeightType() {

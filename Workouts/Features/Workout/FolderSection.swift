@@ -101,6 +101,7 @@ private struct FolderHeader: View {
 
     var body: some View {
         menu
+            .frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("workout.folder.\(id.uuidString)")
     }
@@ -122,17 +123,18 @@ private struct FolderHeader: View {
             Button("Delete Folder", systemImage: "trash", role: .destructive, action: delete)
                 .accessibilityIdentifier("workout.folder.delete")
         } label: {
-            HStack {
+            HStack(spacing: 6) {
                 Text("\(name) (\(count))")
                     .font(.headline)
                     .foregroundStyle(.primary)
-                Spacer()
                 Image(systemName: "chevron.right")
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(.secondary)
                     .rotationEffect(.degrees(collapsed ? 0 : 90))
             }
-            // The whole header toggles the folder: give it the HIG's 44 pt minimum hit target.
+            // The title and chevron toggle the folder: give them the HIG's 44 pt minimum hit target. The row hugs its
+            // content (the frame that pushes it to the leading edge sits outside the Menu), so the empty trailing space is
+            // not tappable and the hit area never spans the hinge on the open Duo.
             .frame(minHeight: 44)
             .contentShape(Rectangle())
         } primaryAction: {

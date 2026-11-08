@@ -494,6 +494,11 @@ public final class ActiveWorkoutEngine {
                 var survivors: [WorkoutSet] = []
                 for set in sortedSets(of: row) {
                     if !set.completed && unfinished == .complete && hasValues(set, in: row) {
+                        // Same fill as `check(_:)`: typed values stay, empty fields take Previous, else the plan.
+                        let filled = filledValues(of: set, in: row)
+                        set.weight = filled.weight
+                        set.reps = filled.reps
+                        set.durationSeconds = filled.duration
                         set.completed = true
                         set.completedAt = end
                     }

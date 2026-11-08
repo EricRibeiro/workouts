@@ -81,8 +81,7 @@ struct ExercisePickerView: View {
             .listStyle(.plain)
             .overlay {
                 if results.isEmpty {
-                    ContentUnavailableView.search(text: query)
-                        .allowsHitTesting(false)
+                    NoExerciseResultsView(query: query, hasFilter: bodyPart != nil || category != nil)
                 }
             }
             .navigationTitle(title)

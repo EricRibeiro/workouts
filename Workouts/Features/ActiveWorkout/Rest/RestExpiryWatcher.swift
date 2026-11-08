@@ -6,22 +6,31 @@
 import SwiftUI
 import WorkoutsKit
 
-/// Watches the running rest for as long as the active-workout cover is up: at zero it plays the success haptic and posts a VoiceOver "Rest over" announcement, and
-/// ``RestTimer/expiredGraceSeconds`` later it forgets the rest (``ActiveWorkoutEngine/tickRest()``).
+/// Watches the running rest while `isActive`: at zero it plays the success haptic and posts a VoiceOver "Rest over"
+/// announcement, and ``RestTimer/expiredGraceSeconds`` later it forgets the rest (``ActiveWorkoutEngine/tickRest()``).
 ///
-/// It lives on the cover's `NavigationStack`, not on the rest ring, because the ring leaves the toolbar while a set field
-/// has focus (the normal flow: check a set, then type the next one while resting) and a task there would be cancelled.
-/// This is the only watcher while the cover is up; ``ResumeControl`` owns the same job while the cover is closed.
+/// There are exactly two hosts, never active together, so the haptic never doubles. The cover's `NavigationStack` hosts
+/// one for as long as the cover is up (not on the rest ring, because the ring leaves the toolbar while a set field has
+/// focus, the normal flow: check a set, then type the next one while resting, and a task there would be cancelled).
+/// `RootView` hosts the other around the `TabView` with `isActive` false while the cover is on screen, so a minimised
+/// workout's rest also ends audibly on a pushed screen (a past workout, an exercise's detail) where no resume ring exists.
 private struct RestExpiryWatcher: ViewModifier {
     @Environment(ActiveWorkoutEngine.self) private var engine: ActiveWorkoutEngine?
+    var isActive: Bool
     /// Bumped once when a rest reaches 0 while this modifier watches; drives the success haptic.
     @State private var restEndCount = 0
+
+    /// The task restarts when the rest changes or the watcher is switched on or off.
+    private struct WatchKey: Equatable {
+        var endsAt: Date?
+        var isActive: Bool
+    }
 
     func body(content: Content) -> some View {
         content
             .sensoryFeedback(.success, trigger: restEndCount)
-            .task(id: engine?.restTimer.endsAt) {
-                guard let engine, let endsAt = engine.restTimer.endsAt else { return }
+            .task(id: WatchKey(endsAt: engine?.restTimer.endsAt, isActive: isActive)) {
+                guard isActive, let engine, let endsAt = engine.restTimer.endsAt else { return }
                 await engine.awaitRestExpiry(endsAt: endsAt) {
                     restEndCount += 1
                     // The banner is suppressed in the foreground, so VoiceOver would otherwise get nothing.
@@ -32,9 +41,9 @@ private struct RestExpiryWatcher: ViewModifier {
 }
 
 extension View {
-    /// Plays the rest-end haptic and forgets the over rest while this view is up, wherever the rest ring is.
-    func restExpiryWatcher() -> some View {
-        modifier(RestExpiryWatcher())
+    /// Plays the rest-end haptic and forgets the over rest while this view is up and `isActive`, wherever the rest ring is.
+    func restExpiryWatcher(isActive: Bool = true) -> some View {
+        modifier(RestExpiryWatcher(isActive: isActive))
     }
 }
 

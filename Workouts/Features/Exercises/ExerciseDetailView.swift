@@ -47,6 +47,10 @@ struct ExerciseDetailView: View {
     /// False until the first load lands: History, Charts and Records show a redacted placeholder rather than their empty
     /// states, which would claim there is no data while it is still being read.
     @State private var detailLoaded = false
+    /// True when the first read failed (nothing loaded yet): the data segments offer Retry instead of an empty state.
+    @State private var loadFailed = false
+    /// Bumped by Retry; part of the load task's id, so it re-runs the read.
+    @State private var retries = 0
     @State private var isEditing = false
     @State private var removals = 0
 
@@ -95,7 +99,8 @@ struct ExerciseDetailView: View {
                     ),
                     unit: unit,
                     formula: options.formula,
-                    weightType: info.weightType
+                    weightType: info.weightType,
+                    retries: retries
                 )
             ) {
                 await SlowLoads.delay()
@@ -109,15 +114,21 @@ struct ExerciseDetailView: View {
     private func refreshDetail(weightType: WeightType) async {
         // The reader's context reads the store: flush edits the main context has not saved yet.
         context.saveIfChanged(reportingTo: saveErrors)
-        let loaded = try? await WorkoutStatsReader.loadExerciseDetail(
-            in: context.container,
-            exerciseID: exerciseID,
-            weightType: weightType,
-            options: options
-        )
-        guard !Task.isCancelled else { return }
-        if let loaded { detail = loaded }
-        detailLoaded = true
+        do {
+            let loaded = try await WorkoutStatsReader.loadExerciseDetail(
+                in: context.container,
+                exerciseID: exerciseID,
+                weightType: weightType,
+                options: options
+            )
+            guard !Task.isCancelled else { return }
+            detail = loaded
+            detailLoaded = true
+            loadFailed = false
+        } catch {
+            // Keep what is already on screen; with nothing loaded yet, say so and offer Retry instead of empty states.
+            if !detailLoaded, !Task.isCancelled { loadFailed = true }
+        }
     }
 
     /// The embedded pane (already one side of the logging screen's arrangement) and the compact pushed detail are one
@@ -194,6 +205,8 @@ struct ExerciseDetailView: View {
                 StickyNoteView(exerciseID: info.id)
             }
             .padding(.horizontal)
+        case .history where loadFailed, .charts where loadFailed, .records where loadFailed:
+            loadFailedView
         case .history where !detailLoaded, .charts where !detailLoaded, .records where !detailLoaded:
             ExerciseDetailLoadingPlaceholder()
                 .padding(.horizontal)
@@ -206,6 +219,21 @@ struct ExerciseDetailView: View {
             ExerciseRecordsView(records: detail.records, weightType: info.weightType, unit: unit, embedded: embedded)
                 .padding(.horizontal)
         }
+    }
+
+    private var loadFailedView: some View {
+        ContentUnavailableView {
+            Label("Could Not Load", systemImage: "exclamationmark.triangle")
+        } description: {
+            Text("This exercise's history could not be read.")
+        } actions: {
+            Button("Retry") {
+                loadFailed = false
+                retries += 1
+            }
+            .accessibilityIdentifier("exerciseDetail.retry")
+        }
+        .accessibilityIdentifier("exerciseDetail.loadFailed")
     }
 
     private func header(_ info: ExerciseInfo) -> some View {
@@ -261,6 +289,7 @@ private struct Fingerprint: Hashable {
     let unit: WeightUnit
     let formula: E1RMFormula
     let weightType: WeightType
+    let retries: Int
 }
 
 /// In the stacked split (open, taller than wide) the primary pane takes the height of its content, so the secondary

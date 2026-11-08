@@ -55,4 +55,44 @@ final class ResumeControlUITests: XCTestCase {
         waitForExpectations(timeout: 12)
         XCTAssertTrue(ring.label.hasPrefix("Resume workout, "), "label \(ring.label)")
     }
+
+    /// A rest that ends while the workout is minimised and a past workout is pushed (no resume ring there): the root's
+    /// watcher still forgets the over rest at expiry plus grace. Proof: back on the root the ring already reads the elapsed
+    /// time, not "rest over" (the ring itself no longer forgets anything).
+    @MainActor
+    func testRestIsForgottenOnAPushedScreenWhileMinimised() throws {
+        let app = XCUIApplication.launchedInActiveWorkout(["-sampleRestSeconds", "6", "-seedOldWorkout"])
+        let any = app.descendants(matching: .any)
+        let ring = app.buttons["resume.ring"].firstMatch
+        app.buttons["cover.minimise"].firstMatch.tap()
+        XCTAssertTrue(ring.waitForExistence(timeout: 10))
+        XCTAssertTrue(ring.label.contains("rest "), "no rest running: \(ring.label)")
+
+        app.selectTab("tab.history", label: "History")
+        let row = any.matching(
+            NSPredicate(format: "identifier BEGINSWITH 'history.row.' AND label BEGINSWITH 'Old Backfill Workout'")
+        )
+        .firstMatch
+        for _ in 0..<8 {
+            if row.waitForExistence(timeout: 2) && row.isHittable { break }
+            app.swipeUp()
+        }
+        XCTAssertTrue(row.exists, "the seeded old workout is missing from History")
+        row.tap()
+        XCTAssertTrue(any["history.detail"].waitForExistence(timeout: 5), "the row did not open the detail")
+        ring.assertStaysAbsent(for: 1, "a resume ring shows on the pushed detail")
+
+        // The rest ends 6 s after launch and the grace is 3 s: stay on the pushed screen well past both.
+        Thread.sleep(forTimeInterval: 12)
+
+        let back = app.buttons["BackButton"].firstMatch
+        XCTAssertTrue(back.waitForExistence(timeout: 5), "no back button on the pushed detail")
+        back.tap()
+        XCTAssertTrue(any["screen.history"].waitForExistence(timeout: 5))
+        XCTAssertTrue(ring.waitForExistence(timeout: 5))
+        XCTAssertTrue(
+            ring.label.hasSuffix("elapsed"),
+            "the over rest was not forgotten on the pushed screen: \(ring.label)"
+        )
+    }
 }

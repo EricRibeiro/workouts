@@ -31,6 +31,8 @@ struct CustomExerciseFormView: View {
     @State private var nameTouched = false
     @State private var removal: Removal?
     @State private var failure: String?
+    /// Set when the failure leaves nothing to fix (the exercise is gone): acknowledging the alert closes the form.
+    @State private var dismissAfterFailure = false
     @FocusState private var nameFocused: Bool
 
     private enum Removal: Identifiable {
@@ -88,7 +90,7 @@ struct CustomExerciseFormView: View {
                 "Could Not Save",
                 isPresented: Binding(get: { failure != nil }, set: { if !$0 { failure = nil } })
             ) {
-                Button("OK", role: .cancel) {}
+                Button("OK", role: .cancel) { if dismissAfterFailure { dismiss() } }
             } message: {
                 Text(failure ?? "")
             }
@@ -275,15 +277,13 @@ struct CustomExerciseFormView: View {
 
     private func save() {
         do {
-            let id: UUID
-            if let editing, let exercise = try CustomExerciseForm.exercise(id: editing, in: modelContext) {
-                try CustomExerciseForm.update(exercise, from: draft, in: modelContext, store: store)
-                id = exercise.id
-            } else {
-                id = try CustomExerciseForm.create(draft, in: modelContext, store: store).id
-            }
+            let id = try CustomExerciseForm.save(draft, editing: editing, in: modelContext, store: store).id
             if let info = store.exercise(id: id) { onSaved(info) }
             dismiss()
+        } catch CustomExerciseForm.SaveError.exerciseDeleted {
+            // The exercise went away while the form was open: say so, then close (OK dismisses the form).
+            failure = CustomExerciseForm.SaveError.exerciseDeleted.localizedDescription
+            dismissAfterFailure = true
         } catch {
             failure = error.localizedDescription
         }

@@ -14,7 +14,9 @@ import WorkoutsKit
 /// in every state, Fitness-style, with a `dumbbell.fill` glyph inside (not the Exercises tab's figure, which sits in the same
 /// strip, and not the `stopwatch`, which means "start a rest"): a bare accent track while no rest runs, the accent arc
 /// draining while one does, and an ok-coloured ring with a `checkmark` while the finished rest sits in its grace. The elapsed
-/// time or the countdown rides in the accessibility label (the strip drops values).
+/// time or the countdown rides in the accessibility label (the strip drops values). The ring only displays: the rest's end
+/// (haptic, announcement, forgetting the over rest) is watched by the one `RestExpiryWatcher` that `RootView` hosts while the
+/// cover is closed, so it also fires on pushed screens where no ring exists.
 private struct ResumeControl: ViewModifier {
     @Environment(ActiveWorkoutEngine.self) private var engine: ActiveWorkoutEngine?
     @Environment(AppNavigation.self) private var navigation: AppNavigation?
@@ -59,8 +61,6 @@ private struct ResumeRingButton: View {
     let engine: ActiveWorkoutEngine
     let startedAt: Date
     let restore: () -> Void
-    /// Bumped once when the rest reaches 0 while the cover is closed; drives the success haptic.
-    @State private var restEndCount = 0
     @ScaledMetric(relativeTo: .body) private var arcSize: CGFloat = 24
 
     var body: some View {
@@ -76,15 +76,6 @@ private struct ResumeRingButton: View {
                 TimelineView(.periodic(from: .now, by: 60)) { context in
                     button(now: context.date, timer: timer)
                 }
-            }
-        }
-        // The engine keeps an over rest for a few seconds (the flash); with the cover closed nothing else forgets it.
-        .sensoryFeedback(.success, trigger: restEndCount)
-        .task(id: timer.endsAt) {
-            guard let endsAt = timer.endsAt else { return }
-            await engine.awaitRestExpiry(endsAt: endsAt) {
-                restEndCount += 1
-                AccessibilityNotification.Announcement(RestAccessibility.overAnnouncement).post()
             }
         }
     }

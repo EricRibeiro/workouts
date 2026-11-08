@@ -55,6 +55,9 @@ struct RootView: View {
             .accessibilityIdentifier("tab.exercises")
         }
         .environment(navigation)
+        // The one rest watcher while the cover is closed (the cover hosts its own): it outlives the resume ring, which is
+        // gone on a pushed screen. Exactly one is active at a time, so the haptic never doubles.
+        .restExpiryWatcher(isActive: !navigation.isWorkoutCoverOnScreen)
         // The scrolling lists (History, Exercises) let the tab bar collapse; the Workout tab keeps it (DECISIONS).
         .tabBarMinimizeBehavior(navigation.selectedTab == .workout ? .never : .onScrollDown)
         .onOpenURL { url in

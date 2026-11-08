@@ -98,4 +98,21 @@ import Testing
         #expect(weekLabel(date(2026, 10, 26, 0, zone: "America/Toronto"), calendar: toronto) == "10/26")
         #expect(weekLabel(date(2026, 11, 2, 0, zone: "America/Toronto"), calendar: toronto) == "11/2")
     }
+
+    @Test func nonGregorianDeviceCalendarStillBucketsInGregorianMonthsAndWeeks() {
+        var hebrew = Calendar(identifier: .hebrew)
+        hebrew.timeZone = TimeZone(identifier: "UTC") ?? .gmt
+        let now = date(2026, 11, 4)
+        // Weeks: same Mondays as the Gregorian calendar.
+        let counts = weeklyCounts(workouts: [date(2026, 11, 3)], calendar: hebrew, now: now)
+        #expect(counts.last?.weekStart == date(2026, 11, 2, 0))
+        #expect(counts.last?.count == 1)
+        // Months: HistoryList and the Calendar sheet cut Gregorian months (Hebrew months would start mid-month).
+        #expect(HistoryList.monthStart(of: date(2026, 10, 20), calendar: hebrew) == date(2026, 10, 1, 0))
+        #expect(HistoryList.monthStart(of: date(2026, 10, 3), calendar: hebrew) == date(2026, 10, 1, 0))
+        let grid = CalendarMonth.monthGrid(for: date(2026, 11, 15), calendar: hebrew).flatMap { $0 }.compactMap { $0 }
+        #expect(grid.contains(date(2026, 11, 1, 0)))
+        #expect(!grid.contains(date(2026, 10, 31, 0)))
+        #expect(ChartRange.month.start(now: date(2026, 3, 31), calendar: hebrew) == date(2026, 2, 28))
+    }
 }

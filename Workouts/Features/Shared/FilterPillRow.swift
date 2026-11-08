@@ -48,3 +48,27 @@ struct FilterPillRow: View {
         .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
     }
 }
+
+/// The empty state under an exercise list: the search one when text matched nothing, and a filter-specific one when the
+/// text is empty and the pills are what excluded everything (the search one would blame the spelling). It never takes
+/// touches, so the pills above stay tappable; they are the way to remove a filter.
+struct NoExerciseResultsView: View {
+    let query: String
+    let hasFilter: Bool
+
+    var body: some View {
+        Group {
+            if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && hasFilter {
+                ContentUnavailableView(
+                    "No Matching Exercises",
+                    systemImage: "line.3.horizontal.decrease.circle",
+                    description: Text("Try removing a filter.")
+                )
+                .accessibilityIdentifier("exercises.noMatchingFilters")
+            } else {
+                ContentUnavailableView.search(text: query)
+            }
+        }
+        .allowsHitTesting(false)
+    }
+}

@@ -194,6 +194,33 @@ public nonisolated enum CustomExerciseForm {
         return exercise
     }
 
+    /// Why ``save(_:editing:in:store:)`` could not save.
+    public enum SaveError: Error, LocalizedError, Equatable {
+        /// The exercise being edited is gone (deleted while the form was open); nothing was created in its place.
+        case exerciseDeleted
+
+        public var errorDescription: String? {
+            switch self {
+            case .exerciseDeleted: "This exercise was deleted."
+            }
+        }
+    }
+
+    /// The form's Save: updates the exercise `editing` names, or creates one when `editing` is nil. An edit whose exercise
+    /// no longer exists throws ``SaveError/exerciseDeleted`` instead of quietly creating a new exercise.
+    @discardableResult
+    @MainActor public static func save(
+        _ draft: Draft,
+        editing id: UUID?,
+        in context: ModelContext,
+        store: ExerciseStore
+    ) throws -> Exercise {
+        guard let id else { return try create(draft, in: context, store: store) }
+        guard let exercise = try exercise(id: id, in: context) else { throw SaveError.exerciseDeleted }
+        try update(exercise, from: draft, in: context, store: store)
+        return exercise
+    }
+
     /// Writes `draft` onto `exercise` and refreshes `store`.
     @MainActor public static func update(
         _ exercise: Exercise,

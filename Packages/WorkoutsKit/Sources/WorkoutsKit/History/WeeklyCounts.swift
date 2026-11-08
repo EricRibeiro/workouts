@@ -12,9 +12,18 @@ public nonisolated struct WeekCount: Hashable, Sendable {
     }
 }
 
-/// `calendar` with Monday as the first weekday, so `.weekOfYear` boundaries are Monday to Sunday whatever the locale.
+/// A Gregorian calendar in `calendar`'s time zone. History cuts months and weeks in Gregorian whatever calendar the
+/// device uses (Hebrew, Islamic, ...), because every title is formatted Gregorian (`CalendarFormatting`).
+nonisolated func gregorian(like calendar: Calendar) -> Calendar {
+    var gregorian = Calendar(identifier: .gregorian)
+    gregorian.timeZone = calendar.timeZone
+    return gregorian
+}
+
+/// A Gregorian calendar in `calendar`'s time zone with Monday as the first weekday, so `.weekOfYear` boundaries are
+/// Monday to Sunday whatever the locale or device calendar.
 nonisolated func mondayFirst(_ calendar: Calendar) -> Calendar {
-    var calendar = calendar
+    var calendar = gregorian(like: calendar)
     calendar.firstWeekday = 2
     calendar.minimumDaysInFirstWeek = 4
     return calendar
