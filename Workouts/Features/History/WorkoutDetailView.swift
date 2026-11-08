@@ -334,16 +334,26 @@ struct WorkoutDetailInputs: Hashable {
 
 // MARK: - Header
 
-/// Date (with the weather, when Health had it), the stats and the note. Duration and volume are always there, Records
-/// when there are any; Active, Total, Avg HR, Max HR and Effort join them only when the matched Health workout has the
-/// value. Every tile is one caption line plus one value line, so the grid rows stay aligned.
+/// Date (with the weather, when Health had it), the stats and the note. The stats sit in fixed pairs, side by side:
+/// Duration · Volume, Records · Effort, Active · Total, Avg HR · Max HR. Duration and volume are always there, Records
+/// when there are any; the Health tiles only when the matched Health workout has the value. A pair with one tile shows
+/// it in the first column, a pair with none is dropped, so the second column starts at one x in every row. At
+/// accessibility text sizes every tile stacks in one column in the same order. Every tile is one caption line plus one
+/// value line.
 struct DetailHeader: View {
     let detail: WorkoutDetail
     let health: HealthWorkoutSummary?
 
-    /// The narrowest a stat may get before the grid drops a column; it grows with Dynamic Type, so the accessibility
-    /// sizes end up with one column.
-    @ScaledMetric(relativeTo: .headline) private var statMinimum = 100
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    private struct Stat {
+        let title: String
+        let value: String
+        var unit: String?
+        var symbol: String?
+        var tint: Color = .primary
+        var hierarchical = false
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -356,13 +366,7 @@ struct DetailHeader: View {
                         .foregroundStyle(.secondary)
                 }
             }
-            LazyVGrid(
-                columns: [GridItem(.adaptive(minimum: statMinimum), spacing: 16, alignment: .topLeading)],
-                alignment: .leading,
-                spacing: 12
-            ) {
-                stats
-            }
+            statsLayout
             if !detail.note.isEmpty {
                 Text(detail.note)
                     .font(.subheadline)
@@ -377,66 +381,109 @@ struct DetailHeader: View {
     }
 
     @ViewBuilder
-    private var stats: some View {
-        stat("Duration", detail.durationText)
-        stat("Volume", detail.volumeText)
-        if detail.prCount > 0 {
-            stat("Records", HistoryList.prText(count: detail.prCount), symbol: "trophy.fill", tint: .yellow)
-        }
-        if let health {
-            if let active = health.activeEnergyKcal {
-                stat("Active", FitnessFormat.wholeNumber(active), unit: "kcal", symbol: "flame.fill", tint: .orange)
+    private var statsLayout: some View {
+        let pairs = statPairs
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: 12) {
+                ForEach(pairs.indices, id: \.self) { index in
+                    ForEach([pairs[index].leading, pairs[index].trailing].compactMap { $0 }, id: \.title) { stat in
+                        statView(stat)
+                    }
+                }
             }
-            if let total = health.totalEnergyKcal {
-                stat("Total", FitnessFormat.wholeNumber(total), unit: "kcal", symbol: "flame", tint: .orange)
-            }
-            if let average = health.avgHeartRate {
-                stat("Avg HR", FitnessFormat.wholeNumber(average), unit: "bpm", symbol: "heart.fill", tint: .red)
-            }
-            if let maximum = health.maxHeartRate {
-                stat(
-                    "Max HR",
-                    FitnessFormat.wholeNumber(maximum),
-                    unit: "bpm",
-                    symbol: "arrow.up.heart.fill",
-                    tint: .red
-                )
-            }
-            if let effort = health.effort {
-                stat(
-                    effort.isEstimated ? "Est. Effort" : "Effort",
-                    "\(FitnessFormat.wholeScore(effort.score))",
-                    unit: effort.word,
-                    symbol: "gauge.with.dots.needle.67percent",
-                    tint: .purple,
-                    hierarchical: true
-                )
+        } else {
+            Grid(alignment: .topLeading, horizontalSpacing: 16, verticalSpacing: 12) {
+                ForEach(pairs.indices, id: \.self) { index in
+                    GridRow {
+                        if let leading = pairs[index].leading {
+                            statView(leading)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        if let trailing = pairs[index].trailing {
+                            statView(trailing)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }
+                }
             }
         }
     }
 
-    private func stat(
-        _ title: String,
-        _ value: String,
-        unit: String? = nil,
-        symbol: String? = nil,
-        tint: Color = .primary,
-        hierarchical: Bool = false
-    ) -> some View {
+    /// The tiles in their fixed pairs; a pair with one tile has it leading, a pair with none is dropped.
+    private var statPairs: [(leading: Stat?, trailing: Stat?)] {
+        let records =
+            detail.prCount > 0
+            ? Stat(
+                title: "Records",
+                value: HistoryList.prText(count: detail.prCount),
+                symbol: "trophy.fill",
+                tint: .yellow
+            )
+            : nil
+        let effort = health?.effort.map { effort in
+            Stat(
+                title: effort.isEstimated ? "Est. Effort" : "Effort",
+                value: "\(FitnessFormat.wholeScore(effort.score))",
+                unit: effort.word,
+                symbol: "gauge.with.dots.needle.67percent",
+                tint: .purple,
+                hierarchical: true
+            )
+        }
+        let active = health?.activeEnergyKcal.map {
+            Stat(
+                title: "Active",
+                value: FitnessFormat.wholeNumber($0),
+                unit: "kcal",
+                symbol: "flame.fill",
+                tint: .orange
+            )
+        }
+        let total = health?.totalEnergyKcal.map {
+            Stat(title: "Total", value: FitnessFormat.wholeNumber($0), unit: "kcal", symbol: "flame", tint: .orange)
+        }
+        let average = health?.avgHeartRate.map {
+            Stat(title: "Avg HR", value: FitnessFormat.wholeNumber($0), unit: "bpm", symbol: "heart.fill", tint: .red)
+        }
+        let maximum = health?.maxHeartRate.map {
+            Stat(
+                title: "Max HR",
+                value: FitnessFormat.wholeNumber($0),
+                unit: "bpm",
+                symbol: "arrow.up.heart.fill",
+                tint: .red
+            )
+        }
+        let pairs: [(Stat?, Stat?)] = [
+            (Stat(title: "Duration", value: detail.durationText), Stat(title: "Volume", value: detail.volumeText)),
+            (records, effort),
+            (active, total),
+            (average, maximum),
+        ]
+        return pairs.compactMap { first, second in
+            switch (first, second) {
+            case (nil, nil): nil
+            case (nil, let second?): (leading: second, trailing: nil)
+            default: (leading: first, trailing: second)
+            }
+        }
+    }
+
+    private func statView(_ stat: Stat) -> some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(title)
+            Text(stat.title)
                 .font(.caption)
                 .foregroundStyle(.secondary)
             HStack(alignment: .firstTextBaseline, spacing: 4) {
-                if let symbol {
+                if let symbol = stat.symbol {
                     Image(systemName: symbol)
-                        .symbolRenderingMode(hierarchical ? .hierarchical : .monochrome)
+                        .symbolRenderingMode(stat.hierarchical ? .hierarchical : .monochrome)
                         .font(.subheadline)
-                        .foregroundStyle(tint)
+                        .foregroundStyle(stat.tint)
                 }
-                Text(value)
+                Text(stat.value)
                     .font(.headline)
-                if let unit {
+                if let unit = stat.unit {
                     Text(unit)
                         .font(.footnote)
                         .foregroundStyle(.secondary)
