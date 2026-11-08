@@ -9,13 +9,15 @@ import Testing
         try context.fetchCount(FetchDescriptor<T>())
     }
 
-    @Test func containerBuildsWithAllNineModels() throws {
+    @Test func containerBuildsWithAllEightModels() throws {
         let container = try makeTestContainer()
-        #expect(container.schema.entities.count == 9)
+        #expect(container.schema.entities.count == 8)
         #expect(SchemaV1.models.count == 9)
+        #expect(SchemaV2.models.count == 8)
         #expect(SchemaV1.versionIdentifier == Schema.Version(1, 0, 0))
-        #expect(WorkoutsMigrationPlan.schemas.count == 1)
-        #expect(WorkoutsMigrationPlan.stages.isEmpty)
+        #expect(SchemaV2.versionIdentifier == Schema.Version(2, 0, 0))
+        #expect(WorkoutsMigrationPlan.schemas.count == 2)
+        #expect(WorkoutsMigrationPlan.stages.count == 1)
     }
 
     // MARK: Insert and fetch each model
@@ -58,16 +60,6 @@ import Testing
         #expect(exercise.barType == .olympic)
         #expect(exercise.unit == nil)
         #expect(exercise.aliases.isEmpty)
-    }
-
-    @Test func stickyNoteRoundTrips() throws {
-        let context = try makeTestContext()
-        let exerciseID = UUID()
-        context.insert(StickyNote(exerciseID: exerciseID, text: "Elbows in"))
-        try context.save()
-        let fetched = try #require(try context.fetch(FetchDescriptor<StickyNote>()).first)
-        #expect(fetched.exerciseID == exerciseID)
-        #expect(fetched.text == "Elbows in")
     }
 
     @Test func folderTemplateExerciseSetRoundTrip() throws {
@@ -270,6 +262,6 @@ import Testing
 
     @Test func inMemoryContainerBuildsEvenWithTheFlagOn() throws {
         let container = try ModelContainer.workouts(inMemory: true, cloudKit: true)
-        #expect(container.schema.entities.count == 9)
+        #expect(container.schema.entities.count == 8)
     }
 }

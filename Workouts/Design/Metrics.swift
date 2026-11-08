@@ -22,8 +22,6 @@ enum Metrics {
     /// Base width of the set-label column (1, 2, W, F…) in every set list; each view scales it with `@ScaledMetric(relativeTo: .body)`
     /// so the "175 kg × 5" text starts at the same x in every row and on every screen.
     static let setLabelWidth: CGFloat = 28
-    /// Corner radius of a sticky note, in the exercise detail and under a set row.
-    static let stickyNoteCornerRadius: CGFloat = 10
 }
 
 extension View {

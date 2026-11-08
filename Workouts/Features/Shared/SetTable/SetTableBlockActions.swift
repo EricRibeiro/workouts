@@ -12,8 +12,6 @@ import Foundation
 struct SetTableBlockActions {
     /// Note… (the block's note, kept with the template or workout).
     var note: (UUID) -> Void
-    /// Sticky Note… (the exercise's own note, shown in every template).
-    var stickyNote: (UUID) -> Void
     /// Add Warm-up Sets (not offered while nil).
     var addWarmups: ((UUID) -> Void)?
     /// Update Rest Timer… (not offered while nil).

@@ -4,9 +4,9 @@ Entities, invariants and derived numbers of the web app, for the SwiftData model
 
 ## Native deltas (read first: this is the field list task 0.1 implements; the sections below describe the web)
 
-- **Nine `@Model` types**: custom `Exercise`, `StickyNote`, `TemplateFolder`, `Template`, `TemplateExercise`, `TemplateSet`, `Workout`, `WorkoutExercise`, `WorkoutSet`. Settings are not a model (`SettingsStore`, `DECISIONS.md`).
+- **Eight `@Model` types** (`SchemaV2`; the web's sticky note was dropped): custom `Exercise`, `TemplateFolder`, `Template`, `TemplateExercise`, `TemplateSet`, `Workout`, `WorkoutExercise`, `WorkoutSet`. Settings are not a model (`SettingsStore`, `DECISIONS.md`).
 - **The library is not data in the store.** It is a bundled, read-only `LibraryCatalog` decoded from `library.json` (full Exercise field list below, `retired` a flag in the file, display labels in it). Only **custom** exercises are `@Model Exercise` rows. No seeding, no `libraryVersion`, no de-dupe pass, no `ExerciseOverride`, no `LibraryMeta`.
-- **References by id**: `TemplateExercise`, `WorkoutExercise` and `StickyNote` hold `exerciseID: UUID` (library ids are UUIDv5 of `(source, sourceId)`; custom ids are random), resolved by `ExerciseStore.exercise(id:)` = catalog union custom. `TemplateExercise` and `WorkoutExercise` also keep an `exerciseName` snapshot. There is no `exercise` relationship, so RESTRICT applies to **custom** exercises only (an app check: delete when unreferenced, otherwise archive = `retired`).
+- **References by id**: `TemplateExercise` and `WorkoutExercise` hold `exerciseID: UUID` (library ids are UUIDv5 of `(source, sourceId)`; custom ids are random), resolved by `ExerciseStore.exercise(id:)` = catalog union custom. `TemplateExercise` and `WorkoutExercise` also keep an `exerciseName` snapshot. There is no `exercise` relationship, so RESTRICT applies to **custom** exercises only (an app check: delete when unreferenced, otherwise archive = `retired`).
 - **Dropped**: `Workout.source` (no Strong import), `ExerciseOverride` (`name`, `barUnit` and the rename rule with it; library rows are read-only), `LibraryMeta`, `TemplateFolder.collapsed` (per-device `@AppStorage`, not synced).
 - **Changed**: weights, `barWeight`, `distanceM`, `rpe` are `Double` (the entered value `17.25` survives); `muscles` is `[String: Int]`; `Workout` gains optional `restEndsAt` (Date), `restSeconds` (Int), `restSetID` (UUID) for the persisted rest timer; all relationships optional, every property defaulted, enums raw strings, no `@Attribute(.unique)`.
 - **Custom `Exercise` fields**: `id`, `name`, `aliases`, `equipment` ([String]), `bodyPart`, `weightType`, `instructions` ([String]), `unit` (`lb`/`kg`?), `barType`, `barWeight`, `restSeconds` (the defaults a new row starts from), `retired` (archive), `createdAt`, `updatedAt`.
@@ -37,10 +37,7 @@ Web fields; the native split is in "Native deltas". Library entries carry every 
 | custom | Bool | yes | false | true iff `source` and `sourceId` are both nil, else both set (CHECK, M0002:51); native: implied by being a `@Model` row |
 | retired | Bool | yes | false | hidden from the picker and list, still in history and fetchable by id |
 
-Web: referenced RESTRICT by TemplateExercise and WorkoutExercise (never deleted, S:11); owns 0..1 ExerciseOverride and 0..1 StickyNote. Native: references are by `exerciseID` (see "Native deltas"); library entries are read-only (D9); list order is the name sorted case/accent-insensitively (S:89).
-
-### StickyNote (`exercise_sticky_notes`, M0002)
-`exerciseID` UUID (native key, one note per exercise, app-enforced), `text` String (req), `updatedAt`. One per exercise; follows it into every template and workout; saved immediately, not as part of a template save (S:57).
+Web: referenced RESTRICT by TemplateExercise and WorkoutExercise (never deleted, S:11); owns 0..1 ExerciseOverride. Native: references are by `exerciseID` (see "Native deltas"); library entries are read-only (D9); list order is the name sorted case/accent-insensitively (S:89).
 
 ### TemplateFolder (M0003)
 `name` String (req, non-blank), `position` Int (req, 0), `collapsed` Bool (req, false; **native: not stored**), `createdAt`, `updatedAt`. Has many Template.
@@ -92,7 +89,7 @@ PLAN.md:133 also lists "dashboard widget layout"; api.md defines no such key (dr
 ## 2. Invariants
 
 1. **Client UUIDs** for every row the app writes (D5, S:7), so a repeated save is idempotent. Library exercises use a UUIDv5 of `(source, sourceId)` computed by the library builder (section 4); custom ones a random UUID.
-2. **`updatedAt` on every user-editable row** (custom exercise, sticky note, folder, template, template/workout exercise, workout) for last-write-wins. Sets have none (S:8).
+2. **`updatedAt` on every user-editable row** (custom exercise, folder, template, template/workout exercise, workout) for last-write-wins. Sets have none (S:8).
 3. **Weights as entered** (D7, S:9, S:55): `weight` is the number typed; the unit lives on the parent exercise row. Switching a row from lb to kg relabels the numbers, never converts them. Conversion happens only inside aggregates.
 4. **Nothing with history is deleted** (S:11): a custom exercise with history is archived (`retired`), not deleted; a Workout takes its exercises and sets with it; deleting a Template keeps its Workouts; WorkoutExercise keeps `exerciseName`.
 5. **Every template is in a folder** (decision 2026-11-02, M0007: no unfiled group; the migration made one folder named "Templates" for any unfiled ones). A new template goes to the end of its folder. Deleting a folder (S:52): either its templates move to the end of a chosen folder in their order (positions stay distinct), or they are deleted (exercises and sets cascade, workouts stay), or the delete is refused when it still has templates and neither was chosen.
@@ -102,7 +99,6 @@ PLAN.md:133 also lists "dashboard widget layout"; api.md defines no such key (dr
 9. **Closed enums**: set kind `warmup|normal|drop|failure`; unit `lb|kg`; plus the enums in section 1.
 10. **Ranges**: weight, reps, durationS, distanceM, barWeight, restSeconds, supersetGroup, usedCount `>= 0`; rpe 1...10; `finishedAt >= startedAt`; names non-blank.
 11. **Custom iff a `@Model` row**: library entries are read-only, so nothing about them (name, unit, bar, rest) is editable.
-12. The sticky note belongs to the **exercise**, not the template.
 
 ## 3. Derived numbers (never stored)
 
@@ -164,7 +160,7 @@ Assisted has no e1RM or volume record. In-session ties: e1RM by heavier weight t
   - all relationships optional (parent links like `Template.folder`, `TemplateExercise.template/exercise`, `Workout*.parent` are optional in the model though required by app logic);
   - a default for every non-optional stored property (the Default columns above); enums stored as raw strings with a default;
   - no `@Attribute(.unique)`, no unique constraints;
-  - web uniques that become **app-enforced**: one sticky note per exercise (PK = `exercise_id`), and the 409 rule that an exercise/set id belongs to one parent (S:50); library identity needs no check (it is the UUIDv5 id in a read-only file);
+  - web uniques that become **app-enforced**: the 409 rule that an exercise/set id belongs to one parent (S:50); library identity needs no check (it is the UUIDv5 id in a read-only file);
   - other web constraints are also app-enforced: RESTRICT deletes (a custom Exercise referenced by history is archived instead), NOT NULL folder, all CHECKs (enums, ranges, non-blank, `finishedAt >= startedAt`);
   - the web's "replace parent and children whole in one transaction" PUT (S:48, 67) has no CloudKit equivalent; edit rows individually and stamp `updatedAt`.
 

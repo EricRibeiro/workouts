@@ -6,10 +6,9 @@ import os
 /// an overlapping document.
 ///
 /// Idempotence rules:
-/// - **Match by id.** A row whose id exists is updated, never duplicated. Sticky notes also match an
-///   existing note for the same exercise (the app keeps one note per exercise).
+/// - **Match by id.** A row whose id exists is updated, never duplicated.
 /// - **Last write wins by `updatedAt`.** Folders, templates, template exercises, custom exercises,
-///   sticky notes, workouts and workout exercises carry `updatedAt`: the document's row is applied only
+///   workouts and workout exercises carry `updatedAt`: the document's row is applied only
 ///   when its `updatedAt` is strictly newer than the store's; equal or older is *skipped*.
 /// - **Children follow their parent.** Sets have no timestamp, and a parent applied from the document
 ///   replaces its children: children are matched by id (updated, or inserted), and local children the
@@ -50,7 +49,6 @@ public enum Importer {
         var run = try Run(context: context, catalog: catalog)
         run.report.unknownLibraryRefs = unknownRefs(in: doc, catalog: catalog)
         run.importCustomExercises(doc.customExercises)
-        run.importStickyNotes(doc.stickyNotes)
         run.importFolders(doc.folders)
         run.importTemplates(doc.templates)
         do {
@@ -86,7 +84,6 @@ public enum Importer {
         for workout in doc.workouts {
             for exercise in workout.exercises { note(exercise.exercise, name: exercise.exerciseName) }
         }
-        for sticky in doc.stickyNotes { note(sticky.exercise, name: nil) }
         return found.values
             .map {
                 UnknownLibraryRef(source: $0.source, sourceId: $0.sourceId, names: $0.names.sorted(), uses: $0.uses)
@@ -106,7 +103,6 @@ public enum Importer {
         var templateExercises: [UUID: TemplateExercise]
         var templateSets: [UUID: TemplateSet]
         var customExercises: [UUID: Exercise]
-        var stickyNotes: [UUID: StickyNote]
         var workouts: [UUID: Workout]
         var workoutExercises: [UUID: WorkoutExercise]
         var workoutSets: [UUID: WorkoutSet]
@@ -123,7 +119,6 @@ public enum Importer {
             templateExercises = Self.index(try context.fetch(FetchDescriptor<TemplateExercise>()), by: \.id)
             templateSets = Self.index(try context.fetch(FetchDescriptor<TemplateSet>()), by: \.id)
             customExercises = Self.index(try context.fetch(FetchDescriptor<Exercise>()), by: \.id)
-            stickyNotes = Self.index(try context.fetch(FetchDescriptor<StickyNote>()), by: \.id)
             workouts = Self.index(try context.fetch(FetchDescriptor<Workout>()), by: \.id)
             workoutExercises = Self.index(try context.fetch(FetchDescriptor<WorkoutExercise>()), by: \.id)
             workoutSets = Self.index(try context.fetch(FetchDescriptor<WorkoutSet>()), by: \.id)
@@ -178,37 +173,6 @@ public enum Importer {
             row.retired = dto.retired
             row.createdAt = dto.createdAt
             row.updatedAt = dto.updatedAt
-        }
-
-        // MARK: Sticky notes
-
-        mutating func importStickyNotes(_ dtos: [StickyNoteDTO]) {
-            for dto in dtos {
-                let exerciseID = dto.exercise.exerciseID
-                let existing =
-                    stickyNotes[dto.id]
-                    ?? stickyNotes.values.first { $0.exerciseID == exerciseID }
-                if let existing {
-                    guard isNewer(dto.updatedAt, than: existing.updatedAt) else {
-                        report[.stickyNotes].skipped += 1
-                        continue
-                    }
-                    existing.exerciseID = exerciseID
-                    existing.text = dto.text
-                    existing.updatedAt = dto.updatedAt
-                    report[.stickyNotes].updated += 1
-                } else {
-                    let row = StickyNote(
-                        id: dto.id,
-                        exerciseID: exerciseID,
-                        text: dto.text,
-                        updatedAt: dto.updatedAt
-                    )
-                    context.insert(row)
-                    stickyNotes[dto.id] = row
-                    report[.stickyNotes].inserted += 1
-                }
-            }
         }
 
         // MARK: Folders and templates

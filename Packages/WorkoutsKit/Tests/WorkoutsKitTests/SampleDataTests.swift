@@ -55,7 +55,6 @@ import Testing
             #expect(template.folder != nil)
         }
         #expect(try context.fetchCount(FetchDescriptor<Exercise>()) == 1)
-        #expect(try context.fetchCount(FetchDescriptor<StickyNote>()) == 1)
     }
 
     @Test func everyOrderedChildHasAPositionAndASnapshot() throws {
@@ -131,7 +130,6 @@ import Testing
         var ids = Set<UUID>()
         for row in try context.fetch(FetchDescriptor<WorkoutExercise>()) { ids.insert(row.exerciseID) }
         for row in try context.fetch(FetchDescriptor<TemplateExercise>()) { ids.insert(row.exerciseID) }
-        for note in try context.fetch(FetchDescriptor<StickyNote>()) { ids.insert(note.exerciseID) }
         #expect(!ids.isEmpty)
         for id in ids {
             let info = try #require(store.exercise(id: id))

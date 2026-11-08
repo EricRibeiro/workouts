@@ -41,7 +41,7 @@ import Testing
         )
     }
 
-    /// One folder, two templates, a custom exercise, a sticky note, a finished and an in-progress
+    /// One folder, two templates, a custom exercise, a finished and an in-progress
     /// workout. Ordered the way `Exporter` orders its output, so an export equals it.
     private static func fixture() -> WorkoutsJSON {
         let bench = ExerciseRefDTO.library(source: source, sourceId: "100")
@@ -143,7 +143,6 @@ import Testing
             createdAt: t(0),
             updatedAt: t(4)
         )
-        let note = StickyNoteDTO(id: id(30), exercise: bench, text: "Elbows in", updatedAt: t(5))
         let finished = WorkoutDTO(
             id: id(40),
             name: "Push",
@@ -245,7 +244,6 @@ import Testing
             folders: [folder],
             templates: [push, empty],
             customExercises: [custom],
-            stickyNotes: [note],
             workouts: [finished, active]
         )
     }
@@ -292,12 +290,18 @@ import Testing
         #expect(custom.lowerBound < exported.lowerBound && exported.lowerBound < folders.lowerBound)
     }
 
+    @Test func decoderIgnoresKeysARetiredFeatureLeftBehind() throws {
+        let json = #"{"version": 1, "exportedAt": "2027-01-15T08:00:00Z", "stickyNotes": [{"id": "x", "text": "t"}]}"#
+        let doc = try WorkoutsJSON.decode(Data(json.utf8))
+        #expect(doc.folders.isEmpty && doc.workouts.isEmpty)
+    }
+
     @Test func decoderAcceptsDatesWithoutFractionsAndMissingArrays() throws {
         let json = #"{"version": 1, "exportedAt": "2027-01-15T08:00:00Z"}"#
         let doc = try WorkoutsJSON.decode(Data(json.utf8))
         #expect(doc.exportedAt == Self.t(0))
         #expect(doc.folders.isEmpty && doc.templates.isEmpty && doc.workouts.isEmpty)
-        #expect(doc.customExercises.isEmpty && doc.stickyNotes.isEmpty)
+        #expect(doc.customExercises.isEmpty)
         let bad = #"{"version": 1, "exportedAt": "yesterday"}"#
         #expect(throws: DecodingError.self) { try WorkoutsJSON.decode(Data(bad.utf8)) }
     }
@@ -334,11 +338,10 @@ import Testing
         #expect(report[.templateExercises] == ImportCounts(inserted: 2))
         #expect(report[.templateSets] == ImportCounts(inserted: 3))
         #expect(report[.customExercises] == ImportCounts(inserted: 1))
-        #expect(report[.stickyNotes] == ImportCounts(inserted: 1))
         #expect(report[.workouts] == ImportCounts(inserted: 2))
         #expect(report[.workoutExercises] == ImportCounts(inserted: 2))
         #expect(report[.workoutSets] == ImportCounts(inserted: 3))
-        #expect(report.totals.inserted == 17)
+        #expect(report.totals.inserted == 16)
         #expect(report.changedAnything)
         #expect(report.unknownLibraryRefs.isEmpty && report.danglingReferences == 0)
 
@@ -391,8 +394,6 @@ import Testing
 
         let custom = try #require(try context.fetch(FetchDescriptor<Exercise>()).first)
         #expect(custom.id == Self.id(900) && custom.aliases == ["Prowler"] && custom.weightType == .weighted)
-        let sticky = try #require(try context.fetch(FetchDescriptor<StickyNote>()).first)
-        #expect(sticky.exerciseID == LibraryID.id(source: Self.source, sourceID: "100"))
     }
 
     // MARK: Idempotence
@@ -412,14 +413,12 @@ import Testing
         #expect(second[.templates] == ImportCounts(skipped: 2))
         #expect(second[.templateSets] == ImportCounts(skipped: 3))
         #expect(second[.customExercises] == ImportCounts(skipped: 1))
-        #expect(second[.stickyNotes] == ImportCounts(skipped: 1))
         #expect(second[.workouts] == ImportCounts(skipped: 2))
         #expect(second[.workoutExercises] == ImportCounts(skipped: 2))
         #expect(second[.workoutSets] == ImportCounts(skipped: 3))
         #expect(try store.count(Workout.self) == 2)
         #expect(try store.count(WorkoutExercise.self) == 2)
         #expect(try store.count(TemplateExercise.self) == 2)
-        #expect(try store.count(StickyNote.self) == 1)
         let after = try Exporter.document(from: store.context, catalog: catalog, exportedAt: Self.t(10_000))
         #expect(after == before)
     }
@@ -710,21 +709,6 @@ import Testing
         #expect(exported.templates[0].name == "Push")
     }
 
-    @Test func aStickyNoteForTheSameExerciseUpdatesEvenWithANewId() throws {
-        var doc = Self.fixture()
-        let store = try Store()
-        _ = try Importer.apply(doc, to: store.context)
-
-        doc.stickyNotes[0].id = Self.id(31)
-        doc.stickyNotes[0].text = "Newer text"
-        doc.stickyNotes[0].updatedAt = Self.t(500)
-        let report = try Importer.apply(doc, to: store.context)
-
-        #expect(report[.stickyNotes] == ImportCounts(updated: 1))
-        #expect(try store.count(StickyNote.self) == 1)
-        #expect(try store.context.fetch(FetchDescriptor<StickyNote>()).first?.text == "Newer text")
-    }
-
     @Test func aTemplateMovesBetweenFoldersAndDanglingIdsAreCounted() throws {
         var doc = Self.fixture()
         let store = try Store()
@@ -751,14 +735,13 @@ import Testing
         doc.templates[0].exercises[0].exerciseName = "Mystery Lift"
         doc.workouts[0].exercises[0].exercise = mystery
         doc.workouts[0].exercises[0].exerciseName = "Mystery Lift"
-        doc.stickyNotes[0].exercise = mystery
         let store = try Store()
 
         let report = try Importer.apply(doc, to: store.context, catalog: try Self.catalog())
 
         #expect(
             report.unknownLibraryRefs == [
-                UnknownLibraryRef(source: Self.source, sourceId: "999", names: ["Mystery Lift"], uses: 3)
+                UnknownLibraryRef(source: Self.source, sourceId: "999", names: ["Mystery Lift"], uses: 2)
             ]
         )
         #expect(report[.templateExercises].inserted == 2 && report[.workoutExercises].inserted == 2)

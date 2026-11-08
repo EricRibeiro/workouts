@@ -112,7 +112,6 @@ final class PastEditorUITests: XCTestCase {
         let app = openFirstWorkout()
         openFirstBlockMenu(app)
         XCTAssertTrue(app.buttons["settable.menu.note"].waitForExistence(timeout: 5), "no Note…")
-        XCTAssertTrue(app.buttons["settable.menu.stickyNote"].exists, "no Sticky Note…")
         for hidden in ["warmup", "rest", "replace", "superset", "preferences", "remove"] {
             XCTAssertFalse(app.buttons["settable.menu.\(hidden)"].exists, "\(hidden) is offered for a finished workout")
         }

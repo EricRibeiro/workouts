@@ -262,7 +262,7 @@ public nonisolated enum CustomExerciseForm {
         try commit(context, store: store)
     }
 
-    /// Deletes `exercise` (and its sticky note) when nothing references it; returns whether it did.
+    /// Deletes `exercise` when nothing references it; returns whether it did.
     @discardableResult
     @MainActor public static func delete(_ exercise: Exercise, in context: ModelContext, store: ExerciseStore) throws
         -> Bool
@@ -280,8 +280,6 @@ public nonisolated enum CustomExerciseForm {
     ) throws -> Bool {
         let id = exercise.id
         guard !(try isReferenced(exerciseID: id, in: context)) else { return false }
-        let notes = try context.fetch(FetchDescriptor<StickyNote>(predicate: #Predicate { $0.exerciseID == id }))
-        for note in notes { context.delete(note) }
         context.delete(exercise)
         try commit(context, store: store, saveHook: saveHook)
         return true

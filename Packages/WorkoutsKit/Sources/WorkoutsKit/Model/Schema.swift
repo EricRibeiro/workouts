@@ -20,10 +20,30 @@ public enum SchemaV1: VersionedSchema {
     }
 }
 
-/// Migration plan: V1 only. Add stages here when a V2 appears.
+/// Version 2.0.0: V1 without `StickyNote` (the feature was removed; the lightweight stage drops the entity).
+public enum SchemaV2: VersionedSchema {
+    public static var versionIdentifier: Schema.Version { Schema.Version(2, 0, 0) }
+
+    public static var models: [any PersistentModel.Type] {
+        [
+            Exercise.self,
+            TemplateFolder.self,
+            Template.self,
+            TemplateExercise.self,
+            TemplateSet.self,
+            Workout.self,
+            WorkoutExercise.self,
+            WorkoutSet.self,
+        ]
+    }
+}
+
+/// Migration plan: V1 → V2 is lightweight (drops the `StickyNote` entity). Add stages here when a V3 appears.
 public enum WorkoutsMigrationPlan: SchemaMigrationPlan {
-    public static var schemas: [any VersionedSchema.Type] { [SchemaV1.self] }
-    public static var stages: [MigrationStage] { [] }
+    public static var schemas: [any VersionedSchema.Type] { [SchemaV1.self, SchemaV2.self] }
+    public static var stages: [MigrationStage] {
+        [.lightweight(fromVersion: SchemaV1.self, toVersion: SchemaV2.self)]
+    }
 }
 
 /// Whether the store syncs through CloudKit: the pure rule behind ``ModelContainer/workouts(inMemory:cloudKit:)``.
@@ -43,7 +63,7 @@ extension ModelContainer {
     /// caller passes until PLAN 8.1 flips it (JC54); an in-memory store (tests, previews, UI tests) is always local, see
     /// ``CloudKitChoice/resolve(inMemory:cloudKit:)``.
     public static func workouts(inMemory: Bool = false, cloudKit: Bool = false) throws -> ModelContainer {
-        let schema = Schema(versionedSchema: SchemaV1.self)
+        let schema = Schema(versionedSchema: SchemaV2.self)
         let database: ModelConfiguration.CloudKitDatabase =
             switch CloudKitChoice.resolve(inMemory: inMemory, cloudKit: cloudKit) {
             case .none: .none

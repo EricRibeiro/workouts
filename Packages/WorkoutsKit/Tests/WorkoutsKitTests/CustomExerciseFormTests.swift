@@ -225,14 +225,11 @@ import Testing
         let rig = try Rig()
         let created = try CustomExerciseForm.create(.init(name: "Sled Push"), in: rig.context, store: rig.store)
         let id = created.id
-        rig.context.insert(StickyNote(exerciseID: id, text: "heavy"))
-        try rig.context.save()
         #expect(try !CustomExerciseForm.isReferenced(exerciseID: id, in: rig.context))
         let deleted = try CustomExerciseForm.delete(created, in: rig.context, store: rig.store)
         #expect(deleted)
         #expect(rig.store.exercise(id: id) == nil)
         #expect(try rig.context.fetch(FetchDescriptor<Exercise>()).isEmpty)
-        #expect(try rig.context.fetch(FetchDescriptor<StickyNote>()).isEmpty)
     }
 
     @Test func templateRowReferencesAndBlocksDelete() throws {
@@ -274,8 +271,6 @@ import Testing
         struct SaveFailed: Error {}
         let rig = try Rig()
         let created = try CustomExerciseForm.create(.init(name: "Sled Push"), in: rig.context, store: rig.store)
-        rig.context.insert(StickyNote(exerciseID: created.id, text: "heavy"))
-        try rig.context.save()
 
         #expect(throws: SaveFailed.self) {
             try CustomExerciseForm.delete(
@@ -286,10 +281,9 @@ import Testing
             )
         }
         #expect(try !rig.context.hasChanges)
-        // An unrelated save afterwards must not delete the exercise or its note.
+        // An unrelated save afterwards must not delete the exercise.
         try rig.context.save()
         #expect(try rig.context.fetch(FetchDescriptor<Exercise>()).count == 1)
-        #expect(try rig.context.fetch(FetchDescriptor<StickyNote>()).count == 1)
         #expect(rig.store.exercise(id: created.id) != nil)
     }
 }

@@ -2,7 +2,7 @@ import Foundation
 import SwiftData
 
 /// A custom exercise. Library exercises are not rows: they come from the bundled read-only `LibraryCatalog`.
-/// Templates, workouts and sticky notes refer to either kind by `id` (`exerciseID`), never by relationship.
+/// Templates and workouts refer to either kind by `id` (`exerciseID`), never by relationship.
 @Model
 public final class Exercise {
     public var id: UUID = UUID()

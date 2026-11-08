@@ -9,7 +9,7 @@ import WorkoutsKit
 
 /// The exercise detail (task 4.2): a media header, the full wrapping name, and a segmented control over About,
 /// History, Charts and Records (4.3). `embedded` drops the navigation chrome (title, Edit) and the
-/// edge-to-edge hero (a rounded media card instead), for the logging pane; the sticky note leads the About segment (editable in both). Edit exists for custom exercises only.
+/// edge-to-edge hero (a rounded media card instead), for the logging pane. Edit exists for custom exercises only.
 struct ExerciseDetailView: View {
     enum Segment: String, CaseIterable, Identifiable {
         case about = "About"
@@ -134,7 +134,7 @@ struct ExerciseDetailView: View {
     /// The embedded pane (already one side of the logging screen's arrangement) and the compact pushed detail are one
     /// scrolling column. The pushed detail at regular width is an `ArrangementView` (one view tree in every pose, so folding
     /// never rebuilds the segment content): the hero, name and segmented control are the primary and the
-    /// selected segment's content (About leading with the sticky note) is the secondary, so book pose puts them either side of the fold (hero left, content
+    /// selected segment's content is the secondary, so book pose puts them either side of the fold (hero left, content
     /// right) and the system split stacks them on the laptop pose (hero above, content below, nothing in the fold band).
     /// Wide, with no fold, it is the same split: side by side when the area is wider than tall, stacked otherwise.
     @ViewBuilder
@@ -199,9 +199,7 @@ struct ExerciseDetailView: View {
                 library: library,
                 labels: store.catalog.labels,
                 customInstructions: customs.first?.instructions ?? []
-            ) {
-                StickyNoteView(exerciseID: info.id)
-            }
+            )
             .padding(.horizontal)
         case .history where loadFailed, .charts where loadFailed, .records where loadFailed:
             loadFailedView

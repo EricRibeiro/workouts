@@ -7,7 +7,6 @@ public nonisolated enum ImportEntity: String, CaseIterable, Sendable {
     case templateExercises
     case templateSets
     case customExercises
-    case stickyNotes
     case workouts
     case workoutExercises
     case workoutSets
@@ -36,9 +35,9 @@ public nonisolated struct ImportCounts: Hashable, Sendable {
 public nonisolated struct UnknownLibraryRef: Hashable, Sendable {
     public var source: String
     public var sourceId: String
-    /// The `exerciseName` snapshots seen for it, sorted. Empty when only sticky notes use it.
+    /// The `exerciseName` snapshots seen for it, sorted. Empty when no named snapshot was seen.
     public var names: [String]
-    /// How many template exercises, workout exercises and sticky notes point at it.
+    /// How many template exercises and workout exercises point at it.
     public var uses: Int
 
     public init(source: String, sourceId: String, names: [String], uses: Int) {
@@ -117,7 +116,6 @@ extension ImportEntity {
         case .folders: "Folders"
         case .templates: "Templates"
         case .customExercises: "Custom exercises"
-        case .stickyNotes: "Exercise notes"
         case .workouts: "Workouts"
         case .templateExercises, .templateSets, .workoutExercises, .workoutSets: nil
         }

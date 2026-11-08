@@ -7,7 +7,7 @@ import SwiftUI
 import WorkoutsKit
 
 /// The logging screen's secondary pane on regular width (tasks 2.10, 4.5): the focused exercise's detail, embedded (media
-/// card, the About, History, Charts and Records segments, and the editable sticky note), following the focus. Shared by the
+/// card, the About, History, Charts and Records segments), following the focus. Shared by the
 /// logging screen, the past-workout editor and the template editor.
 struct ExercisePane: View {
     /// The focused exercise's name; nil when the workout has no exercise.

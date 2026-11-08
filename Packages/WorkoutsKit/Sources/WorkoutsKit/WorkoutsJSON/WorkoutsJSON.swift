@@ -20,7 +20,6 @@ import Foundation
 ///     }]
 ///   }],
 ///   "customExercises": [{"id": "…", "name": "Sled Push", "weightType": "weighted", "…": "…"}],
-///   "stickyNotes": [{"id": "…", "exercise": {"id": "…"}, "text": "Pause at the chest", "updatedAt": "…"}],
 ///   "workouts": [{
 ///     "id": "…", "name": "Push", "note": "", "startedAt": "…", "finishedAt": "…", "templateId": "…",
 ///     "createdAt": "…", "updatedAt": "…", "restEndsAt": null, "restSeconds": null, "restSetId": null,
@@ -51,7 +50,6 @@ public nonisolated struct WorkoutsJSON: Codable, Hashable, Sendable {
     public var folders: [FolderDTO]
     public var templates: [TemplateDTO]
     public var customExercises: [CustomExerciseDTO]
-    public var stickyNotes: [StickyNoteDTO]
     public var workouts: [WorkoutDTO]
 
     public init(
@@ -60,7 +58,6 @@ public nonisolated struct WorkoutsJSON: Codable, Hashable, Sendable {
         folders: [FolderDTO] = [],
         templates: [TemplateDTO] = [],
         customExercises: [CustomExerciseDTO] = [],
-        stickyNotes: [StickyNoteDTO] = [],
         workouts: [WorkoutDTO] = []
     ) {
         self.version = version
@@ -68,12 +65,12 @@ public nonisolated struct WorkoutsJSON: Codable, Hashable, Sendable {
         self.folders = folders
         self.templates = templates
         self.customExercises = customExercises
-        self.stickyNotes = stickyNotes
         self.workouts = workouts
     }
 
+    // Explicit keys: a document from an older build carrying a key that no longer exists still decodes.
     private enum CodingKeys: String, CodingKey {
-        case version, exportedAt, folders, templates, customExercises, stickyNotes, workouts
+        case version, exportedAt, folders, templates, customExercises, workouts
     }
 
     public init(from decoder: any Decoder) throws {
@@ -83,7 +80,6 @@ public nonisolated struct WorkoutsJSON: Codable, Hashable, Sendable {
         folders = try c.decodeIfPresent([FolderDTO].self, forKey: .folders) ?? []
         templates = try c.decodeIfPresent([TemplateDTO].self, forKey: .templates) ?? []
         customExercises = try c.decodeIfPresent([CustomExerciseDTO].self, forKey: .customExercises) ?? []
-        stickyNotes = try c.decodeIfPresent([StickyNoteDTO].self, forKey: .stickyNotes) ?? []
         workouts = try c.decodeIfPresent([WorkoutDTO].self, forKey: .workouts) ?? []
     }
 }
@@ -258,13 +254,6 @@ public nonisolated struct CustomExerciseDTO: Codable, Hashable, Sendable {
     public var restSeconds: Int?
     public var retired: Bool
     public var createdAt: Date
-    public var updatedAt: Date
-}
-
-public nonisolated struct StickyNoteDTO: Codable, Hashable, Sendable {
-    public var id: UUID
-    public var exercise: ExerciseRefDTO
-    public var text: String
     public var updatedAt: Date
 }
 

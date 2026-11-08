@@ -5,8 +5,8 @@
 
 import SwiftUI
 
-/// The one note editor: the block menu's Note (both screens), the template editor's Edit Note… and the exercise's sticky
-/// note. A `Form` with one auto-focused, growing multi-line field, Cancel and Save items, and swipe-to-dismiss blocked
+/// The one note editor: the block menu's Note (both screens), and the template editor's Edit Note….
+/// A `Form` with one auto-focused, growing multi-line field, Cancel and Save items, and swipe-to-dismiss blocked
 /// while the text differs from what it opened with. `onSave` receives the raw text; the owner trims it (a blank note
 /// clears it). A throwing `onSave` or `onRemove` keeps the sheet open and shows a "Could Not Save" alert. `onRemove`
 /// adds a destructive Remove row when the note being edited is not empty. The ids are `<idPrefix>.field`, `.save`,

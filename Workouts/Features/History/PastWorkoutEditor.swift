@@ -240,9 +240,8 @@ private struct Editor: View {
 
     // MARK: Block menu
 
-    /// The draft behind the block menu's two prompts. Note… edits the draft (written on Save, dropped on Cancel). Sticky
-    /// Note… is the exercise's own note: `StickyNoteEditor` writes the `StickyNote` straight to the store and saves at once,
-    /// independent of this workout and of Save/Cancel. The other entries are not offered, so their closures are inert.
+    /// The draft behind the block menu's one prompt. Note… edits the draft (written on Save, dropped on Cancel). The other
+    /// entries are not offered, so their closures are inert.
     private var blockHost: BlockActionHost {
         BlockActionHost(
             blocks: draft.exercises.map {

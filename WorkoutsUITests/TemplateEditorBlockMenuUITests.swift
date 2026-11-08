@@ -179,10 +179,10 @@ final class TemplateEditorBlockMenuUITests: XCTestCase {
         app.buttons["preferences.cancel"].tap()
     }
 
-    /// Note… and Sticky Note… in the template editor's block menu open the one note sheet (auto-focused, so the typed text lands
+    /// Note… in the template editor's block menu opens the note sheet (auto-focused, so the typed text lands
     /// at once); Save closes it and the text shows under the header.
     @MainActor
-    func testBlockNoteAndStickyNoteOpenTheNoteSheetAndShow() throws {
+    func testBlockNoteOpensTheNoteSheetAndShows() throws {
         let app = launchEditor()
         let any = app.descendants(matching: .any)
         let (menu, section) = firstMenu(app)
@@ -198,16 +198,5 @@ final class TemplateEditorBlockMenuUITests: XCTestCase {
         let note = any["settable.note.\(section)"]
         XCTAssertTrue(note.waitForExistence(timeout: 5), "the block note is not shown")
         XCTAssertTrue(note.label.contains("Pause on the chest."), "label was \(note.label)")
-
-        openMenuEntry(app, menu: menu, entry: "settable.menu.stickyNote")
-        XCTAssertTrue(any["stickyNote.sheet"].waitForExistence(timeout: 5), "no sticky note sheet")
-        let stickyField = any["stickyNote.field"].firstMatch
-        XCTAssertTrue(stickyField.waitForExistence(timeout: 5), "no sticky note field")
-        stickyField.typeText(" Elbows in.")
-        app.buttons["stickyNote.save"].tap()
-        XCTAssertTrue(any["stickyNote.sheet"].waitUntilGone(), "Save did not close the sticky note sheet")
-        let sticky = any["settable.sticky.\(section)"]
-        XCTAssertTrue(sticky.waitForExistence(timeout: 5), "the sticky note is not shown")
-        XCTAssertTrue(sticky.label.contains("Elbows in."), "label was \(sticky.label)")
     }
 }

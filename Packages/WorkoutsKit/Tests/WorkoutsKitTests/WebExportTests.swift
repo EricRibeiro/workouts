@@ -46,7 +46,6 @@ struct ImportWebExportTests {
         #expect(first[.folders].inserted == doc.folders.count)
         #expect(first[.templates].inserted == doc.templates.count)
         #expect(first[.customExercises].inserted == doc.customExercises.count)
-        #expect(first[.stickyNotes].inserted == doc.stickyNotes.count)
         #expect(first[.workouts].inserted == doc.workouts.count)
         #expect(first[.workoutExercises].inserted == doc.workouts.reduce(0) { $0 + $1.exercises.count })
         #expect(

@@ -41,7 +41,7 @@ final class SetTableUITests: XCTestCase {
         XCTAssertEqual(addSet.label, "Add set")
         let knownChecks = checks.allElementsBoundByIndex.map(\.identifier)
         addSet.tap()
-        // The table is lazy: the new row can push the next block's first row out of the tree (a sticky note under the
+        // The table is lazy: the new row can push the next block's first row out of the tree (a block note under the
         // first name does that), so look for the new row rather than for one more row.
         waitUntil(timeout: 5) {
             checks.allElementsBoundByIndex.contains(where: { !knownChecks.contains($0.identifier) })

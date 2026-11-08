@@ -405,6 +405,15 @@ Live Activity → notifications → logging, then templates, exercises, history.
     Proof: UI test.
   - [x] **7.8d Block notes in the past-workout editor**: pass note/sticky block actions to its `SetTable`;
     `PastWorkoutDraft.setNote` (kit, tested). Proof: `./dev kit` + UI test edit a past block note, Save, History shows it.
+- [x] **7.9 Device feedback round 2** (Eric on the Duo, 2026-11-08, screen recording): the workout detail's Health stats
+  are one-line tiles (Total and Max HR tiles of their own, Records through the same helper, "Est. Effort" in the title);
+  an alignment sweep across the app (set-table header insets, fixed-width label icons, grid cards sharing heights, one
+  set-label width token, monospaced digits; the centred Previous column is left as a taste call, JC119); the logging
+  cover's elapsed subtitle ticks on its own (`navigationSubtitle` resolves a `.timer` Text once, so a 1 Hz `TimelineView`
+  re-applies it); the set table re-centres the focused row when the keyboard inset grows (a tap during a dismissal left
+  the row behind the keyboard pill). **Sticky notes removed** (Eric: "I don't like it much"; JC118): UI, kit API, JSON
+  field and schema entity (SchemaV2, lightweight stage); block notes stay. Proof: `./dev check`, CoverTimer,
+  SetTableKeyboardReveal, SetKeyboard, LoggingBlockMenu, ExerciseDetail UI suites, kit migration test.
 
 ### Phase 7b — Test coverage for transient and repeat states (Eric, 2026-11-07)
 

@@ -3,7 +3,7 @@ import SwiftData
 
 /// Deterministic demo data for previews, the preview gallery and the debug "Load sample data" button.
 ///
-/// Two folders, three templates (Push, Pull, Legs), one custom exercise, one sticky note and 50 finished workouts
+/// Two folders, three templates (Push, Pull, Legs), one custom exercise and 50 finished workouts
 /// spread over roughly the last six months, all weights in kg. No in-progress workout.
 public enum SampleData {
     /// How many finished workouts `seed` inserts.
@@ -401,16 +401,9 @@ private struct SampleBuilder {
             lifts.append(resolve(day, custom: custom))
         }
 
-        if let first = lifts[0].first {
-            context.insert(
-                StickyNote(
-                    id: random.uuid(),
-                    exerciseID: first.exerciseID,
-                    text: "Retract the shoulder blades and pause on the chest.",
-                    updatedAt: setupDate
-                )
-            )
-        }
+        // The removed sticky note drew one uuid here; keep drawing it so every later id and value stays the same
+        // (snapshot references depend on this sequence).
+        _ = random.uuid()
 
         for (offset, start) in starts.enumerated() {
             let day = offset % dayPlans.count

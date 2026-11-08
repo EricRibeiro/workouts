@@ -1,8 +1,7 @@
 import Foundation
 import SwiftData
 
-/// A note that belongs to an exercise (library or custom) and follows it into every template and workout.
-/// One per `exerciseID`, enforced by the app (CloudKit forbids unique constraints).
+/// Exists only so `SchemaV1` can name the entity for the V1 → V2 lightweight migration (V2 drops it). Do not use.
 @Model
 public final class StickyNote {
     public var id: UUID = UUID()

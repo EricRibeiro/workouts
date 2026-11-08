@@ -7,11 +7,11 @@ import Testing
 
 // P-03 (2026-11-07 persistence review): every other schema test is in-memory, so nothing opened a real store written by
 // an earlier build. `Fixtures/store-v1/Workouts.store` is a SQLite store written by the current `SchemaV1`; the test
-// below opens a copy of it with `WorkoutsMigrationPlan`, as the app does on launch.
+// below opens a copy of it with `WorkoutsMigrationPlan`, as the app does on launch (V1 → V2 drops the sticky notes).
 //
 // ANY MODEL CHANGE MUST KEEP `OnDiskStoreMigrationTests` GREEN. A change SwiftData cannot infer (rename, type change,
 // new required attribute without a default) needs a new `VersionedSchema` plus a migration stage in
-// `WorkoutsMigrationPlan`; the fixture stays V1 and is migrated by that stage. Do not regenerate the fixture to make the
+// `WorkoutsMigrationPlan`; the fixture stays V1 and is migrated by those stages. Do not regenerate the fixture to make the
 // test pass: that hides exactly the break this test exists to catch. Regenerate (see the generator below) only to extend
 // what the fixture covers, and only against the schema the fixture is named for.
 
@@ -44,17 +44,11 @@ private enum Fixture {
         let url = try copyFixture()
         defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
 
-        let schema = Schema(versionedSchema: SchemaV1.self)
-        let container = try ModelContainer(
-            for: schema,
-            migrationPlan: WorkoutsMigrationPlan.self,
-            configurations: ModelConfiguration(schema: schema, url: url, cloudKitDatabase: .none)
-        )
+        let container = try openMigrating(url)
         let context = ModelContext(container)
 
         func count<T: PersistentModel>(_ type: T.Type) throws -> Int { try context.fetchCount(FetchDescriptor<T>()) }
         #expect(try count(Exercise.self) == 1)
-        #expect(try count(StickyNote.self) == 1)
         #expect(try count(TemplateFolder.self) == 1)
         #expect(try count(Template.self) == 2)
         #expect(try count(TemplateExercise.self) == 2)
@@ -71,11 +65,6 @@ private enum Fixture {
         #expect(custom.unit == .kg)
         #expect(custom.barWeight == 17.25)
         #expect(custom.restSeconds == 75)
-
-        let note = try #require(try context.fetch(FetchDescriptor<StickyNote>()).first)
-        #expect(note.id == Fixture.noteID)
-        #expect(note.exerciseID == Fixture.benchID)
-        #expect(note.text == "Elbows tucked, pause on the chest")
 
         let folder = try #require(try context.fetch(FetchDescriptor<TemplateFolder>()).first)
         #expect(folder.name == "Push Pull")
@@ -117,9 +106,57 @@ private enum Fixture {
         #expect(sets[1].rpe == 8)
 
         // The migrated store is also writable: the app saves straight after launch.
-        context.insert(StickyNote(exerciseID: Fixture.customID, text: "after open"))
+        context.insert(Exercise(name: "After open"))
         try context.save()
-        #expect(try count(StickyNote.self) == 2)
+        #expect(try count(Exercise.self) == 2)
+    }
+
+    @Test func v1StoreWithAStickyNoteMigratesToV2DroppingTheEntity() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("store-v1-written-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent(Fixture.storeName)
+
+        // Written the way a TestFlight build wrote it: SchemaV1, no migration plan, a sticky note among the rows.
+        do {
+            let container = try openV1(url)
+            let context = ModelContext(container)
+            populate(context)
+            try context.save()
+            #expect(try context.fetchCount(FetchDescriptor<StickyNote>()) == 1)
+        }
+
+        let container = try openMigrating(url)
+        let context = ModelContext(container)
+        #expect(!container.schema.entities.contains { $0.name == "StickyNote" })
+        #expect(try context.fetchCount(FetchDescriptor<Exercise>()) == 1)
+        #expect(try context.fetchCount(FetchDescriptor<TemplateFolder>()) == 1)
+        #expect(try context.fetchCount(FetchDescriptor<Template>()) == 2)
+        #expect(try context.fetchCount(FetchDescriptor<TemplateExercise>()) == 2)
+        #expect(try context.fetchCount(FetchDescriptor<TemplateSet>()) == 3)
+        #expect(try context.fetchCount(FetchDescriptor<Workout>()) == 3)
+        #expect(try context.fetchCount(FetchDescriptor<WorkoutExercise>()) == 4)
+        #expect(try context.fetchCount(FetchDescriptor<WorkoutSet>()) == 8)
+    }
+
+    /// Opens `url` as the app does: the V2 schema through `WorkoutsMigrationPlan`.
+    private func openMigrating(_ url: URL) throws -> ModelContainer {
+        let schema = Schema(versionedSchema: SchemaV2.self)
+        return try ModelContainer(
+            for: schema,
+            migrationPlan: WorkoutsMigrationPlan.self,
+            configurations: ModelConfiguration(schema: schema, url: url, cloudKitDatabase: .none)
+        )
+    }
+
+    /// Opens `url` with the V1 schema alone, which is how a V1 store comes to exist.
+    private func openV1(_ url: URL) throws -> ModelContainer {
+        let schema = Schema(versionedSchema: SchemaV1.self)
+        return try ModelContainer(
+            for: schema,
+            configurations: ModelConfiguration(schema: schema, url: url, cloudKitDatabase: .none)
+        )
     }
 
     // MARK: Generator
@@ -137,12 +174,7 @@ private enum Fixture {
         let url = directory.appendingPathComponent(Fixture.storeName)
 
         do {
-            let schema = Schema(versionedSchema: SchemaV1.self)
-            let container = try ModelContainer(
-                for: schema,
-                migrationPlan: WorkoutsMigrationPlan.self,
-                configurations: ModelConfiguration(schema: schema, url: url, cloudKitDatabase: .none)
-            )
+            let container = try openV1(url)
             let context = ModelContext(container)
             populate(context)
             try context.save()

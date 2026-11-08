@@ -33,12 +33,10 @@ struct SetTable: View {
     /// Reports the block (`SetTableSection.id`) of the last focused cell or tapped header, so the logging screen's exercise
     /// pane can follow it. Never reset by the table: a dismissed keyboard keeps the last exercise.
     var focusedSection: Binding<UUID?> = .constant(nil)
-    /// The header's options menu (note, sticky note, warm-ups, rest, remove); nil shows no menu.
+    /// The header's options menu (note, warm-ups, rest, remove); nil shows no menu.
     var blockActions: SetTableBlockActions? = nil
 
     @FocusState private var focus: SetRowField?
-    /// Every sticky note (a handful), so a header shows its exercise's note and follows edits made in the exercise pane.
-    @Query private var stickyNotes: [StickyNote]
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(SettingsStore.self) private var settings: SettingsStore?
     private var defaultRestSeconds: Int { settings?.defaultRestSeconds ?? SettingsStore.defaultRestSecondsDefault }
@@ -213,13 +211,6 @@ struct SetTable: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            if let sticky = stickyNote(for: section) {
-                SetTableStickyBand(
-                    text: sticky,
-                    identifier: "settable.sticky.\(section.id.uuidString)",
-                    onEdit: blockActions.map { actions in { actions.stickyNote(section.id) } }
-                )
-            }
             if !section.note.isEmpty {
                 SetTableNoteLine(
                     text: section.note,
@@ -234,7 +225,6 @@ struct SetTable: View {
 
     /// The header's trailing options menu. The entries are the owner's; the table only lays them out.
     private func blockMenu(_ section: SetTableSection, actions: SetTableBlockActions) -> some View {
-        let hasSticky = stickyNote(for: section) != nil
         let hasSets = actions.addWarmups != nil || actions.updateRest != nil
         let hasExercise =
             onSelectExercise != nil || actions.replace != nil || actions.superset != nil || actions.preferences != nil
@@ -244,11 +234,6 @@ struct SetTable: View {
             Group {
                 Button("Note…", systemImage: "note.text") { actions.note(section.id) }
                     .accessibilityIdentifier("settable.menu.note")
-                // `pin.badge.plus` is not an SF Symbol, so the title carries add versus edit; the identifier is stable.
-                Button(hasSticky ? "Edit Sticky Note…" : "Add Sticky Note…", systemImage: "pin") {
-                    actions.stickyNote(section.id)
-                }
-                .accessibilityIdentifier("settable.menu.stickyNote")
             }
             if hasSets {
                 Divider()
@@ -309,10 +294,6 @@ struct SetTable: View {
         .accessibilityIdentifier("settable.menu.\(section.id.uuidString)")
     }
 
-    private func stickyNote(for section: SetTableSection) -> String? {
-        stickyNotes.first { $0.exerciseID == section.exerciseID && !$0.text.isEmpty }?.text
-    }
-
     /// Set · Previous · unit · Reps · ✓, mirroring the row's one-line columns. Hidden from VoiceOver (the cells carry their own
     /// labels) and dropped at accessibility sizes where the row stacks into two lines (a row with a Previous column).
     private func columnHeader(for row: SetRowModel) -> some View {
@@ -326,7 +307,7 @@ struct SetTable: View {
         .font(.caption.weight(.semibold))
         .foregroundStyle(.secondary)
         .lineLimit(1)
-        .padding(.horizontal, 16)
+        .padding(.horizontal, 8)
         .padding(.bottom, 2)
         .accessibilityHidden(true)
     }

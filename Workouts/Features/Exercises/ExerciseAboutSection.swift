@@ -7,36 +7,19 @@ import SwiftUI
 import WorkoutsKit
 
 /// The About segment (`docs/port/screens/exercises.md` section 2, "About"): every block is omitted when it has nothing
-/// to show. Library content comes from the catalog; a custom exercise contributes its own instructions. The `note`
-/// slot (the person's sticky note) is the first content block, after the retired notice and before the body-part line.
-struct ExerciseAboutSection<Note: View>: View {
+/// to show. Library content comes from the catalog; a custom exercise contributes its own instructions.
+struct ExerciseAboutSection: View {
     let info: ExerciseInfo
     let library: LibraryExercise?
     let labels: LibraryLabels
     /// The custom exercise's own steps (empty for library exercises).
     let customInstructions: [String]
-    private let note: Note
-
-    init(
-        info: ExerciseInfo,
-        library: LibraryExercise?,
-        labels: LibraryLabels,
-        customInstructions: [String],
-        @ViewBuilder note: () -> Note
-    ) {
-        self.info = info
-        self.library = library
-        self.labels = labels
-        self.customInstructions = customInstructions
-        self.note = note()
-    }
 
     private var instructions: [String] { library?.instructions ?? customInstructions }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
             if info.isRetired { retiredNotice }
-            note
             bodyPartLine
             numbered("Instructions", instructions, identifier: "instructions")
             bulleted("Tips", library?.tips ?? [], identifier: "tips")
@@ -193,14 +176,6 @@ struct ExerciseAboutSection<Note: View>: View {
             content()
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-    }
-}
-
-extension ExerciseAboutSection where Note == EmptyView {
-    init(info: ExerciseInfo, library: LibraryExercise?, labels: LibraryLabels, customInstructions: [String]) {
-        self.init(info: info, library: library, labels: labels, customInstructions: customInstructions) {
-            EmptyView()
-        }
     }
 }
 

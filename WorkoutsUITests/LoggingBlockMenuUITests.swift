@@ -100,18 +100,9 @@ final class LoggingBlockMenuUITests: XCTestCase {
         XCTAssertGreaterThan(mediumTop, windowHeight * 0.3, "the sheet did not open at half height")
         let segment = app.segmentedControls["exerciseDetail.segment"]
         XCTAssertTrue(segment.waitForExistence(timeout: 5))
-        // At the medium detent the segments sit right under the name: on screen and tappable, and the sticky note (when
-        // the exercise has one) is About content below them, not between the name and the segments.
+        // At the medium detent the segments sit right under the name: on screen and tappable.
         XCTAssertTrue(segment.isHittable, "the segmented control is not hittable at the medium detent")
         XCTAssertLessThan(segment.frame.maxY, windowHeight, "the segmented control is below the medium detent")
-        let sticky = any["exerciseDetail.stickyNote"]
-        if sticky.exists {
-            XCTAssertGreaterThanOrEqual(
-                sticky.frame.minY,
-                segment.frame.maxY,
-                "the sticky note sits between the name and the segmented control"
-            )
-        }
         segment.buttons["History"].tap()
         // A segment tap never grows the sheet: after a short settle it is still at the medium detent.
         RunLoop.current.run(until: Date().addingTimeInterval(1))
@@ -149,10 +140,10 @@ final class LoggingBlockMenuUITests: XCTestCase {
         )
     }
 
-    /// Note… and Sticky Note… in the logging screen's block menu open the one note sheet (auto-focused, so the typed text lands
-    /// at once); Save closes it and the text shows under the header.
+    /// Note… in the logging screen's block menu opens the note sheet (auto-focused, so the typed text lands at once);
+    /// Save closes it and the text shows under the header.
     @MainActor
-    func testBlockNoteAndStickyNoteOpenTheNoteSheetAndShow() throws {
+    func testBlockNoteOpensTheNoteSheetAndShows() throws {
         let app = launchCover()
         let any = app.descendants(matching: .any)
         let (menu, section) = firstMenu(app)
@@ -168,23 +159,12 @@ final class LoggingBlockMenuUITests: XCTestCase {
         let note = any["settable.note.\(section)"]
         XCTAssertTrue(note.waitForExistence(timeout: 5), "the block note is not shown")
         XCTAssertTrue(note.label.contains("Pause on the chest."), "label was \(note.label)")
-
-        openMenuEntry(app, menu: menu, entry: "settable.menu.stickyNote")
-        XCTAssertTrue(any["stickyNote.sheet"].waitForExistence(timeout: 5), "no sticky note sheet")
-        let stickyField = any["stickyNote.field"].firstMatch
-        XCTAssertTrue(stickyField.waitForExistence(timeout: 5), "no sticky note field")
-        stickyField.typeText(" Elbows in.")
-        app.buttons["stickyNote.save"].tap()
-        XCTAssertTrue(any["stickyNote.sheet"].waitUntilGone(), "Save did not close the sticky note sheet")
-        let sticky = any["settable.sticky.\(section)"]
-        XCTAssertTrue(sticky.waitForExistence(timeout: 5), "the sticky note is not shown")
-        XCTAssertTrue(sticky.label.contains("Elbows in."), "label was \(sticky.label)")
     }
 
-    /// PLAN 7.8b: the sticky band and the block note are buttons that open the same editors as the menu entries (hint "Edits
-    /// the note"), with the existing text in the field.
+    /// PLAN 7.8b: the block note is a button that opens the same editor as the menu entry (hint "Edits the note"), with
+    /// the existing text in the field.
     @MainActor
-    func testTappingTheStickyBandAndTheBlockNoteOpensTheirEditors() throws {
+    func testTappingTheBlockNoteOpensItsEditor() throws {
         let app = launchCover()
         let any = app.descendants(matching: .any)
         let (menu, section) = firstMenu(app)
@@ -195,24 +175,6 @@ final class LoggingBlockMenuUITests: XCTestCase {
         noteField.typeText("Pause on the chest.")
         app.buttons["cover.note.save"].tap()
         XCTAssertTrue(any["cover.note.sheet"].waitUntilGone(), "Save did not close the note sheet")
-
-        openMenuEntry(app, menu: menu, entry: "settable.menu.stickyNote")
-        let stickyField = any["stickyNote.field"].firstMatch
-        XCTAssertTrue(stickyField.waitForExistence(timeout: 5), "no sticky note field")
-        stickyField.typeText("Elbows in.")
-        app.buttons["stickyNote.save"].tap()
-        XCTAssertTrue(any["stickyNote.sheet"].waitUntilGone(), "Save did not close the sticky note sheet")
-
-        let band = app.buttons["settable.sticky.\(section)"]
-        XCTAssertTrue(band.waitForExistence(timeout: 5), "the sticky band is not a button")
-        XCTAssertTrue(band.label.contains("Elbows in."), "label was \(band.label)")
-        band.tap()
-        XCTAssertTrue(any["stickyNote.sheet"].waitForExistence(timeout: 5), "tapping the band did not open its editor")
-        let editor = any["stickyNote.field"].firstMatch
-        XCTAssertTrue(editor.waitForExistence(timeout: 5), "no sticky note field")
-        XCTAssertTrue((editor.value as? String ?? "").contains("Elbows in."), "the editor opened without the text")
-        app.buttons["stickyNote.cancel"].tap()
-        XCTAssertTrue(any["stickyNote.sheet"].waitUntilGone(), "Cancel did not close the sticky note sheet")
 
         let note = app.buttons["settable.note.\(section)"]
         XCTAssertTrue(note.waitForExistence(timeout: 5), "the block note is not a button")

@@ -3,7 +3,6 @@
 //  Workouts
 //
 
-import SwiftData
 import SwiftUI
 import WorkoutsKit
 
@@ -53,20 +52,18 @@ struct BlockActionHost {
 final class BlockActionState {
     var note: BlockID?
     var isWarmupAlertShown = false
-    var sticky: BlockID?
     var rest: BlockID?
     var replace: BlockID?
     var superset: BlockID?
     var preferences: BlockID?
     var removeBlockID: UUID?
-    /// Bumps when a block or its sticky note is removed; drives the `.warning` haptic on the owning screen.
+    /// Bumps when a block is removed; drives the `.warning` haptic on the owning screen.
     var destructiveCount = 0
 
     /// The menu entries, each opening its prompt (or acting straight away, for warm-ups).
     func actions(host: BlockActionHost) -> SetTableBlockActions {
         SetTableBlockActions(
             note: { [self] id in note = BlockID(id: id) },
-            stickyNote: { [self] id in sticky = BlockID(id: id) },
             addWarmups: { [self] id in
                 if !host.addWarmups(id) { isWarmupAlertShown = true }
             },
@@ -78,18 +75,17 @@ final class BlockActionState {
         )
     }
 
-    /// Only Note… and Sticky Note…, for a finished workout (the past-workout editor): warm-ups, rest, remove, replace,
+    /// Only Note…, for a finished workout (the past-workout editor): warm-ups, rest, remove, replace,
     /// superset and preferences make no sense there, so those entries are left nil and the table hides them.
     func noteActions() -> SetTableBlockActions {
         SetTableBlockActions(
-            note: { [self] id in note = BlockID(id: id) },
-            stickyNote: { [self] id in sticky = BlockID(id: id) }
+            note: { [self] id in note = BlockID(id: id) }
         )
     }
 }
 
 extension View {
-    /// Presents the block menu's prompts: the Note sheet, the warm-up alert, the Sticky Note, Rest Timer, Replace Exercise
+    /// Presents the block menu's prompts: the Note sheet, the warm-up alert, Rest Timer, Replace Exercise
     /// (single-select picker), Superset and Preferences sheets, and the remove confirmation.
     func blockActionSheets(_ state: BlockActionState, host: BlockActionHost) -> some View {
         modifier(BlockActionSheets(state: state, host: host))
@@ -99,9 +95,6 @@ extension View {
 private struct BlockActionSheets: ViewModifier {
     @Bindable var state: BlockActionState
     let host: BlockActionHost
-
-    @Environment(\.modelContext) private var context
-    @Query private var stickyNotes: [StickyNote]
 
     func body(content: Content) -> some View {
         content
@@ -116,17 +109,6 @@ private struct BlockActionSheets: ViewModifier {
                     .accessibilityIdentifier("\(host.idPrefix).warmup.ok")
             } message: {
                 Text("Warm-up sets are built from the first set with a weight.")
-            }
-            .sheet(item: $state.sticky) { target in
-                if let block = block(target.id) {
-                    NoteSheet(
-                        stickyNoteFor: block.exerciseID,
-                        initialText: stickyNotes.first { $0.exerciseID == block.exerciseID }?.text ?? "",
-                        in: context,
-                        onRemoved: { state.destructiveCount += 1 }
-                    )
-                    .presentationPlacement(.center)
-                }
             }
             .sheet(item: $state.rest) { target in
                 RestTimerPickerSheet(current: block(target.id)?.restSeconds) { host.setRest(target.id, $0) }
@@ -165,8 +147,8 @@ private struct BlockActionSheets: ViewModifier {
             } message: {
                 Text(host.removeMessage)
             }
-            // On the owner's content, which outlives the confirmation and the sticky note sheet (a sheet that is
-            // dismissing may cut the haptic off).
+            // On the owner's content, which outlives the confirmation (a sheet that is dismissing may cut the
+            // haptic off).
             .sensoryFeedback(.warning, trigger: state.destructiveCount)
     }
 

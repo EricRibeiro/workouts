@@ -23,10 +23,10 @@ final class ExerciseDetailUITests: XCTestCase {
         // Library exercises have no Edit item (the segmented control proves the detail's toolbar and content are laid out).
         any["exerciseDetail.edit"].assertStaysAbsent(for: 1, "a library exercise offers Edit")
         XCTAssertTrue(segment.buttons["About"].exists)
-        // The sticky note is About content, below the segmented control (not between the name and it).
-        let sticky = any["exerciseDetail.stickyNote"]
-        XCTAssertTrue(sticky.waitForExistence(timeout: 5), "no sticky note in About")
-        XCTAssertGreaterThan(sticky.frame.minY, segment.frame.maxY, "the sticky note is above the segmented control")
+        // About content sits below the segmented control (not between the name and it).
+        let bodyPart = any["exerciseDetail.about.bodyPart"]
+        XCTAssertTrue(bodyPart.waitForExistence(timeout: 5), "no body part line in About")
+        XCTAssertGreaterThan(bodyPart.frame.minY, segment.frame.maxY, "About content is above the segmented control")
         segment.buttons["Records"].tap()
 
         // The sample history has Barbell Bench Press sessions, so at least the e1RM record exists.

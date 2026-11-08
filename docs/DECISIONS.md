@@ -27,11 +27,11 @@ Eric deferred the technical choices to Claude. These close every item in `docs/p
   (false, Wi-Fi only). Appearance follows the system.
 - Library: 1,038 exercises bundled as `library.json` + thumbnails (`scripts/build-library`), decoded once into a read-only
   `LibraryCatalog` (`retired` is a flag in the file; display labels ride in it). Custom exercises are `@Model Exercise` rows
-  carrying their own unit/bar/rest defaults; `TemplateExercise`/`WorkoutExercise`/`StickyNote` hold `exerciseID: UUID` (the first
-  two also an `exerciseName` snapshot), resolved by `ExerciseStore.exercise(id:)` = catalog ∪ custom. RESTRICT applies to custom
+  carrying their own unit/bar/rest defaults; `TemplateExercise`/`WorkoutExercise` hold `exerciseID: UUID` (and an `exerciseName`
+  snapshot), resolved by `ExerciseStore.exercise(id:)` = catalog ∪ custom. RESTRICT applies to custom
   exercises only: deletable when no history references them, otherwise "Archive" (= retire). New rows for a library exercise start
   from Settings (unit, rest) and its weight type (bar). Media: `docs/port/media.md`.
-- Migration and backup: one `WorkoutsJSON` document (folders, templates, custom exercises, sticky notes, workouts; exercise ids
+- Migration and backup: one `WorkoutsJSON` document (folders, templates, custom exercises, workouts; exercise ids
   via `LibraryID`) with an idempotent `Importer` (1.7); `scripts/export-web` (Postgres → JSON) runs on this Mac; Settings has
   **Import** and **Export…** (5.7); Eric's export is gitignored in `docs/port/fixtures/`.
 - Schema changes: `OnDiskStoreMigrationTests` (kit) opens a committed on-disk V1 store (`Tests/WorkoutsKitTests/Fixtures/store-v1/`)
@@ -65,7 +65,7 @@ Eric deferred the technical choices to Claude. These close every item in `docs/p
   finish summary → `.center`; rest ring → `.trailing` (it belongs to the strip's ring item).
 - **Active workout**: one presentation in both widths, a `fullScreenCover` on the root `TabView`, not tied to any tab. Layout
   follows `horizontalSizeClass`: compact → the set table; regular → an `ArrangementView` (iOS 27.1, in SwiftUICore: `import
-  SwiftUI` suffices), set table primary, exercise pane (video, instructions, Previous, records, sticky note) secondary, following
+  SwiftUI` suffices), set table primary, exercise pane (video, instructions, Previous, records) secondary, following
   the focused exercise: side by side when wide, stacked when tall, split across the fold when partially open
   (`docs/port/duo-layout.md`). Folding only changes the size class, so draft, focus and scroll are untouched. Minimise is the
   cover's Close-slot item (`Button("Minimise", systemImage: "chevron.down")`) with Finish (`checkmark`, prominent) next: no grab
@@ -114,7 +114,8 @@ Eric deferred the technical choices to Claude. These close every item in `docs/p
   first with an unchecked set.
 - **SetTable** (`Workouts/Features/Shared/SetTable`, 2.2–2.3): one component, three modes (template / active / past).
   `isIdleTimerDisabled` while logging when `keepScreenOn`.
-  - Note rows: the sticky band and the block note line are at least 44 pt tall, text vertically centred, button or not (Eric, 2026-11-07; JC112).
+  - Note row: the block note line is at least 44 pt tall, text vertically centred, button or not (Eric, 2026-11-07; JC112). Block notes
+    are the only note kind; sticky notes were removed (JC118).
 
 ## Native layer
 

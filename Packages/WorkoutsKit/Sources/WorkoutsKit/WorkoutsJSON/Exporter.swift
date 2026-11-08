@@ -4,7 +4,7 @@ import SwiftData
 /// Reads a store into a ``WorkoutsJSON`` document (round-trip tests, Settings → Export…).
 ///
 /// Output is deterministic: folders, templates and their children by `position` (then id), custom
-/// exercises by name, sticky notes by update time, workouts by start time; ties break on the id.
+/// exercises by name, workouts by start time; ties break on the id.
 public nonisolated enum Exporter {
     /// Builds the document for everything in `context`.
     ///
@@ -97,12 +97,6 @@ public nonisolated enum Exporter {
                 )
             }
 
-        let stickyNotes = try context.fetch(FetchDescriptor<StickyNote>())
-            .sorted { ($0.updatedAt, $0.id.uuidString) < ($1.updatedAt, $1.id.uuidString) }
-            .map {
-                StickyNoteDTO(id: $0.id, exercise: ref($0.exerciseID), text: $0.text, updatedAt: $0.updatedAt)
-            }
-
         let workouts = try context.fetch(FetchDescriptor<Workout>())
             .sorted { ($0.startedAt, $0.id.uuidString) < ($1.startedAt, $1.id.uuidString) }
             .map { workout in
@@ -169,7 +163,6 @@ public nonisolated enum Exporter {
             folders: folders,
             templates: templates,
             customExercises: customExercises,
-            stickyNotes: stickyNotes,
             workouts: workouts
         )
     }
