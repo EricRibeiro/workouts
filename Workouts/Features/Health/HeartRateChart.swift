@@ -51,6 +51,11 @@ struct HeartRateChart: View {
         HeartRateSeries.plottedMaximum(of: points, storedMaximum: maximum)
     }
 
+    /// The time-weighted mean of what is plotted, so "Avg" covers the same span as "Max".
+    private var shownAverage: Double? {
+        HeartRateSeries.plottedAverage(of: points, storedAverage: average)
+    }
+
     private var blocks: [SetTimeline.Block] {
         timeline.blocks.map {
             var block = $0
@@ -177,7 +182,7 @@ struct HeartRateChart: View {
     private var accessibilityText: String {
         var text = "Heart rate"
         var parts: [String] = []
-        if let average { parts.append("average \(FitnessFormat.wholeNumber(average))") }
+        if let shownAverage { parts.append("average \(FitnessFormat.wholeNumber(shownAverage))") }
         if let shownMaximum { parts.append("max \(FitnessFormat.wholeNumber(shownMaximum))") }
         if !parts.isEmpty { text += ", " + parts.joined(separator: ", ") + " beats per minute" }
         if !timeline.isEmpty {
@@ -203,10 +208,10 @@ struct HeartRateChart: View {
 
     private var captionText: String {
         var parts = ["Heart Rate"]
-        if let average { parts.append("Avg \(FitnessFormat.wholeNumber(average))") }
+        if let shownAverage { parts.append("Avg \(FitnessFormat.wholeNumber(shownAverage))") }
         if let shownMaximum { parts.append("Max \(FitnessFormat.wholeNumber(shownMaximum))") }
         var text = parts.joined(separator: " \u{00B7} ")
-        if average != nil || shownMaximum != nil { text += " bpm" }
+        if shownAverage != nil || shownMaximum != nil { text += " bpm" }
         return text
     }
 

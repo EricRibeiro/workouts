@@ -13,15 +13,12 @@ final class HeaderRevealUITests: XCTestCase {
         app.navigationBars.matching(NSPredicate(format: "identifier != 'Workout'")).buttons.firstMatch
     }
 
-    /// Polls until the title is present (or gone), returning the seconds it took, or nil on timeout.
+    /// Waits until the title is present (or gone), returning the seconds it took, or nil on timeout.
     @MainActor
     private func waitForTitle(_ title: XCUIElement, present: Bool, timeout: TimeInterval) -> TimeInterval? {
         let start = Date()
-        while Date().timeIntervalSince(start) < timeout {
-            if title.exists == present { return Date().timeIntervalSince(start) }
-            Thread.sleep(forTimeInterval: 0.1)
-        }
-        return nil
+        guard waitUntil(timeout: timeout, { title.exists == present }) else { return nil }
+        return Date().timeIntervalSince(start)
     }
 
     @MainActor
@@ -36,9 +33,10 @@ final class HeaderRevealUITests: XCTestCase {
         for _ in 0..<2 { table.swipeUp(velocity: .slow) }
         XCTAssertNotNil(waitForTitle(title, present: false, timeout: 3), "header did not hide while scrolling down")
 
-        // Without touching the table again, the header comes back by itself, not right away.
+        // Without touching the table again, the header comes back by itself after the 1.5 s restore delay, not right away.
         let returned = waitForTitle(title, present: true, timeout: 5)
         XCTAssertNotNil(returned, "header did not come back after scrolling stopped")
+        XCTAssertGreaterThan(returned ?? 0, 0.7, "header came back right away instead of after the restore delay")
         XCTAssertTrue(app.buttons["cover.finish"].isHittable, "the cover should still be showing the scrolled table")
 
         // A further scroll hides it again, and it comes back again.

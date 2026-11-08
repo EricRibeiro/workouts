@@ -60,6 +60,7 @@ struct RootView: View {
         .restExpiryWatcher(isActive: !navigation.isWorkoutCoverOnScreen)
         #if DEBUG
             .restStateProbe()
+            .healthLookupProbe()
         #endif
         // The scrolling lists (History, Exercises) let the tab bar collapse; the Workout tab keeps it (DECISIONS).
         .tabBarMinimizeBehavior(navigation.selectedTab == .workout ? .never : .onScrollDown)
@@ -111,7 +112,7 @@ struct RootView: View {
         }
         // The covers (the workout, the editors) host their own alert; this one stands down while one is up, since a
         // presenter cannot show a second.
-        .saveErrorAlert(isEnabled: !navigation.isWorkoutCoverPresented && (saveErrors?.editorCovers ?? 0) == 0)
+        .saveErrorAlert(isEnabled: !navigation.isWorkoutCoverPresented && (saveErrors?.hostDepth ?? 0) == 0)
         .onChange(of: navigation.isWorkoutCoverPresented) { _, isPresented in
             coverWasOpen = isPresented
         }

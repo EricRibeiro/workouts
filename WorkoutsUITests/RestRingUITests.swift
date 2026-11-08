@@ -145,7 +145,7 @@ final class RestRingUITests: XCTestCase {
         XCTAssertTrue(ring.waitForExistence(timeout: 5))
         expectation(for: NSPredicate(format: "label BEGINSWITH 'Rest timer, '"), evaluatedWith: ring)
         waitForExpectations(timeout: 5)
-        XCTAssertFalse(sheet.waitForExistence(timeout: 2), "the sheet reopened by itself at the next rest")
+        sheet.assertStaysAbsent(for: 2, "the sheet reopened by itself at the next rest")
     }
 
     /// A rest that expires reads "Rest over" through the grace, then the ring returns to idle. The success haptic and ok tint

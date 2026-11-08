@@ -54,6 +54,45 @@ struct SaveErrorsTests {
         #expect(errors.retry == nil)
     }
 
+    @Test func hostsNestAndOnlyTheTopmostIsEnabled() {
+        let errors = SaveErrors()
+        let first = UUID()
+        let second = UUID()
+        errors.enterHost(first)
+        #expect(errors.isTopmost(first))
+        errors.enterHost(second)
+        #expect(errors.hostDepth == 2)
+        #expect(!errors.isTopmost(first))
+        #expect(errors.isTopmost(second))
+        errors.leaveHost(second)
+        #expect(errors.isTopmost(first))
+        #expect(errors.hostDepth == 1)
+        errors.leaveHost(first)
+        #expect(errors.hostDepth == 0)
+    }
+
+    @Test func aHostLeavingLateDoesNotUnseatTheOneAboveIt() {
+        let errors = SaveErrors()
+        let sheet = UUID()
+        let cover = UUID()
+        errors.enterHost(sheet)
+        errors.enterHost(cover)  // the cover appears before the dismissed sheet's onDisappear lands
+        errors.leaveHost(sheet)
+        #expect(errors.isTopmost(cover))
+        #expect(errors.hostDepth == 1)
+    }
+
+    @Test func leavingAnUnknownHostAndReenteringAreHarmless() {
+        let errors = SaveErrors()
+        let id = UUID()
+        errors.leaveHost(id)
+        #expect(errors.hostDepth == 0)
+        errors.enterHost(id)
+        errors.enterHost(id)
+        #expect(errors.hostDepth == 1)
+        #expect(errors.isTopmost(id))
+    }
+
     @Test func deleteFailureMessageNamesTheCauseAndTheRecovery() {
         let text = DeleteFailure.message(for: Failure())
         #expect(text.contains("the disk is full"))

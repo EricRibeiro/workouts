@@ -24,6 +24,20 @@ public nonisolated enum HeartRateSeries {
         clipped.map(\.bpm).max() ?? stored
     }
 
+    /// The average to caption a chart drawn from `clipped` (the output of ``clippedToStart(_:)``): the time-weighted mean of
+    /// the plotted line (trapezoid over consecutive offsets), so Avg covers the same span as ``plottedMaximum(of:storedMaximum:)``.
+    /// The stored whole-workout average includes the clipped lead-in; an empty series falls back to `stored`, and a single
+    /// point or zero span returns that point's bpm.
+    public static func plottedAverage(of clipped: [HeartRatePoint], storedAverage stored: Double?) -> Double? {
+        guard let first = clipped.first, let last = clipped.last else { return stored }
+        let span = last.offset - first.offset
+        guard span > 0 else { return first.bpm }
+        let area = zip(clipped, clipped.dropFirst()).reduce(0.0) { sum, pair in
+            sum + (pair.0.bpm + pair.1.bpm) / 2 * (pair.1.offset - pair.0.offset)
+        }
+        return area / span
+    }
+
     /// Reduces `points` to at most `maxPoints` for a small chart.
     ///
     /// Points are sorted by offset and split into `maxPoints` equal-width time buckets. Each non-empty bucket becomes one

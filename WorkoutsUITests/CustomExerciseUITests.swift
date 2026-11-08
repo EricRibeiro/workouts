@@ -42,7 +42,7 @@ final class CustomExerciseUITests: XCTestCase {
         name.typeText("Zz Test Curl")
         XCTAssertTrue(save.isEnabled)
         save.tap()
-        XCTAssertFalse(any["screen.newExercise"].waitForExistence(timeout: 2))
+        XCTAssertTrue(any["screen.newExercise"].waitUntilGone(timeout: 5), "sheet did not dismiss")
 
         // The row appears with the Custom tag (search narrows the long list to it).
         search(app, "Zz Test Curl\n")
@@ -75,11 +75,11 @@ final class CustomExerciseUITests: XCTestCase {
         let confirm = app.buttons["Delete"].firstMatch
         XCTAssertTrue(confirm.waitForExistence(timeout: 5), "no confirmation dialog")
         confirm.tap()
-        XCTAssertFalse(any["screen.editExercise"].waitForExistence(timeout: 2))
+        XCTAssertTrue(any["screen.editExercise"].waitUntilGone(timeout: 5), "editor did not dismiss")
 
         // Gone from the list.
         XCTAssertTrue(any["screen.exercises"].waitForExistence(timeout: 5))
-        XCTAssertFalse(row.waitForExistence(timeout: 2), "the deleted exercise is still listed")
+        XCTAssertTrue(row.waitUntilGone(timeout: 5), "the deleted exercise is still listed")
     }
 
     /// Editing a custom exercise's weight type refreshes its open detail: the chart offers the new type's metrics and
@@ -95,7 +95,7 @@ final class CustomExerciseUITests: XCTestCase {
         name.tap()
         name.typeText("Zz Type Curl")
         any["customExercise.save"].firstMatch.tap()
-        XCTAssertFalse(any["screen.newExercise"].waitForExistence(timeout: 2))
+        XCTAssertTrue(any["screen.newExercise"].waitUntilGone(timeout: 5), "sheet did not dismiss")
 
         search(app, "Zz Type Curl\n")
         let row = any.matching(
@@ -122,7 +122,7 @@ final class CustomExerciseUITests: XCTestCase {
         XCTAssertTrue(assisted.waitForExistence(timeout: 5))
         assisted.tap()
         any["customExercise.save"].firstMatch.tap()
-        XCTAssertFalse(any["screen.editExercise"].waitForExistence(timeout: 2))
+        XCTAssertTrue(any["screen.editExercise"].waitUntilGone(timeout: 5), "editor did not dismiss")
 
         let leastAssistance = app.buttons["exerciseDetail.chart.metric.maxWeight"].firstMatch
         XCTAssertTrue(leastAssistance.waitForExistence(timeout: 5))
@@ -148,7 +148,7 @@ final class CustomExerciseUITests: XCTestCase {
         let save = any["customExercise.save"].firstMatch
         XCTAssertTrue(save.isEnabled)
         save.tap()
-        XCTAssertFalse(any["screen.newExercise"].waitForExistence(timeout: 2))
+        XCTAssertTrue(any["screen.newExercise"].waitUntilGone(timeout: 5), "sheet did not dismiss")
 
         // The new exercise is in the results and ticked (the New row stays: it is always available).
         let row = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'picker.row.'")).firstMatch
@@ -182,7 +182,7 @@ final class CustomExerciseUITests: XCTestCase {
         // Rename so the new exercise sorts first and is rendered by the lazy list among the many squat results.
         name.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 5) + "Aaa Squat Zz")
         any["customExercise.save"].firstMatch.tap()
-        XCTAssertFalse(any["screen.newExercise"].waitForExistence(timeout: 2))
+        XCTAssertTrue(any["screen.newExercise"].waitUntilGone(timeout: 5), "sheet did not dismiss")
 
         let created = app.buttons.matching(
             NSPredicate(format: "identifier BEGINSWITH 'picker.row.' AND label CONTAINS 'Aaa Squat Zz'")

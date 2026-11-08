@@ -63,7 +63,8 @@ final class OpenWorkoutURLUITests: XCTestCase {
         let any = app.descendants(matching: .any)
         app.activate()
         let cover = any["screen.activeWorkout"]
-        XCTAssertFalse(cover.waitForExistence(timeout: 4), "the cover presented over the open editor")
+        XCTAssertTrue(any[screen].waitForExistence(timeout: 5), "the link closed the editor")
+        cover.assertStaysAbsent(for: 4, "the cover presented over the open editor")
         XCTAssertTrue(any[screen].exists, "the link closed the editor")
         XCTAssertTrue(editIsIntact(), "the link lost the unsaved edit")
 
@@ -146,7 +147,8 @@ final class OpenWorkoutURLUITests: XCTestCase {
         XCTAssertTrue(any["screen.history"].waitForExistence(timeout: 10))
 
         try openLink("workouts://nowhere")
-        XCTAssertFalse(any["screen.activeWorkout"].waitForExistence(timeout: 3), "an unknown link opened the cover")
+        XCTAssertTrue(any["screen.history"].waitForExistence(timeout: 5), "the app left the History tab")
+        any["screen.activeWorkout"].assertStaysAbsent(for: 3, "an unknown link opened the cover")
         XCTAssertTrue(any["screen.history"].exists, "the app left the History tab")
     }
 }

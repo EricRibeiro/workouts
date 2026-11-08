@@ -5,6 +5,7 @@
 
 #if DEBUG
     import Foundation
+    import Synchronization
     import WorkoutsKit
 
     /// Canned Health data for previews, the gallery and UI tests (`-healthFixture <name>`), so the enrichment path is provable
@@ -120,6 +121,18 @@
         }
     }
 
+    /// How many `workouts(in:)` lookups the fixture source has answered this launch; a UI test reads it through the
+    /// `debug.health.lookups` probe to prove that no lookup ran (see `HealthLookupProbe`).
+    nonisolated enum HealthFixtureLookups {
+        private static let storage = Mutex(0)
+
+        static var count: Int { storage.withLock { $0 } }
+
+        fileprivate static func record() {
+            storage.withLock { $0 += 1 }
+        }
+    }
+
     /// A `HealthSource` that builds a `HealthFixture` around whatever workout is being looked up.
     ///
     /// `HealthEnrichment` queries the workout's interval widened by the matcher's slack, so `workouts(in:)` narrows the
@@ -130,6 +143,7 @@
         let fixture: HealthFixture
 
         func workouts(in interval: DateInterval) async throws -> [HealthWorkoutCandidate] {
+            HealthFixtureLookups.record()
             let before = HealthMatcher.defaultSlackBefore
             let after = HealthMatcher.defaultSlackAfter
             let start = interval.start.addingTimeInterval(before)

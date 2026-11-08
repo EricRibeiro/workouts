@@ -238,10 +238,51 @@ enum Snapshot {
         return SettledFrames(atSettle: atSettle, stable: previous)
     }
 
-    /// Pixels in the top `topPoints` of two draws that differ in any channel at all.
-    private static func bandDifference(_ a: Data, _ b: Data, topPoints: CGFloat) -> Int {
+    /// Like `renderSettling`, then keeps drawing every `interval` until two consecutive draws are pixel-identical over the
+    /// whole frame and the frame differs from `unlike` (the held or placeholder frame), so a `.task` load that lands late
+    /// under machine load is waited for instead of captured half-done. Fails (and returns the last draw) after `limit`.
+    static func renderSettledContent<Content: View>(
+        _ view: Content,
+        variant: SnapshotVariant,
+        width: CGFloat,
+        height: CGFloat,
+        environment: SampleEnvironment?,
+        settle: Duration = .seconds(1),
+        unlike: Data? = nil,
+        interval: Duration = .milliseconds(250),
+        limit: Duration = .seconds(10),
+        sourceLocation: SourceLocation = #_sourceLocation
+    ) async -> Data? {
+        let content = frame(view, variant: variant, width: width, environment: environment)
+        guard let hosted = host(content, variant: variant, width: width, height: height) else {
+            return nil
+        }
+        defer { hosted.window.isHidden = true }
+        try? await Task.sleep(for: settle)
+        guard var previous = draw(hosted) else { return nil }
+        let clock = ContinuousClock()
+        let deadline = clock.now + limit
+        while clock.now < deadline {
+            try? await Task.sleep(for: interval)
+            guard let next = draw(hosted) else { return nil }
+            let steady = bandDifference(previous, next, topPoints: nil) == 0
+            if steady, unlike.map({ bandDifference(next, $0, topPoints: nil) > 0 }) ?? true {
+                return next
+            }
+            previous = next
+        }
+        Issue.record(
+            "The frame never settled on content different from the held frame within \(limit)",
+            sourceLocation: sourceLocation
+        )
+        return previous
+    }
+
+    /// Pixels in the top `topPoints` of two draws (the whole frame when nil) that differ in any channel at all.
+    private static func bandDifference(_ a: Data, _ b: Data, topPoints: CGFloat?) -> Int {
         guard let x = pixels(a), let y = pixels(b), x.width == y.width else { return Int.max }
-        let end = min(Int(topPoints * scale), x.height, y.height) * x.width * 4
+        let rows = topPoints.map { Int($0 * scale) } ?? Int.max
+        let end = min(rows, x.height, y.height) * x.width * 4
         var count = 0
         for index in stride(from: 0, to: end, by: 4) {
             if (0..<4).contains(where: { x.bytes[index + $0] != y.bytes[index + $0] }) { count += 1 }
@@ -299,6 +340,9 @@ enum Snapshot {
         else { return nil }
         let controller = UIHostingController(rootView: content)
         controller.view.backgroundColor = .systemBackground
+        // Measure under the variant's traits: the controller is detached, so UIKit-backed cells would use the ambient ones.
+        controller.overrideUserInterfaceStyle = variant.colorScheme == .dark ? .dark : .light
+        controller.traitOverrides.preferredContentSizeCategory = variant.contentSizeCategory
         let fitted = controller.sizeThatFits(in: CGSize(width: width, height: .greatestFiniteMagnitude))
         let size = CGSize(width: width, height: height ?? ceil(fitted.height))
         // The window takes the scene's size (the Duo's closed display is narrower than a phone), so the hosted view gets

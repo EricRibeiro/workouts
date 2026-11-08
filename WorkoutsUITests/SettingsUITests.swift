@@ -110,8 +110,7 @@ final class SettingsUITests: XCTestCase {
 
     @MainActor
     private func expectValue(_ toggle: XCUIElement, _ value: String, line: UInt = #line) {
-        let deadline = Date.now.addingTimeInterval(5)
-        while Date.now < deadline, toggle.value as? String != value { usleep(200_000) }
+        waitUntil(timeout: 5) { toggle.value as? String == value }
         XCTAssertEqual(toggle.value as? String, value, line: line)
     }
 

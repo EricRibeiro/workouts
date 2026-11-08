@@ -186,6 +186,32 @@ struct HealthHeartRateSeriesTests {
         #expect(HeartRateSeries.plottedMaximum(of: [], storedMaximum: nil) == nil)
     }
 
+    @Test func plottedAverageIsTheTimeWeightedMeanOfTheClippedLine() {
+        let even = [
+            HeartRatePoint(offset: 0, bpm: 100), HeartRatePoint(offset: 10, bpm: 120),
+            HeartRatePoint(offset: 20, bpm: 140),
+        ]
+        #expect(HeartRateSeries.plottedAverage(of: even, storedAverage: 90) == 120)
+        // The long last interval weighs more than the plain mean (120) would give it.
+        let uneven = [
+            HeartRatePoint(offset: 0, bpm: 100), HeartRatePoint(offset: 10, bpm: 100),
+            HeartRatePoint(offset: 40, bpm: 160),
+        ]
+        #expect(HeartRateSeries.plottedAverage(of: uneven, storedAverage: 90) == 122.5)
+        // The stored average (150) was pulled up by the dropped lead-in.
+        let clipped = HeartRateSeries.clippedToStart([
+            HeartRatePoint(offset: -120, bpm: 190), HeartRatePoint(offset: 0, bpm: 100),
+            HeartRatePoint(offset: 10, bpm: 120),
+        ])
+        #expect(HeartRateSeries.plottedAverage(of: clipped, storedAverage: 150) == 110)
+    }
+
+    @Test func plottedAverageHandlesSinglePointAndEmptySeries() {
+        #expect(HeartRateSeries.plottedAverage(of: [HeartRatePoint(offset: 0, bpm: 88)], storedAverage: 150) == 88)
+        #expect(HeartRateSeries.plottedAverage(of: [], storedAverage: 150) == 150)
+        #expect(HeartRateSeries.plottedAverage(of: [], storedAverage: nil) == nil)
+    }
+
     @Test func degenerateInputs() {
         #expect(HeartRateSeries.downsample([], maxPoints: 10).isEmpty)
         #expect(HeartRateSeries.downsample(series(count: 5, peakAt: 2), maxPoints: 0).isEmpty)

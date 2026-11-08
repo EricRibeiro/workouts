@@ -76,6 +76,6 @@ final class HistoryCalendarUITests: XCTestCase {
         app.buttons["calendar.done"].tap()
         let any = app.descendants(matching: .any)
         XCTAssertTrue(any["screen.history"].waitForExistence(timeout: 5))
-        XCTAssertFalse(any["screen.calendar"].waitForExistence(timeout: 2))
+        XCTAssertTrue(any["screen.calendar"].waitUntilGone(timeout: 5), "the calendar is still up after Done")
     }
 }

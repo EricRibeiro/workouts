@@ -20,7 +20,9 @@ extension SnapshotTests {
         private static let variant = SnapshotVariant.all[0]
         private static let heroPoints: CGFloat = 215
 
-        private func render(exerciseID: UUID, environment: SampleEnvironment, held: Bool) async throws -> Data {
+        private func render(exerciseID: UUID, environment: SampleEnvironment, held: Bool, unlike: Data? = nil)
+            async throws -> Data
+        {
             let defaults = UserDefaults.standard
             let key = "slowLoads"
             let previous = defaults.object(forKey: key)
@@ -29,14 +31,27 @@ extension SnapshotTests {
             defer {
                 if let previous { defaults.set(previous, forKey: key) } else { defaults.removeObject(forKey: key) }
             }
+            let view = NavigationStack { ExerciseDetailView(exerciseID: exerciseID, initialSegment: .history) }
+            if held {
+                return try #require(
+                    await Snapshot.renderSettling(
+                        view,
+                        variant: Self.variant,
+                        width: 390,
+                        height: 844,
+                        environment: environment,
+                        settle: .seconds(1)
+                    )
+                )
+            }
             return try #require(
-                await Snapshot.renderSettling(
-                    NavigationStack { ExerciseDetailView(exerciseID: exerciseID, initialSegment: .history) },
+                await Snapshot.renderSettledContent(
+                    view,
                     variant: Self.variant,
                     width: 390,
                     height: 844,
                     environment: environment,
-                    settle: held ? .seconds(1) : .seconds(3)
+                    unlike: unlike
                 )
             )
         }
@@ -47,7 +62,7 @@ extension SnapshotTests {
             let bench = try #require(environment.store.all().first { $0.name == "Barbell Bench Press" })
 
             let loading = try await render(exerciseID: bench.id, environment: environment, held: true)
-            let loaded = try await render(exerciseID: bench.id, environment: environment, held: false)
+            let loaded = try await render(exerciseID: bench.id, environment: environment, held: false, unlike: loading)
 
             Snapshot.assert(
                 png: loading,

@@ -214,6 +214,8 @@ report_failures() {
 sim_bootstatus() { # sim_bootstatus <udid> [seconds]: wait for boot, but give up after DEV_BOOT_TIMEOUT (default 120) s
   # `simctl bootstatus -b` has no time limit of its own; a stuck boot would hang here while the caller holds the lock.
   local limit="${2:-${DEV_BOOT_TIMEOUT:-120}}" pid i=0
+  # A non-numeric value would abort under set -u inside the arithmetic below, while the caller holds the sim lock.
+  [[ $limit =~ ^[0-9]+$ ]] || { echo "dev: warning: DEV_BOOT_TIMEOUT=$limit is not a number; using 120" >&2; limit=120; }
   xcrun simctl bootstatus "$1" -b >/dev/null 2>&1 &
   pid=$!
   while kill -0 "$pid" 2>/dev/null; do

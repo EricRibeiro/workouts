@@ -153,7 +153,7 @@ struct ActiveWorkoutCover: View {
         .onDisappear { UIApplication.shared.isIdleTimerDisabled = false }
         .sensoryFeedback(.selection, trigger: minimiseCount)
         // The cover is a presentation of its own, so it hosts its own save-error alert.
-        .saveErrorAlert()
+        .workoutCoverSaveErrorHost()
         // On the cover itself, not the Finish button: that button is gone once Finish has saved the workout.
         .finishFlowAlerts(finishFlow)
         .accessibilityIdentifier("screen.activeWorkout")

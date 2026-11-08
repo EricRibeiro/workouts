@@ -15,9 +15,26 @@ final class SaveErrors {
     /// The alert's message while one is showing; `nil` otherwise. A later failure replaces an unacknowledged one.
     var message: String?
 
-    /// How many full-screen editor covers are up. Each hosts its own alert (a presenter under a cover cannot show one), so
-    /// the root's stands down while any is.
-    var editorCovers = 0
+    /// The presentations (covers, sheets) hosting their own alert, bottom to top. A presenter under another presentation
+    /// cannot show one, so the root's stands down while any is up, and only the topmost host (``isTopmost(_:)``) shows it.
+    /// Hosts are tracked by id, not by count: a dismissed sheet's `onDisappear` can land after the next cover's `onAppear`.
+    private(set) var hosts: [UUID] = []
+
+    var hostDepth: Int { hosts.count }
+
+    func enterHost(_ id: UUID) {
+        hosts.removeAll { $0 == id }
+        hosts.append(id)
+    }
+
+    func leaveHost(_ id: UUID) {
+        hosts.removeAll { $0 == id }
+    }
+
+    /// Whether `id` is the presentation currently on top, the only one whose alert may be enabled.
+    func isTopmost(_ id: UUID) -> Bool {
+        hosts.last == id
+    }
 
     /// Re-runs the save that failed; `nil` when the reporter has nothing to re-run, and the alert then offers only OK.
     private(set) var retry: (() -> Void)?
@@ -77,32 +94,27 @@ private struct SaveErrorAlert: ViewModifier {
     }
 }
 
-private struct EditorCoverHost: ViewModifier {
+/// Hosts a presentation's own alert, enabled only while it is the topmost host.
+private struct SaveErrorHost: ViewModifier {
     @Environment(SaveErrors.self) private var errors: SaveErrors?
+    @State private var id = UUID()
+
+    func body(content: Content) -> some View {
+        content
+            .saveErrorAlert(isEnabled: errors?.isTopmost(id) ?? false)
+            .onAppear { errors?.enterHost(id) }
+            .onDisappear { errors?.leaveHost(id) }
+    }
+}
+
+private struct EditorCoverHost: ViewModifier {
     @Environment(AppNavigation.self) private var navigation: AppNavigation?
 
     func body(content: Content) -> some View {
         content
-            .saveErrorAlert()
-            .onAppear {
-                errors?.editorCovers += 1
-                navigation?.setEditorCoverOnScreen(true)
-            }
-            .onDisappear {
-                errors?.editorCovers = max(0, (errors?.editorCovers ?? 1) - 1)
-                navigation?.setEditorCoverOnScreen(false)
-            }
-    }
-}
-
-private struct SheetSaveErrorHost: ViewModifier {
-    @Environment(SaveErrors.self) private var errors: SaveErrors?
-
-    func body(content: Content) -> some View {
-        content
-            .saveErrorAlert()
-            .onAppear { errors?.editorCovers += 1 }
-            .onDisappear { errors?.editorCovers = max(0, (errors?.editorCovers ?? 1) - 1) }
+            .saveErrorHost()
+            .onAppear { navigation?.setEditorCoverOnScreen(true) }
+            .onDisappear { navigation?.setEditorCoverOnScreen(false) }
     }
 }
 
@@ -110,7 +122,17 @@ extension View {
     /// The root of a sheet that can report a save failure (the root's alert sits under it and cannot present): hosts the
     /// sheet's own alert and makes the root's stand down while the sheet is up.
     func sheetSaveErrorHost() -> some View {
-        modifier(SheetSaveErrorHost())
+        saveErrorHost()
+    }
+
+    /// The root of the workout cover: hosts its own alert, disabled while a sheet above it hosts one. The root's stands
+    /// down through `isWorkoutCoverPresented`.
+    func workoutCoverSaveErrorHost() -> some View {
+        saveErrorHost()
+    }
+
+    fileprivate func saveErrorHost() -> some View {
+        modifier(SaveErrorHost())
     }
 
     /// The root of an editor's full-screen cover: hosts the cover's own save-error alert and makes the root's stand down.
@@ -119,7 +141,7 @@ extension View {
     }
 
     /// Shows the environment's ``SaveErrors`` message in one alert with OK. Apply it at the root of every presentation
-    /// that can report (the root view and the logging cover, which is a full-screen cover of its own). `isEnabled: false`
+    /// that can report (the root view; covers and sheets use the host modifiers above). `isEnabled: false`
     /// lets a host stand down while a cover above it shows the alert instead.
     func saveErrorAlert(isEnabled: Bool = true) -> some View {
         modifier(SaveErrorAlert(isEnabled: isEnabled))

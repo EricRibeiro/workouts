@@ -22,7 +22,8 @@ extension SnapshotTests {
         private func render(
             workoutID: UUID,
             environment: SampleEnvironment,
-            held: Bool
+            held: Bool,
+            unlike: Snapshot.SettledFrames? = nil
         ) async throws -> Snapshot.SettledFrames {
             let defaults = UserDefaults.standard
             let key = "slowLoads"
@@ -32,18 +33,33 @@ extension SnapshotTests {
             defer {
                 if let previous { defaults.set(previous, forKey: key) } else { defaults.removeObject(forKey: key) }
             }
-            return try #require(
-                await Snapshot.renderSettled(
-                    NavigationStack { WorkoutDetailView(workoutID: workoutID) },
+            let view = NavigationStack { WorkoutDetailView(workoutID: workoutID) }
+            if held {
+                return try #require(
+                    await Snapshot.renderSettled(
+                        view,
+                        variant: Self.variant,
+                        width: 390,
+                        height: Self.height,
+                        environment: environment,
+                        settle: .seconds(1),
+                        topPoints: 80
+                    )
+                )
+            }
+            // The loaded frame waits for the off-main load (50 workouts of history) to land: a frame identical to the
+            // held one is the placeholder, and a settled frame has no animation left, so it also serves the chrome check.
+            let loaded = try #require(
+                await Snapshot.renderSettledContent(
+                    view,
                     variant: Self.variant,
                     width: 390,
                     height: Self.height,
                     environment: environment,
-                    // The loaded frame waits for the off-main load (50 workouts of history) to land.
-                    settle: held ? .seconds(1) : .seconds(3),
-                    topPoints: 80
+                    unlike: unlike?.atSettle
                 )
             )
+            return Snapshot.SettledFrames(atSettle: loaded, stable: loaded)
         }
 
         @Test
@@ -53,7 +69,7 @@ extension SnapshotTests {
             let newest = try #require(finished.max { $0.startedAt < $1.startedAt })
 
             let loading = try await render(workoutID: newest.id, environment: environment, held: true)
-            let loaded = try await render(workoutID: newest.id, environment: environment, held: false)
+            let loaded = try await render(workoutID: newest.id, environment: environment, held: false, unlike: loading)
 
             // The bar's glass varies per simulator, so the references skip it; the chrome check below compares it in-run.
             // The references take the draw at the fixed settle (the spinner's phase is time-based and recorded there).

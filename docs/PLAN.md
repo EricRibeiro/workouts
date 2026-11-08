@@ -381,12 +381,13 @@ Live Activity → notifications → logging, then templates, exercises, history.
     the field stayed first responder. Not reproduced in XCUITest (28 check→tap-next rounds, toolbar every time). Theory:
     `toggleCheck`'s `focus = nil` (SetTable) racing a tap on the next cell during the keyboard dismissal. Next: a repro
     on device (did it follow a check?), then compare-and-clear in `toggleCheck`; no guess fix.
-  - [ ] **Review rounds 3–5 leftovers (P3/nit, 2026-11-08; reports `docs/reviews/2026-11-08-r3-*`, `r4-*`, `r5-confirm`)**:
-    nested save-error alerts (info/peek sheet over an editor cover: only the topmost host should show; r5); heart-rate
-    Avg still counts the pre-start lead-in while Max is the plotted peak (r5 nit); non-numeric `DEV_BOOT_TIMEOUT`
-    aborts `dev` (r5 nit); test P3s from r3/r4 tests reports (two sleep polls, `XCTAssertFalse(waitForExistence)` after
-    dismiss, unanchored absence checks, fixed 3 s snapshot waits, set-row snapshot gaps, `.hostedFitting` measures
-    before the trait override).
+  - [x] **Review rounds 3–5 leftovers (P3/nit, 2026-11-08; reports `docs/reviews/2026-11-08-r3-*`, `r4-*`, `r5-confirm`)**:
+    save-error hosts tracked by id, only the topmost shows the alert (workout cover included; r5 P3); heart-rate Avg is
+    the time-weighted mean of the plotted line, like Max (r5 nit, JC116); non-numeric `DEV_BOOT_TIMEOUT` falls back to 120
+    (r5 nit); tests: `waitUntil` instead of sleep polls, `waitUntilGone` after dismiss, anchored `assertStaysAbsent`
+    (with a `debug.health.lookups` probe for the Health-off case), loaded snapshot frames settle on content instead of a
+    fixed 3 s, set-row snapshots cover all 8 rows plus template/bodyweight/checked warm-up and duration rows,
+    `.hostedFitting` measures under the variant's traits.
   - [ ] **Taste calls still open (Eric)**: open-wide Workout grid widths; stars over the finish title; red "Update
     Template and Values"; media watermark; a pre-permission line before the notification prompt.
 
