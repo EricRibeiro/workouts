@@ -60,8 +60,8 @@ final class BlockActionState {
     /// Bumps when a block is removed; drives the `.warning` haptic on the owning screen.
     var destructiveCount = 0
 
-    /// The menu entries, each opening its prompt (or acting straight away, for warm-ups).
-    func actions(host: BlockActionHost) -> SetTableBlockActions {
+    /// The menu entries, each opening its prompt (or acting straight away, for warm-ups); `reorder` opens the owner's sheet.
+    func actions(host: BlockActionHost, reorder: (() -> Void)? = nil) -> SetTableBlockActions {
         SetTableBlockActions(
             note: { [self] id in note = BlockID(id: id) },
             addWarmups: { [self] id in
@@ -71,15 +71,17 @@ final class BlockActionState {
             remove: { [self] id in removeBlockID = id },
             replace: { [self] id in replace = BlockID(id: id) },
             superset: { [self] id in superset = BlockID(id: id) },
-            preferences: { [self] id in preferences = BlockID(id: id) }
+            preferences: { [self] id in preferences = BlockID(id: id) },
+            reorder: reorder
         )
     }
 
-    /// Only Note…, for a finished workout (the past-workout editor): warm-ups, rest, remove, replace,
+    /// Note… and Reorder Exercises…, for a finished workout (the past-workout editor): warm-ups, rest, remove, replace,
     /// superset and preferences make no sense there, so those entries are left nil and the table hides them.
-    func noteActions() -> SetTableBlockActions {
+    func noteActions(reorder: (() -> Void)? = nil) -> SetTableBlockActions {
         SetTableBlockActions(
-            note: { [self] id in note = BlockID(id: id) }
+            note: { [self] id in note = BlockID(id: id) },
+            reorder: reorder
         )
     }
 }

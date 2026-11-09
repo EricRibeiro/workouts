@@ -290,7 +290,11 @@ private struct Editor: View {
     private func arrangement(source: any SetTableDataSource, sections: [SetTableSection]) -> some View {
         let showsPane = horizontalSizeClass == .regular && !sections.isEmpty
         return ArrangementView {
-            SetTable(source: source, focusedSection: $focusedSectionID, blockActions: blockSheets.noteActions())
+            SetTable(
+                source: source,
+                focusedSection: $focusedSectionID,
+                blockActions: blockSheets.noteActions(reorder: { isReordering = true })
+            )
         } secondary: {
             if showsPane {
                 let focused = focusedSection(in: sections)

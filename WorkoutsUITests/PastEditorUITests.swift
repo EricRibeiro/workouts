@@ -117,6 +117,24 @@ final class PastEditorUITests: XCTestCase {
         }
     }
 
+    /// Reorder Exercises… in the block menu opens the same reorder sheet as the title menu; Done closes it.
+    @MainActor
+    func testBlockMenuReorderOpensTheReorderSheet() throws {
+        let app = openFirstWorkout()
+        let any = app.descendants(matching: .any)
+        openFirstBlockMenu(app)
+        let item = app.buttons["settable.menu.reorder"]
+        XCTAssertTrue(item.waitForExistence(timeout: 5), "no Reorder Exercises entry")
+        item.tap()
+
+        let rows = any.matching(NSPredicate(format: "identifier BEGINSWITH 'reorder.row.'"))
+        XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: 5), "the reorder sheet lists no exercises")
+        XCTAssertGreaterThanOrEqual(rows.count, 2, "the reorder sheet lists fewer than two exercises")
+        app.buttons["reorder.done"].tap()
+        XCTAssertTrue(rows.firstMatch.waitUntilGone(), "Done did not close the reorder sheet")
+        XCTAssertTrue(app.buttons["pastEditor.save"].exists, "the editor is not back")
+    }
+
     @MainActor
     func testReorderExercisesFromTitleMenuListsTheExercisesAndDismisses() throws {
         let app = openFirstWorkout()

@@ -7,8 +7,8 @@ import Foundation
 
 /// The per-exercise header menu of a `SetTable` (task 3.6): what each entry does, supplied by the owner. Every closure takes the
 /// block's `SetTableSection.id`. The table's `blockActions` is optional; `nil` means no menu. `addWarmups`, `updateRest`,
-/// `remove`, `replace`, `superset` and `preferences` are optional entries: an owner that leaves one nil does not get that
-/// entry (the past-workout editor offers only the two notes).
+/// `remove`, `replace`, `superset`, `preferences` and `reorder` are optional entries: an owner that leaves one nil does not
+/// get that entry (the past-workout editor offers the two notes and Reorder Exercises…).
 struct SetTableBlockActions {
     /// Note… (the block's note, kept with the template or workout).
     var note: (UUID) -> Void
@@ -24,4 +24,6 @@ struct SetTableBlockActions {
     var superset: ((UUID) -> Void)?
     /// Preferences (unit, bar) (not offered while nil).
     var preferences: ((UUID) -> Void)?
+    /// Reorder Exercises… (the whole list's sheet; not offered while nil).
+    var reorder: (() -> Void)?
 }

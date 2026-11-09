@@ -46,6 +46,22 @@ final class LoggingBlockMenuUITests: XCTestCase {
         XCTAssertTrue(block.waitUntilGone(), "the block's header is still there after confirming")
     }
 
+    /// Reorder Exercises… in the block menu opens the same reorder sheet as the title menu; Done closes it.
+    @MainActor
+    func testBlockMenuReorderOpensTheReorderSheet() throws {
+        let app = launchCover()
+        let any = app.descendants(matching: .any)
+        let (menu, _) = firstMenu(app)
+        openMenuEntry(app, menu: menu, entry: "settable.menu.reorder")
+
+        let rows = any.matching(NSPredicate(format: "identifier BEGINSWITH 'reorder.row.'"))
+        XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: 5), "the reorder sheet lists no exercises")
+        XCTAssertGreaterThanOrEqual(rows.count, 2, "the reorder sheet lists fewer than two exercises")
+        app.buttons["reorder.done"].tap()
+        XCTAssertTrue(rows.firstMatch.waitUntilGone(), "Done did not close the reorder sheet")
+        XCTAssertTrue(app.buttons["cover.finish"].firstMatch.isHittable, "the cover is not back in front")
+    }
+
     @MainActor
     func testSupersetGroupsTwoBlocks() throws {
         let app = launchCover()

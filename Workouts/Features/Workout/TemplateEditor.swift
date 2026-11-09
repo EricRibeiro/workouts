@@ -176,7 +176,9 @@ private struct TemplateEditorContent: View {
 
     // MARK: Block menu
 
-    private var blockActions: SetTableBlockActions { blockSheets.actions(host: blockHost) }
+    private var blockActions: SetTableBlockActions {
+        blockSheets.actions(host: blockHost, reorder: { isReordering = true })
+    }
 
     /// The draft behind the block menu's prompts.
     private var blockHost: BlockActionHost {

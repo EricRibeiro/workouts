@@ -158,7 +158,10 @@ struct ActiveWorkoutCover: View {
         arrangement(
             source: source,
             sections: sections,
-            blockActions: blockSheets.actions(host: blockHost(engine: engine, workout: workout))
+            blockActions: blockSheets.actions(
+                host: blockHost(engine: engine, workout: workout),
+                reorder: { isReordering = true }
+            )
         )
         .blockActionSheets(blockSheets, host: blockHost(engine: engine, workout: workout))
         #if DEBUG

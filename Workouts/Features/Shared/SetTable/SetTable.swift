@@ -33,7 +33,7 @@ struct SetTable: View {
     /// Reports the block (`SetTableSection.id`) of the last focused cell or tapped header, so the logging screen's exercise
     /// pane can follow it. Never reset by the table: a dismissed keyboard keeps the last exercise.
     var focusedSection: Binding<UUID?> = .constant(nil)
-    /// The header's options menu (note, warm-ups, rest, remove); nil shows no menu.
+    /// The header's options menu (note, warm-ups, rest, reorder, remove); nil shows no menu.
     var blockActions: SetTableBlockActions? = nil
 
     @FocusState private var focus: SetRowField?
@@ -267,6 +267,14 @@ struct SetTable: View {
                         Button("Preferences…", systemImage: "slider.horizontal.3") { preferences(section.id) }
                             .accessibilityIdentifier("settable.menu.preferences")
                     }
+                }
+            }
+            if let reorder = actions.reorder {
+                Divider()
+                Group {
+                    Button("Reorder Exercises…", systemImage: "arrow.up.arrow.down") { reorder() }
+                        .disabled(source.sections.count < 2)
+                        .accessibilityIdentifier("settable.menu.reorder")
                 }
             }
             if let remove = actions.remove {

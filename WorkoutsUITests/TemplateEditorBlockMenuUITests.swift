@@ -199,4 +199,19 @@ final class TemplateEditorBlockMenuUITests: XCTestCase {
         XCTAssertTrue(note.waitForExistence(timeout: 5), "the block note is not shown")
         XCTAssertTrue(note.label.contains("Pause on the chest."), "label was \(note.label)")
     }
+
+    /// Reorder Exercises… in the block menu opens the same reorder sheet as the title menu; Done closes it.
+    @MainActor
+    func testBlockMenuReorderOpensTheReorderSheet() throws {
+        let app = launchEditor()
+        let any = app.descendants(matching: .any)
+        let (menu, _) = firstMenu(app)
+
+        openMenuEntry(app, menu: menu, entry: "settable.menu.reorder")
+        let rows = any.matching(NSPredicate(format: "identifier BEGINSWITH 'reorder.row.'"))
+        XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: 5), "the reorder sheet lists no exercises")
+        XCTAssertGreaterThanOrEqual(rows.count, 2, "the reorder sheet lists fewer than two exercises")
+        app.buttons["reorder.done"].tap()
+        XCTAssertTrue(rows.firstMatch.waitUntilGone(), "Done did not close the reorder sheet")
+    }
 }
