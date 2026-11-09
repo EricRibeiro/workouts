@@ -470,14 +470,14 @@ CloudKit or 1,029-id fixtures, removing the Health/Live Activity gates, `-slowLo
 
 ### Phase 8 — Sync and final import (the very last steps; Eric, 2026-11-04)
 
-- [ ] **8.1 CloudKit on**: flip the flag, promote the schema to production. Needs: 7.1. Proof: two simulators sync.
+- [x] **8.1 CloudKit on**: flip the flag, promote the schema to production. Needs: 7.1. Proof: two simulators sync.
   Done (2026-11-08): the C-11 prep (docs/reviews/2026-11-05-final-code.md: `.none` when `inMemory`, `RemoteChangeObserver` reloading
   the `ExerciseStore`/engine caches and bumping `StoreGeneration`, `InProgressResolution` for two in-progress rows),
   `cloudKitEnabled = true`, `aps-environment` and the `remote-notification` background mode (JC126); the Development schema
   created with `./dev run -- -initializeCloudKitSchema` (Apple's `initializeCloudKitSchema`, JC127) on `iPhone Duo` signed into a
   test iCloud account; **two-sim proof passed** (sample data seeded on `iPhone Duo` appeared on a fresh `iPhone Duo 2` within
-  a minute). Open: deploy the schema to Production (`docs/cloudkit.md` step 3, Eric's management token or the Console button);
-  TestFlight uploads wait for it.
+  a minute); schema deployed to Production from the Console the same day (Eric; `./dev ck-schema diff` confirms all ten
+  record types, JC128).
 - [ ] **8.2 Settings on iCloud KVS** (only if a second device appears): `NSUbiquitousKeyValueStore` backend behind the
   `cloudKit` flag. Needs: 7.1. Proof: `./dev kit Settings` runs both backends.
 - [x] **8.3 TestFlight-time migration run**: re-run `scripts/export-web`, Import the delta. Needs: 8.1. Proof: the device's
