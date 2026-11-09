@@ -58,6 +58,18 @@ as `Workouts/web-export-2026-11-08.json`, and Eric imported it on the phone the 
 over data that is already there changes nothing. If the web app is used again, re-run the export and import once more;
 the same rule applies.
 
+## Checking that sync runs
+
+- In the app: Workout tab → gear → **iCloud › Status** shows "Synced <when>" once the mirror has finished an import or export,
+  "Waiting for first sync" before that, "Not signed in" without an iCloud account, and "Error" with the message in the footer
+  (`CloudSyncMonitor`, PLAN 8.5). A first upload of 553 workouts takes minutes on Wi-Fi; the row updates by itself.
+- On the phone: Settings → Apple Account → iCloud → **Manage Account Storage** (or Saved to iCloud → See All) lists Workouts Duo
+  with a non-zero size once records are in the private database.
+- In the CloudKit Console: sign in with the same Apple Account as the phone, pick **Production**, Records, Private Database,
+  zone `com.apple.coredata.cloudkit.zone`, record type `CD_Workout`, Query Records. Another account's data is never visible.
+- Sync between two devices needs both signed into the same Apple Account; the pool simulators use the test account, so they
+  never see the phone's data.
+
 ## Migrations from now on
 
 With CloudKit on, schema changes must be additive (new optional attributes, new entities); never rename or remove a field

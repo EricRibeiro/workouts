@@ -491,6 +491,10 @@ CloudKit or 1,029-id fixtures, removing the Health/Live Activity gates, `-slowLo
   `engine.liveWorkout` (P8-03); the remote-change handler skips bursts whose history transactions all carry the app's own
   author (P8-04); schema-init store removed before and after (P8-05); schema-rules test over every schema version (P8-06);
   `./dev ck-schema` digit-safe parsing (P8-07); docs and the CLAUDE.md Secrets section (P8-08).
+- [x] **8.5 Settings iCloud status row** (Eric, 2026-11-09, read "Not available yet" in the shipped build as sync not working): the
+  row reads `CKContainer.accountStatus` and the mirror's `NSPersistentCloudKitContainer.eventChangedNotification` through
+  `CloudSyncMonitor` and shows Synced <when> / Waiting for first sync / Not signed in / Error (JC129); `CloudSyncStatus` in the kit
+  is the pure reducer. Proof: `./dev kit CloudSyncStatus`, `./dev ui-test SettingsUITests`.
 
 ## 7. Risks and unknowns
 

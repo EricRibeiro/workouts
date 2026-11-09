@@ -45,6 +45,8 @@ struct WorkoutsApp: App {
     private let remoteChanges: RemoteChangeObserver?
     /// A tap on the rest notification's body asks the root view, through this, to show the workout.
     private let workoutLinks = WorkoutLinkRouter()
+    /// Feeds the Settings iCloud row; "Off" for the in-memory stores of tests and the gallery.
+    private let syncMonitor: CloudSyncMonitor
     @Environment(\.scenePhase) private var scenePhase
 
     @MainActor
@@ -63,6 +65,12 @@ struct WorkoutsApp: App {
         #endif
         let settings = SettingsStore()
         self.settings = settings
+        let monitor = CloudSyncMonitor(
+            enabled: Self.cloudKitEnabled && !Self.usesInMemoryStore,
+            containerIdentifier: Self.cloudKitContainerIdentifier
+        )
+        monitor.start()
+        syncMonitor = monitor
         healthService = HealthEnrichmentService.atLaunch(settings: settings)
         let notifier = RestNotifier()
         notifier.activate()
@@ -136,11 +144,20 @@ struct WorkoutsApp: App {
     @MainActor
     private static func makeContainer() throws -> ModelContainer {
         #if DEBUG
-            let arguments = ProcessInfo.processInfo.arguments
-            let inMemory = arguments.contains("-uiTesting") || PreviewGallery.requestedName() != nil
-            return try ModelContainer.workouts(inMemory: inMemory, cloudKit: cloudKitEnabled)
+            return try ModelContainer.workouts(inMemory: usesInMemoryStore, cloudKit: cloudKitEnabled)
         #else
             return try ModelContainer.workouts(cloudKit: cloudKitEnabled)
+        #endif
+    }
+
+    private static let cloudKitContainerIdentifier = "iCloud.com.ericribeiro.Workouts"
+
+    private static var usesInMemoryStore: Bool {
+        #if DEBUG
+            let arguments = ProcessInfo.processInfo.arguments
+            return arguments.contains("-uiTesting") || PreviewGallery.requestedName() != nil
+        #else
+            return false
         #endif
     }
 
@@ -217,6 +234,7 @@ struct WorkoutsApp: App {
                 PreviewGallery.host(name)
                     .environment(settings)
                     .environment(healthService)
+                    .environment(syncMonitor)
             } else {
                 appRoot
             }
@@ -237,6 +255,7 @@ struct WorkoutsApp: App {
                 .environment(saveErrors)
                 .environment(storeGeneration)
                 .environment(healthService)
+                .environment(syncMonitor)
         } else {
             ContentUnavailableView(
                 "Could not open the database",

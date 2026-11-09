@@ -22,6 +22,7 @@ struct SettingsView: View {
     @Environment(StoreGeneration.self) private var generation: StoreGeneration?
     /// Optional like the store above; the Apple Fitness section shows only where Health is available.
     @Environment(HealthEnrichmentService.self) private var health: HealthEnrichmentService?
+    @Environment(CloudSyncMonitor.self) private var sync: CloudSyncMonitor?
 
     private let download = BulkVideoDownload.shared
     @State private var isPickingFile = false
@@ -318,16 +319,19 @@ struct SettingsView: View {
 
     private var iCloud: some View {
         Section {
-            // No iCloud entitlement and a local-only container yet, so there is no account status to read.
-            LabeledContent("Status", value: "Not available yet")
-                .accessibilityElement(children: .combine)
-                .accessibilityLabel("iCloud status")
-                .accessibilityValue("Not available yet")
-                .accessibilityIdentifier("settings.iCloudStatus")
+            // The label carries a relative time ("Synced 2 min ago"), so it re-reads once a minute.
+            TimelineView(.periodic(from: .now, by: 60)) { context in
+                let label = sync?.status.label(now: context.date) ?? "Off"
+                LabeledContent("Status", value: label)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel("iCloud status")
+                    .accessibilityValue(label)
+                    .accessibilityIdentifier("settings.iCloudStatus")
+            }
         } header: {
             Text("iCloud")
         } footer: {
-            Text("iCloud sync arrives in a later version.")
+            Text(sync?.status.footer ?? CloudSyncStatus(account: .off).footer)
         }
     }
 }
