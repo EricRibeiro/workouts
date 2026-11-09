@@ -478,10 +478,11 @@ CloudKit or 1,029-id fixtures, removing the Health/Live Activity gates, `-slowLo
   to Production (`xcrun cktool`), then the two-sim proof. TestFlight uploads wait for the Production schema.
 - [ ] **8.2 Settings on iCloud KVS** (only if a second device appears): `NSUbiquitousKeyValueStore` backend behind the
   `cloudKit` flag. Needs: 7.1. Proof: `./dev kit Settings` runs both backends.
-- [ ] **8.3 TestFlight-time migration run**: re-run `scripts/export-web`, Import the delta. Needs: 8.1. Proof: the device's
-  workout count matches the export. Export run 2026-11-08: 553 workouts (last 2026-11-02), 3 templates, 1 folder, 0 custom
-  exercises, in iCloud Drive `Workouts/web-export-2026-11-08.json`. Open: Eric imports it on the phone (Settings → Import…) and
-  the import report's count matches.
+- [x] **8.3 TestFlight-time migration run**: re-run `scripts/export-web`, Import the delta. Needs: 8.1. Proof: the device's
+  workout count matches the export. Done 2026-11-08: export of 553 workouts (last 2026-11-02), 3 templates, 1 folder, 0 custom
+  exercises via iCloud Drive `Workouts/web-export-2026-11-08.json`, imported on Eric's phone (Settings → Import…) the same day
+  (Eric: "everything is imported"). It ran before the Production schema deploy because the importer writes the local store; sync
+  picks the rows up once 8.1 completes.
 
 ## 7. Risks and unknowns
 

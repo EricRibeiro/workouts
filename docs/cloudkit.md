@@ -49,14 +49,13 @@ remain: give two simulators an iCloud account, and deploy the schema to Producti
 5. **Upload** (orchestrator): `./dev testflight --upload` from the main checkout, logged in `docs/testflight.md`. Uploads
    were held until step 3 so the first synced build finds its schema.
 
-## 8.3: the final import on the phone
+## 8.3: the final import on the phone (done 2026-11-08)
 
-`scripts/export-web` ran on 2026-11-08: 553 workouts (last 2026-11-02), 3 templates, 1 folder, 0 custom exercises, copied
-to iCloud Drive as `Workouts/web-export-2026-11-08.json`. On the phone: Workout tab → gear → Settings → **Import…** →
-Browse → iCloud Drive → Workouts → that file. The importer matches by id and keeps the newer `updatedAt`, so running it
-over data that is already there changes nothing. The report sheet shows how many workouts were imported; History's total
-should then be 553 plus whatever was logged natively since 2026-11-02. If the web app is used again after that, re-run
-the export and import once more; the same rule applies.
+`scripts/export-web` exported 553 workouts (last 2026-11-02), 3 templates, 1 folder and 0 custom exercises to iCloud Drive
+as `Workouts/web-export-2026-11-08.json`, and Eric imported it on the phone the same day (Workout tab → gear → Settings →
+**Import…** → Browse → iCloud Drive → Workouts). The importer matches by id and keeps the newer `updatedAt`, so running it
+over data that is already there changes nothing. If the web app is used again, re-run the export and import once more;
+the same rule applies.
 
 ## Migrations from now on
 
