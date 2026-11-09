@@ -1329,6 +1329,65 @@ cmd_media_upload() {
   python3 -I scripts/media-upload.py "${args[@]}"
 }
 
+# Exports, validates and deploys the CloudKit schema with `xcrun cktool`. The management token lives only in 1Password:
+# `op run` resolves the op:// reference in the environment it hands cktool, so the token never reaches a variable,
+# argument, file or log here. Does not use the simulator, so no sim_guarded.
+CK_TOKEN_REF="op://Homelab/Apple Cloud Kit for Workouts Duo/management token"
+ck_tool() { CLOUDKIT_MANAGEMENT_TOKEN="$CK_TOKEN_REF" op run -- xcrun cktool "$@"; }
+
+cmd_ck_schema() {
+  { set +x; } 2>/dev/null # never trace this function: a traced command line could carry the token reference's value
+  local usage="usage: ck-schema export [--env development|production] | diff"
+  local container=iCloud.com.ericribeiro.Workouts verb="${1:-}" env=development
+  [[ $# -gt 0 ]] && shift
+  case "$verb" in
+    export)
+      while (($#)); do
+        case "$1" in
+          --env) [[ "${2:-}" =~ ^(development|production)$ ]] || die "ck-schema: $usage"; env="$2"; shift 2 ;;
+          *) die "ck-schema: unknown argument '$1' ($usage)" ;;
+        esac
+      done ;;
+    diff) (($# == 0)) || die "ck-schema: unknown argument '$1' ($usage)" ;;
+    *) die "ck-schema: ${verb:+unknown command '$verb' }($usage)" ;;
+  esac
+  command -v op >/dev/null 2>&1 || die "ck-schema: the 1Password CLI (op) is not installed"
+  xcrun cktool version >/dev/null 2>&1 || die "ck-schema: xcrun cktool is not available"
+
+  local team
+  team=$(grep -m1 -oE '"DEVELOPMENT_TEAM": *"[A-Z0-9]+"' Workouts.xcodeproj/project.xcproj | grep -oE '[A-Z0-9]+"$' | tr -d '"')
+  [[ -n "$team" ]] || die "ck-schema: no DEVELOPMENT_TEAM found in Workouts.xcodeproj/project.xcproj"
+  # Resolve the reference once with a no-op child so a missing 1Password field is reported apart from a cktool failure.
+  CLOUDKIT_MANAGEMENT_TOKEN="$CK_TOKEN_REF" op run -- true ||
+    die "ck-schema: could not resolve the management token ($CK_TOKEN_REF)"
+
+  mkdir -p .build/cloudkit
+  ck_export() { # <environment>: writes .build/cloudkit/schema-<env>.ckdb and prints its record types
+    local file=".build/cloudkit/schema-$1.ckdb" types
+    ck_tool export-schema --team-id "$team" --container-id "$container" --environment "$1" --output-file "$file" || return
+    types=$(grep -oE 'RECORD TYPE [A-Za-z_]+' "$file" | awk '{print $3}')
+    echo "ck-schema: $1 schema written to $file"
+    echo "ck-schema: $1 has $(echo "$types" | grep -c .) record types: $(echo "$types" | paste -sd' ' -)"
+  }
+
+  case "$verb" in
+    export) ck_export "$env" ;;
+    diff)
+      # Promotion itself is Console-only: cktool's import-schema and validate-schema answer "endpoint not applicable in
+      # the environment 'production'" (2026-11-08). This shows what the Console's "Deploy Schema Changes…" still has to add.
+      ck_export development || return
+      ck_export production || return
+      local missing
+      missing=$(comm -23 <(grep -oE 'RECORD TYPE [A-Za-z_]+' .build/cloudkit/schema-development.ckdb | sort) \
+        <(grep -oE 'RECORD TYPE [A-Za-z_]+' .build/cloudkit/schema-production.ckdb | sort) | awk '{print $3}' | paste -sd' ' -)
+      if [[ -n "$missing" ]]; then
+        echo "ck-schema: production is missing: $missing (deploy from the CloudKit Console: Schema → Deploy Schema Changes…)"
+        return 1
+      fi
+      echo "ck-schema: production has every development record type" ;;
+  esac
+}
+
 cmd_clean() { rm -rf .build; }
 
 cmd_check() {
@@ -1409,6 +1468,10 @@ testflight [--upload]  signed App Store archive + export to .build/testflight/ex
 media-upload [--env development|production] [--limit N] [--only <sourceId>]
                    upload exercise videos to CloudKit's public database (Web Services, server-to-server key via op);
                    re-runs skip records that already hold both assets; no simulator lock
+ck-schema export [--env development|production] | diff
+                   CloudKit schema via cktool, management token from 1Password via op run: export writes .build/cloudkit/schema-<env>.ckdb
+                   and lists its record types; diff exports both and names the record types Production still lacks (exit 1 until the
+                   Console's Deploy Schema Changes… has run: cktool cannot write to Production); no simulator lock
 clean              rm -rf .build
 check             lint, kit, duo-test, build, test; stops at first failure; on success touches .build/check.stamp
 help               this list
@@ -1443,6 +1506,7 @@ case "$sub" in
   sims) cmd_sims "$@" ;;
   testflight) cmd_testflight "$@" ;;
   media-upload) cmd_media_upload "$@" ;;
+  ck-schema) cmd_ck_schema "$@" ;;
   clean) cmd_clean ;;
   check) sim_guarded cmd_check ;;
   help | -h | --help) cmd_help ;;

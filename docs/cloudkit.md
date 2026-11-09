@@ -29,21 +29,18 @@ remain: give two simulators an iCloud account, and deploy the schema to Producti
 
    The log (`log show --predicate 'process == "Workouts"'`) ends with `CloudKit schema initialized in Development`; the
    Console → container `iCloud.com.ericribeiro.Workouts` → Schema → Record Types (Development) lists the `CD_*` types.
-3. **Deploy to Production.** Either the Console's "Deploy Schema Changes…" button, or from a terminal with a CloudKit
-   *management* token (Console → account menu → Manage Tokens → Create; it is not the server-to-server key the media
-   upload uses). Save it once, then export Development and import into Production:
+3. **Deploy to Production**, in the CloudKit Console only: container → **Schema** → **Deploy Schema Changes…** → confirm.
+   The Management API refuses production writes (`cktool import-schema`/`validate-schema` answer "endpoint not applicable
+   in the environment 'production'", 2026-11-08), so no command can do this step. Reading is scripted: with a CloudKit
+   *management* token (Console → account menu → Manage Tokens → Create Token; not the server-to-server key the media
+   upload uses) stored in 1Password as the `management token` field of "Apple Cloud Kit for Workouts Duo":
 
    ```
-   xcrun cktool save-token
+   ./dev ck-schema diff
    ```
 
-   ```
-   xcrun cktool export-schema --team-id S8Y5FT7937 --container-id iCloud.com.ericribeiro.Workouts --environment development --output-file /tmp/workouts-schema.ckdb
-   ```
-
-   ```
-   xcrun cktool import-schema --team-id S8Y5FT7937 --container-id iCloud.com.ericribeiro.Workouts --environment production --validate --file /tmp/workouts-schema.ckdb
-   ```
+   exports both environments to `.build/cloudkit/` and names the record types Production still lacks (exit 1 until the
+   deploy has run). `./dev ck-schema export [--env …]` writes one environment and lists its record types.
 
 4. **Two-simulator proof** (passed 2026-11-08, Development): `DEV_SIM="iPhone Duo" ./dev run -- -seedSampleData`, then
    `DEV_SIM="iPhone Duo 2" ./dev run` on a sim that never held data; within about a minute B's Workout tab showed A's
