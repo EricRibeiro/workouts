@@ -59,9 +59,9 @@ public nonisolated enum CloudKitChoice: Sendable, Equatable {
 }
 
 extension ModelContainer {
-    /// The app's container. The store is local (`cloudKitDatabase: .none`) while `cloudKit` is false, which every
-    /// caller passes until PLAN 8.1 flips it (JC54); an in-memory store (tests, previews, UI tests) is always local, see
-    /// ``CloudKitChoice/resolve(inMemory:cloudKit:)``.
+    /// The app's container. The app passes `cloudKit: true` and syncs through CloudKit (JC54); the store is local
+    /// (`cloudKitDatabase: .none`) when `cloudKit` is false, and an in-memory store (tests, previews, UI tests) is always
+    /// local, see ``CloudKitChoice/resolve(inMemory:cloudKit:)``.
     public static func workouts(inMemory: Bool = false, cloudKit: Bool = false) throws -> ModelContainer {
         let schema = Schema(versionedSchema: SchemaV2.self)
         let database: ModelConfiguration.CloudKitDatabase =
@@ -72,8 +72,8 @@ extension ModelContainer {
         let configuration = ModelConfiguration(
             schema: schema,
             isStoredInMemoryOnly: inMemory,
-            // Explicit on purpose (JC54 / PLAN 8.1): the app carries the iCloud entitlement, and SwiftData would
-            // otherwise start syncing to CloudKit on its own.
+            // Explicit on purpose (JC54): the app carries the iCloud entitlement, and SwiftData would otherwise pick
+            // CloudKit on its own, including for stores meant to stay local.
             cloudKitDatabase: database
         )
         return try ModelContainer(

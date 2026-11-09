@@ -18,8 +18,11 @@ Eric deferred the technical choices to Claude. These close every item in `docs/p
 
 ## Data and sync
 
-- SwiftData + CloudKit private database, container `iCloud.com.ericribeiro.Workouts`. Until the Developer Program is approved
-  CloudKit runs **off** behind one flag (`ModelConfiguration(cloudKitDatabase: .none)`); the schema is CloudKit-safe from day one.
+- SwiftData + CloudKit private database, container `iCloud.com.ericribeiro.Workouts`, **on** since 8.1 (2026-11-08) behind one
+  flag (`WorkoutsApp.cloudKitEnabled` → `ModelConfiguration(cloudKitDatabase: .automatic)`); in-memory stores (tests, previews,
+  `-uiTesting`) always resolve to `.none` (`CloudKitChoice`). Sync needs `aps-environment` and the `remote-notification`
+  background mode; the Production schema is deployed by hand from Development (`docs/cloudkit.md`). The schema is CloudKit-safe
+  from day one.
 - Settings live outside SwiftData, in `SettingsStore` (WorkoutsKit, Foundation-only, `@Observable`, injected in the environment so
   unit and formula changes recompute derived numbers; `@AppStorage` alone would not) with a protocol and one key list:
   **`UserDefaults`** now, `NSUbiquitousKeyValueStore` only if a second device appears (8.2). Keys: `defaultUnit`,

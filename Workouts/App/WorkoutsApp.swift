@@ -15,9 +15,9 @@ import WorkoutsKit
 
 @main
 struct WorkoutsApp: App {
-    /// Local-only: the iCloud entitlement exists (7.1) but SwiftData sync stays off until PLAN 8.1 (JC54). 8.1 flips
-    /// this one flag: it picks the store's CloudKit database and installs the remote-change observer below.
-    private static let cloudKitEnabled = false
+    /// SwiftData syncs through CloudKit (JC54): this flag picks the store's CloudKit database and installs the
+    /// remote-change observer below. In-memory stores (`-uiTesting`, the gallery) stay local via `CloudKitChoice`.
+    private static let cloudKitEnabled = true
     private let container: ModelContainer?
     private let containerError: String?
     /// The one engine for the in-progress workout; resumes a running workout from the store at launch.

@@ -1,0 +1,65 @@
+# CloudKit sync: schema deploy and the two-simulator proof (PLAN 8.1, 8.3)
+
+Sync is on in the app (`WorkoutsApp.cloudKitEnabled`, JC126). Two things only a person at the server's screen can do
+remain: give two simulators an iCloud account, and deploy the schema to Production.
+
+## How the environments work
+
+- Debug builds (`./dev run`, Xcode) talk to the container's **Development** environment; TestFlight builds talk to
+  **Production**. The two never share data, so simulator runs cannot touch the phone's records.
+- SwiftData creates the record types (`CD_Workout`, `CD_Template`, …) in Development the first time the app runs with a
+  signed-in account. Production never creates types on its own: a TestFlight build syncs nothing until the schema is
+  deployed there by hand. Deploying is additive and does not touch the public-database media type already in both
+  environments (`docs/port/media.md`).
+- Simulators have no iCloud account by default; with none, the mirror logs `CKAccountStatusNoAccount` (code 134400) at
+  launch and the store works locally. That is the expected state of the pool today.
+
+## Steps (Eric, server screen)
+
+1. **Sign two simulators into iCloud** with the same Apple Account: Settings → Sign in, on `iPhone Duo` and one clone
+   (`iPhone Duo 2`). Boot them from Simulator.app or with `./dev run` first.
+2. **Create the Development schema**: run the app once on a signed-in sim.
+
+   ```
+   DEV_SIM="iPhone Duo" ./dev run
+   ```
+
+   Add a template or a custom exercise so every entity gets written. Check the schema appeared: CloudKit Console →
+   container `iCloud.com.ericribeiro.Workouts` → Schema → Record Types (Development) lists the `CD_*` types.
+3. **Deploy to Production.** Either the Console's "Deploy Schema Changes…" button, or from a terminal with a CloudKit
+   *management* token (Console → account menu → Manage Tokens → Create; it is not the server-to-server key the media
+   upload uses). Save it once, then export Development and import into Production:
+
+   ```
+   xcrun cktool save-token
+   ```
+
+   ```
+   xcrun cktool export-schema --team-id S8Y5FT7937 --container-id iCloud.com.ericribeiro.Workouts --environment development --output-file /tmp/workouts-schema.ckdb
+   ```
+
+   ```
+   xcrun cktool import-schema --team-id S8Y5FT7937 --container-id iCloud.com.ericribeiro.Workouts --environment production --validate --file /tmp/workouts-schema.ckdb
+   ```
+
+4. **Two-simulator proof** (ticks 8.1): run the app on both signed-in sims (`DEV_SIM="iPhone Duo 2" ./dev run` for the
+   second). Create a custom exercise on A; within a minute it is in B's exercise picker without a relaunch (the
+   remote-change observer reloads the custom list). Finish a workout on A; B's History shows it. Leave both sims
+   closed-portrait afterwards (`./dev pose closed-portrait`).
+5. **Upload** (orchestrator): `./dev testflight --upload` from the main checkout, logged in `docs/testflight.md`. Uploads
+   were held until step 3 so the first synced build finds its schema.
+
+## 8.3: the final import on the phone
+
+`scripts/export-web` ran on 2026-11-08: 553 workouts (last 2026-11-02), 3 templates, 1 folder, 0 custom exercises, copied
+to iCloud Drive as `Workouts/web-export-2026-11-08.json`. On the phone: Workout tab → gear → Settings → **Import…** →
+Browse → iCloud Drive → Workouts → that file. The importer matches by id and keeps the newer `updatedAt`, so running it
+over data that is already there changes nothing. The report sheet shows how many workouts were imported; History's total
+should then be 553 plus whatever was logged natively since 2026-11-02. If the web app is used again after that, re-run
+the export and import once more; the same rule applies.
+
+## Migrations from now on
+
+With CloudKit on, schema changes must be additive (new optional attributes, new entities); never rename or remove a field
+that shipped, and keep `SchemaV1`/`SchemaV2` frozen (PLAN risks). Every change needs the Development → Production deploy
+above before its TestFlight upload.

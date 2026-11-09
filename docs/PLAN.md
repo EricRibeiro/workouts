@@ -471,12 +471,17 @@ CloudKit or 1,029-id fixtures, removing the Health/Live Activity gates, `-slowLo
 ### Phase 8 — Sync and final import (the very last steps; Eric, 2026-11-04)
 
 - [ ] **8.1 CloudKit on**: flip the flag, promote the schema to production. Needs: 7.1. Proof: two simulators sync.
-  Before flipping: final code review C-11 (docs/reviews/2026-11-05-final-code.md): keep `.none` when `inMemory`, refresh
-  `ExerciseStore`/engine caches on remote changes, resolve two in-progress rows across devices. The remote-change observer also calls `StoreGeneration.bump()`.
+  Done (2026-11-08): the C-11 prep (docs/reviews/2026-11-05-final-code.md: `.none` when `inMemory`, `RemoteChangeObserver` reloading
+  the `ExerciseStore`/engine caches and bumping `StoreGeneration`, `InProgressResolution` for two in-progress rows),
+  `cloudKitEnabled = true`, `aps-environment` and the `remote-notification` background mode (JC126). Open, needs Eric at the
+  server's screen (`docs/cloudkit.md`): sign two pool sims into iCloud, let the first run create the Development schema, deploy it
+  to Production (`xcrun cktool`), then the two-sim proof. TestFlight uploads wait for the Production schema.
 - [ ] **8.2 Settings on iCloud KVS** (only if a second device appears): `NSUbiquitousKeyValueStore` backend behind the
   `cloudKit` flag. Needs: 7.1. Proof: `./dev kit Settings` runs both backends.
 - [ ] **8.3 TestFlight-time migration run**: re-run `scripts/export-web`, Import the delta. Needs: 8.1. Proof: the device's
-  workout count matches the export.
+  workout count matches the export. Export run 2026-11-08: 553 workouts (last 2026-11-02), 3 templates, 1 folder, 0 custom
+  exercises, in iCloud Drive `Workouts/web-export-2026-11-08.json`. Open: Eric imports it on the phone (Settings → Import…) and
+  the import report's count matches.
 
 ## 7. Risks and unknowns
 
