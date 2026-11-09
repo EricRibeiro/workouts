@@ -43,7 +43,7 @@ final class EngineActivityIntentHandler: ActivityIntentHandling {
 
     func completeSet(id: UUID) throws {
         try resumeIfNeeded()
-        let sets = (engine.workout?.exercises ?? []).flatMap { $0.sets ?? [] }
+        let sets = (engine.liveWorkout?.exercises ?? []).flatMap { $0.sets ?? [] }
         guard let set = sets.first(where: { $0.id == id }) else { return }
         try engine.check(set)
     }

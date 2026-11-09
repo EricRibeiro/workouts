@@ -461,7 +461,7 @@ struct SetTable: View {
                         ProgressView()
                     }
                 }
-                .navigationTitle(engine?.workout?.name ?? "Workout")
+                .navigationTitle(engine?.liveWorkout?.name ?? "Workout")
                 .navigationBarTitleDisplayMode(.inline)
             }
             .task { start() }

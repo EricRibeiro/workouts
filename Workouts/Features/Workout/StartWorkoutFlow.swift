@@ -47,7 +47,7 @@ final class StartWorkoutFlow {
         self.engine = engine
         self.errors = errors
         self.present = present
-        if let running = engine.workout {
+        if let running = engine.liveWorkout {
             blocked = Blocked(source: source, runningName: running.name)
         } else {
             start(source)

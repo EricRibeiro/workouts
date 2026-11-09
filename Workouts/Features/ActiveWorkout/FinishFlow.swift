@@ -92,7 +92,7 @@ final class FinishFlowState {
             finish: { try engine.finish(unfinished: unfinished) },
             isWorkoutGone: { engine.workout == nil },
             retry: { [weak self] in self?.finish(unfinished) },
-            workoutID: engine.workout?.id
+            workoutID: engine.liveWorkout?.id
         )
     }
 

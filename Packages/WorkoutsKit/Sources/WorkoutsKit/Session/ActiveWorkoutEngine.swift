@@ -56,8 +56,9 @@ public final class ActiveWorkoutEngine {
     }
 
     /// Reloads the in-progress workout from the store and its Previous values. When sync produced more than one
-    /// in-progress workout the newest stays and the older ones are finished at their last completed set, or deleted when
-    /// nothing was logged (``InProgressResolution``, the C-01 end-time rule).
+    /// in-progress workout the newest-started live one stays; older ones untouched for 6 h are finished at their last
+    /// completed set, or deleted when nothing was logged (``InProgressResolution``, the C-01 end-time rule), and a
+    /// recently updated older one is left running.
     @discardableResult
     public func resume() throws -> Workout? {
         settleExtraInProgress()
@@ -111,7 +112,9 @@ public final class ActiveWorkoutEngine {
     }
 
     private func inProgressIdentifiers() throws -> Set<PersistentIdentifier> {
-        Set(try context.fetch(Workout.inProgress).map(\.persistentModelID))
+        Set(
+            try context.fetch(FetchDescriptor<Workout>(predicate: Workout.inProgressPredicate)).map(\.persistentModelID)
+        )
     }
 
     // MARK: - Start

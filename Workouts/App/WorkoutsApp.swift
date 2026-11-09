@@ -19,6 +19,8 @@ struct WorkoutsApp: App {
     /// SwiftData syncs through CloudKit (JC54): this flag picks the store's CloudKit database and installs the
     /// remote-change observer below. In-memory stores (`-uiTesting`, the gallery) stay local via `CloudKitChoice`.
     private static let cloudKitEnabled = true
+    /// Author stamped on the main context's history transactions; the remote-change filter treats any other author as foreign.
+    static let contextAuthor = "app"
     private let container: ModelContainer?
     private let containerError: String?
     /// The one engine for the in-progress workout; resumes a running workout from the store at launch.
@@ -72,6 +74,7 @@ struct WorkoutsApp: App {
         do {
             let container = try Self.makeContainer()
             let context = container.mainContext
+            context.author = Self.contextAuthor
             let store = ExerciseStore(
                 catalog: try LibraryCatalog.bundled(in: .main),
                 custom: try context.fetch(FetchDescriptor<Exercise>())
@@ -141,8 +144,9 @@ struct WorkoutsApp: App {
         #endif
     }
 
-    /// Installs the one `NSPersistentStoreRemoteChange` observer (debounced). A merge from another device changes rows the
-    /// app only snapshots: it re-reads the custom exercises, rebuilds the engine's Previous values and bumps the
+    /// Installs the one `NSPersistentStoreRemoteChange` observer (debounced). The notification also fires for the app's own
+    /// saves, so the handler first reads the store's history and skips a burst whose transactions all carry
+    /// ``contextAuthor``. A merge from another device changes rows the app only snapshots: it re-reads the custom exercises, rebuilds the engine's Previous values and bumps the
     /// generation the history caches key on. A workout still running here is never swapped; one that a merge deleted or
     /// finished (or none yet) goes through `resume()`, so the cover and the set table never read a deleted model.
     @MainActor
@@ -152,7 +156,8 @@ struct WorkoutsApp: App {
         engine: ActiveWorkoutEngine,
         generation: StoreGeneration
     ) -> RemoteChangeObserver {
-        let observer = RemoteChangeObserver {
+        let history = ForeignHistoryCheck(context: context)
+        let observer = RemoteChangeObserver(shouldFire: { history.hasForeignTransactions() }) {
             do {
                 try store.reloadCustom(from: context)
                 try engine.reloadAfterRemoteChange()
@@ -164,6 +169,32 @@ struct WorkoutsApp: App {
         }
         observer.start()
         return observer
+    }
+
+    /// Reads the SwiftData history since the last call and says whether anything other than the app wrote to the store.
+    @MainActor
+    private final class ForeignHistoryCheck {
+        private let context: ModelContext
+        private var lastToken: DefaultHistoryToken?
+
+        init(context: ModelContext) { self.context = context }
+
+        /// Fails open: when the history cannot be read, a spurious reload is the old behaviour.
+        func hasForeignTransactions() -> Bool {
+            do {
+                var descriptor = HistoryDescriptor<DefaultHistoryTransaction>()
+                if let last = lastToken {
+                    descriptor.predicate = #Predicate { $0.token > last }
+                }
+                let transactions = try context.fetchHistory(descriptor)
+                if let newest = transactions.last?.token { lastToken = newest }
+                return transactions.contains { $0.author != WorkoutsApp.contextAuthor }
+            } catch {
+                Logger(subsystem: "com.ericribeiro.Workouts", category: "Sync")
+                    .error("Could not read the store history: \(error.localizedDescription, privacy: .public)")
+                return true
+            }
+        }
     }
 
     var body: some Scene {
@@ -353,15 +384,28 @@ struct WorkoutsApp: App {
         /// (Apple's `initializeCloudKitSchema`, PLAN 8.1). Core Data on the SwiftData model, against a throwaway store.
         @MainActor
         private static func initializeCloudKitSchemaIfRequested() {
+            enum SchemaInitError: Error, LocalizedError {
+                case modelUnavailable
+                var errorDescription: String? {
+                    "NSManagedObjectModel.makeManagedObjectModel(for:) returned nil for SchemaV2.models"
+                }
+            }
             guard ProcessInfo.processInfo.arguments.contains("-initializeCloudKitSchema") else { return }
             Task.detached(priority: .utility) {
                 let log = Logger(subsystem: "com.ericribeiro.Workouts", category: "SchemaInit")
                 do {
                     guard let model = NSManagedObjectModel.makeManagedObjectModel(for: SchemaV2.models) else {
-                        throw CocoaError(.coderInvalidValue)
+                        throw SchemaInitError.modelUnavailable
                     }
                     let container = NSPersistentCloudKitContainer(name: "SchemaInit", managedObjectModel: model)
                     let url = FileManager.default.temporaryDirectory.appendingPathComponent("schema-init.sqlite")
+                    // A stale store carries the previous run's mirror metadata (zone, tokens); start clean every time.
+                    let removeStore = {
+                        for suffix in ["", "-wal", "-shm"] {
+                            try? FileManager.default.removeItem(at: URL(fileURLWithPath: url.path + suffix))
+                        }
+                    }
+                    removeStore()
                     let description = NSPersistentStoreDescription(url: url)
                     description.cloudKitContainerOptions = NSPersistentCloudKitContainerOptions(
                         containerIdentifier: "iCloud.com.ericribeiro.Workouts"
@@ -377,6 +421,7 @@ struct WorkoutsApp: App {
                         }
                     }
                     try container.initializeCloudKitSchema(options: [])
+                    removeStore()
                     log.notice("CloudKit schema initialized in Development")
                 } catch {
                     log.error("CloudKit schema initialization failed: \(error.localizedDescription, privacy: .public)")

@@ -23,6 +23,8 @@ Eric deferred the technical choices to Claude. These close every item in `docs/p
   `-uiTesting`) always resolve to `.none` (`CloudKitChoice`). Sync needs `aps-environment` and the `remote-notification`
   background mode; the Production schema is deployed by hand from Development (`docs/cloudkit.md`). The schema is CloudKit-safe
   from day one.
+- Two in-progress workouts across devices: the newest-started one is shown, an older one untouched for 6 h is settled (finished at
+  its last completed set, or deleted when empty), a recently updated one is left running on its device (`InProgressResolution`).
 - Settings live outside SwiftData, in `SettingsStore` (WorkoutsKit, Foundation-only, `@Observable`, injected in the environment so
   unit and formula changes recompute derived numbers; `@AppStorage` alone would not) with a protocol and one key list:
   **`UserDefaults`** now, `NSUbiquitousKeyValueStore` only if a second device appears (8.2). Keys: `defaultUnit`,

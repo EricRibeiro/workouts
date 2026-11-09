@@ -25,7 +25,7 @@ private struct ResumeControl: ViewModifier {
     func body(content: Content) -> some View {
         content
             .toolbar {
-                if let engine, let navigation, let workout = engine.workout, !navigation.isWorkoutCoverOnScreen {
+                if let engine, let navigation, let workout = engine.liveWorkout, !navigation.isWorkoutCoverOnScreen {
                     // Its own glass group, still last: the ring is a status, not a third action beside the others.
                     ToolbarSpacer(.fixed, placement: .primaryAction)
                     ToolbarItem(placement: .primaryAction) {

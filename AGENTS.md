@@ -209,13 +209,19 @@ its touched UI suites green, then `DEV_SKIP_UI_GATE=1 ./dev testflight --upload`
 run, and batch nothing just to save uploads. The full sharded run still gates milestones (a PLAN phase, a review round's batch)
 and runs in the background; the `docs/testflight.md` row says which gate it passed (`Gated (full …)` or `Touched suites: …`).
 
-## Secrets (App Store Connect key)
+## Secrets
 
 The App Store Connect API key lives only in 1Password (`op://Homelab/Apple App Store Connect API/…`). The **only** code that
 touches it is `./dev testflight`, which pipes `op read` into a mode-600 file in a fresh `mktemp -d` that a trap deletes
 on exit. Never `op read` the key yourself, echo or `cat` it, put it in a variable, env var, argument, log, scratch file,
 commit, PR or chat, or copy a `.p8` anywhere. Key ID and Issuer ID are not secret. If a task seems to need the key some
 other way, stop and ask Eric.
+
+The CloudKit server-to-server key (`./dev media-upload`) follows the same rules: `op read` into a mode-600 file in a trapped
+`mktemp -d`, never echoed, stored in a variable, logged or copied.
+
+The CloudKit management token (`./dev ck-schema`) is never read at all: the `op://` reference goes into the child's environment
+through `op run`, so the value exists only inside `cktool`. Never `op read` it, and never put it in a variable, file or log.
 
 ## Git
 

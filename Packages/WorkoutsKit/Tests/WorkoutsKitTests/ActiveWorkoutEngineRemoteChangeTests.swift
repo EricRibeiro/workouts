@@ -63,6 +63,24 @@ import Testing
         #expect(engine.workout == nil)
     }
 
+    @Test func newerWorkoutStartedElsewhereDoesNotReplaceTheRunningOne() throws {
+        let rig = try Rig()
+        let engine = try rig.makeEngine()
+        let running = try engine.startEmpty()
+        rig.clock.advance(300)
+        let remote = Workout(name: "Elsewhere", startedAt: rig.clock.date)
+        remote.updatedAt = rig.clock.date
+        let other = ModelContext(rig.container)
+        other.insert(remote)
+        try other.save()
+
+        try engine.reloadAfterRemoteChange()
+        #expect(engine.workout === running)
+        let inProgress = try rig.context.fetch(FetchDescriptor<Workout>(predicate: Workout.inProgressPredicate))
+        #expect(Set(inProgress.map(\.id)) == [running.id, remote.id])
+        #expect(try rig.context.fetchCount(FetchDescriptor<Workout>()) == 2)
+    }
+
     @Test func workoutStartedElsewhereAppearsAfterRemoteChange() throws {
         let rig = try Rig()
         let engine = try rig.makeEngine()

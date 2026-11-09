@@ -10,12 +10,16 @@ import Testing
     typealias Rig = EngineTests.Rig
     private let t0 = TestSupport.referenceDate
 
-    private func candidate(_ started: Double, completed: [Double?] = [], id: UUID = UUID())
+    /// `updated` defaults to the reference date, which is stale against `now` (a week on).
+    private let now = TestSupport.referenceDate.addingTimeInterval(7 * 86400)
+
+    private func candidate(_ started: Double, updated: Date? = nil, completed: [Double?] = [], id: UUID = UUID())
         -> InProgressResolution.Candidate
     {
         InProgressResolution.Candidate(
             id: id,
             startedAt: t0.addingTimeInterval(started),
+            updatedAt: updated ?? t0.addingTimeInterval(started),
             completedSets: completed.map { $0.map { t0.addingTimeInterval($0) } }
         )
     }
@@ -23,19 +27,19 @@ import Testing
     // MARK: InProgressResolution
 
     @Test func noCandidatesKeepsNothing() {
-        #expect(InProgressResolution.plan(for: []) == .init(keep: nil, settled: []))
+        #expect(InProgressResolution.plan(for: [], now: now) == .init(keep: nil, settled: []))
     }
 
     @Test func oneCandidateIsKept() {
         let only = candidate(0)
-        #expect(InProgressResolution.plan(for: [only]) == .init(keep: only.id, settled: []))
+        #expect(InProgressResolution.plan(for: [only], now: now) == .init(keep: only.id, settled: []))
     }
 
     @Test func newestStartIsKeptAndOlderOnesAreSettled() {
         let oldest = candidate(0)
         let middle = candidate(100, completed: [150, 400])
         let newest = candidate(200, completed: [250])
-        let plan = InProgressResolution.plan(for: [middle, newest, oldest])
+        let plan = InProgressResolution.plan(for: [middle, newest, oldest], now: now)
         #expect(plan.keep == newest.id)
         #expect(
             plan.settled == [
@@ -48,8 +52,34 @@ import Testing
     @Test func startTieIsBrokenByIdSoEveryDevicePicksTheSame() {
         let low = candidate(0, id: UUID(uuidString: "00000000-0000-0000-0000-000000000001") ?? UUID())
         let high = candidate(0, id: UUID(uuidString: "00000000-0000-0000-0000-000000000002") ?? UUID())
-        #expect(InProgressResolution.plan(for: [low, high]).keep == high.id)
-        #expect(InProgressResolution.plan(for: [high, low]).keep == high.id)
+        #expect(InProgressResolution.plan(for: [low, high], now: now).keep == high.id)
+        #expect(InProgressResolution.plan(for: [high, low], now: now).keep == high.id)
+    }
+
+    @Test func recentlyUpdatedOlderRowIsLeftRunningAndNewerStaleRowIsSettled() {
+        let live = candidate(0, updated: now.addingTimeInterval(-60), completed: [10])
+        let newerLive = candidate(100, updated: now.addingTimeInterval(-3600))
+        let stale = candidate(200, completed: [250])
+        let plan = InProgressResolution.plan(for: [live, newerLive, stale], now: now)
+        #expect(plan.keep == newerLive.id)
+        #expect(plan.settled == [.init(id: stale.id, action: .finish(at: t0.addingTimeInterval(250)))])
+        #expect(!plan.settled.map(\.id).contains(live.id))
+    }
+
+    @Test func staleOlderRowIsSettledAndWindowEdgeIsLive() {
+        let edge = candidate(0, updated: now.addingTimeInterval(-6 * 3600))
+        let justStale = candidate(100, updated: now.addingTimeInterval(-6 * 3600 - 1), completed: [150])
+        let plan = InProgressResolution.plan(for: [edge, justStale], now: now)
+        #expect(plan.keep == edge.id)
+        #expect(plan.settled == [.init(id: justStale.id, action: .finish(at: t0.addingTimeInterval(150)))])
+    }
+
+    @Test func nothingLiveKeepsTheNewestStartedAndSettlesTheRest() {
+        let older = candidate(0)
+        let newer = candidate(100)
+        let plan = InProgressResolution.plan(for: [older, newer], now: now)
+        #expect(plan.keep == newer.id)
+        #expect(plan.settled == [.init(id: older.id, action: .delete)])
     }
 
     @Test func completedSetWithoutTimeFinishesAtStartAndEndNeverPrecedesStart() {
@@ -96,6 +126,21 @@ import Testing
         #expect((logged.exercises ?? []).flatMap { $0.sets ?? [] }.map(\.position) == [0])
         let names = try context.fetch(FetchDescriptor<Workout>()).map(\.name).sorted()
         #expect(names == ["Logged", "Newest"])
+    }
+
+    @Test func resumeLeavesARecentlyUpdatedOlderWorkoutRunning() throws {
+        let rig = try Rig()
+        let context = rig.context
+        let live = makeWorkout(in: context, name: "Live", startedAt: t0, minutes: nil)
+        live.updatedAt = rig.clock.date.addingTimeInterval(-60)
+        let newest = makeWorkout(in: context, name: "Newest", startedAt: t0.addingTimeInterval(100), minutes: nil)
+        newest.updatedAt = rig.clock.date
+        try context.save()
+
+        let engine = try rig.makeEngine()
+        #expect(engine.workout?.id == newest.id)
+        #expect(live.finishedAt == nil)
+        #expect(try context.fetchCount(FetchDescriptor<Workout>(predicate: Workout.inProgressPredicate)) == 2)
     }
 
     @Test func resumeLeavesASingleInProgressWorkoutAlone() throws {
@@ -226,6 +271,49 @@ import Testing
         center.post(name: .NSPersistentStoreRemoteChange, object: nil)
         #expect(await signal.wait(), "the default notification never reached the handler")
         #expect(calls == 1)
+        observer.stop()
+    }
+
+    @Test func observerSkipsTheHandlerWhenShouldFireIsFalse() async throws {
+        let center = NotificationCenter()
+        let name = Notification.Name("test.remoteChange.filter")
+        let clock = ManualClock()
+        let debounce = Duration.milliseconds(100)
+        var allow = false
+        var asked = 0
+        var calls = 0
+        let signal = CallSignal()
+        let observer = RemoteChangeObserver(
+            center: center,
+            name: name,
+            debounce: debounce,
+            clock: clock,
+            shouldFire: {
+                asked += 1
+                return allow
+            }
+        ) {
+            calls += 1
+            signal.fire()
+        }
+        observer.start()
+
+        center.post(name: name, object: nil)
+        #expect(try await eventually { clock.sleeperCount == 1 })
+        clock.advance(by: debounce)
+        #expect(try await eventually { asked == 1 }, "the filter was never asked")
+        for _ in 0..<20 { await Task.yield() }
+        #expect(calls == 0, "a burst the filter rejected still reached the handler")
+        #expect(!observer.isScheduled)
+
+        allow = true
+        center.post(name: name, object: nil)
+        #expect(try await eventually { observer.scheduleCount == 2 })
+        #expect(try await eventually { clock.sleeperCount == 1 })
+        clock.advance(by: debounce)
+        #expect(await signal.wait(), "a burst the filter accepted never reached the handler")
+        #expect(calls == 1)
+        #expect(asked == 2)
         observer.stop()
     }
 }

@@ -21,9 +21,10 @@ extension ActiveWorkoutEngine {
         try context.fetch(Workout.inProgress).first
     }
 
-    /// Settles every in-progress workout but the newest (``InProgressResolution``): a second device's workout that
+    /// Settles the stale in-progress workouts (``InProgressResolution``): one untouched for 6 h (`updatedAt`) that
     /// CloudKit merged in is finished at its last completed set, or deleted when nothing was logged, so it is never a
-    /// phantom "running" workout. Best effort: a failed save is rolled back and tried again at the next ``resume()``.
+    /// phantom "running" workout. The newest-started live one stays, and a recently updated older one (being logged on
+    /// another device) is left running. Best effort: a failed save is rolled back and tried again at the next ``resume()``.
     func settleExtraInProgress() {
         guard let all = try? context.fetch(FetchDescriptor<Workout>(predicate: Workout.inProgressPredicate)),
             all.count > 1
@@ -32,12 +33,13 @@ extension ActiveWorkoutEngine {
             InProgressResolution.Candidate(
                 id: workout.id,
                 startedAt: workout.startedAt,
+                updatedAt: workout.updatedAt,
                 completedSets: (workout.exercises ?? []).flatMap { $0.sets ?? [] }.filter(\.completed).map(
                     \.completedAt
                 )
             )
         }
-        let plan = InProgressResolution.plan(for: candidates)
+        let plan = InProgressResolution.plan(for: candidates, now: now())
         let byID = Dictionary(all.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         for settlement in plan.settled {
             guard let workout = byID[settlement.id], settlement.id != plan.keep else { continue }
@@ -80,8 +82,9 @@ extension ActiveWorkoutEngine {
 
     /// ``workout`` only while it is safe to read: not deleted and still in a context. Reading a persisted property of a
     /// deleted model traps in SwiftData, so every read-only derivation (rest timer, activity state, notification plan)
-    /// goes through this and reports "nothing running" instead.
-    var liveWorkout: Workout? {
+    /// goes through this and reports "nothing running" instead. Views read it too: the CloudKit mirror can delete the
+    /// running workout up to a debounce before ``reloadAfterRemoteChange()`` clears ``workout``.
+    public var liveWorkout: Workout? {
         guard let workout, !workout.isDeleted, workout.modelContext != nil else { return nil }
         return workout
     }

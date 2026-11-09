@@ -51,8 +51,10 @@ import Testing
     }
 
     @Test func schemaFollowsCloudKitRules() {
-        let found = problems(in: Schema(versionedSchema: SchemaV1.self))
-        #expect(found.isEmpty, "\(found)")
+        for versioned in WorkoutsMigrationPlan.schemas {
+            let found = problems(in: Schema(versionedSchema: versioned))
+            #expect(found.isEmpty, "\(versioned.versionIdentifier): \(found)")
+        }
     }
 
     @Test func checkerCatchesViolations() {

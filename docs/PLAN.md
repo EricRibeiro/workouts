@@ -485,6 +485,12 @@ CloudKit or 1,029-id fixtures, removing the Health/Live Activity gates, `-slowLo
   exercises via iCloud Drive `Workouts/web-export-2026-11-08.json`, imported on Eric's phone (Settings → Import…) the same day
   (Eric: "everything is imported"). It ran before the Production schema deploy because the importer writes the local store; sync
   picks the rows up once 8.1 completes.
+- [x] **8.4 Phase 8 review fixes** (Fable review `docs/reviews/2026-11-08-phase-8.md`, 2026-11-08): the in-progress identity
+  check reads every in-progress row, not a `fetchLimit` 1 descriptor (P8-01); `InProgressResolution` settles only rows untouched
+  for 6 h and leaves a recently updated workout running on its device (P8-02, DECISIONS "Data and sync"); views read
+  `engine.liveWorkout` (P8-03); the remote-change handler skips bursts whose history transactions all carry the app's own
+  author (P8-04); schema-init store removed before and after (P8-05); schema-rules test over every schema version (P8-06);
+  `./dev ck-schema` digit-safe parsing (P8-07); docs and the CLAUDE.md Secrets section (P8-08).
 
 ## 7. Risks and unknowns
 
@@ -497,8 +503,8 @@ CloudKit or 1,029-id fixtures, removing the Health/Live Activity gates, `-slowLo
   (screenshots in 0.5, 3.7).
 - **Live Activity cannot update itself while the app is suspended** (no push server): 0:00 and the time-sensitive notification
   are the "rest over" signals.
-- **SwiftData + CloudKit**: no unique constraints, optional relationships, additive-only migrations once CloudKit is on; keep
-  `SchemaV1` frozen after 8.1. **Island screenshots** need an Island sim (`iPhone 18 Pro`; the Duo's inner display has none);
-  **TestFlight** needs the paid program (simulator-only until then).
+- **SwiftData + CloudKit**: no unique constraints, optional relationships, additive-only migrations once CloudKit is on; `SchemaV1`
+  and `SchemaV2` frozen now that the Production schema is deployed; additive-only from here. **Island screenshots** need an
+  Island sim (`iPhone 18 Pro`; the Duo's inner display has none); **TestFlight** needs the paid program (simulator-only until then).
 - **Foundation Models in the simulator** run on the host Mac's model, so 4.6 only parses when the server Mac has Apple Intelligence
   enabled (and macOS/Xcode match the sim's iOS). The kit never imports it and the preview stubs the parser, so no proof depends on it.

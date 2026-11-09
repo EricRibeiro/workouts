@@ -1365,7 +1365,7 @@ cmd_ck_schema() {
   ck_export() { # <environment>: writes .build/cloudkit/schema-<env>.ckdb and prints its record types
     local file=".build/cloudkit/schema-$1.ckdb" types
     ck_tool export-schema --team-id "$team" --container-id "$container" --environment "$1" --output-file "$file" || return
-    types=$(grep -oE 'RECORD TYPE [A-Za-z_]+' "$file" | awk '{print $3}')
+    types=$(grep -oE 'RECORD TYPE [A-Za-z0-9_]+' "$file" | awk '{print $3}' || true)
     echo "ck-schema: $1 schema written to $file"
     echo "ck-schema: $1 has $(echo "$types" | grep -c .) record types: $(echo "$types" | paste -sd' ' -)"
   }
@@ -1378,8 +1378,8 @@ cmd_ck_schema() {
       ck_export development || return
       ck_export production || return
       local missing
-      missing=$(comm -23 <(grep -oE 'RECORD TYPE [A-Za-z_]+' .build/cloudkit/schema-development.ckdb | sort) \
-        <(grep -oE 'RECORD TYPE [A-Za-z_]+' .build/cloudkit/schema-production.ckdb | sort) | awk '{print $3}' | paste -sd' ' -)
+      missing=$(comm -23 <(grep -oE 'RECORD TYPE [A-Za-z0-9_]+' .build/cloudkit/schema-development.ckdb | sort) \
+        <(grep -oE 'RECORD TYPE [A-Za-z0-9_]+' .build/cloudkit/schema-production.ckdb | sort) | awk '{print $3}' | paste -sd' ' -)
       if [[ -n "$missing" ]]; then
         echo "ck-schema: production is missing: $missing (deploy from the CloudKit Console: Schema → Deploy Schema Changes…)"
         return 1

@@ -22,7 +22,7 @@ struct EngineSetTableSource: SetTableDataSource {
     var mode: SetTableMode { .active }
 
     private var exercises: [WorkoutExercise] {
-        (engine.workout?.exercises ?? []).sorted { $0.position < $1.position }
+        (engine.liveWorkout?.exercises ?? []).sorted { $0.position < $1.position }
     }
 
     var sections: [SetTableSection] {

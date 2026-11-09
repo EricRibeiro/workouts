@@ -48,7 +48,7 @@ struct ActiveWorkoutCover: View {
     var body: some View {
         NavigationStack {
             Group {
-                if let engine, let store, let workout = engine.workout {
+                if let engine, let store, let workout = engine.liveWorkout {
                     content(engine: engine, store: store, workout: workout)
                 } else if let lastShown {
                     dismissing(lastShown)

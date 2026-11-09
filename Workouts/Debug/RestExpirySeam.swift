@@ -30,7 +30,7 @@
         /// Sets the running rest's end to now (a no-op without a running rest).
         @MainActor
         private static func expire() {
-            guard let workout = engine?.workout, workout.restEndsAt != nil else { return }
+            guard let workout = engine?.liveWorkout, workout.restEndsAt != nil else { return }
             workout.restEndsAt = .now
             try? context?.save()
         }

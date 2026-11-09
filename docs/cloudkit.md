@@ -1,7 +1,7 @@
 # CloudKit sync: schema deploy and the two-simulator proof (PLAN 8.1, 8.3)
 
-Sync is on in the app (`WorkoutsApp.cloudKitEnabled`, JC126). Two things only a person at the server's screen can do
-remain: give two simulators an iCloud account, and deploy the schema to Production.
+Sync is on in the app (`WorkoutsApp.cloudKitEnabled`, JC126). Steps 1-4 below are done (two simulators with an iCloud
+account, the schema deployed to Production); this file is the runbook for repeating them after a model change.
 
 ## How the environments work
 
