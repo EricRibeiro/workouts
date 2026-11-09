@@ -68,7 +68,10 @@ the same rule applies.
 - In the CloudKit Console: sign in with the same Apple Account as the phone, pick **Production**, Records, Private Database,
   zone `com.apple.coredata.cloudkit.zone`, record type `CD_Workout`, Query Records. Another account's data is never visible.
 - Sync between two devices needs both signed into the same Apple Account; the pool simulators use the test account, so they
-  never see the phone's data.
+  never see the phone's data. A two-simulator pass (2026-11-09: a custom exercise saved on `iPhone Duo` was in `iPhone Duo 2`'s
+  store after a relaunch) proves export and import; the silent push that would wake the second simulator while it runs was not
+  observed within 3 minutes, so relaunch the reader instead of waiting. The simulators' test-account session can lapse
+  (`accountStatus=Temporarily Unavailable`, the row reads Unavailable); re-enter the password in the simulator's Settings app.
 
 ## Migrations from now on
 
