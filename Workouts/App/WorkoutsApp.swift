@@ -7,6 +7,7 @@
 
 import AVFAudio
 import ActivityKit
+import CoreData
 import OSLog
 import SwiftData
 import SwiftUI
@@ -85,6 +86,7 @@ struct WorkoutsApp: App {
                 try Self.startSampleWorkoutIfRequested(engine: engine, context: context)
                 try Self.seedOldWorkoutIfRequested(context: context)
                 RestExpirySeam.install(engine: engine, context: context)
+                Self.initializeCloudKitSchemaIfRequested()
             #endif
             notifier.observe(engine)
             if Self.wantsLiveActivity {
@@ -345,6 +347,41 @@ struct WorkoutsApp: App {
             // notification.
             let seconds = UserDefaults.standard.integer(forKey: "sampleRestSeconds")
             try engine.startRest(seconds: seconds > 0 ? seconds : 300)
+        }
+
+        /// `-initializeCloudKitSchema`: creates every record type and field in the container's Development environment
+        /// (Apple's `initializeCloudKitSchema`, PLAN 8.1). Core Data on the SwiftData model, against a throwaway store.
+        @MainActor
+        private static func initializeCloudKitSchemaIfRequested() {
+            guard ProcessInfo.processInfo.arguments.contains("-initializeCloudKitSchema") else { return }
+            Task.detached(priority: .utility) {
+                let log = Logger(subsystem: "com.ericribeiro.Workouts", category: "SchemaInit")
+                do {
+                    guard let model = NSManagedObjectModel.makeManagedObjectModel(for: SchemaV2.models) else {
+                        throw CocoaError(.coderInvalidValue)
+                    }
+                    let container = NSPersistentCloudKitContainer(name: "SchemaInit", managedObjectModel: model)
+                    let url = FileManager.default.temporaryDirectory.appendingPathComponent("schema-init.sqlite")
+                    let description = NSPersistentStoreDescription(url: url)
+                    description.cloudKitContainerOptions = NSPersistentCloudKitContainerOptions(
+                        containerIdentifier: "iCloud.com.ericribeiro.Workouts"
+                    )
+                    container.persistentStoreDescriptions = [description]
+                    try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, any Error>) in
+                        container.loadPersistentStores { _, error in
+                            if let error {
+                                continuation.resume(throwing: error)
+                            } else {
+                                continuation.resume()
+                            }
+                        }
+                    }
+                    try container.initializeCloudKitSchema(options: [])
+                    log.notice("CloudKit schema initialized in Development")
+                } catch {
+                    log.error("CloudKit schema initialization failed: \(error.localizedDescription, privacy: .public)")
+                }
+            }
         }
     #endif
 }

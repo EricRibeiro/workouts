@@ -7,8 +7,10 @@ remain: give two simulators an iCloud account, and deploy the schema to Producti
 
 - Debug builds (`./dev run`, Xcode) talk to the container's **Development** environment; TestFlight builds talk to
   **Production**. The two never share data, so simulator runs cannot touch the phone's records.
-- SwiftData creates the record types (`CD_Workout`, `CD_Template`, …) in Development the first time the app runs with a
-  signed-in account. Production never creates types on its own: a TestFlight build syncs nothing until the schema is
+- The mirror infers record types (`CD_Workout`, `CD_Template`, …) in Development from the records it uploads, so a field
+  that is nil in every uploaded record never reaches the schema. The Debug flag `-initializeCloudKitSchema` runs Apple's
+  `NSPersistentCloudKitContainer.initializeCloudKitSchema` on the SwiftData model instead, which creates every type with
+  every field (JC127). Production never creates types on its own: a TestFlight build syncs nothing until the schema is
   deployed there by hand. Deploying is additive and does not touch the public-database media type already in both
   environments (`docs/port/media.md`).
 - Simulators have no iCloud account by default; with none, the mirror logs `CKAccountStatusNoAccount` (code 134400) at
@@ -16,16 +18,17 @@ remain: give two simulators an iCloud account, and deploy the schema to Producti
 
 ## Steps (Eric, server screen)
 
-1. **Sign two simulators into iCloud** with the same Apple Account: Settings → Sign in, on `iPhone Duo` and one clone
-   (`iPhone Duo 2`). Boot them from Simulator.app or with `./dev run` first.
-2. **Create the Development schema**: run the app once on a signed-in sim.
+1. **Sign two simulators into iCloud** with the same Apple Account, a test account rather than Eric's own (a signed-in
+   sim is a live session on the server's disk): Settings → Sign in, on `iPhone Duo` and `iPhone Duo 2`. Xcode 27 has no
+   Simulator.app; the window comes from DeviceHub (Xcode.app → Contents → Applications). Done 2026-11-08.
+2. **Create the Development schema** (done 2026-11-08; repeat after every model change):
 
    ```
-   DEV_SIM="iPhone Duo" ./dev run
+   DEV_SIM="iPhone Duo" ./dev run -- -initializeCloudKitSchema
    ```
 
-   Add a template or a custom exercise so every entity gets written. Check the schema appeared: CloudKit Console →
-   container `iCloud.com.ericribeiro.Workouts` → Schema → Record Types (Development) lists the `CD_*` types.
+   The log (`log show --predicate 'process == "Workouts"'`) ends with `CloudKit schema initialized in Development`; the
+   Console → container `iCloud.com.ericribeiro.Workouts` → Schema → Record Types (Development) lists the `CD_*` types.
 3. **Deploy to Production.** Either the Console's "Deploy Schema Changes…" button, or from a terminal with a CloudKit
    *management* token (Console → account menu → Manage Tokens → Create; it is not the server-to-server key the media
    upload uses). Save it once, then export Development and import into Production:
@@ -42,10 +45,11 @@ remain: give two simulators an iCloud account, and deploy the schema to Producti
    xcrun cktool import-schema --team-id S8Y5FT7937 --container-id iCloud.com.ericribeiro.Workouts --environment production --validate --file /tmp/workouts-schema.ckdb
    ```
 
-4. **Two-simulator proof** (ticks 8.1): run the app on both signed-in sims (`DEV_SIM="iPhone Duo 2" ./dev run` for the
-   second). Create a custom exercise on A; within a minute it is in B's exercise picker without a relaunch (the
-   remote-change observer reloads the custom list). Finish a workout on A; B's History shows it. Leave both sims
-   closed-portrait afterwards (`./dev pose closed-portrait`).
+4. **Two-simulator proof** (passed 2026-11-08, Development): `DEV_SIM="iPhone Duo" ./dev run -- -seedSampleData`, then
+   `DEV_SIM="iPhone Duo 2" ./dev run` on a sim that never held data; within about a minute B's Workout tab showed A's
+   folders and templates. `log show` on B prints `Finished importing applying changes`; the
+   `134417 already a pending request of type NSCloudKitMirroringExportRequest` lines beside it are the mirror
+   coalescing its own export requests, not failures. Leave both sims closed-portrait afterwards.
 5. **Upload** (orchestrator): `./dev testflight --upload` from the main checkout, logged in `docs/testflight.md`. Uploads
    were held until step 3 so the first synced build finds its schema.
 
