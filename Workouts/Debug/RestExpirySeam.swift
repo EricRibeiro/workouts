@@ -77,7 +77,34 @@
         }
     }
 
+    /// `-uiTesting` only: a zero-size accessibility element `debug.interfaceStyle` whose value is the colour scheme the root
+    /// view sees (`dark` or `light`), so a dark-appearance test can assert the launch argument took effect.
+    private struct InterfaceStyleProbe: ViewModifier {
+        @Environment(\.colorScheme) private var colorScheme
+
+        func body(content: Content) -> some View {
+            if ProcessInfo.processInfo.arguments.contains("-uiTesting") {
+                content.overlay {
+                    Color.clear
+                        .frame(width: 0, height: 0)
+                        .allowsHitTesting(false)
+                        .accessibilityElement()
+                        .accessibilityIdentifier("debug.interfaceStyle")
+                        .accessibilityLabel("Interface style")
+                        .accessibilityValue(colorScheme == .dark ? "dark" : "light")
+                }
+            } else {
+                content
+            }
+        }
+    }
+
     extension View {
+        /// Hosts the `debug.interfaceStyle` probe; a no-op outside `-uiTesting`.
+        func interfaceStyleProbe() -> some View {
+            modifier(InterfaceStyleProbe())
+        }
+
         /// Hosts the `debug.restState` probe (see ``RestExpirySeam``); a no-op outside `-uiTesting`.
         func restStateProbe() -> some View {
             modifier(RestStateProbe())

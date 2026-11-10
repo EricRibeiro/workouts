@@ -24,11 +24,20 @@ final class SmokeUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["Accent"].waitForExistence(timeout: 10))
     }
 
+    /// The `debug.interfaceStyle` probe's value (`dark` or `light`), nil when it never appears.
+    @MainActor
+    private func interfaceStyle(_ app: XCUIApplication) -> String? {
+        let probe = app.descendants(matching: .any)["debug.interfaceStyle"].firstMatch
+        guard probe.waitForExistence(timeout: 5) else { return nil }
+        return probe.value as? String
+    }
+
     @MainActor
     func testTabsAndSettings() throws {
         let app = makeApp()
 
         XCTAssertTrue(app.descendants(matching: .any)["screen.workout"].waitForExistence(timeout: 10))
+        XCTAssertEqual(interfaceStyle(app), "light")
 
         // The system tab bar (the trailing strip on the closed Duo).
         let history = app.descendants(matching: .any)["tab.history"].firstMatch
@@ -57,12 +66,14 @@ final class SmokeUITests: XCTestCase {
         )
     }
 
-    /// The three tabs in the dark interface style. The launch helper pins Light unless the caller passes its own
-    /// `-AppleInterfaceStyle`, so this is the one dark pass of the sharded full suite (no `simctl ui`, nothing to restore).
+    /// The three tabs in the dark interface style, forced through the app's own Appearance setting (`-appearance dark`):
+    /// the `-AppleInterfaceStyle` launch argument does not change the scheme on iOS (the `debug.interfaceStyle` probe read
+    /// `light` under it). This is the one dark pass of the sharded full suite (no `simctl ui`, nothing to restore).
     @MainActor
     func testSmokeInDarkAppearance() throws {
-        let app = makeApp(["-AppleInterfaceStyle", "Dark"])
+        let app = makeApp(["-appearance", "dark"])
         XCTAssertTrue(app.descendants(matching: .any)["screen.workout"].waitForExistence(timeout: 10))
+        XCTAssertEqual(interfaceStyle(app), "dark")
 
         for (tab, screen) in [
             ("tab.history", "screen.history"), ("tab.exercises", "screen.exercises"), ("tab.workout", "screen.workout"),

@@ -27,7 +27,7 @@ final class OpenPoseUITests: XCTestCase {
         let paneFrame = pane.waitUntilFrameSettles()
         // The pane starts at the middle of the safe area, not of the window: the system strip (clock, toolbar) takes about
         // 85 pt of the trailing edge, so the split sits near 433 pt.
-        XCTAssertGreaterThanOrEqual(paneFrame.minX, window.width * 0.4, "pane \(paneFrame) is not in the right half")
+        XCTAssertGreaterThanOrEqual(paneFrame.minX, 420, "pane \(paneFrame) is not beside the table")
         XCTAssertEqual(paneFrame.maxX, window.maxX, accuracy: 1)
 
         let weights = app.textFields.matching(
@@ -49,19 +49,6 @@ final class OpenPoseUITests: XCTestCase {
         let app = XCUIApplication.launchedInActiveWorkout()
         XCTAssertTrue(app.descendants(matching: .any)["cover.exercisePane"].waitForExistence(timeout: 10))
         let context = AccessibilityAuditUITests.Context(behindModal: true, truncatesExerciseNames: true)
-        let handler: (XCUIAccessibilityAuditIssue) -> Bool = { [self] issue in
-            let known = AccessibilityAuditUITests.isKnownIssue(issue, app: app, context: context)
-            if !known {
-                let element = issue.element?.debugDescription ?? "no element"
-                record(
-                    XCTIssue(
-                        type: .assertionFailure,
-                        compactDescription: "Unfiltered audit issue: \(issue.compactDescription) [\(element)]"
-                    )
-                )
-            }
-            return known
-        }
-        try app.performAccessibilityAudit(for: .all, handler)
+        try AccessibilityAuditUITests.audit(app, in: self, for: .all, context)
     }
 }

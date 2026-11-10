@@ -51,12 +51,23 @@ final class AccessibilityAuditUITests: XCTestCase {
         for types: XCUIAccessibilityAuditType = .all,
         _ context: Context = Context()
     ) throws {
+        try Self.audit(app, in: self, for: types, context)
+    }
+
+    /// The audit with the known-issue filter and the -902 backoff, shared with `OpenPoseUITests`; `test` records the issues.
+    @MainActor
+    static func audit(
+        _ app: XCUIApplication,
+        in test: XCTestCase,
+        for types: XCUIAccessibilityAuditType = .all,
+        _ context: Context = Context()
+    ) throws {
         // An unfiltered issue is also recorded with its element's description, so a flake names what it hit.
-        let handler: (XCUIAccessibilityAuditIssue) -> Bool = { [self] issue in
-            let known = Self.isKnownIssue(issue, app: app, context: context)
+        let handler: (XCUIAccessibilityAuditIssue) -> Bool = { issue in
+            let known = isKnownIssue(issue, app: app, context: context)
             if !known {
                 let element = issue.element?.debugDescription ?? "no element"
-                record(
+                test.record(
                     XCTIssue(
                         type: .assertionFailure,
                         compactDescription: "Unfiltered audit issue: \(issue.compactDescription) [\(element)]"
@@ -116,6 +127,7 @@ final class AccessibilityAuditUITests: XCTestCase {
                 return false
             }
             return app.navigationBars.buttons[element.label].exists
+                && element.frame.intersects(app.navigationBars.firstMatch.frame)
 
         case .dynamicType:
             // At the default size the audit flags static text whose container reflows when the size changes (the

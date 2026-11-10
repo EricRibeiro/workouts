@@ -65,6 +65,7 @@ struct RootView: View {
         .restExpiryWatcher(isActive: !navigation.isWorkoutCoverOnScreen)
         #if DEBUG
             .restStateProbe()
+            .interfaceStyleProbe()
             .healthLookupProbe()
         #endif
         // The scrolling lists (History, Exercises) let the tab bar collapse; the Workout tab keeps it (DECISIONS).

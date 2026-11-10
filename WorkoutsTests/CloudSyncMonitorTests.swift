@@ -46,8 +46,8 @@ struct CloudSyncMonitorTests {
         #expect(event?.errorDescription == nil)
     }
 
-    @Test func unknownTypeMapsToSetup() {
-        let unknown = NSPersistentCloudKitContainer.EventType(rawValue: 99) ?? .setup
+    @Test func unknownTypeMapsToSetup() throws {
+        let unknown = try #require(NSPersistentCloudKitContainer.EventType(rawValue: 99))
         let event = CloudSyncMonitor.map(endDate: Self.end, type: unknown, succeeded: true, error: nil)
         #expect(event?.kind == .setup)
     }

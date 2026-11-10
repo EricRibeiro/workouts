@@ -24,6 +24,10 @@ final class HealthKitIntegrationUITests: XCTestCase {
         ).firstMatch
         let health = XCUIApplication(bundleIdentifier: "com.apple.HealthPrivacyService")
         let answered = answerHealthSheets(health, until: card)
+        if answered == 0, !card.exists {
+            XCTFail("no Health Access sheet and no card within 60 s; health sheet: \(health.debugDescription)")
+            return
+        }
 
         XCTAssertTrue(
             card.waitForExistence(timeout: 20),
@@ -50,7 +54,7 @@ final class HealthKitIntegrationUITests: XCTestCase {
     @discardableResult
     private func answerHealthSheets(_ health: XCUIApplication, until card: XCUIElement) -> Int {
         var answered = 0
-        let deadline = Date.now.addingTimeInterval(30)
+        let deadline = Date.now.addingTimeInterval(60)
         while answered < 3, Date.now < deadline, !card.exists {
             let allTopics = health.descendants(matching: .any)["UIA.Health.AuthSheet.AllCategoryButton"].firstMatch
             let range = health.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Past 30 Days'")).firstMatch
