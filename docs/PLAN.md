@@ -509,7 +509,7 @@ command; `./dev check` plus the touched UI suites before every commit.
 - [x] **7c.5 CloudKit seams** (done; `RecordFetching` carries the `CKOperation.Configuration` so `configuredWith` lives in the `CKDatabase` conformance; 12 + 7 tests): `RecordFetching` protocol over `CKDatabase` in `CloudKitMediaSource` with a fake covering dark →
   light fallback, `.unknownItem` → nil, rethrow, cancellation; `CloudSyncMonitor.map` over plain fields with three more
   `CloudSyncStatusTests`. Proof: `./dev test CloudKitMediaSourceTests`, `./dev kit CloudSyncStatus`.
-- [x] **7c.6 Remote-change end to end** (done; the spike showed SwiftData posts `NSPersistentStoreRemoteChange` for a second container's save, twice per save, so the test uses the real notification and nothing hand-posted; `ForeignHistoryCheck` in the kit with `localAuthor`): spike (30 min) whether a save through a second `ModelContainer` on the same on-disk
+- [x] **7c.6 Remote-change end to end** (done; the spike showed SwiftData posts `NSPersistentStoreRemoteChange` for a second container's save, twice per save, so the test uses the real notification and nothing hand-posted; `ForeignHistoryCheck` in the kit with `localAuthor`; `ModelContainer.workouts(at:)` is public kit API, the second-container helper, used today only by that test): spike (30 min) whether a save through a second `ModelContainer` on the same on-disk
   store posts `NSPersistentStoreRemoteChange`; `ForeignHistoryCheck` moves to the kit, `ModelContainer.workouts(at:)` is
   added test-only; the test drives observer → author filter → engine with the mirror author (fallback: post the notification
   from the test, keep the history assertions) and proves `InProgressResolution` never settles a recent remote row. Proof:
@@ -528,9 +528,9 @@ command; `./dev check` plus the touched UI suites before every commit.
   "kind" column (off / isolation / seam on), §2C's count fixed, the `-liveActivity` row corrected; the `simctl privacy …
   reset all` line in `docs/port/healthkit.md` removed. Proof: `./dev test SettingsFlowTests`, `WorkoutLinkRouterTests`.
 - [x] **7c.9 Health gate and sim keep-list** (`dev`; done, `./dev selftest` 79 checks; `iPhone Duo Health` cloned from `iPhone Duo 3`; the first `--upload` after this needs a Health run or `DEV_SKIP_HEALTH_GATE=1`): `.build/health-test.stamp` written by a filtered Health run with
-  `skippedTests == 0`, its xcresult saved under its own name; `tf_health_gate` on every `--upload` fails when
-  `HealthKitSource.swift`, `HealthSeeder.swift`, the entitlements or the test changed since the stamped commit
-  (`DEV_SKIP_HEALTH_GATE=1` overrides); `iPhone Duo Health` created outside the pool; `DEV_SIM_KEEP` (default `iPhone Duo
+  `skippedTests == 0`, its xcresult saved under its own name; `tf_health_gate` on every `--upload` fails when the working
+  tree (uncommitted and untracked edits included) differs from the stamped commit under `Workouts/Features/Health`, the kit's
+  `Health` folder, the entitlements or the integration test (`DEV_SKIP_HEALTH_GATE=1` overrides; the phase review's F1 and F8); `iPhone Duo Health` created outside the pool; `DEV_SIM_KEEP` (default `iPhone Duo
   2,iPhone Duo Health`) skipped by `sim_heal` and `sims --prune` with a warning; `cmd_ui_test` refuses to stamp when
   `skippedTests != 5`; `./dev test` writes a stamp; `./dev selftest` runs the stamp and gate parsing over fixture files.
   Proof: `./dev selftest`, `./dev testflight` (export only) with and without a changed Health file.
