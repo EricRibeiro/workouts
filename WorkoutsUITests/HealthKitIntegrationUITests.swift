@@ -44,12 +44,13 @@ final class HealthKitIntegrationUITests: XCTestCase {
     }
 
     /// Answers up to three Health Access pages (topics, then the iOS 27 data range, for the seeder's share request and the
-    /// demo's read request) until the card shows. A simulator that already granted access shows none.
+    /// demo's read request) until the card shows. A simulator that already granted access shows none: the grant survives the
+    /// test runner's reinstall (two runs on `iPhone Duo Health`, 2026-11-09: the second took 7 s with no page to answer).
     @MainActor
     @discardableResult
     private func answerHealthSheets(_ health: XCUIApplication, until card: XCUIElement) -> Int {
         var answered = 0
-        let deadline = Date.now.addingTimeInterval(90)
+        let deadline = Date.now.addingTimeInterval(30)
         while answered < 3, Date.now < deadline, !card.exists {
             let allTopics = health.descendants(matching: .any)["UIA.Health.AuthSheet.AllCategoryButton"].firstMatch
             let range = health.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Past 30 Days'")).firstMatch
