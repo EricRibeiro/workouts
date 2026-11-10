@@ -158,15 +158,18 @@ final class SettingsFlow {
     /// Turns Apple Fitness off, optionally removing the data already added. Runs to completion on purpose: the setting
     /// has flipped, and a removal cut short would leave half the data behind.
     func turnOffFitness(removeData: Bool, health: HealthEnrichmentService, context: ModelContext) {
-        Task {
-            do {
-                try await health.turnOff(remove: removeData, context: context)
-            } catch {
-                outcome = TransferOutcome(
-                    title: "Could Not Remove Fitness Data",
-                    message: error.localizedDescription
-                )
-            }
+        Task { await performTurnOff { try await health.turnOff(remove: removeData, context: context) } }
+    }
+
+    /// The failure handling behind `turnOffFitness`, with the work injected so a test can make it throw.
+    func performTurnOff(_ work: () async throws -> Void) async {
+        do {
+            try await work()
+        } catch {
+            outcome = TransferOutcome(
+                title: "Could Not Remove Fitness Data",
+                message: error.localizedDescription
+            )
         }
     }
 }

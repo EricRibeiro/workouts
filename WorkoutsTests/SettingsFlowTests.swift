@@ -9,6 +9,10 @@ import WorkoutsKit
 struct SettingsFlowTests {
     private struct RefreshFailure: Error {}
 
+    private struct RemovalFailure: LocalizedError {
+        var errorDescription: String? { "The store is unavailable." }
+    }
+
     /// An export file holding one custom exercise, written from a throwaway in-memory store.
     private func exportFile() async throws -> URL {
         let source = try ModelContainer.workouts(inMemory: true, cloudKit: false)
@@ -61,5 +65,18 @@ struct SettingsFlowTests {
         await flow.performImport(file, context: context, catalog: nil, generation: nil, refresh: {})
         #expect(flow.outcome?.title == "Could Not Import")
         #expect(flow.backfillRequest == 0)
+    }
+
+    @Test func aFailedFitnessRemovalIsReported() async {
+        let flow = SettingsFlow()
+        await flow.performTurnOff { throw RemovalFailure() }
+        #expect(flow.outcome?.title == "Could Not Remove Fitness Data")
+        #expect(flow.outcome?.message == "The store is unavailable.")
+    }
+
+    @Test func aSuccessfulFitnessRemovalReportsNothing() async {
+        let flow = SettingsFlow()
+        await flow.performTurnOff {}
+        #expect(flow.outcome == nil)
     }
 }
