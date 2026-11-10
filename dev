@@ -16,6 +16,8 @@ HEALTH_STAMP=".build/health-test.stamp"    # commit and time of the last HealthK
 HEALTH_PATHS=(Workouts/Features/Health/HealthKitSource.swift Workouts/Features/Health/HealthSeeder.swift Workouts/Workouts.entitlements WorkoutsUITests/HealthKitIntegrationUITests.swift)
 HEALTH_SIM="iPhone Duo Health"             # a clone outside the pool that keeps its Health authorization between runs
 UI_EXPECTED_SKIPS="${DEV_UI_EXPECTED_SKIPS:-5}" # an unfiltered ui-test skips PerfDriver 3, HealthKitIntegration 1, TreeDump 1
+# A stalled UI test fails (with a spindump) after this many seconds instead of silently eating a shard; DEV_UI_TEST_ALLOWANCE overrides.
+ui_timeout_args() { echo -test-timeouts-enabled YES -default-test-execution-time-allowance "${DEV_UI_TEST_ALLOWANCE:-240}"; }
 UI_PROGRESS=".build/ui-test.progress"   # one line per shard while ./dev ui-test runs, then a final "done:" line (./dev ui-status)
 UI_PROGRESS_DIR=".build/ui-test.progress.d" # per-shard state behind it, plus pid (the writer, for ui-status) and failed (append-only)
 KIT="Packages/WorkoutsKit"
@@ -262,7 +264,8 @@ sim_reset_ui() { # sim_reset_ui <udid>
 
 run_tests() { # run_tests <name> <target> [filter] [latest]: the passing bundle is kept as latest-<latest>.xcresult (default: <name>)
   local name="$1" target="$2" filter="${3:-}" latest="${4:-$1}"
-  local only="$target" bundle="$RESULTS/$name-$$.xcresult" rc=0
+  local only="$target" bundle="$RESULTS/$name-$$.xcresult" rc=0 tmo=()
+  [[ "$target" != WorkoutsUITests ]] || read -r -a tmo <<<"$(ui_timeout_args)"
   # ui-test: the single-simulator run reports progress too (shard 1/1); see ui_progress_tap.
   local XCB_VERBOSE="" RUN_LOGGED_TAP="" UI_PROG_IDX=1 UI_PROG_OF=1 UI_PROG_SIM="" UI_PROG_TOTAL=""
   sim_resolve
@@ -274,7 +277,7 @@ run_tests() { # run_tests <name> <target> [filter] [latest]: the passing bundle 
   mkdir -p "$RESULTS"
   find "$RESULTS" -maxdepth 1 -name '*.xcresult' ! -name 'latest-*' -mmin +240 -exec rm -rf {} + 2>/dev/null || true
   # No parallel testing: it boots a fresh "Clone N of iPhone Duo" per run, and a fresh clone crashed PosterBoard.
-  run_logged "$name" xcb test -parallel-testing-enabled NO -enableCodeCoverage YES -collect-test-diagnostics on-failure -only-testing:"$only" -resultBundlePath "$bundle" || rc=$?
+  run_logged "$name" xcb test ${tmo[@]+"${tmo[@]}"} -parallel-testing-enabled NO -enableCodeCoverage YES -collect-test-diagnostics on-failure -only-testing:"$only" -resultBundlePath "$bundle" || rc=$?
   # Xcode infrastructure flake (no test ran): retry once, never for a real test failure.
   if ((rc != 0)) && xcrun xcresulttool get test-results summary --path "$bundle" --compact 2>/dev/null |
     grep -q 'hung before establishing connection'; then
@@ -282,7 +285,7 @@ run_tests() { # run_tests <name> <target> [filter] [latest]: the passing bundle 
     echo "dev: test runner hung before connecting; rebooting the simulator and retrying once" >&2
     xcrun simctl shutdown "$SIM_UDID" >/dev/null 2>&1 || true
     rm -rf "$bundle"; rc=0
-    run_logged "$name" xcb test -parallel-testing-enabled NO -enableCodeCoverage YES -collect-test-diagnostics on-failure -only-testing:"$only" -resultBundlePath "$bundle" || rc=$?
+    run_logged "$name" xcb test ${tmo[@]+"${tmo[@]}"} -parallel-testing-enabled NO -enableCodeCoverage YES -collect-test-diagnostics on-failure -only-testing:"$only" -resultBundlePath "$bundle" || rc=$?
   fi
   if ((rc != 0)); then
     report_failures "$bundle"
@@ -546,7 +549,7 @@ ui_shard_retry() { # ui_shard_retry <index> <udid> <xctestrun> <bundle>
     only+=(-only-testing:"WorkoutsUITests/$id")
   done
   rm -rf "$retry"
-  run_logged "ui-test-shard$idx-retry" xcodebuild test-without-building -xctestrun "$xr" \
+  run_logged "ui-test-shard$idx-retry" xcodebuild test-without-building -xctestrun "$xr" $(ui_timeout_args) \
     -destination "platform=iOS Simulator,id=$udid" -parallel-testing-enabled NO -enableCodeCoverage YES -collect-test-diagnostics on-failure "${only[@]}" \
     -resultBundlePath "$retry" -quiet >/dev/null 2>&1 || rrc=$?
   json=$(xcrun xcresulttool get test-results summary --path "$retry" --compact 2>/dev/null) || return 1
@@ -576,7 +579,7 @@ ui_shard() { # ui_shard <index> <udid> <xctestrun> <suite...>; runs in a backgro
   fi
   for attempt in 1 2; do
     rm -rf "$bundle"; rc=0
-    run_logged "ui-test-shard$idx" xcodebuild test-without-building -xctestrun "$xr" \
+    run_logged "ui-test-shard$idx" xcodebuild test-without-building -xctestrun "$xr" $(ui_timeout_args) \
       -destination "platform=iOS Simulator,id=$udid" -parallel-testing-enabled NO -enableCodeCoverage YES -collect-test-diagnostics on-failure \
       "${only[@]}" -resultBundlePath "$bundle" >/dev/null 2>&1 || rc=$?
     # Xcode infrastructure flake (no test ran): retry once on a cold boot, as run_tests does.
@@ -1484,9 +1487,40 @@ cmd_media_upload() {
 CK_TOKEN_REF="op://Homelab/Apple Cloud Kit for Workouts Duo/management token"
 ck_tool() { CLOUDKIT_MANAGEMENT_TOKEN="$CK_TOKEN_REF" op run -- xcrun cktool "$@"; }
 
+# Field lines of a `.ckdb` export as `<record type> <field> <field type>`, in file order. A field line is `name TYPE [modifiers],`
+# (name optionally quoted, as for "___etag"); GRANT lines and the closing `);` are not fields. Pure: no token, no network.
+ck_fields() { # ck_fields <ckdb file>
+  awk '
+    /^[[:space:]]*RECORD TYPE / { t = $3; sub(/\(.*/, "", t); next }
+    t != "" && /^[[:space:]]*\)/ { t = ""; next }
+    t != "" && NF >= 2 {
+      f = $1; ty = $2; gsub(/"/, "", f); sub(/,$/, "", ty)
+      if (f != "GRANT" && ty ~ /^[A-Z0-9_<>]+$/) print t, f, ty
+    }' "$1"
+}
+# Field-level difference between a Development and a Production export, for the record types both have (a type Production
+# lacks entirely is reported by the caller). Prints one line per difference; fails when there is any.
+ck_fields_diff() { # ck_fields_diff <development ckdb> <production ckdb>
+  { ck_fields "$1" | sed 's/^/D /'; ck_fields "$2" | sed 's/^/P /'; } | awk '
+    $1 == "D" { dev[$2 "." $3] = $4; dt[$2] = 1; order[++n] = $2 "." $3; next }
+    { prod[$2 "." $3] = $4; pt[$2] = 1; porder[++m] = $2 "." $3 }
+    END {
+      for (i = 1; i <= n; i++) {
+        k = order[i]; split(k, parts, "."); if (!(parts[1] in pt)) continue
+        if (!(k in prod)) { print "ck-schema: production lacks field " k " (" dev[k] ")"; bad = 1 }
+        else if (dev[k] != prod[k]) { print "ck-schema: field " k " is " dev[k] " in development but " prod[k] " in production"; bad = 1 }
+      }
+      for (i = 1; i <= m; i++) {
+        k = porder[i]; split(k, parts, "."); if (!(parts[1] in dt)) continue
+        if (!(k in dev)) { print "ck-schema: production has field " k " (" prod[k] ") that development lacks"; bad = 1 }
+      }
+      exit bad
+    }'
+}
+
 cmd_ck_schema() {
   { set +x; } 2>/dev/null # never trace this function: a traced command line could carry the token reference's value
-  local usage="usage: ck-schema export [--env development|production] | diff"
+  local usage="usage: ck-schema export [--env development|production] | diff | fields <ckdb file>"
   local container=iCloud.com.ericribeiro.Workouts verb="${1:-}" env=development
   [[ $# -gt 0 ]] && shift
   case "$verb" in
@@ -1498,6 +1532,9 @@ cmd_ck_schema() {
         esac
       done ;;
     diff) (($# == 0)) || die "ck-schema: unknown argument '$1' ($usage)" ;;
+    fields) # offline: needs neither op nor cktool
+      (($# == 1)) && [[ -f "$1" ]] || die "ck-schema: $usage"
+      ck_fields "$1"; return ;;
     *) die "ck-schema: ${verb:+unknown command '$verb' }($usage)" ;;
   esac
   command -v op >/dev/null 2>&1 || die "ck-schema: the 1Password CLI (op) is not installed"
@@ -1526,14 +1563,21 @@ cmd_ck_schema() {
       # the environment 'production'" (2026-11-08). This shows what the Console's "Deploy Schema Changes…" still has to add.
       ck_export development || return
       ck_export production || return
-      local missing
+      local missing rc=0
       missing=$(comm -23 <(grep -oE 'RECORD TYPE [A-Za-z0-9_]+' .build/cloudkit/schema-development.ckdb | sort) \
         <(grep -oE 'RECORD TYPE [A-Za-z0-9_]+' .build/cloudkit/schema-production.ckdb | sort) | awk '{print $3}' | paste -sd' ' -)
       if [[ -n "$missing" ]]; then
         echo "ck-schema: production is missing: $missing (deploy from the CloudKit Console: Schema → Deploy Schema Changes…)"
-        return 1
+        rc=1
+      else
+        echo "ck-schema: production has every development record type"
       fi
-      echo "ck-schema: production has every development record type" ;;
+      if ck_fields_diff .build/cloudkit/schema-development.ckdb .build/cloudkit/schema-production.ckdb; then
+        echo "ck-schema: production has the same fields and field types as development in every shared record type"
+      else
+        rc=1
+      fi
+      return "$rc" ;;
   esac
 }
 
@@ -1680,6 +1724,48 @@ cmd_selftest() {
   SIM_TABLE="$SIM_TABLE${nl}iPhone Duo Health${tab}AAAAAAAA-0000-0000-0000-0000000000H1${tab}Shutdown"
   st_run health_sim_require; st_rc "health_sim_require with the clone" 0
 
+  # ck-schema field diff: two .ckdb fixtures in cktool's export format (RECORD TYPE <name> ( <field> <TYPE> [modifiers], …
+  # GRANT … );), Production missing one field, with another retyped and another present only there.
+  mkdir -p "$ST_DIR/ck"
+  cat >"$ST_DIR/ck/dev.ckdb" <<'CKDB'
+DEFINE SCHEMA
+
+    RECORD TYPE CD_Exercise (
+        CD_name                 STRING QUERYABLE SEARCHABLE SORTABLE,
+        CD_restSeconds          INT64 QUERYABLE SORTABLE,
+        CD_unit                 BYTES QUERYABLE SORTABLE,
+        "___etag"               STRING,
+        GRANT WRITE TO "_creator",
+        GRANT READ TO "_world"
+    );
+
+    RECORD TYPE CD_Template (
+        CD_name                 STRING QUERYABLE SEARCHABLE SORTABLE,
+        GRANT READ TO "_world"
+    );
+
+    RECORD TYPE CD_OnlyDev (
+        CD_x                    STRING,
+        GRANT READ TO "_world"
+    );
+CKDB
+  sed -e '/CD_unit /d' -e 's/CD_restSeconds          INT64/CD_restSeconds          STRING/' -e '/RECORD TYPE CD_OnlyDev/,/);/d' \
+    -e 's/^        CD_name                 STRING QUERYABLE SEARCHABLE SORTABLE,$/&\n        CD_extra                STRING,/' "$ST_DIR/ck/dev.ckdb" >"$ST_DIR/ck/prod.ckdb"
+  st_eq "ck_fields lists type, field and field type" "CD_Exercise CD_name STRING${nl}CD_Exercise CD_restSeconds INT64${nl}CD_Exercise CD_unit BYTES${nl}CD_Exercise ___etag STRING${nl}CD_Template CD_name STRING${nl}CD_OnlyDev CD_x STRING" "$(ck_fields "$ST_DIR/ck/dev.ckdb")"
+  st_run ck_fields_diff "$ST_DIR/ck/dev.ckdb" "$ST_DIR/ck/prod.ckdb"; st_rc "ck_fields_diff with a missing, a retyped and an extra field" 1
+  st_out_has "ck_fields_diff names the missing field" "production lacks field CD_Exercise.CD_unit (BYTES)"
+  st_out_has "ck_fields_diff names the retyped field" "field CD_Exercise.CD_restSeconds is INT64 in development but STRING in production"
+  st_out_has "ck_fields_diff names the extra field" "production has field CD_Exercise.CD_extra (STRING) that development lacks"
+  st_out_lacks "ck_fields_diff leaves a record type Production lacks to the type check" "CD_OnlyDev"
+  st_run ck_fields_diff "$ST_DIR/ck/dev.ckdb" "$ST_DIR/ck/dev.ckdb"; st_rc "ck_fields_diff on identical exports" 0
+  st_eq "ck_fields_diff on identical exports is silent" "" "$ST_OUT"
+  sed '/CD_unit /d' "$ST_DIR/ck/dev.ckdb" >"$ST_DIR/ck/prod-one.ckdb"
+  st_run ck_fields_diff "$ST_DIR/ck/dev.ckdb" "$ST_DIR/ck/prod-one.ckdb"; st_rc "ck_fields_diff with one missing field" 1
+  st_eq "ck_fields_diff with one missing field names only it" "ck-schema: production lacks field CD_Exercise.CD_unit (BYTES)" "$ST_OUT"
+  st_run cmd_ck_schema fields "$ST_DIR/ck/prod-one.ckdb"; st_rc "ck-schema fields" 0
+  st_out_has "ck-schema fields prints type field type" "CD_Template CD_name STRING"
+  st_run cmd_ck_schema fields "$ST_DIR/ck/missing.ckdb"; st_rc "ck-schema fields on a missing file" 1
+
   echo "selftest: $ST_PASS passed, $ST_FAIL failed"
   ((ST_FAIL == 0))
 }
@@ -1729,7 +1815,7 @@ sims [--prune]     create the missing simulator clones (iPhone Duo 2..$DEV_SIM_P
 build              build the app for this checkout's simulator
 test [filter]      run WorkoutsTests (filter = suite or suite/test); prints totals, fails if none ran; an unfiltered pass writes .build/test.stamp (commit, clean, when), which `coverage` prints
 ui-test [filter]   run WorkoutsUITests (an unfiltered pass is sharded over DEV_UI_SHARDS pool sims and stamps HEAD, with its flaky tests, for the testflight --upload gate); prints totals, fails if none ran. An unfiltered run that does not skip exactly 5 tests (DEV_UI_EXPECTED_SKIPS) writes no stamp
-                   and fails. Filter HealthKitIntegrationUITests opts in to the real-Health test: it runs on the 'iPhone Duo Health' clone
+                   and fails. A test running longer than DEV_UI_TEST_ALLOWANCE seconds (default 240) fails with a spindump (xcodebuild -test-timeouts-enabled). Filter HealthKitIntegrationUITests opts in to the real-Health test: it runs on the 'iPhone Duo Health' clone
                    (create it: xcrun simctl clone "iPhone Duo" "iPhone Duo Health"; DEV_SIM / DEV_SIM_UDID override), keeps its bundle as
                    latest-health.xcresult, and a pass with nothing skipped writes .build/health-test.stamp (commit, when)
 tree <Name>        print the accessibility tree (XCUIApplication.debugDescription) of the `-preview <Name>` screen via TreeDumpUITests; no private AX bridge
@@ -1769,10 +1855,12 @@ testflight [--upload]  signed App Store archive + export to .build/testflight/ex
 media-upload [--env development|production] [--limit N] [--only <sourceId>]
                    upload exercise videos to CloudKit's public database (Web Services, server-to-server key via op);
                    re-runs skip records that already hold both assets; no simulator lock
-ck-schema export [--env development|production] | diff
+ck-schema export [--env development|production] | diff | fields <ckdb file>
                    CloudKit schema via cktool, management token from 1Password via op run: export writes .build/cloudkit/schema-<env>.ckdb
-                   and lists its record types; diff exports both and names the record types Production still lacks (exit 1 until the
-                   Console's Deploy Schema Changes… has run: cktool cannot write to Production); no simulator lock
+                   and lists its record types; diff exports both and names the record types Production still lacks and, per shared record
+                   type, the fields (type.field) added, removed or retyped between Development and Production (exit 1 until the
+                   Console's Deploy Schema Changes… has run: cktool cannot write to Production); fields prints `type field type` lines of
+                   a .ckdb file offline (no token); no simulator lock
 clean              rm -rf .build
 check             lint, kit, duo-test, build, test; stops at first failure; on success touches .build/check.stamp
 selftest           the stamp, gate, skipped-count, ui-flaky and DEV_SIM_KEEP logic on fixture files in a temp dir; no simulator, no xcodebuild, not part of check

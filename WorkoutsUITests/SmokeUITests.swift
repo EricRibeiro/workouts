@@ -57,6 +57,23 @@ final class SmokeUITests: XCTestCase {
         )
     }
 
+    /// The three tabs in the dark interface style. The launch helper pins Light unless the caller passes its own
+    /// `-AppleInterfaceStyle`, so this is the one dark pass of the sharded full suite (no `simctl ui`, nothing to restore).
+    @MainActor
+    func testSmokeInDarkAppearance() throws {
+        let app = makeApp(["-AppleInterfaceStyle", "Dark"])
+        XCTAssertTrue(app.descendants(matching: .any)["screen.workout"].waitForExistence(timeout: 10))
+
+        for (tab, screen) in [
+            ("tab.history", "screen.history"), ("tab.exercises", "screen.exercises"), ("tab.workout", "screen.workout"),
+        ] {
+            let button = app.descendants(matching: .any)[tab].firstMatch
+            XCTAssertTrue(button.waitForExistence(timeout: 5), tab)
+            button.tap()
+            XCTAssertTrue(app.descendants(matching: .any)[screen].waitForExistence(timeout: 5), screen)
+        }
+    }
+
     /// JC52: the tab bar is the three main tabs and nothing else (no app sidebar, no template tabs), sample templates or not.
     @MainActor
     func testTabBarHasOnlyTheThreeTabs() throws {
