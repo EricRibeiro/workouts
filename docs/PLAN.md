@@ -485,7 +485,7 @@ command; `./dev check` plus the touched UI suites before every commit.
   workers built on other sims at the same time (the known load-induced harness error; both attempts 6 s apart): never run
   workers that build or test beside a full run meant to clear the stamp. The retry wait for `-902` is one `runningForeground`
   wait; 7c.1 gives it a short backoff.
-- [ ] **7c.1 Probe and flake log**: `RestStateProbe` mounts its 0.25 s `TimelineView` only while a rest is active (it ticks on
+- [x] **7c.1 Probe and flake log** (done; the probe ticks only while `engine.restTimer.isActive`; the audit retries `-902` three times with 1 s and 2 s backoffs; `./dev ui-flaky` reads old and new log lines; the new write path first runs at the next failed-then-passed retry, and shard wall times are compared on the next full runs): `RestStateProbe` mounts its 0.25 s `TimelineView` only while a rest is active (it ticks on
   every screen of every UI test today); compare shard wall times before and after. `ui-flaky.log` lines gain the first
   attempt's failure text, shard and seconds; `./dev ui-flaky` prints a per-test summary. Proof: `./dev ui-test
   RestRingUITests`, a full run's log line, `./dev ui-flaky`.
@@ -533,7 +533,7 @@ command; `./dev check` plus the touched UI suites before every commit.
   2,iPhone Duo Health`) skipped by `sim_heal` and `sims --prune` with a warning; `cmd_ui_test` refuses to stamp when
   `skippedTests != 5`; `./dev test` writes a stamp; `./dev selftest` runs the stamp and gate parsing over fixture files.
   Proof: `./dev selftest`, `./dev testflight` (export only) with and without a changed Health file.
-- [ ] **7c.10 Sleeps to predicates**: `CoverTimerUITests:17` → `label != before`; the three `SetTableKeyboardRevealUITests`
+- [x] **7c.10 Sleeps to predicates** (done; `XCUIElement.waitUntilFrameSettles(timeout:)` in `Support/`): `CoverTimerUITests:17` → `label != before`; the three `SetTableKeyboardRevealUITests`
   sleeps → `waitUntil` on frame equality across two reads; `LoggingBlockMenuUITests:124` stays. Proof: the three suites.
 - [ ] **7c.11 Posed UI suite**: spikes first (posing around `run_tests` without touching `sim_lock`'s EXIT trap; whether
   `XCUIDevice.shared.orientation` re-lays out the open inner display, `docs/port/duo-layout.md`); then `DEV_POSE=<pose>`
@@ -544,10 +544,12 @@ command; `./dev check` plus the touched UI suites before every commit.
   `NSPersistentCloudKitContainer` with `cloudKitContainerOptions` on a temp store and assert the load; try
   `initializeCloudKitSchema(options: .dryRun)` and keep it only if it passes without an account. Proof: `./dev test
   CloudKitModelTests`.
-- [ ] **7c.13 Live Activity builder**: `WorkoutLiveActivity`'s closures factored into `lockScreen(state:isStale:)` and
-  `islandRegions(...)` with tests; the remaining `ActivityConfiguration` lines recorded here as the appex ceiling.
-  Proof: `./dev test SnapshotTests/LiveActivitySnapshots`.
-- [ ] **7c.14 Import flow tests**: `runImport` returns its `Task`, `refreshAfterImport` tested with a real engine and store
+- [x] **7c.13 Live Activity builder**: `WorkoutLiveActivity`'s closures factored into `lockScreen(state:isStale:)`,
+  `expandedLeading`, `expandedTrailing`, `compactLeading`, `compactTrailing`, `minimal` and `keylineTint`, with 11 more
+  snapshot tests (9 dark references; the ring cases assert a render only). Proof: `./dev test SnapshotTests/LiveActivitySnapshots`.
+  **Ceiling (appex target):** `WorkoutLiveActivity.swift` lines 13-33, the `body` with `ActivityConfiguration(for:)`, the two
+  context closures and the `DynamicIsland` assembly, about 20 of 43 lines, stay uncovered: only WidgetKit instantiates them.
+- [x] **7c.14 Import flow tests** (done; `runImport` returns its `Task`, `refreshAfterImport` internal, three tests with a real engine and store): `runImport` returns its `Task`, `refreshAfterImport` tested with a real engine and store
   (imported unfinished workout shows at once; a running one is untouched). Proof: `./dev test SettingsFlowTests`.
 - [ ] **7c.15 Runner hardening** (`dev`): `-test-timeouts-enabled YES -default-test-execution-time-allowance` on UI runs; one
   dark `SmokeUITests` run in the full suite; `AppBundleTests` asserts `NSSupportsLiveActivities` and the time-sensitive
