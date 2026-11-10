@@ -476,11 +476,15 @@ the gate table. Order: 7c.0 first and alone (the stamp on 12f5649 lists both fla
 run); 7c.1–7c.8 in any order, parallel where files are disjoint; 7c.9–7c.16 after. Each task's proof is the narrowest
 command; `./dev check` plus the touched UI suites before every commit.
 
-- [ ] **7c.0 Flake fixes, then one full run**: the audit's `.hitRegion` known-issue rule also accepts a `.staticText` whose
+- [x] **7c.0 Flake fixes, then one full run**: the audit's `.hitRegion` known-issue rule also accepts a `.staticText` whose
   label equals a `navigationBars.buttons` title (the title menu is exposed as a `UILabel` while the bar settles), and
   `audit()` puts `issue.element?.debugDescription` in the failure text; `RestRingUITests.startRest` waits 15 s, not 5.
   Proof: `./dev ui-test AccessibilityAuditUITests/testActiveWorkoutLogging()` and
   `RestRingUITests/testRestEndsWhileSetFieldHasFocus()`, then a full `./dev ui-test` that stamps with `flaky=` empty.
+  Fixes in d11dbfd. The first full run after it failed on five `-902 "Invalid target app"` audit errors while three
+  workers built on other sims at the same time (the known load-induced harness error; both attempts 6 s apart): never run
+  workers that build or test beside a full run meant to clear the stamp. The retry wait for `-902` is one `runningForeground`
+  wait; 7c.1 gives it a short backoff.
 - [ ] **7c.1 Probe and flake log**: `RestStateProbe` mounts its 0.25 s `TimelineView` only while a rest is active (it ticks on
   every screen of every UI test today); compare shard wall times before and after. `ui-flaky.log` lines gain the first
   attempt's failure text, shard and seconds; `./dev ui-flaky` prints a per-test summary. Proof: `./dev ui-test
@@ -496,6 +500,11 @@ command; `./dev check` plus the touched UI suites before every commit.
   the summary arithmetic become internal pure functions with `HealthKitSourceMappingTests` in WorkoutsTests. Also run
   `./dev ui-test HealthKitIntegrationUITests` twice on one clone and record whether the sheet reappears
   (`docs/port/healthkit.md`). Proof: `./dev test HealthKitSourceMappingTests`.
+  Seam done: `kind(of:)`, `quantity(_:in:)`, `text(_:)` internal; `statisticUnit(for:)`, `derive(...)` → `DerivedFields` and
+  `effort(rated:estimated:)` extracted; 17 tests. Finding, pinned by a test and left as is: `statisticUnits` resolves
+  `oxygenSaturation` to `count` because HealthKit's percent is dimensionless like count and `count` is listed first, so the
+  `%` entry is unreachable; fix by matching that identifier explicitly once the display path is checked. The twice-on-one-clone
+  "answered" check is still to run (orchestrator).
 - [ ] **7c.5 CloudKit seams**: `RecordFetching` protocol over `CKDatabase` in `CloudKitMediaSource` with a fake covering dark →
   light fallback, `.unknownItem` → nil, rethrow, cancellation; `CloudSyncMonitor.map` over plain fields with three more
   `CloudSyncStatusTests`. Proof: `./dev test CloudKitMediaSourceTests`, `./dev kit CloudSyncStatus`.
@@ -504,10 +513,16 @@ command; `./dev check` plus the touched UI suites before every commit.
   added test-only; the test drives observer → author filter → engine with the mirror author (fallback: post the notification
   from the test, keep the history assertions) and proves `InProgressResolution` never settles a recent remote row. Proof:
   `./dev kit RemoteChange`.
-- [ ] **7c.7 Live Activity**: `WorkoutActivityState.ringKind(restOver:)` in the kit with a kit test, the views switch on it;
+- [x] **7c.7 Live Activity**: `WorkoutActivityState.ringKind(restOver:)` in the kit with a kit test, the views switch on it;
   `RenderPreview` spike over `ActivityPreviews.swift` (expanded, compact, minimal, content), PNGs attached to the task.
   Proof: `./dev kit ActivityState`, the PNGs.
-- [ ] **7c.8 SettingsFlow and docs**: `performTurnOff(_:)` seam with two tests; `WorkoutLinkRouterTests`
+  Done: `restRange()` moved into the kit, `RingKind` + `ringKind(restOver:)` with six tests, `ActivityRing` and
+  `CompactLeadingContent` switch on it (snapshots unchanged). The Xcode MCP `RenderPreview` renders the `#Preview(as:)` widget
+  previews for an iPhone Duo destination (first call can fail with `CHSErrorDomain 1050 timelineReloadFailed`, a retry works):
+  `docs/reviews/2026-11-09-coverage-research/la-previews/{expanded,compact,minimal,lock-screen}.png`. The compact render is the
+  narrow vertical Island pill, so the closed-Duo Island check now has a simulator-free artifact; the JC130 "repeatable Island
+  check" is this.
+- [x] **7c.8 SettingsFlow and docs** (done; `performTurnOff(_:)` with two tests, `WorkoutLinkRouterTests` with four, the gate table with eleven rows and a Kind column, `healthkit.md` corrected): `performTurnOff(_:)` seam with two tests; `WorkoutLinkRouterTests`
   (`request`/`consume`); the gate table in `docs/reviews/2026-11-07-test-gaps.md` §6 rewritten with eleven rows and a
   "kind" column (off / isolation / seam on), §2C's count fixed, the `-liveActivity` row corrected; the `simctl privacy …
   reset all` line in `docs/port/healthkit.md` removed. Proof: `./dev test SettingsFlowTests`, `WorkoutLinkRouterTests`.
