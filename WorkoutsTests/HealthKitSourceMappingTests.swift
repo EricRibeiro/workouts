@@ -84,13 +84,24 @@ struct HealthKitSourceMappingTests {
             (.stepCount, "count"),
             (.appleExerciseTime, "s"),
             (.bodyTemperature, "degC"),
-            // Percent is compatible with count, which is listed first, so the "%" entry is never chosen.
-            (.oxygenSaturation, "count"),
+            (.oxygenSaturation, "%"),
+            (.bloodAlcoholContent, "%"),
+            (.walkingAsymmetryPercentage, "%"),
+            (.walkingDoubleSupportPercentage, "%"),
+            (.appleWalkingSteadiness, "%"),
+            (.atrialFibrillationBurden, "%"),
         ]
     )
     func statisticUnitIsTheFirstCompatible(identifier: HKQuantityTypeIdentifier, name: String) {
         let match = HealthKitSource.statisticUnit(for: HKQuantityType(identifier))
         #expect(match?.name == name)
+    }
+
+    @Test func percentStatisticsAreReportedAsZeroTo100() throws {
+        let value = try #require(HealthKitSource.statisticValue(0.97, unitName: "%"))
+        #expect(abs(value - 97) < 1e-9)
+        #expect(HealthKitSource.statisticValue(nil, unitName: "%") == nil)
+        #expect(HealthKitSource.statisticValue(0.97, unitName: "count") == 0.97)
     }
 
     @Test func statisticUnitIsNilWhenNoneFits() {

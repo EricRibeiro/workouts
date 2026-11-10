@@ -275,19 +275,36 @@ nonisolated final class HealthKitSource: HealthSource {
         ("%", .percent()),
     ]
 
+    /// Percent-typed quantities (SDK headers: unit `%`). `.percent()` is compatible with `.count()`, which the scan
+    /// would pick first, so these are matched by identifier before it.
+    private static let percentIdentifiers: Set<HKQuantityTypeIdentifier> = [
+        .oxygenSaturation, .bloodAlcoholContent, .bodyFatPercentage, .walkingAsymmetryPercentage,
+        .walkingDoubleSupportPercentage, .appleWalkingSteadiness, .atrialFibrillationBurden,
+        .peripheralPerfusionIndex,
+    ]
+
     static func statisticUnit(for type: HKQuantityType) -> (name: String, unit: HKUnit)? {
-        statisticUnits.first(where: { type.is(compatibleWith: $0.unit) })
+        if percentIdentifiers.contains(HKQuantityTypeIdentifier(rawValue: type.identifier)) {
+            return ("%", .percent())
+        }
+        return statisticUnits.first(where: { type.is(compatibleWith: $0.unit) })
+    }
+
+    /// A statistic value in its display unit: percent values go from Health's 0-1 fraction to a 0-100 percentage.
+    static func statisticValue(_ value: Double?, unitName: String) -> Double? {
+        unitName == "%" ? value.map(FitnessFormat.humidityPercent(fromHealthPercent:)) : value
     }
 
     private static func statistic(_ type: HKQuantityType, _ statistics: HKStatistics) -> HealthStatistic? {
         guard let match = statisticUnit(for: type) else { return nil }
         let unit = match.unit
+        let scale = { (value: Double?) in statisticValue(value, unitName: match.name) }
         let result = HealthStatistic(
-            sum: statistics.sumQuantity()?.doubleValue(for: unit),
-            average: statistics.averageQuantity()?.doubleValue(for: unit),
-            minimum: statistics.minimumQuantity()?.doubleValue(for: unit),
-            maximum: statistics.maximumQuantity()?.doubleValue(for: unit),
-            mostRecent: statistics.mostRecentQuantity()?.doubleValue(for: unit),
+            sum: scale(statistics.sumQuantity()?.doubleValue(for: unit)),
+            average: scale(statistics.averageQuantity()?.doubleValue(for: unit)),
+            minimum: scale(statistics.minimumQuantity()?.doubleValue(for: unit)),
+            maximum: scale(statistics.maximumQuantity()?.doubleValue(for: unit)),
+            mostRecent: scale(statistics.mostRecentQuantity()?.doubleValue(for: unit)),
             unit: match.name
         )
         let values = [result.sum, result.average, result.minimum, result.maximum, result.mostRecent]
