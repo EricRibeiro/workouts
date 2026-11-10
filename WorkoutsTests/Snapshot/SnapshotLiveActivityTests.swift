@@ -254,5 +254,161 @@ extension SnapshotTests {
                 engine: .hostedFitting
             )
         }
+
+        // MARK: Through the builder functions
+
+        /// `WorkoutLiveActivity`'s static presentation functions, the bodies of the `ActivityConfiguration` closures, fed
+        /// `(state, isStale)` as WidgetKit does. A stale rest-in-progress state reads as rest over.
+        private struct ViaBuilder: View {
+            let state: WorkoutActivityState
+            let isStale: Bool
+
+            var body: some View {
+                Island(width: 366, height: 84, corner: 40) {
+                    HStack(spacing: 8) {
+                        WorkoutLiveActivity.expandedLeading(state: state, isStale: isStale)
+                        WorkoutLiveActivity.expandedTrailing(state: state, isStale: isStale)
+                    }
+                    .padding(.horizontal, 20)
+                }
+            }
+        }
+
+        private struct CompactViaBuilder: View {
+            let state: WorkoutActivityState
+            let isStale: Bool
+
+            var body: some View {
+                Island(width: 250, height: 37, corner: 18.5) {
+                    HStack(spacing: 0) {
+                        WorkoutLiveActivity.compactLeading(state: state, isStale: isStale)
+                            .frame(width: 44)
+                        Spacer(minLength: 0)
+                        WorkoutLiveActivity.compactTrailing(state: state, isStale: isStale)
+                            .frame(width: 60)
+                    }
+                    .padding(.horizontal, 12)
+                }
+            }
+        }
+
+        @Test func builderExpandedWorking() {
+            Snapshot.assert(
+                ViaBuilder(state: Self.working(), isStale: false),
+                named: "builder-expanded-working",
+                variant: Self.dark,
+                engine: .hostedFitting
+            )
+        }
+
+        @Test func builderExpandedResting() {
+            Snapshot.assert(
+                ViaBuilder(state: Self.resting(), isStale: false),
+                named: "builder-expanded-resting",
+                variant: Self.dark,
+                engine: .hostedFitting
+            )
+        }
+
+        @Test func builderExpandedStale() {
+            Snapshot.assert(
+                ViaBuilder(state: Self.resting(), isStale: true),
+                named: "builder-expanded-stale",
+                variant: Self.dark,
+                engine: .hostedFitting
+            )
+        }
+
+        @Test func builderExpandedRestOver() {
+            Snapshot.assert(
+                ViaBuilder(state: Self.restOver(), isStale: false),
+                named: "builder-expanded-rest-over",
+                variant: Self.dark,
+                engine: .hostedFitting
+            )
+        }
+
+        @Test func builderCompactWorking() {
+            Snapshot.assert(
+                CompactViaBuilder(state: Self.working(), isStale: false),
+                named: "builder-compact-working",
+                variant: Self.dark,
+                engine: .hostedFitting
+            )
+        }
+
+        @Test func builderCompactStale() {
+            Snapshot.assert(
+                CompactViaBuilder(state: Self.resting(), isStale: true),
+                named: "builder-compact-stale",
+                variant: Self.dark,
+                engine: .hostedFitting
+            )
+        }
+
+        @Test func builderMinimalWorking() {
+            Snapshot.assert(
+                Island(width: 48, height: 37, corner: 18.5) {
+                    WorkoutLiveActivity.minimal(state: Self.working(), isStale: false)
+                },
+                named: "builder-minimal-working",
+                variant: Self.dark,
+                width: 80,
+                engine: .hostedFitting
+            )
+        }
+
+        @Test func builderLockScreenWorking() {
+            Snapshot.assert(
+                WorkoutLiveActivity.lockScreen(state: Self.working(), isStale: false)
+                    .background(
+                        ActivityStyle.backgroundTint,
+                        in: RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    )
+                    .tint(ActivityStyle.accent)
+                    .padding(12)
+                    .background(Color(white: 0.12)),
+                named: "builder-lock-working",
+                variant: Self.dark,
+                engine: .hostedFitting
+            )
+        }
+
+        @Test func builderLockScreenStale() {
+            Snapshot.assert(
+                WorkoutLiveActivity.lockScreen(state: Self.resting(), isStale: true)
+                    .background(
+                        ActivityStyle.backgroundTint,
+                        in: RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    )
+                    .tint(ActivityStyle.accent)
+                    .padding(12)
+                    .background(Color(white: 0.12)),
+                named: "builder-lock-stale",
+                variant: Self.dark,
+                engine: .hostedFitting
+            )
+        }
+
+        /// The ring cases animate outside WidgetKit, so they are only checked for rendering, not pixels.
+        @Test func builderRingCasesRender() {
+            let resting = Self.resting()
+            let views: [AnyView] = [
+                AnyView(WorkoutLiveActivity.compactLeading(state: resting, isStale: false)),
+                AnyView(WorkoutLiveActivity.compactTrailing(state: resting, isStale: false)),
+                AnyView(WorkoutLiveActivity.minimal(state: resting, isStale: false)),
+                AnyView(WorkoutLiveActivity.minimal(state: resting, isStale: true)),
+                AnyView(WorkoutLiveActivity.lockScreen(state: resting, isStale: false)),
+            ]
+            for view in views {
+                #expect(ImageRenderer(content: view.frame(width: 200, height: 100)).uiImage != nil)
+            }
+        }
+
+        @Test func builderKeylineTintFollowsStaleness() {
+            #expect(WorkoutLiveActivity.keylineTint(state: Self.resting(), isStale: false) == ActivityStyle.accent)
+            #expect(WorkoutLiveActivity.keylineTint(state: Self.resting(), isStale: true) == ActivityStyle.ok)
+            #expect(WorkoutLiveActivity.keylineTint(state: Self.working(), isStale: true) == ActivityStyle.accent)
+        }
     }
 }

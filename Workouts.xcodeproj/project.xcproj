@@ -60,6 +60,7 @@
             "ActivityTimers.swift",
             "DynamicIslandViews.swift",
             "LockScreenActivityView.swift",
+            "WorkoutLiveActivity.swift",
           ],
         }, {
           "target": "WorkoutsLiveActivity",
