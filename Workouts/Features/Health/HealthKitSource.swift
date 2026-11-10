@@ -87,41 +87,73 @@ nonisolated final class HealthKitSource: HealthSource {
 
             let active = Self.sum(workout, .activeEnergyBurned, unit: .kilocalorie())
             let basal = Self.sum(workout, .basalEnergyBurned, unit: .kilocalorie())
-            let total = active.map { $0 + (basal ?? 0) } ?? basal
 
             let bpm = HKUnit.count().unitDivided(by: .minute())
             let heartRate = workout.statistics(for: HKQuantityType(.heartRate))
             let samples = try await heartRateSamples(for: workout)
-            let series = samples.map {
-                HeartRatePoint(
-                    offset: max(0, $0.startDate.timeIntervalSince(workout.startDate)),
-                    bpm: $0.quantity.doubleValue(for: bpm)
-                )
-            }
+            let ratedEffort = await effort(for: workout)
+            let derived = Self.derive(
+                active: active,
+                basal: basal,
+                workoutStart: workout.startDate,
+                heartRate: samples.map { (start: $0.startDate, bpm: $0.quantity.doubleValue(for: bpm)) },
+                humidityHealthPercent: Self.quantity(workout.metadata?[HKMetadataKeyWeatherHumidity], in: .percent())
+            )
             // The series stays raw: `HealthEnrichment.enrich` downsamples it.
             return HealthWorkoutSummary(
                 healthWorkoutID: candidate.id,
                 start: workout.startDate,
                 end: workout.endDate,
                 activeEnergyKcal: active,
-                totalEnergyKcal: total,
+                totalEnergyKcal: derived.totalEnergyKcal,
                 avgHeartRate: heartRate?.averageQuantity()?.doubleValue(for: bpm),
                 maxHeartRate: heartRate?.maximumQuantity()?.doubleValue(for: bpm),
-                heartRateSeries: series,
-                effort: await effort(for: workout),
+                heartRateSeries: derived.heartRateSeries,
+                effort: ratedEffort,
                 zones: Self.zones(of: workout, bpm: bpm),
                 weatherTemperatureCelsius: Self.quantity(
                     workout.metadata?[HKMetadataKeyWeatherTemperature],
                     in: .degreeCelsius()
                 ),
-                weatherHumidityPercent: Self.quantity(workout.metadata?[HKMetadataKeyWeatherHumidity], in: .percent())
-                    .map(FitnessFormat.humidityPercent(fromHealthPercent:)),
+                weatherHumidityPercent: derived.humidityPercent,
                 timeZoneIdentifier: workout.metadata?[HKMetadataKeyTimeZone] as? String,
                 details: await details(for: workout)
             )
         } catch {
             throw Self.map(error)
         }
+    }
+
+    /// The summary fields computed from plain values, so the arithmetic is testable without a store.
+    struct DerivedFields: Equatable {
+        var totalEnergyKcal: Double?
+        var heartRateSeries: [HeartRatePoint]
+        var humidityPercent: Double?
+    }
+
+    /// Total energy is active plus resting (resting alone when there is no active); each heart-rate sample's offset is
+    /// seconds since the workout start, floored at 0; humidity goes from Health's percent to a 0-100 percentage.
+    static func derive(
+        active: Double?,
+        basal: Double?,
+        workoutStart: Date,
+        heartRate: [(start: Date, bpm: Double)],
+        humidityHealthPercent: Double?
+    ) -> DerivedFields {
+        DerivedFields(
+            totalEnergyKcal: active.map { $0 + (basal ?? 0) } ?? basal,
+            heartRateSeries: heartRate.map {
+                HeartRatePoint(offset: max(0, $0.start.timeIntervalSince(workoutStart)), bpm: $0.bpm)
+            },
+            humidityPercent: humidityHealthPercent.map(FitnessFormat.humidityPercent(fromHealthPercent:))
+        )
+    }
+
+    /// A rated score wins over Apple's estimate.
+    static func effort(rated: Double?, estimated: Double?) -> HealthEffort? {
+        if let rated { return HealthEffort(score: rated, isEstimated: false) }
+        if let estimated { return HealthEffort(score: estimated, isEstimated: true) }
+        return nil
     }
 
     // MARK: Best-effort extras (PLAN 7.1b e4). A failing sub-query leaves its field nil or empty and never fails the summary.
@@ -136,13 +168,12 @@ nonisolated final class HealthKitSource: HealthSource {
         guard let result = try? await descriptor.result(for: store) else { return nil }
         let samples = result.relationships.flatMap { $0.samples ?? [] }.compactMap { $0 as? HKQuantitySample }
         let unit = HKUnit.appleEffortScore()
-        if let rated = samples.first(where: { $0.quantityType == HKQuantityType(.workoutEffortScore) }) {
-            return HealthEffort(score: rated.quantity.doubleValue(for: unit), isEstimated: false)
-        }
-        if let estimated = samples.first(where: { $0.quantityType == HKQuantityType(.estimatedWorkoutEffortScore) }) {
-            return HealthEffort(score: estimated.quantity.doubleValue(for: unit), isEstimated: true)
-        }
-        return nil
+        let rated = samples.first(where: { $0.quantityType == HKQuantityType(.workoutEffortScore) })
+        let estimated = samples.first(where: { $0.quantityType == HKQuantityType(.estimatedWorkoutEffortScore) })
+        return Self.effort(
+            rated: rated?.quantity.doubleValue(for: unit),
+            estimated: estimated?.quantity.doubleValue(for: unit)
+        )
     }
 
     /// Time in each heart-rate zone, lowest effort first; empty when Health has no zones for the workout.
@@ -160,7 +191,7 @@ nonisolated final class HealthKitSource: HealthSource {
     }
 
     /// A metadata value that is an `HKQuantity`, in `unit`; nil when absent or of another kind or dimension.
-    private static func quantity(_ value: Any?, in unit: HKUnit) -> Double? {
+    static func quantity(_ value: Any?, in unit: HKUnit) -> Double? {
         guard let quantity = value as? HKQuantity, quantity.is(compatibleWith: unit) else { return nil }
         return quantity.doubleValue(for: unit)
     }
@@ -244,8 +275,12 @@ nonisolated final class HealthKitSource: HealthSource {
         ("%", .percent()),
     ]
 
+    static func statisticUnit(for type: HKQuantityType) -> (name: String, unit: HKUnit)? {
+        statisticUnits.first(where: { type.is(compatibleWith: $0.unit) })
+    }
+
     private static func statistic(_ type: HKQuantityType, _ statistics: HKStatistics) -> HealthStatistic? {
-        guard let match = statisticUnits.first(where: { type.is(compatibleWith: $0.unit) }) else { return nil }
+        guard let match = statisticUnit(for: type) else { return nil }
         let unit = match.unit
         let result = HealthStatistic(
             sum: statistics.sumQuantity()?.doubleValue(for: unit),
@@ -260,7 +295,7 @@ nonisolated final class HealthKitSource: HealthSource {
     }
 
     /// A metadata value as text: quantities by their description, dates as ISO 8601, numbers and strings as themselves.
-    private static func text(_ value: Any) -> String {
+    static func text(_ value: Any) -> String {
         switch value {
         case let quantity as HKQuantity: quantity.description
         case let date as Date: date.formatted(.iso8601)
@@ -295,7 +330,7 @@ nonisolated final class HealthKitSource: HealthSource {
         )
     }
 
-    private static func kind(of type: HKWorkoutActivityType) -> HealthActivityKind {
+    static func kind(of type: HKWorkoutActivityType) -> HealthActivityKind {
         switch type {
         case .functionalStrengthTraining: .functionalStrength
         case .traditionalStrengthTraining: .traditionalStrength
