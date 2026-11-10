@@ -9,6 +9,28 @@ extension XCUIElement {
 }
 
 extension XCUIElement {
+    /// Polls the element's frame every 0.25 s until two consecutive reads are equal (keyboard avoidance and reveal scrolls
+    /// have finished moving it) and returns that frame. Fails the test on `timeout` and returns the last read.
+    @MainActor @discardableResult
+    func waitUntilFrameSettles(
+        timeout: TimeInterval = 10,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) -> CGRect {
+        let deadline = Date().addingTimeInterval(timeout)
+        var last = frame
+        while Date() < deadline {
+            Thread.sleep(forTimeInterval: 0.25)
+            let current = frame
+            if current == last { return current }
+            last = current
+        }
+        XCTFail("frame still moving after \(timeout)s: \(last)", file: file, line: line)
+        return last
+    }
+}
+
+extension XCUIElement {
     /// Asserts the element is absent now and does not show up within `duration`. For an element that must never appear: call
     /// it after a positive anchor proved the screen settled (a bare `XCTAssertFalse(x.exists)` right after a tap passes
     /// when `x` has merely not appeared yet). A wait on appearance, not a sleep: it fails as soon as the element shows.

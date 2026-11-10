@@ -14,7 +14,7 @@ final class CoverTimerUITests: XCTestCase {
         XCTAssertTrue(subtitle.waitForExistence(timeout: 10), "navigation subtitle missing")
 
         let before = subtitle.label
-        Thread.sleep(forTimeInterval: 2.5)
+        waitUntil(timeout: 15) { subtitle.label != before }
         let after = subtitle.label
         XCTAssertNotEqual(before, after, "elapsed time did not tick without interaction")
     }

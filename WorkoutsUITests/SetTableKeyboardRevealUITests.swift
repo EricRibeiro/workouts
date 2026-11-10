@@ -35,12 +35,10 @@ final class SetTableKeyboardRevealUITests: XCTestCase {
         let next = app.buttons["setkeyboard.next"].firstMatch
         XCTAssertTrue(next.waitForExistence(timeout: 5))
         // Let the keyboard avoidance and the reveal scroll settle.
-        Thread.sleep(forTimeInterval: 1)
-
         let cell = app.textFields[identifier]
-        let after = cell.frame
-        let pill = next.frame
-        let keys = keyboard.frame
+        let keys = keyboard.waitUntilFrameSettles()
+        let pill = next.waitUntilFrameSettles()
+        let after = cell.waitUntilFrameSettles()
         let note = "cell before \(before), after \(after), pill \(pill), keyboard \(keys)"
         XCTAssertLessThanOrEqual(after.maxY, pill.minY, "reps cell is under the toolbar pill: \(note)")
         XCTAssertFalse(after.intersects(keys), "reps cell is under the keyboard: \(note)")
@@ -103,7 +101,7 @@ final class SetTableKeyboardRevealUITests: XCTestCase {
         if (lastReps.value as? String) == "Empty" { lastReps.typeText("5") }
         let keyboard = app.keyboards.firstMatch
         XCTAssertTrue(keyboard.waitForExistence(timeout: 5))
-        Thread.sleep(forTimeInterval: 1)
+        keyboard.waitUntilFrameSettles()
 
         let verify = dismiss(app, checkID)
         // No wait: the keyboard is still animating down.
@@ -112,12 +110,11 @@ final class SetTableKeyboardRevealUITests: XCTestCase {
         XCTAssertTrue(keyboard.waitForExistence(timeout: 5))
         let next = app.buttons["setkeyboard.next"].firstMatch
         XCTAssertTrue(next.waitForExistence(timeout: 5))
-        Thread.sleep(forTimeInterval: 1)
+        let keys = keyboard.waitUntilFrameSettles()
+        let pill = next.waitUntilFrameSettles()
+        let cell = app.textFields[aboveID].waitUntilFrameSettles()
         verify()
 
-        let cell = app.textFields[aboveID].frame
-        let pill = next.frame
-        let keys = keyboard.frame
         let note = "cell \(cell), pill \(pill), keyboard \(keys), window \(app.windows.firstMatch.frame)"
         XCTContext.runActivity(named: note) { _ in }
         XCTAssertLessThanOrEqual(cell.maxY, pill.minY, "reps cell is under the toolbar pill: \(note)")
