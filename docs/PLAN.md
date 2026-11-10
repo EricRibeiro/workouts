@@ -496,7 +496,7 @@ command; `./dev check` plus the touched UI suites before every commit.
   "Off", "Default, 1 minute"); `TemplateEditorBlockMenuUITests`: open the picker, pick 90 / Off / Default, caption follows,
   Cancel keeps it; `LoggingBlockMenuUITests`: launch with `-sampleNoRest`, pick 30, check a set, `rest.ring` reads 16–30 s
   (ring helpers moved to `Support/`). Proof: the two suites.
-- [ ] **7c.4 HealthKitSource helpers**: `map`, `kind(of:)`, `quantity(_:in:)`, `text(_:)`, the unit choice in `statistic` and
+- [x] **7c.4 HealthKitSource helpers**: `map`, `kind(of:)`, `quantity(_:in:)`, `text(_:)`, the unit choice in `statistic` and
   the summary arithmetic become internal pure functions with `HealthKitSourceMappingTests` in WorkoutsTests. Also run
   `./dev ui-test HealthKitIntegrationUITests` twice on one clone and record whether the sheet reappears
   (`docs/port/healthkit.md`). Proof: `./dev test HealthKitSourceMappingTests`.
@@ -536,7 +536,7 @@ command; `./dev check` plus the touched UI suites before every commit.
   Proof: `./dev selftest`, `./dev testflight` (export only) with and without a changed Health file.
 - [x] **7c.10 Sleeps to predicates** (done; `XCUIElement.waitUntilFrameSettles(timeout:)` in `Support/`): `CoverTimerUITests:17` → `label != before`; the three `SetTableKeyboardRevealUITests`
   sleeps → `waitUntil` on frame equality across two reads; `LoggingBlockMenuUITests:124` stays. Proof: the three suites.
-- [ ] **7c.11 Posed UI suite**: spikes first (posing around `run_tests` without touching `sim_lock`'s EXIT trap; whether
+- [x] **7c.11 Posed UI suite** (done; `DEV_POSE` on a filtered `ui-test` poses under the lock in `run_tests` and `sim_release` restores closed-portrait, 8 selftest cases; `OpenPoseUITests` proves the 951×669 window, the pane in the trailing half of the safe area (the system strip takes ~85 pt, so the split sits near 433 pt) and the set table clear of it, plus one audit of the open cover. **Spike result:** `XCUIDevice.shared.orientation = .landscapeLeft` on the open inner display leaves the window at 951×669 and the pane unmoved, so a placement change cannot be driven from XCUITest and the focus/draft/scroll-survival test was dropped; that claim stays with `./dev poses` and the device, per JC130. The full run now expects 7 skips): spikes first (posing around `run_tests` without touching `sim_lock`'s EXIT trap; whether
   `XCUIDevice.shared.orientation` re-lays out the open inner display, `docs/port/duo-layout.md`); then `DEV_POSE=<pose>`
   honoured by a wrapper around `run_tests` (restore in the lock's release), `TEST_RUNNER_DUO_POSE`, and `OpenPoseUITests`
   (window 951×669, pane in the right half, rotate, focused cell + draft + scroll survive; one audit pass of the open layout).
@@ -559,6 +559,12 @@ command; `./dev check` plus the touched UI suites before every commit.
   Development and Production exports, not record types only, and `./dev ck-schema fields <ckdb>` lists them offline; 13
   selftest checks over fixtures (missing, retyped and extra field, absent type). A comparison against the SwiftData schema's
   attributes is not possible offline and was left out. Proof: `./dev selftest`.
+
+**Outcome (2026-11-09, all 17 done in one day, ~50 Sonnet worker-runs plus one Opus):** kit 983 tests, app unit 219, UI 163
+passed + 7 skipped on the last full run (0 flaky, 22 min, shard times unchanged by the probe fix); new proofs for the open-Duo
+placement, the rest picker in both editors, the Health reader's pure half, the real remote-change notification chain, the
+Live Activity's regions and `RenderPreview` renders, the offline CloudKit model load, `./dev selftest` (101 checks) over the
+gate plumbing, and a Health real-store gate on every upload. Builds 202611100150, 0215 and 0229 shipped along the way.
 
 Not automated, deliberately (JC130): the hinge fold and bench pose (`./dev poses` stays the reviewer proof), the Island on
 the closed Duo and StandBy (Eric's device checks), a SpringBoard XCUITest of the Live Activity, `./dev sync-check` until a
