@@ -67,17 +67,22 @@ import Testing
             try? FileManager.default.removeItem(at: directory)
         }
 
-        /// Waits for the save's notification, runs out the debounce and waits until `shouldFire` has answered.
+        /// Waits for the save's notification, runs out the debounce and waits until `shouldFire` has answered. One save
+        /// posts the notification twice and the second post re-arms the debounce, possibly after the clock was advanced
+        /// (seen under the parallel full-package run), so the clock keeps advancing whenever a sleeper is armed until the
+        /// filter has been asked, then drains whatever re-armed after that.
         func settleDebounce(_ debounce: Duration) async throws {
             let before = asked
             #expect(
-                try await eventually(timeout: .seconds(10)) { observer.scheduleCount >= 1 },
+                try await eventually(timeout: .seconds(30)) { observer.scheduleCount >= 1 },
                 "no remote-change notification"
             )
-            #expect(try await eventually(timeout: .seconds(10)) { clock.sleeperCount == 1 })
-            clock.advance(by: debounce)
-            #expect(try await eventually(timeout: .seconds(10)) { asked > before })
-            // A second notification of the same save re-arms the wait; run that one out too.
+            let deadline = ContinuousClock.now + .seconds(30)
+            while asked == before, ContinuousClock.now < deadline {
+                if clock.sleeperCount > 0 { clock.advance(by: debounce) }
+                try await Task.sleep(for: .milliseconds(20))
+            }
+            #expect(asked > before, "the debounce never fired the author filter")
             for _ in 0..<20 { await Task.yield() }
             while clock.sleeperCount > 0 {
                 clock.advance(by: debounce)

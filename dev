@@ -13,7 +13,7 @@ UI_STAMP=".build/ui-test.stamp"
 TEST_STAMP=".build/test.stamp"             # commit, clean tree?, time of the last passing unfiltered ./dev test (./dev coverage prints it)
 HEALTH_STAMP=".build/health-test.stamp"    # commit and time of the last HealthKitIntegrationUITests pass with nothing skipped (the testflight --upload gate)
 # What the real-Health pass vouches for: a change to any of these since the stamped commit needs a new pass before an upload.
-HEALTH_PATHS=(Workouts/Features/Health/HealthKitSource.swift Workouts/Features/Health/HealthSeeder.swift Workouts/Workouts.entitlements WorkoutsUITests/HealthKitIntegrationUITests.swift)
+HEALTH_PATHS=(Workouts/Features/Health Packages/WorkoutsKit/Sources/WorkoutsKit/Health Workouts/Workouts.entitlements WorkoutsUITests/HealthKitIntegrationUITests.swift)
 HEALTH_SIM="iPhone Duo Health"             # a clone outside the pool that keeps its Health authorization between runs
 UI_EXPECTED_SKIPS="${DEV_UI_EXPECTED_SKIPS:-7}" # an unfiltered ui-test skips PerfDriver 3, HealthKitIntegration 1, TreeDump 1, OpenPose 2
 # A stalled UI test fails (with a spindump) after this many seconds instead of silently eating a shard; DEV_UI_TEST_ALLOWANCE overrides.
@@ -389,9 +389,10 @@ health_stamp_write() { # health_stamp_write <file> <skipped> <commit> <when>: on
   fi
   mkdir -p "$(dirname "$1")" && stamp_write "$1" "commit=$3" "when=$4"
 }
-health_gate_verdict() { # health_gate_verdict <stamp> <repo>: succeeds when the Health paths are unchanged since the stamped commit; else prints the commit (or none)
+health_gate_verdict() { # health_gate_verdict <stamp> <repo>: succeeds when the Health paths in the working tree (uncommitted and untracked edits included) match the stamped commit; else prints the commit (or none)
   local commit; commit=$(stamp_get "$1" commit)
-  if [[ -n "$commit" ]] && git -C "$2" diff --quiet "$commit" HEAD -- "${HEALTH_PATHS[@]}" 2>/dev/null; then return 0; fi
+  if [[ -n "$commit" ]] && git -C "$2" diff --quiet "$commit" -- "${HEALTH_PATHS[@]}" 2>/dev/null &&
+    [[ -z "$(git -C "$2" ls-files --others --exclude-standard -- "${HEALTH_PATHS[@]}" 2>/dev/null)" ]]; then return 0; fi
   echo "${commit:-none}"
   return 1
 }
@@ -562,6 +563,20 @@ ui_bundle_suites() { # ui_bundle_suites <xcresult>: "<suite> TAB <seconds>" for 
     | group_by(.nodeIdentifier | split("/")[0])[]
     | [(.[0].nodeIdentifier | split("/")[0]), ([.[].durationInSeconds // 0] | add | round)] | @tsv' 2>/dev/null || true
 }
+flaky_text() { # flaky_text <summary-json> <id>: the first failure text of the test, one line, at most 300 chars; - when absent
+  local t
+  t=$(jq -r --arg id "$2" '[(.testFailures // [])[] | select(.testIdentifierString == $id) | .failureText][0] // "" | gsub("\\s+"; " ") | sub("^ "; "") | sub(" $"; "")' <<<"$1" 2>/dev/null | cut -c1-300) || t=""
+  echo "${t:--}"
+}
+flaky_secs() { # flaky_secs <tests-json> <id>: the test's duration in whole seconds; - when absent or not a number
+  local s
+  s=$(jq -r --arg id "$2" '[.. | objects | select(.nodeType == "Test Case" and .nodeIdentifier == $id) | .durationInSeconds][0] | if type == "number" then round else "-" end' <<<"$1" 2>/dev/null) || s="-"
+  echo "${s:--}"
+}
+flaky_tsv_line() { # flaky_tsv_line <id> <secs> <text>: exactly three tab-separated fields; tabs and newlines in a field become spaces
+  local id="${1//[$'\t\n']/ }" secs="${2//[$'\t\n']/ }" text="${3//[$'\t\n']/ }"
+  printf '%s\t%s\t%s\n' "$id" "${secs:--}" "${text:--}"
+}
 # Re-run a shard's failed tests once, on the same simulator. Succeeds only when exactly those tests ran again and all of
 # them passed; a failure that cannot be named test by test, or a test that was already flaky in the previous full run, is
 # never retried. The retried ids go to shard-N.retried and are reported as flaky.
@@ -589,9 +604,8 @@ ui_shard_retry() { # ui_shard_retry <index> <udid> <xctestrun> <bundle>
   # <id> TAB <first attempt seconds> TAB <first failure text, one line, at most 300 chars> per test, for the flaky log
   : >"$UI_SHARDS_DIR/shard-$idx.retried"
   for id in "${ids[@]}"; do
-    text=$(jq -r --arg id "$id" '[(.testFailures // [])[] | select(.testIdentifierString == $id) | .failureText][0] // "" | gsub("\\s+"; " ") | sub("^ "; "") | sub(" $"; "")' <<<"$first" 2>/dev/null | cut -c1-300) || text=""
-    secs=$(jq -r --arg id "$id" '[.. | objects | select(.nodeType == "Test Case" and .nodeIdentifier == $id) | .durationInSeconds][0] | if type == "number" then round else "-" end' <<<"$durs" 2>/dev/null) || secs="-"
-    printf '%s\t%s\t%s\n' "$id" "${secs:--}" "${text:--}" >>"$UI_SHARDS_DIR/shard-$idx.retried"
+    text=$(flaky_text "$first" "$id"); secs=$(flaky_secs "$durs" "$id")
+    flaky_tsv_line "$id" "$secs" "$text" >>"$UI_SHARDS_DIR/shard-$idx.retried"
   done
 }
 ui_shard() { # ui_shard <index> <udid> <xctestrun> <suite...>; runs in a background subshell
@@ -813,9 +827,9 @@ cmd_coverage() {
 cmd_kit() {
   [[ -d "$KIT" ]] || die "$KIT does not exist"
   if [[ -n "${1:-}" ]]; then
-    run_logged kit bash -c 'cd "$1" && swift test --filter "$2"' _ "$KIT" "$1"
+    run_logged kit bash -c 'cd "$1" && swift test --filter "$2"' _ "$KIT" "$1" || return 1
   else
-    run_logged kit bash -c 'cd "$1" && swift test' _ "$KIT"
+    run_logged kit bash -c 'cd "$1" && swift test' _ "$KIT" || return 1
   fi
   kit_summary "${1:-}"
 }
@@ -844,11 +858,20 @@ swift_test_summary() { # swift_test_summary <label> <filter>; not test_summary, 
     echo "FAILED: $1 — no tests matched filter '$2' (check the suite/test name)" >&2
     return 1
   fi
+  # swift test can exit 0 with a failing Swift Testing run when XCTest also ran, so the totals line is the verdict: a
+  # "failed" line fails, a "passed" line passes, and no line at all is a failure, never "ok" (2026-11-09: check said
+  # "kit: ok" over a failed run).
+  line=$(grep -E 'Test run with .* failed' "$log" | tail -n 1 || true)
+  if [[ -n "$line" ]]; then
+    echo "FAILED: $1: Test run with ${line#*Test run with } (full log: $log)" >&2
+    return 1
+  fi
   line=$(grep -E 'Test run with .* passed' "$log" | tail -n 1 || true)
   if [[ -n "$line" ]]; then
     echo "$1: Test run with ${line#*Test run with }"
   else
-    echo "$1: ok"
+    echo "FAILED: $1: no test totals line in $log" >&2
+    return 1
   fi
 }
 kit_summary() { swift_test_summary kit "$1"; } # kit_summary <filter>
@@ -1357,7 +1380,7 @@ tf_health_gate() { # tf_health_gate [stamp] [repo]
   fi
   local since
   since=$(health_gate_verdict "${1:-$HEALTH_STAMP}" "${2:-.}") && return 0
-  die "testflight: the Health reader changed since the last real-store pass ($since): ./dev ui-test HealthKitIntegrationUITests first; DEV_SKIP_HEALTH_GATE=1 overrides"
+  die "testflight: the Health code (reader, kit mapping, entitlements or test) changed since the last real-store pass ($since; uncommitted edits count): ./dev ui-test HealthKitIntegrationUITests first; DEV_SKIP_HEALTH_GATE=1 overrides"
 }
 tf_cleanup() { [[ -z "$TF_TMP" ]] || rm -rf "$TF_TMP"; TF_TMP=""; }
 
@@ -1651,6 +1674,17 @@ cmd_selftest() {
   st_run skip_check 3 3; st_rc "skip_check with an overridden expectation" 0
   st_run skip_check 5 five; st_rc "skip_check with a non-numeric expectation" 1
 
+  # swift test totals: a failed run is a failure even when swift test exited 0; no totals line is never "ok".
+  p="$ST_DIR/kit.log"
+  printf '%s\n' "✔ Test run with 4 tests in 1 suite passed after 0.1 seconds." >"$p"
+  LAST_LOG="$p" st_run swift_test_summary kit ""; st_rc "swift_test_summary passed" 0; st_out_has "swift_test_summary passed line" "kit: Test run with 4 tests"
+  printf '%s\n' "✘ Test run with 983 tests in 84 suites failed after 45.7 seconds with 1 issue." >"$p"
+  LAST_LOG="$p" st_run swift_test_summary kit ""; st_rc "swift_test_summary failed" 1; st_out_has "swift_test_summary failed line" "FAILED: kit: Test run with 983 tests"
+  printf '%s\n' "Building for debugging..." >"$p"
+  LAST_LOG="$p" st_run swift_test_summary kit ""; st_rc "swift_test_summary without a totals line" 1; st_out_has "swift_test_summary without a totals line" "no test totals line"
+  printf '%s\n' "No matching test cases were run" >"$p"
+  LAST_LOG="$p" st_run swift_test_summary kit Nope; st_rc "swift_test_summary with an empty filter match" 1
+
   # ui-flaky: a three-field (old) line, and newer lines with shard, seconds and failure text.
   p="$ST_DIR/ui-flaky.log"
   {
@@ -1685,11 +1719,37 @@ cmd_selftest() {
   st_out_has "health_stamp_write says why" "1 test(s) skipped"
   st_run health_stamp_write "$ST_DIR/h3.stamp" "" deadbeef now; st_rc "health_stamp_write unknown count" 1
 
+  # Flaky-log writers: the failure text and duration extraction and the TSV line, on fixture JSON.
+  local fj long
+  long=$(printf 'word%.0s ' {1..120})
+  fj=$(jq -n --arg t "  first line"$'\n'"	second   line $long" '{testFailures: [{testIdentifierString: "S/a()", failureText: $t}, {testIdentifierString: "S/a()", failureText: "later"}, {testIdentifierString: "S/b()", failureText: "B"}]}')
+  st_run flaky_text "$fj" "S/a()"; st_rc "flaky_text" 0
+  st_ok "flaky_text is one line" "$([[ "$ST_OUT" != *$'\n'* ]] && echo 0 || echo 1)"
+  st_eq "flaky_text is 300 chars" 300 "${#ST_OUT}"
+  st_ok "flaky_text collapses whitespace and keeps the first failure" "$([[ "$ST_OUT" == "first line second line word word"* && "$ST_OUT" != *"later"* ]] && echo 0 || echo 1)"
+  st_eq "flaky_text of another id" B "$(flaky_text "$fj" "S/b()")"
+  st_eq "flaky_text of an id missing from the failures" - "$(flaky_text "$fj" "S/c()")"
+  st_eq "flaky_text without testFailures" - "$(flaky_text '{}' "S/a()")"
+  st_eq "flaky_text of invalid json" - "$(flaky_text 'not json' "S/a()")"
+  local tj='{"testNodes":[{"nodeType":"Test Suite","children":[{"nodeType":"Test Case","nodeIdentifier":"S/a()","durationInSeconds":41.7},{"nodeType":"Test Case","nodeIdentifier":"S/n()","durationInSeconds":"fast"},{"nodeType":"Test Case","nodeIdentifier":"S/z()"}]}]}'
+  st_eq "flaky_secs rounds 41.7" 42 "$(flaky_secs "$tj" "S/a()")"
+  st_eq "flaky_secs of an empty tests tree" - "$(flaky_secs '{}' "S/a()")"
+  st_eq "flaky_secs of an id missing from the tree" - "$(flaky_secs "$tj" "S/c()")"
+  st_eq "flaky_secs of a non-numeric duration" - "$(flaky_secs "$tj" "S/n()")"
+  st_eq "flaky_secs of a test without a duration" - "$(flaky_secs "$tj" "S/z()")"
+  st_eq "flaky_secs of invalid json" - "$(flaky_secs 'not json' "S/a()")"
+  local tsv; tsv=$(flaky_tsv_line "S/a()" 42 $'has\ta tab\nand a newline')
+  st_eq "flaky_tsv_line has three tab-separated fields" 3 "$(awk -F'\t' 'END { print NF }' <<<"$tsv")"
+  st_eq "flaky_tsv_line collapses tabs and newlines in the text to spaces" $'S/a()\t42\thas a tab and a newline' "$tsv"
+  st_eq "flaky_tsv_line fills empty fields with -" $'S/a()\t-\t-' "$(flaky_tsv_line "S/a()" "" "")"
+
   # Health gate: a fake repo whose Health files change, and the stamp pointing at earlier and later commits.
-  mkdir -p "$ST_DIR/repo/Workouts/Features/Health" "$ST_DIR/repo/WorkoutsUITests" "$ST_DIR/repo/Other"
+  local kit_health=Packages/WorkoutsKit/Sources/WorkoutsKit/Health
+  mkdir -p "$ST_DIR/repo/Workouts/Features/Health" "$ST_DIR/repo/$kit_health" "$ST_DIR/repo/WorkoutsUITests" "$ST_DIR/repo/Other"
   st_git init -q
   : >"$ST_DIR/repo/Workouts/Features/Health/HealthKitSource.swift"
   : >"$ST_DIR/repo/Workouts/Features/Health/HealthSeeder.swift"
+  : >"$ST_DIR/repo/$kit_health/HealthEnrichment.swift"
   : >"$ST_DIR/repo/Workouts/Workouts.entitlements"
   : >"$ST_DIR/repo/WorkoutsUITests/HealthKitIntegrationUITests.swift"
   : >"$ST_DIR/repo/Other/a.swift"
@@ -1701,11 +1761,23 @@ cmd_selftest() {
   st_run health_gate_verdict "$gate_stamp" "$ST_DIR/repo"; st_rc "gate at the stamped commit" 0
   echo x >"$ST_DIR/repo/Other/a.swift"; st_commit two; c2=$(st_git rev-parse HEAD)
   st_run health_gate_verdict "$gate_stamp" "$ST_DIR/repo"; st_rc "gate after an unrelated change" 0
-  for p in Workouts/Features/Health/HealthKitSource.swift Workouts/Features/Health/HealthSeeder.swift Workouts/Workouts.entitlements WorkoutsUITests/HealthKitIntegrationUITests.swift; do
+  for p in Workouts/Features/Health/HealthKitSource.swift Workouts/Features/Health/HealthSeeder.swift "$kit_health/HealthEnrichment.swift" Workouts/Workouts.entitlements WorkoutsUITests/HealthKitIntegrationUITests.swift; do
     echo x >>"$ST_DIR/repo/$p"; st_commit "touch $p"
     st_run health_gate_verdict "$gate_stamp" "$ST_DIR/repo"; st_rc "gate after a change to $p" 1; st_eq "gate names the stamped commit for $p" "$c1" "$ST_OUT"
     st_git reset -q --hard "$c2"
   done
+  # Uncommitted work counts: a modified tracked file, and a new untracked file under a Health directory.
+  stamp_write "$gate_stamp" "commit=$c2"
+  echo x >>"$ST_DIR/repo/Workouts/Features/Health/HealthSeeder.swift"
+  st_run health_gate_verdict "$gate_stamp" "$ST_DIR/repo"; st_rc "gate with an uncommitted edit to a Health file" 1; st_eq "gate names the stamped commit for an uncommitted edit" "$c2" "$ST_OUT"
+  st_git checkout -q -- Workouts/Features/Health/HealthSeeder.swift
+  st_run health_gate_verdict "$gate_stamp" "$ST_DIR/repo"; st_rc "gate after the uncommitted edit is reverted" 0
+  : >"$ST_DIR/repo/$kit_health/NewFile.swift"
+  st_run health_gate_verdict "$gate_stamp" "$ST_DIR/repo"; st_rc "gate with an untracked file under the kit Health directory" 1
+  rm -f "$ST_DIR/repo/$kit_health/NewFile.swift"
+  echo x >>"$ST_DIR/repo/Other/a.swift"
+  st_run health_gate_verdict "$gate_stamp" "$ST_DIR/repo"; st_rc "gate with an uncommitted unrelated edit" 0
+  st_git checkout -q -- Other/a.swift
   echo x >>"$ST_DIR/repo/WorkoutsUITests/HealthKitIntegrationUITests.swift"; st_commit three; c3=$(st_git rev-parse HEAD)
   stamp_write "$gate_stamp" "commit=$c3"
   st_run health_gate_verdict "$gate_stamp" "$ST_DIR/repo"; st_rc "gate with a stamp on the newest commit" 0
@@ -1714,7 +1786,7 @@ cmd_selftest() {
   # tf_health_gate on top of it: the die message, and the override.
   rm -f "$gate_stamp"
   st_run tf_health_gate "$gate_stamp" "$ST_DIR/repo"; st_rc "tf_health_gate without a stamp" 1
-  st_out_has "tf_health_gate message" "changed since the last real-store pass (none): ./dev ui-test HealthKitIntegrationUITests first; DEV_SKIP_HEALTH_GATE=1 overrides"
+  st_out_has "tf_health_gate message" "changed since the last real-store pass (none; uncommitted edits count): ./dev ui-test HealthKitIntegrationUITests first; DEV_SKIP_HEALTH_GATE=1 overrides"
   DEV_SKIP_HEALTH_GATE=1 st_run tf_health_gate "$gate_stamp" "$ST_DIR/repo"; st_rc "tf_health_gate with the override" 0
   st_out_has "tf_health_gate override" "WARNING: DEV_SKIP_HEALTH_GATE=1"
   stamp_write "$gate_stamp" "commit=$c3"
@@ -1891,8 +1963,8 @@ duo <verb> [args]  Tools/duo pass-through (panels, hinge, settle [--timeout s], 
 duo-test           swift test for Tools/duo (host-only, ~1s); also part of check
 testflight [--upload]  signed App Store archive + export to .build/testflight/export (no upload unless --upload;
                    --upload refuses unless a full ./dev ui-test passed on HEAD with a clean tree, DEV_SKIP_UI_GATE=1 skips, and unless
-                   the Health reader (HealthKitSource, HealthSeeder, entitlements, HealthKitIntegrationUITests) is unchanged since the
-                   .build/health-test.stamp commit, DEV_SKIP_HEALTH_GATE=1 skips that one);
+                   the Health code (Workouts/Features/Health, the kit's Health directory, entitlements, HealthKitIntegrationUITests) is
+                   unchanged in the working tree since the .build/health-test.stamp commit, DEV_SKIP_HEALTH_GATE=1 skips that one);
                    key from 1Password via op, build number = UTC yyyymmddHHMM; no simulator lock
 media-upload [--env development|production] [--limit N] [--only <sourceId>]
                    upload exercise videos to CloudKit's public database (Web Services, server-to-server key via op);
