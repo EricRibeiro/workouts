@@ -10,6 +10,12 @@ DERIVED=".build/DerivedData"
 RESULTS=".build/results"
 LOGS=".build/logs"
 UI_STAMP=".build/ui-test.stamp"
+TEST_STAMP=".build/test.stamp"             # commit, clean tree?, time of the last passing unfiltered ./dev test (./dev coverage prints it)
+HEALTH_STAMP=".build/health-test.stamp"    # commit and time of the last HealthKitIntegrationUITests pass with nothing skipped (the testflight --upload gate)
+# What the real-Health pass vouches for: a change to any of these since the stamped commit needs a new pass before an upload.
+HEALTH_PATHS=(Workouts/Features/Health/HealthKitSource.swift Workouts/Features/Health/HealthSeeder.swift Workouts/Workouts.entitlements WorkoutsUITests/HealthKitIntegrationUITests.swift)
+HEALTH_SIM="iPhone Duo Health"             # a clone outside the pool that keeps its Health authorization between runs
+UI_EXPECTED_SKIPS="${DEV_UI_EXPECTED_SKIPS:-5}" # an unfiltered ui-test skips PerfDriver 3, HealthKitIntegration 1, TreeDump 1
 UI_PROGRESS=".build/ui-test.progress"   # one line per shard while ./dev ui-test runs, then a final "done:" line (./dev ui-status)
 UI_PROGRESS_DIR=".build/ui-test.progress.d" # per-shard state behind it, plus pid (the writer, for ui-status) and failed (append-only)
 KIT="Packages/WorkoutsKit"
@@ -47,6 +53,23 @@ sim_pool_names() {
   for ((i = 1; i <= SIM_POOL; i++)); do
     if ((i == 1)); then echo "$SIM_ORIGINAL"; else echo "$SIM_ORIGINAL $i"; fi
   done
+}
+
+# Simulators dev never erases on its own (sim_heal, sims --prune): ones that must keep state, e.g. one signed into the test
+# iCloud account (iPhone Duo 2) or one whose Health authorization is granted (iPhone Duo Health). DEV_SIM_KEEP, comma-separated names.
+sim_keep_list() { printf '%s' "${DEV_SIM_KEEP-iPhone Duo 2,iPhone Duo Health}"; }
+keep_match() { # keep_match <name> <comma-separated list>: exact name, blanks around the commas ignored
+  local item name="$1" IFS=,
+  for item in $2; do
+    item="${item#"${item%%[![:space:]]*}"}"; item="${item%"${item##*[![:space:]]}"}"
+    [[ -n "$item" && "$item" == "$name" ]] && return 0
+  done
+  return 1
+}
+sim_kept() { # sim_kept <udid>: its name is in DEV_SIM_KEEP; prints the warning and succeeds
+  local name; name=$(sim_name_by_udid "$1")
+  keep_match "$name" "$(sim_keep_list)" || return 1
+  echo "dev: $name is in DEV_SIM_KEEP; not erasing it" >&2
 }
 
 # The original keeps the pre-pool lock path, so an older `dev` in another checkout still excludes correctly.
@@ -237,8 +260,8 @@ sim_reset_ui() { # sim_reset_ui <udid>
   xcrun simctl ui "$1" appearance light >/dev/null 2>&1 || true
 }
 
-run_tests() { # run_tests <name> <target> [filter]
-  local name="$1" target="$2" filter="${3:-}"
+run_tests() { # run_tests <name> <target> [filter] [latest]: the passing bundle is kept as latest-<latest>.xcresult (default: <name>)
+  local name="$1" target="$2" filter="${3:-}" latest="${4:-$1}"
   local only="$target" bundle="$RESULTS/$name-$$.xcresult" rc=0
   # ui-test: the single-simulator run reports progress too (shard 1/1); see ui_progress_tap.
   local XCB_VERBOSE="" RUN_LOGGED_TAP="" UI_PROG_IDX=1 UI_PROG_OF=1 UI_PROG_SIM="" UI_PROG_TOTAL=""
@@ -267,8 +290,8 @@ run_tests() { # run_tests <name> <target> [filter]
   fi
   # Keep only the newest successful bundle per kind, for `./dev coverage`; a bundle that ran nothing is dropped.
   if test_summary "$name" "$only" "$bundle"; then
-    rm -rf "$RESULTS/latest-$name.xcresult"
-    mv "$bundle" "$RESULTS/latest-$name.xcresult"
+    rm -rf "$RESULTS/latest-$latest.xcresult"
+    mv "$bundle" "$RESULTS/latest-$latest.xcresult"
   else
     rm -rf "$bundle"
     return 1
@@ -287,7 +310,7 @@ test_summary() { # test_summary <name> <only> <bundle>
   local line
   line=$(jq -r --arg n "$name" '"\($n): \(.passedTests // 0) passed, \(.failedTests // 0) failed, \(.skippedTests // 0) skipped"' <<<"$json")
   echo "$line"
-  [[ "$name" != ui-test ]] || ui_progress_done "$line"
+  [[ "$name" != ui-test ]] || { UI_SKIPPED=$(summary_skipped "$json"); ui_progress_done "$line"; }
 }
 
 cmd_build() { sim_resolve; run_logged build xcb build; }
@@ -295,14 +318,24 @@ cmd_test() {
   # Snapshot tests (WorkoutsTests/Snapshot) record their references when the runner sees SNAPSHOT_RECORD; xcodebuild only
   # forwards TEST_RUNNER_-prefixed variables, so map it here. Recording makes the run fail once by design.
   [[ -n "${SNAPSHOT_RECORD:-}" ]] && export TEST_RUNNER_SNAPSHOT_RECORD="$SNAPSHOT_RECORD"
-  run_tests test WorkoutsTests "${1:-}"
+  # `|| return`: cmd_check calls this in a `||` context, where errexit is off and a failed run would otherwise reach the stamp.
+  run_tests test WorkoutsTests "${1:-}" || return $?
+  # ./dev coverage reads this stamp; a filtered run replaces the kept bundle, so it drops the stamp that described the old one.
+  if [[ -z "${1:-}" ]]; then
+    local clean=0
+    [[ -z "$(git status --porcelain 2>/dev/null)" ]] && clean=1
+    mkdir -p .build && stamp_write "$TEST_STAMP" "commit=$(git rev-parse HEAD)" "clean=$clean" "when=$(date -u +%FT%TZ)"
+  else
+    rm -f "$TEST_STAMP"
+  fi
 }
 cmd_ui_test() {
   # HealthKitIntegrationUITests (real Health store, drives the permission sheet) skips itself unless this is set; xcodebuild
   # forwards TEST_RUNNER_-prefixed variables to the test runner. Naming the suite in the filter opts in; the full suite and
   # `check` leave it skipped.
-  [[ "${1:-}" == HealthKitIntegration* ]] && export TEST_RUNNER_HEALTH_INTEGRATION=1
+  is_health_filter "${1:-}" && export TEST_RUNNER_HEALTH_INTEGRATION=1
   local rc=0
+  UI_SKIPPED=""
   ui_progress_begin
   if [[ -z "${1:-}" ]] && ((${DEV_UI_SHARDS:-3} > 1)); then
     # Not `ui_test_sharded || rc=$?`: that would disable errexit inside it (see sim_guarded).
@@ -310,14 +343,64 @@ cmd_ui_test() {
     if ((rc == 3)); then rc=0; ui_progress_begin; run_tests ui-test WorkoutsUITests "" || rc=$?; fi # fewer than 2 free simulators: one, as before
     ((rc == 0)) || { ui_progress_done "FAILED (exit $rc)"; return "$rc"; }
   else
-    run_tests ui-test WorkoutsUITests "${1:-}" || { rc=$?; ui_progress_done "FAILED (exit $rc)"; return "$rc"; }
+    # The real-Health run keeps its bundle apart, so the merged bundle of the last full run (`coverage ui-test`) survives it.
+    local latest=ui-test
+    ! is_health_filter "${1:-}" || latest=health
+    run_tests ui-test WorkoutsUITests "${1:-}" "$latest" || { rc=$?; ui_progress_done "FAILED (exit $rc)"; return "$rc"; }
   fi
   # The ship gate: only a full, passing run (no filter) vouches for a commit; `testflight --upload` checks this stamp.
   if [[ -z "${1:-}" ]]; then
+    skip_check "$UI_SKIPPED" "$UI_EXPECTED_SKIPS" || return 1
     local clean=0
     [[ -z "$(git status --porcelain 2>/dev/null)" ]] && clean=1
     mkdir -p .build && printf 'commit=%s\nclean=%s\nflaky=%s\n' "$(git rev-parse HEAD)" "$clean" "${UI_FLAKY:-none}" >"$UI_STAMP"
+  elif is_health_filter "$1"; then
+    health_stamp_write "$HEALTH_STAMP" "$UI_SKIPPED" "$(git rev-parse HEAD)" "$(date -u +%FT%TZ)" || return 1
   fi
+}
+
+# Pure decisions behind the stamps and gates; take their inputs as arguments so ./dev selftest runs them on fixtures.
+is_health_filter() { [[ "${1:-}" == HealthKitIntegration* ]]; }
+stamp_write() { # stamp_write <file> <key=value>...
+  local f="$1"; shift
+  printf '%s\n' "$@" >"$f"
+}
+stamp_get() { # stamp_get <file> <key>: the value of the first <key>= line, empty when the file or key is missing
+  [[ -f "$1" ]] || return 0
+  sed -n "s/^$2=//p" "$1" | head -n 1
+}
+summary_skipped() { jq -r '.skippedTests // 0' <<<"$1" 2>/dev/null || echo 0; } # summary_skipped <xcresulttool summary json>
+skip_check() { # skip_check <skipped> <expected>: an unfiltered run that skips more or fewer tests than expected vouches for nothing
+  local got="${1:-}" want="$2"
+  [[ "$want" =~ ^[0-9]+$ ]] || { echo "dev: DEV_UI_EXPECTED_SKIPS=$want is not a number" >&2; return 1; }
+  [[ "$got" == "$want" ]] && return 0
+  echo "FAILED: ui-test passed but skipped ${got:-an unknown number of} tests, expected $want (PerfDriver 3, HealthKitIntegration 1, TreeDump 1; DEV_UI_EXPECTED_SKIPS overrides); not writing $UI_STAMP" >&2
+  return 1
+}
+health_stamp_write() { # health_stamp_write <file> <skipped> <commit> <when>: only a run that skipped nothing counts
+  if [[ "$2" != 0 ]]; then
+    echo "FAILED: health-test: ${2:-an unknown number of} test(s) skipped, so the real Health store was not exercised; not writing $1" >&2
+    return 1
+  fi
+  mkdir -p "$(dirname "$1")" && stamp_write "$1" "commit=$3" "when=$4"
+}
+health_gate_verdict() { # health_gate_verdict <stamp> <repo>: succeeds when the Health paths are unchanged since the stamped commit; else prints the commit (or none)
+  local commit; commit=$(stamp_get "$1" commit)
+  if [[ -n "$commit" ]] && git -C "$2" diff --quiet "$commit" HEAD -- "${HEALTH_PATHS[@]}" 2>/dev/null; then return 0; fi
+  echo "${commit:-none}"
+  return 1
+}
+# Pick the Health clone for a filtered Health run unless the caller chose a simulator; sim_guarded resolves it afterwards.
+health_sim_wanted() { is_health_filter "${1:-}" && [[ -z "${DEV_SIM:-}" && -z "${DEV_SIM_UDID:-}" ]]; } # health_sim_wanted <filter>
+health_sim_require() { # reads SIM_TABLE
+  [[ -n "$(sim_udid_by_name "$HEALTH_SIM")" ]] ||
+    die "ui-test: no simulator named '$HEALTH_SIM' for HealthKitIntegrationUITests; create it: xcrun simctl clone \"$SIM_ORIGINAL\" \"$HEALTH_SIM\""
+}
+ui_test_select_sim() { # ui_test_select_sim [filter]: runs before sim_guarded
+  health_sim_wanted "${1:-}" || return 0
+  sim_table_load
+  health_sim_require
+  export DEV_SIM="$HEALTH_SIM"
 }
 
 # The full UI suite is sharded across the simulator pool (DEV_UI_SHARDS, default 3; 1 = the old single-simulator run):
@@ -334,6 +417,7 @@ UI_SIMS=()
 UI_PIDS=()
 UI_N=1  # shards in this run (the "2/3" of the progress lines)
 UI_T0=$SECONDS
+UI_SKIPPED="" # tests skipped in this run (sharded: all shards), for the stamp's expected-skips check
 UI_FLAKY="" # comma-separated ids of the tests that were flaky in this run, for the stamp
 # Progress for ./dev ui-status: $UI_PROGRESS holds one line per shard, then every FAILED test in the order it happened, then a
 # final "done:" line (kept after the run). It is composed from files in $UI_PROGRESS_DIR (shard-N.line, failed, done), because
@@ -596,6 +680,7 @@ ui_test_sharded() {
     tp=$((tp + p)); tf=$((tf + f)); tk=$((tk + k))
   done
   ((failed == 0)) || return 1
+  UI_SKIPPED=$tk
   total=$((tp + tf + tk))
   local last; last=$(cat "$UI_TOTAL" 2>/dev/null || echo 0)
   if ((total < last)) && [[ -z "${DEV_UI_ALLOW_FEWER:-}" ]]; then
@@ -677,12 +762,18 @@ cmd_ui_status() {
   fi
 }
 
+coverage_stamp_line() { # coverage_stamp_line <stamp>: which commit the kept unit-test bundle came from
+  local commit; commit=$(stamp_get "$1" commit)
+  if [[ -z "$commit" ]]; then echo "coverage: unstamped (a bundle from a filtered run, or from before ./dev test wrote .build/test.stamp)"; return 0; fi
+  echo "coverage: unit tests at ${commit:0:7} ($([[ "$(stamp_get "$1" clean)" == 1 ]] && echo clean || echo dirty) tree), $(stamp_get "$1" when)"
+}
 # Per-target code coverage of the newest passing `test` / `ui-test` run (tests record coverage; see run_tests).
 cmd_coverage() {
   local kind="${1:-test}"
   case "$kind" in test | ui-test) ;; *) die "coverage: unknown kind '$kind' (usage: coverage [test|ui-test])" ;; esac
   local bundle="$RESULTS/latest-$kind.xcresult"
   [[ -d "$bundle" ]] || die "coverage: no $bundle yet; run ./dev $kind first (a passing run keeps its bundle)"
+  [[ "$kind" != test ]] || coverage_stamp_line "$TEST_STAMP"
   xcrun xccov view --report --only-targets "$bundle"
 }
 
@@ -976,6 +1067,7 @@ sim_reap_idle() { # shut down booted pool simulators nobody holds and nobody use
 }
 sim_heal() { # sim_heal <udid> <crash-count>: shut down and erase a pool clone whose system processes are crash-looping
   local name; name=$(sim_name_by_udid "$1")
+  sim_kept "$1" && return 0
   sim_hands_off "$1" && { echo "dev: $name crashed system processes ($2 reports) but another checkout claims it; not erasing it" >&2; return 0; }
   sim_grab "$1" || { echo "dev: $name crashed system processes ($2 reports) but is in use; not erasing it" >&2; return 0; }
   xcrun simctl shutdown "$1" >/dev/null 2>&1 || true
@@ -1155,6 +1247,7 @@ sim_erase_poster_buildup() {
     dir="$HOME/Library/Developer/CoreSimulator/Devices/$udid/data/Library/Application Support/com.apple.PosterKit/temp"
     n=$( { find "$dir" -mindepth 1 -maxdepth 1 2>/dev/null || true; } | wc -l | tr -d ' ')
     ((n > SIM_POSTER_MAX)) || continue
+    sim_kept "$udid" && continue
     if ! sim_is_clone "$udid"; then
       echo "dev: warning: $name has $n PosterKit temp entries (limit $SIM_POSTER_MAX); it is the original, so it is not erased." >&2
       echo "dev:   by hand, with no run using it (clones are copies of it): xcrun simctl erase $udid" >&2
@@ -1223,6 +1316,16 @@ tf_ui_gate() {
   local stamp_flaky; stamp_flaky=$(sed -n 's/^flaky=//p' "$UI_STAMP" | head -1)
   echo "dev: testflight: the ui-test stamp's flaky tests: ${stamp_flaky:-none recorded}" >&2
 }
+# Independent of the ui-test gate and its DEV_SKIP_UI_GATE: the full run skips the real-Health test, so it never vouches for the reader.
+tf_health_gate() { # tf_health_gate [stamp] [repo]
+  if [[ "${DEV_SKIP_HEALTH_GATE:-}" == 1 ]]; then
+    echo "dev: WARNING: DEV_SKIP_HEALTH_GATE=1, uploading without a real-Health-store pass on the current Health reader" >&2
+    return 0
+  fi
+  local since
+  since=$(health_gate_verdict "${1:-$HEALTH_STAMP}" "${2:-.}") && return 0
+  die "testflight: the Health reader changed since the last real-store pass ($since): ./dev ui-test HealthKitIntegrationUITests first; DEV_SKIP_HEALTH_GATE=1 overrides"
+}
 tf_cleanup() { [[ -z "$TF_TMP" ]] || rm -rf "$TF_TMP"; TF_TMP=""; }
 
 cmd_testflight() {
@@ -1234,7 +1337,7 @@ cmd_testflight() {
     *) die "testflight: unknown argument '$1' (usage: testflight [--upload])" ;;
   esac
   # The gate runs before anything touches 1Password or the archive.
-  ((upload == 0)) || tf_ui_gate
+  if ((upload == 1)); then tf_ui_gate; tf_health_gate; fi
   command -v op >/dev/null 2>&1 || die "testflight: the 1Password CLI (op) is not installed"
 
   local key_id issuer_id build
@@ -1436,6 +1539,151 @@ cmd_ck_schema() {
 
 cmd_clean() { rm -rf .build; }
 
+# The parsing and decisions behind the stamps, gates and keep list, run on fixture files in a temp directory: no simulator,
+# no xcodebuild, nothing under .build is read or written. Not part of `check`.
+ST_DIR=""
+ST_PASS=0
+ST_FAIL=0
+ST_OUT=""
+ST_RC=0
+st_run() { ST_RC=0; ST_OUT=$( ("$@") 2>&1 ) || ST_RC=$?; } # st_run <cmd...>: output and status of a command in a subshell
+st_ok() { # st_ok <label> <condition status 0|1>
+  if [[ "$2" == 0 ]]; then ST_PASS=$((ST_PASS + 1)); else ST_FAIL=$((ST_FAIL + 1)); echo "FAILED: selftest: $1" >&2; fi
+}
+st_eq() { # st_eq <label> <expected> <actual>
+  if [[ "$2" == "$3" ]]; then ST_PASS=$((ST_PASS + 1)); else ST_FAIL=$((ST_FAIL + 1)); echo "FAILED: selftest: $1 (expected '$2', got '$3')" >&2; fi
+}
+st_rc() { st_eq "$1 (exit status)" "$2" "$ST_RC"; }                    # st_rc <label> <expected status>: of the last st_run
+st_out_has() { local r=0; [[ "$ST_OUT" == *"$2"* ]] || r=1; st_ok "$1 (output has '$2': $ST_OUT)" "$r"; }
+st_out_lacks() { local r=0; [[ "$ST_OUT" != *"$2"* ]] || r=1; st_ok "$1 (output lacks '$2': $ST_OUT)" "$r"; }
+st_git() { GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 git -C "$ST_DIR/repo" -c user.name=selftest -c user.email=selftest@example.com "$@"; }
+st_commit() { st_git add -A && st_git commit -q -m "$1"; } # st_commit <message>
+
+cmd_selftest() {
+  command -v jq >/dev/null 2>&1 || die "selftest: jq is required"
+  set +e
+  ST_DIR=$(mktemp -d "${TMPDIR:-/tmp}/dev-selftest.XXXXXX") || die "selftest: mktemp failed"
+  trap 'rm -rf "${ST_DIR:?}"' EXIT
+  local p
+
+  # Skipped-test count: summary JSON -> number -> the unfiltered-run check.
+  st_eq "summary_skipped reads skippedTests" 5 "$(summary_skipped '{"totalTestCount":200,"passedTests":195,"skippedTests":5}')"
+  st_eq "summary_skipped defaults to 0" 0 "$(summary_skipped '{"totalTestCount":3}')"
+  st_eq "summary_skipped survives bad json" 0 "$(summary_skipped 'not json')"
+  st_run skip_check 5 5; st_rc "skip_check 5 of 5" 0
+  st_run skip_check 4 5; st_rc "skip_check 4 of 5" 1; st_out_has "skip_check 4 of 5" "skipped 4 tests, expected 5"
+  st_run skip_check 6 5; st_rc "skip_check 6 of 5" 1
+  st_run skip_check "" 5; st_rc "skip_check unknown count" 1; st_out_has "skip_check unknown count" "an unknown number"
+  st_run skip_check 3 3; st_rc "skip_check with an overridden expectation" 0
+  st_run skip_check 5 five; st_rc "skip_check with a non-numeric expectation" 1
+
+  # ui-flaky: a three-field (old) line, and newer lines with shard, seconds and failure text.
+  p="$ST_DIR/ui-flaky.log"
+  {
+    echo "2026-11-01T10:00:00Z aaaaaaa SuiteA/testOne()"
+    echo "2026-11-05T10:00:00Z bbbbbbb SuiteA/testOne() iPhone_Duo_2 12 boom one"
+    echo "2026-11-08T10:00:00Z ccccccc SuiteA/testOne() iPhone_Duo_3 9 boom two"
+    echo "2026-11-07T10:00:00Z ddddddd SuiteB/testTwo() iPhone_Duo - -"
+  } >"$p"
+  UI_FLAKY_LOG="$p" st_run cmd_ui_flaky; st_rc "ui-flaky" 0
+  st_out_has "ui-flaky header" "LAST MESSAGE"
+  st_ok "ui-flaky counts SuiteA/testOne() 3 times, last on 2026-11-08 at ccccccc with the newest message" "$(grep -Eq '^SuiteA/testOne\(\) +3 +2026-11-08 +ccccccc +boom two$' <<<"$ST_OUT" && echo 0 || echo 1)"
+  st_ok "ui-flaky shows a message-less test with '-'" "$(grep -Eq '^SuiteB/testTwo\(\) +1 +2026-11-07 +ddddddd +-$' <<<"$ST_OUT" && echo 0 || echo 1)"
+  st_ok "ui-flaky sorts the most frequent test first" "$(awk '/^Suite/ { print $1; exit }' <<<"$ST_OUT" | grep -q '^SuiteA' && echo 0 || echo 1)"
+  UI_FLAKY_LOG="$p" st_run cmd_ui_flaky --since 0; st_out_has "ui-flaky --since 0 window" "no flaky tests logged in that window"
+  UI_FLAKY_LOG="$p" st_run cmd_ui_flaky --since x; st_rc "ui-flaky --since x" 1
+  : >"$ST_DIR/empty.log"
+  UI_FLAKY_LOG="$ST_DIR/empty.log" st_run cmd_ui_flaky; st_out_has "ui-flaky empty log" "no flaky tests logged"
+
+  # Stamps: key lookup, the Health stamp written only by a run that skipped nothing, the unit-test coverage line.
+  p="$ST_DIR/stamp"
+  stamp_write "$p" commit=abc123 clean=1 when=2026-11-09T00:00:00Z
+  st_eq "stamp_get commit" abc123 "$(stamp_get "$p" commit)"
+  st_eq "stamp_get missing key" "" "$(stamp_get "$p" flaky)"
+  st_eq "stamp_get missing file" "" "$(stamp_get "$ST_DIR/none" commit)"
+  st_eq "coverage_stamp_line" "coverage: unit tests at abc123 (clean tree), 2026-11-09T00:00:00Z" "$(coverage_stamp_line "$p")"
+  st_run coverage_stamp_line "$ST_DIR/none"; st_out_has "coverage_stamp_line without a stamp" "unstamped"
+  st_run health_stamp_write "$ST_DIR/h.stamp" 0 deadbeef 2026-11-09T01:02:03Z; st_rc "health_stamp_write 0 skipped" 0
+  st_eq "health stamp commit" deadbeef "$(stamp_get "$ST_DIR/h.stamp" commit)"
+  st_eq "health stamp when" 2026-11-09T01:02:03Z "$(stamp_get "$ST_DIR/h.stamp" when)"
+  st_run health_stamp_write "$ST_DIR/h2.stamp" 1 deadbeef 2026-11-09T01:02:03Z; st_rc "health_stamp_write 1 skipped" 1
+  st_ok "health_stamp_write writes nothing for a skipped run" "$([[ ! -e "$ST_DIR/h2.stamp" ]] && echo 0 || echo 1)"
+  st_out_has "health_stamp_write says why" "1 test(s) skipped"
+  st_run health_stamp_write "$ST_DIR/h3.stamp" "" deadbeef now; st_rc "health_stamp_write unknown count" 1
+
+  # Health gate: a fake repo whose Health files change, and the stamp pointing at earlier and later commits.
+  mkdir -p "$ST_DIR/repo/Workouts/Features/Health" "$ST_DIR/repo/WorkoutsUITests" "$ST_DIR/repo/Other"
+  st_git init -q
+  : >"$ST_DIR/repo/Workouts/Features/Health/HealthKitSource.swift"
+  : >"$ST_DIR/repo/Workouts/Features/Health/HealthSeeder.swift"
+  : >"$ST_DIR/repo/Workouts/Workouts.entitlements"
+  : >"$ST_DIR/repo/WorkoutsUITests/HealthKitIntegrationUITests.swift"
+  : >"$ST_DIR/repo/Other/a.swift"
+  st_commit one
+  local c1 c2 c3 gate_stamp="$ST_DIR/gate.stamp"
+  c1=$(st_git rev-parse HEAD)
+  st_run health_gate_verdict "$gate_stamp" "$ST_DIR/repo"; st_rc "gate without a stamp" 1; st_eq "gate without a stamp names none" none "$ST_OUT"
+  stamp_write "$gate_stamp" "commit=$c1" "when=now"
+  st_run health_gate_verdict "$gate_stamp" "$ST_DIR/repo"; st_rc "gate at the stamped commit" 0
+  echo x >"$ST_DIR/repo/Other/a.swift"; st_commit two; c2=$(st_git rev-parse HEAD)
+  st_run health_gate_verdict "$gate_stamp" "$ST_DIR/repo"; st_rc "gate after an unrelated change" 0
+  for p in Workouts/Features/Health/HealthKitSource.swift Workouts/Features/Health/HealthSeeder.swift Workouts/Workouts.entitlements WorkoutsUITests/HealthKitIntegrationUITests.swift; do
+    echo x >>"$ST_DIR/repo/$p"; st_commit "touch $p"
+    st_run health_gate_verdict "$gate_stamp" "$ST_DIR/repo"; st_rc "gate after a change to $p" 1; st_eq "gate names the stamped commit for $p" "$c1" "$ST_OUT"
+    st_git reset -q --hard "$c2"
+  done
+  echo x >>"$ST_DIR/repo/WorkoutsUITests/HealthKitIntegrationUITests.swift"; st_commit three; c3=$(st_git rev-parse HEAD)
+  stamp_write "$gate_stamp" "commit=$c3"
+  st_run health_gate_verdict "$gate_stamp" "$ST_DIR/repo"; st_rc "gate with a stamp on the newest commit" 0
+  stamp_write "$gate_stamp" "commit=0000000000000000000000000000000000000000"
+  st_run health_gate_verdict "$gate_stamp" "$ST_DIR/repo"; st_rc "gate with a stamp on an unknown commit" 1
+  # tf_health_gate on top of it: the die message, and the override.
+  rm -f "$gate_stamp"
+  st_run tf_health_gate "$gate_stamp" "$ST_DIR/repo"; st_rc "tf_health_gate without a stamp" 1
+  st_out_has "tf_health_gate message" "changed since the last real-store pass (none): ./dev ui-test HealthKitIntegrationUITests first; DEV_SKIP_HEALTH_GATE=1 overrides"
+  DEV_SKIP_HEALTH_GATE=1 st_run tf_health_gate "$gate_stamp" "$ST_DIR/repo"; st_rc "tf_health_gate with the override" 0
+  st_out_has "tf_health_gate override" "WARNING: DEV_SKIP_HEALTH_GATE=1"
+  stamp_write "$gate_stamp" "commit=$c3"
+  st_run tf_health_gate "$gate_stamp" "$ST_DIR/repo"; st_rc "tf_health_gate with a current stamp" 0; st_eq "tf_health_gate prints nothing when it passes" "" "$ST_OUT"
+  DEV_SKIP_UI_GATE=1 st_run tf_health_gate "$gate_stamp" "$ST_DIR/repo"; st_rc "tf_health_gate ignores DEV_SKIP_UI_GATE" 0
+  rm -f "$gate_stamp"
+  DEV_SKIP_UI_GATE=1 st_run tf_health_gate "$gate_stamp" "$ST_DIR/repo"; st_rc "tf_health_gate is not skipped by DEV_SKIP_UI_GATE" 1
+
+  # DEV_SIM_KEEP: matching, the default list, and sim_heal / the prune path leaving a kept simulator alone.
+  st_run keep_match "iPhone Duo 2" "iPhone Duo 2,iPhone Duo Health"; st_rc "keep_match first entry" 0
+  st_run keep_match "iPhone Duo Health" "iPhone Duo 2,iPhone Duo Health"; st_rc "keep_match last entry" 0
+  st_run keep_match "iPhone Duo" "iPhone Duo 2,iPhone Duo Health"; st_rc "keep_match is exact, not a prefix" 1
+  st_run keep_match "iPhone Duo 3" "iPhone Duo 2, iPhone Duo 3 ,x"; st_rc "keep_match ignores blanks around commas" 0
+  st_run keep_match "iPhone Duo 2" ""; st_rc "keep_match with an empty list" 1
+  st_run keep_match "" ","; st_rc "keep_match never matches an empty name" 1
+  st_eq "sim_keep_list default" "iPhone Duo 2,iPhone Duo Health" "$(unset DEV_SIM_KEEP; sim_keep_list)"
+  st_eq "sim_keep_list override" "a,b" "$(DEV_SIM_KEEP="a,b" sim_keep_list)"
+  st_eq "sim_keep_list empty override" "" "$(DEV_SIM_KEEP="" sim_keep_list)"
+  local nl=$'\n' tab=$'\t'
+  SIM_TABLE="iPhone Duo${tab}AAAAAAAA-0000-0000-0000-000000000001${tab}Shutdown${nl}iPhone Duo 2${tab}AAAAAAAA-0000-0000-0000-000000000002${tab}Shutdown${nl}iPhone Duo 3${tab}AAAAAAAA-0000-0000-0000-000000000003${tab}Shutdown"
+  st_run sim_kept AAAAAAAA-0000-0000-0000-000000000002; st_rc "sim_kept iPhone Duo 2" 0; st_out_has "sim_kept warning" "dev: iPhone Duo 2 is in DEV_SIM_KEEP; not erasing it"
+  st_run sim_kept AAAAAAAA-0000-0000-0000-000000000003; st_rc "sim_kept iPhone Duo 3" 1; st_eq "sim_kept is silent for a simulator not on the list" "" "$ST_OUT"
+  st_run sim_heal AAAAAAAA-0000-0000-0000-000000000002 2; st_rc "sim_heal on a kept simulator" 0
+  st_out_has "sim_heal skips a kept simulator" "iPhone Duo 2 is in DEV_SIM_KEEP; not erasing it"
+  st_out_lacks "sim_heal on a kept simulator erased nothing" "erased"
+  DEV_SIM_KEEP="" st_run sim_kept AAAAAAAA-0000-0000-0000-000000000002; st_rc "sim_kept with an emptied list" 1
+
+  # The Health simulator: chosen only for a Health filter without a caller's override, and a missing one is a clear error.
+  st_run health_sim_wanted HealthKitIntegrationUITests; st_rc "health_sim_wanted for the Health suite" 0
+  st_run health_sim_wanted HealthKitIntegrationUITests/testX; st_rc "health_sim_wanted for one Health test" 0
+  st_run health_sim_wanted SmokeUITests; st_rc "health_sim_wanted for another suite" 1
+  st_run health_sim_wanted ""; st_rc "health_sim_wanted for the full suite" 1
+  DEV_SIM="iPhone Duo 4" st_run health_sim_wanted HealthKitIntegrationUITests; st_rc "health_sim_wanted honours DEV_SIM" 1
+  DEV_SIM_UDID="X" st_run health_sim_wanted HealthKitIntegrationUITests; st_rc "health_sim_wanted honours DEV_SIM_UDID" 1
+  st_run health_sim_require; st_rc "health_sim_require without the clone" 1
+  st_out_has "health_sim_require names the fix" 'xcrun simctl clone "iPhone Duo" "iPhone Duo Health"'
+  SIM_TABLE="$SIM_TABLE${nl}iPhone Duo Health${tab}AAAAAAAA-0000-0000-0000-0000000000H1${tab}Shutdown"
+  st_run health_sim_require; st_rc "health_sim_require with the clone" 0
+
+  echo "selftest: $ST_PASS passed, $ST_FAIL failed"
+  ((ST_FAIL == 0))
+}
+
 cmd_check() {
   cmd_lint || return
   cmd_kit || return
@@ -1475,15 +1723,19 @@ cmd_tree() {
 cmd_help() {
   cat <<'USAGE'
 sims [--prune]     create the missing simulator clones (iPhone Duo 2..$DEV_SIM_POOL, default 5) and list the pool; --prune also shuts down idle pool sims and erases clones with PosterKit build-up
+                   (never erased, here or by the crash guard: names in DEV_SIM_KEEP, comma-separated, default "iPhone Duo 2,iPhone Duo Health"; a warning line instead)
                    (simulator commands use this checkout's own simulator, kept in .build/dev-sim-udid; DEV_SIM=<name>
                    or DEV_SIM_UDID=<udid> overrides)
 build              build the app for this checkout's simulator
-test [filter]      run WorkoutsTests (filter = suite or suite/test); prints totals, fails if none ran
-ui-test [filter]   run WorkoutsUITests (an unfiltered pass is sharded over DEV_UI_SHARDS pool sims and stamps HEAD, with its flaky tests, for the testflight --upload gate); prints totals, fails if none ran (filter HealthKitIntegrationUITests opts in to the real-Health test)
+test [filter]      run WorkoutsTests (filter = suite or suite/test); prints totals, fails if none ran; an unfiltered pass writes .build/test.stamp (commit, clean, when), which `coverage` prints
+ui-test [filter]   run WorkoutsUITests (an unfiltered pass is sharded over DEV_UI_SHARDS pool sims and stamps HEAD, with its flaky tests, for the testflight --upload gate); prints totals, fails if none ran. An unfiltered run that does not skip exactly 5 tests (DEV_UI_EXPECTED_SKIPS) writes no stamp
+                   and fails. Filter HealthKitIntegrationUITests opts in to the real-Health test: it runs on the 'iPhone Duo Health' clone
+                   (create it: xcrun simctl clone "iPhone Duo" "iPhone Duo Health"; DEV_SIM / DEV_SIM_UDID override), keeps its bundle as
+                   latest-health.xcresult, and a pass with nothing skipped writes .build/health-test.stamp (commit, when)
 tree <Name>        print the accessibility tree (XCUIApplication.debugDescription) of the `-preview <Name>` screen via TreeDumpUITests; no private AX bridge
 ui-flaky [--since <days>]  per-test summary of .build/ui-flaky.log (tests that failed, then passed on retry): count, last date and commit, last failure text; read-only
 ui-status          progress of a running ui-test (one line per shard: passed/total, failures, last test, elapsed), else the last stamp and the last run's final line (.build/ui-test.progress)
-coverage [test|ui-test]  per-target code coverage of the last passing test (default) or ui-test run (xccov); fails if none kept
+coverage [test|ui-test]  per-target code coverage of the last passing test (default) or ui-test run (xccov); fails if none kept; test prints the stamped commit and time first ("unstamped" for a filtered or older bundle)
 kit [filter]       swift test in Packages/WorkoutsKit; prints summary line, fails if filter matched nothing
 kit-coverage       swift test with coverage; prints the whole-package line coverage (llvm-cov TOTAL)
 kit-build          swift build in Packages/WorkoutsKit
@@ -1510,7 +1762,9 @@ duo <verb> [args]  Tools/duo pass-through (panels, hinge, settle [--timeout s], 
                    --help); adds --udid for this checkout's simulator when the verb needs one; built into .build/duo/spm
 duo-test           swift test for Tools/duo (host-only, ~1s); also part of check
 testflight [--upload]  signed App Store archive + export to .build/testflight/export (no upload unless --upload;
-                   --upload refuses unless a full ./dev ui-test passed on HEAD with a clean tree, DEV_SKIP_UI_GATE=1 skips);
+                   --upload refuses unless a full ./dev ui-test passed on HEAD with a clean tree, DEV_SKIP_UI_GATE=1 skips, and unless
+                   the Health reader (HealthKitSource, HealthSeeder, entitlements, HealthKitIntegrationUITests) is unchanged since the
+                   .build/health-test.stamp commit, DEV_SKIP_HEALTH_GATE=1 skips that one);
                    key from 1Password via op, build number = UTC yyyymmddHHMM; no simulator lock
 media-upload [--env development|production] [--limit N] [--only <sourceId>]
                    upload exercise videos to CloudKit's public database (Web Services, server-to-server key via op);
@@ -1521,6 +1775,7 @@ ck-schema export [--env development|production] | diff
                    Console's Deploy Schema Changes… has run: cktool cannot write to Production); no simulator lock
 clean              rm -rf .build
 check             lint, kit, duo-test, build, test; stops at first failure; on success touches .build/check.stamp
+selftest           the stamp, gate, skipped-count, ui-flaky and DEV_SIM_KEEP logic on fixture files in a temp dir; no simulator, no xcodebuild, not part of check
 help               this list
 USAGE
 }
@@ -1530,7 +1785,8 @@ sub="${1:-help}"
 case "$sub" in
   build) cmd_build ;;
   test) sim_guarded cmd_test "$@" ;;
-  ui-test) sim_guarded cmd_ui_test "$@" ;;
+  ui-test) ui_test_select_sim "$@"; sim_guarded cmd_ui_test "$@" ;;
+  selftest) cmd_selftest ;;
   ui-status) cmd_ui_status ;;
   ui-flaky) cmd_ui_flaky "$@" ;;
   tree) sim_guarded cmd_tree "$@" ;;
