@@ -526,7 +526,7 @@ command; `./dev check` plus the touched UI suites before every commit.
   (`request`/`consume`); the gate table in `docs/reviews/2026-11-07-test-gaps.md` §6 rewritten with eleven rows and a
   "kind" column (off / isolation / seam on), §2C's count fixed, the `-liveActivity` row corrected; the `simctl privacy …
   reset all` line in `docs/port/healthkit.md` removed. Proof: `./dev test SettingsFlowTests`, `WorkoutLinkRouterTests`.
-- [ ] **7c.9 Health gate and sim keep-list** (`dev`): `.build/health-test.stamp` written by a filtered Health run with
+- [x] **7c.9 Health gate and sim keep-list** (`dev`; done, `./dev selftest` 79 checks; `iPhone Duo Health` cloned from `iPhone Duo 3`; the first `--upload` after this needs a Health run or `DEV_SKIP_HEALTH_GATE=1`): `.build/health-test.stamp` written by a filtered Health run with
   `skippedTests == 0`, its xcresult saved under its own name; `tf_health_gate` on every `--upload` fails when
   `HealthKitSource.swift`, `HealthSeeder.swift`, the entitlements or the test changed since the stamped commit
   (`DEV_SKIP_HEALTH_GATE=1` overrides); `iPhone Duo Health` created outside the pool; `DEV_SIM_KEEP` (default `iPhone Duo
@@ -540,7 +540,7 @@ command; `./dev check` plus the touched UI suites before every commit.
   honoured by a wrapper around `run_tests` (restore in the lock's release), `TEST_RUNNER_DUO_POSE`, and `OpenPoseUITests`
   (window 951×669, pane in the right half, rotate, focused cell + draft + scroll survive; one audit pass of the open layout).
   Opt-in, run before a phase's TestFlight. Proof: `DEV_POSE=open-wide ./dev ui-test OpenPoseUITests`.
-- [ ] **7c.12 Offline CloudKit model check** (WorkoutsTests): load the SwiftData-generated model into an
+- [x] **7c.12 Offline CloudKit model check** (WorkoutsTests; done: the load check passes, a non-optional attribute is rejected as the negative control, and the `.dryRun` is a `withKnownIssue` that names Core Data's "Unable to initialize without an iCloud account", so it goes green by itself on a signed-in device): load the SwiftData-generated model into an
   `NSPersistentCloudKitContainer` with `cloudKitContainerOptions` on a temp store and assert the load; try
   `initializeCloudKitSchema(options: .dryRun)` and keep it only if it passes without an account. Proof: `./dev test
   CloudKitModelTests`.
