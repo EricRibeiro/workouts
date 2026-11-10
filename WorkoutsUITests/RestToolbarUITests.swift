@@ -7,19 +7,6 @@ final class RestToolbarUITests: XCTestCase {
         continueAfterFailure = false
     }
 
-    /// `m:ss` (or `h:mm:ss`) to seconds; nil when the text is not a time.
-    private func seconds(from text: String?) -> Int? {
-        guard let text else { return nil }
-        let parts = text.split(separator: ":").compactMap { Int($0) }
-        guard !parts.isEmpty else { return nil }
-        return parts.reduce(0) { $0 * 60 + $1 }
-    }
-
-    /// The ring's remaining time: its label reads "Rest timer, 4:57" (the strip drops accessibility values).
-    private func ringTime(_ ring: XCUIElement) -> String? {
-        ring.label.components(separatedBy: ", ").dropFirst().first
-    }
-
     @MainActor
     func testSkipPlus30CheckAndMinimise() throws {
         let app = XCUIApplication.launchedInActiveWorkout()

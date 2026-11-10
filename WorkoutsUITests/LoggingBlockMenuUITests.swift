@@ -203,4 +203,35 @@ final class LoggingBlockMenuUITests: XCTestCase {
             "the editor opened without the text"
         )
     }
+
+    /// PLAN 7c.3: Update Rest Timer… on a block sets the rest the next checked set starts (30 s here).
+    @MainActor
+    func testUpdateRestTimerFeedsTheNextRest() throws {
+        let app = XCUIApplication.launchedInActiveWorkout(["-sampleNoRest"])
+        let any = app.descendants(matching: .any)
+        let ring = app.buttons["rest.ring"].firstMatch
+        XCTAssertTrue(ring.waitForExistence(timeout: 10), "no rest ring")
+        XCTAssertEqual(ring.label, "Rest timer", "a rest was already running")
+
+        let (menu, _) = firstMenu(app)
+        openMenuEntry(app, menu: menu, entry: "settable.menu.rest")
+        XCTAssertTrue(any["restTimer.sheet"].waitForExistence(timeout: 5), "no rest timer sheet")
+        let thirty = app.buttons["restTimer.option.30"].firstMatch
+        XCTAssertTrue(thirty.waitForExistence(timeout: 5), "no 30 s option")
+        thirty.tap()
+        XCTAssertTrue(any["restTimer.sheet"].waitUntilGone(), "picking 30 did not close the sheet")
+
+        let checks = app.switches.matching(
+            NSPredicate(format: "identifier BEGINSWITH 'setrow.' AND identifier ENDSWITH '.check'")
+        )
+        .matching(NSPredicate(format: "value == 'Not done'"))
+        let check = checks.element(boundBy: 0)
+        XCTAssertTrue(check.waitForExistence(timeout: 10), "no unchecked set")
+        check.tap()
+
+        expectation(for: NSPredicate(format: "label BEGINSWITH 'Rest timer, '"), evaluatedWith: ring)
+        waitForExpectations(timeout: 10)
+        let remaining = try XCTUnwrap(seconds(from: ringTime(ring)), "ring label \(ring.label)")
+        XCTAssertTrue((16...30).contains(remaining), "ring read \(remaining) s")
+    }
 }

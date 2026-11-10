@@ -45,6 +45,7 @@ struct RestTimerPickerSheet: View {
                     }
                     .contentShape(.rect)
                 }
+                .accessibilityLabel(spokenTitle(seconds))
                 .accessibilityAddTraits(seconds == current ? .isSelected : [])
                 .accessibilityIdentifier("restTimer.option.\(seconds.map(String.init) ?? "default")")
             }
@@ -61,6 +62,16 @@ struct RestTimerPickerSheet: View {
     private func title(_ seconds: Int?) -> String {
         guard let seconds else { return "Default (\(clock(defaultSeconds)))" }
         return clock(seconds)
+    }
+
+    private func spokenTitle(_ seconds: Int?) -> String {
+        guard let seconds else { return "Default, \(spoken(defaultSeconds))" }
+        return spoken(seconds)
+    }
+
+    private func spoken(_ seconds: Int) -> String {
+        guard seconds > 0 else { return "Off" }
+        return Duration.seconds(seconds).formatted(.units(allowed: [.hours, .minutes, .seconds], width: .wide))
     }
 
     private func clock(_ seconds: Int) -> String {

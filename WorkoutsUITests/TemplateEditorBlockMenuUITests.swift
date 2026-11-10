@@ -214,4 +214,76 @@ final class TemplateEditorBlockMenuUITests: XCTestCase {
         app.buttons["reorder.done"].tap()
         XCTAssertTrue(rows.firstMatch.waitUntilGone(), "Done did not close the reorder sheet")
     }
+
+    /// Picks `option` in the rest picker opened from the block menu and waits for the sheet to close.
+    @MainActor
+    private func pickRest(_ app: XCUIApplication, menu: XCUIElement, option: String) {
+        openMenuEntry(app, menu: menu, entry: "settable.menu.rest")
+        XCTAssertTrue(
+            app.descendants(matching: .any)["restTimer.sheet"].waitForExistence(timeout: 5),
+            "no rest timer sheet"
+        )
+        let row = app.buttons["restTimer.option.\(option)"].firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 5), "no \(option) option")
+        row.tap()
+        XCTAssertTrue(
+            app.descendants(matching: .any)["restTimer.sheet"].waitUntilGone(),
+            "picking \(option) did not close the sheet"
+        )
+    }
+
+    private func waitForCaption(_ caption: XCUIElement, _ text: String) {
+        expectation(for: NSPredicate(format: "label == %@", text), evaluatedWith: caption)
+        waitForExpectations(timeout: 5) { _ in }
+    }
+
+    /// Update Rest Timer… sets the block's own rest (caption follows), Off hides the timer, Default follows Settings again.
+    @MainActor
+    func testUpdateRestTimerChangesTheCaptionAndDefaultRestores() throws {
+        let app = launchEditor()
+        let (menu, section) = firstMenu(app)
+        let caption = app.staticTexts["settable.restCaption.\(section)"]
+        XCTAssertTrue(caption.waitForExistence(timeout: 5), "no rest caption under the first block")
+        XCTAssertTrue(caption.label.hasPrefix("Rest "), "caption was \(caption.label)")
+
+        openMenuEntry(app, menu: menu, entry: "settable.menu.rest")
+        XCTAssertTrue(
+            app.descendants(matching: .any)["restTimer.sheet"].waitForExistence(timeout: 5),
+            "no rest timer sheet"
+        )
+        let thirty = app.buttons["restTimer.option.30"].firstMatch
+        XCTAssertTrue(thirty.waitForExistence(timeout: 5))
+        XCTAssertEqual(thirty.label, "30 seconds")
+        XCTAssertEqual(app.buttons["restTimer.option.0"].firstMatch.label, "Off")
+        XCTAssertTrue(
+            app.buttons["restTimer.option.default"].firstMatch.label.hasPrefix("Default, "),
+            "default label was \(app.buttons["restTimer.option.default"].firstMatch.label)"
+        )
+        app.buttons["restTimer.option.90"].firstMatch.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["restTimer.sheet"].waitUntilGone(), "90 did not close the sheet")
+        waitForCaption(caption, "Rest 1:30")
+
+        pickRest(app, menu: menu, option: "0")
+        waitForCaption(caption, "Rest off")
+
+        pickRest(app, menu: menu, option: "default")
+        waitForCaption(caption, "Rest 1:00 (default)")
+    }
+
+    /// Cancel closes the rest picker and leaves the caption as it was.
+    @MainActor
+    func testRestTimerCancelKeepsTheCaption() throws {
+        let app = launchEditor()
+        let (menu, section) = firstMenu(app)
+        let caption = app.staticTexts["settable.restCaption.\(section)"]
+        XCTAssertTrue(caption.waitForExistence(timeout: 5), "no rest caption under the first block")
+        let before = caption.label
+
+        openMenuEntry(app, menu: menu, entry: "settable.menu.rest")
+        let sheet = app.descendants(matching: .any)["restTimer.sheet"]
+        XCTAssertTrue(sheet.waitForExistence(timeout: 5), "no rest timer sheet")
+        app.buttons["restTimer.cancel"].firstMatch.tap()
+        XCTAssertTrue(sheet.waitUntilGone(), "Cancel did not close the sheet")
+        XCTAssertEqual(caption.label, before, "Cancel changed the caption")
+    }
 }

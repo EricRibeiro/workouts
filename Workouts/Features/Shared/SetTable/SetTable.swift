@@ -210,6 +210,7 @@ struct SetTable: View {
                 Text(SetTableLayout.restCaption(seconds: section.restSeconds, defaultSeconds: defaultRestSeconds))
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("settable.restCaption.\(section.id.uuidString)")
             }
             if !section.note.isEmpty {
                 SetTableNoteLine(
