@@ -35,7 +35,9 @@ final class SettingsFlow {
     /// Bumped after an import; the view runs the Fitness look-up in `.task(id: backfillRequest)`.
     private(set) var backfillRequest = 0
 
-    /// Reads and applies the JSON export at `url`. Runs to completion on purpose (see the type's comment).
+    /// Reads and applies the JSON export at `url`. Runs to completion on purpose (see the type's comment); the returned
+    /// task lets a test await it.
+    @discardableResult
     func runImport(
         _ url: URL,
         context: ModelContext,
@@ -43,9 +45,9 @@ final class SettingsFlow {
         exerciseStore: ExerciseStore?,
         engine: ActiveWorkoutEngine?,
         generation: StoreGeneration?,
-    ) {
+    ) -> Task<Void, Never> {
         isImporting = true
-        Task {
+        return Task {
             defer { isImporting = false }
             await performImport(
                 url,
@@ -92,7 +94,7 @@ final class SettingsFlow {
 
     /// Imported custom exercises must reach the pickers and detail screens, and a legitimately imported unfinished
     /// workout (no other running) shows at once, not after relaunch.
-    private static func refreshAfterImport(
+    static func refreshAfterImport(
         context: ModelContext,
         exerciseStore: ExerciseStore?,
         engine: ActiveWorkoutEngine?
