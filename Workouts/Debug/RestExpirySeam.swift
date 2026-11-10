@@ -46,20 +46,29 @@
         func body(content: Content) -> some View {
             if ProcessInfo.processInfo.arguments.contains("-uiTesting") {
                 content.overlay {
-                    // The rest changes state by the clock (running to over) without any observed property changing.
-                    TimelineView(.periodic(from: .now, by: 0.25)) { timeline in
-                        Color.clear
-                            .frame(width: 0, height: 0)
-                            .allowsHitTesting(false)
-                            .accessibilityElement()
-                            .accessibilityIdentifier("debug.restState")
-                            .accessibilityLabel("Rest state")
-                            .accessibilityValue(state(at: timeline.date))
+                    // The rest changes state by the clock (running to over) without any observed property changing, so a
+                    // clock ticks only while a rest exists: a ticking view on every screen keeps XCUITest from going idle.
+                    if engine?.restTimer.isActive == true {
+                        TimelineView(.periodic(from: .now, by: 0.25)) { timeline in
+                            probe(state(at: timeline.date))
+                        }
+                    } else {
+                        probe("none")
                     }
                 }
             } else {
                 content
             }
+        }
+
+        private func probe(_ value: String) -> some View {
+            Color.clear
+                .frame(width: 0, height: 0)
+                .allowsHitTesting(false)
+                .accessibilityElement()
+                .accessibilityIdentifier("debug.restState")
+                .accessibilityLabel("Rest state")
+                .accessibilityValue(value)
         }
 
         private func state(at date: Date) -> String {

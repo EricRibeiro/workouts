@@ -65,14 +65,19 @@ final class AccessibilityAuditUITests: XCTestCase {
             }
             return known
         }
-        do {
-            try app.performAccessibilityAudit(for: types, handler)
-        } catch let error as NSError where error.domain == "com.apple.accessibilityAudit" && error.code == -902 {
-            // "Invalid target app <pid>": the audit attached while the launch was still settling (seen only with several
-            // simulators busy). It is a harness error, not a finding, so the audit runs once more; a second failure fails.
-            _ = app.wait(for: .runningForeground, timeout: 10)
-            try app.performAccessibilityAudit(for: types, handler)
+        // "Invalid target app <pid>" (-902): the audit attached while the launch was still settling (seen only with several
+        // simulators busy). It is a harness error, not a finding, so the audit runs again after a short backoff (1 s, then
+        // 2 s); a third failure fails.
+        for backoff in [1.0, 2.0] {
+            do {
+                try app.performAccessibilityAudit(for: types, handler)
+                return
+            } catch let error as NSError where error.domain == "com.apple.accessibilityAudit" && error.code == -902 {
+                _ = app.wait(for: .runningForeground, timeout: 10)
+                Thread.sleep(forTimeInterval: backoff)
+            }
         }
+        try app.performAccessibilityAudit(for: types, handler)
     }
 
     /// Issues that are not defects in this app's views. Each rule names the element and why it is safe to ignore; none

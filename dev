@@ -328,7 +328,7 @@ cmd_ui_test() {
 # HealthKitIntegrationUITests) included: they skip themselves unless their env flag is set, exactly as in the single run.
 UI_DURATIONS=".build/ui-test-durations.tsv" # <suite> TAB <seconds> from the last passing sharded run
 UI_TOTAL=".build/ui-test-total"             # tests (skipped included) in the last passing sharded run
-UI_FLAKY_LOG=".build/ui-flaky.log"          # <utc time> <commit> <test id> per test that failed, then passed on retry
+UI_FLAKY_LOG="${DEV_UI_FLAKY_LOG:-.build/ui-flaky.log}" # per test that failed, then passed on retry: <utc time> <commit> <test id> <shard sim, spaces as _> <first attempt secs or -> <first failure text>; older lines stop after the id (./dev ui-flaky)
 UI_SHARDS_DIR="$RESULTS/ui-test-shards"
 UI_SIMS=()
 UI_PIDS=()
@@ -449,12 +449,13 @@ ui_bundle_suites() { # ui_bundle_suites <xcresult>: "<suite> TAB <seconds>" for 
 # them passed; a failure that cannot be named test by test, or a test that was already flaky in the previous full run, is
 # never retried. The retried ids go to shard-N.retried and are reported as flaky.
 ui_shard_retry() { # ui_shard_retry <index> <udid> <xctestrun> <bundle>
-  local idx="$1" udid="$2" xr="$3" bundle="$4" ids=() id only=() json retry rrc=0 failed prev
+  local idx="$1" udid="$2" xr="$3" bundle="$4" ids=() id only=() json retry rrc=0 failed prev first durs text secs
   retry="$PWD/$UI_SHARDS_DIR/retry-$idx.xcresult"
   json=$(xcrun xcresulttool get test-results summary --path "$bundle" --compact 2>/dev/null) || return 1
   while read -r id; do [[ -z "$id" ]] || ids+=("$id"); done < <(jq -r '(.testFailures // [])[].testIdentifierString' <<<"$json" 2>/dev/null | sort -u)
   failed=$(jq '.failedTests // 0' <<<"$json" 2>/dev/null) || return 1
   ((${#ids[@]} > 0 && failed == ${#ids[@]})) || return 1
+  first="$json"; durs=$(xcrun xcresulttool get test-results tests --path "$bundle" --compact 2>/dev/null) || durs="{}"
   prev=$(sed -n 's/^flaky=//p' "$UI_STAMP" 2>/dev/null || true)
   for id in "${ids[@]}"; do
     case ",$prev," in *",$id,"*) echo "dev: $id was flaky in the previous full run too; not retrying it" >&2; return 1 ;; esac
@@ -468,7 +469,13 @@ ui_shard_retry() { # ui_shard_retry <index> <udid> <xctestrun> <bundle>
   ((rrc == 0)) || return 1
   [[ "$(jq '.totalTestCount // 0' <<<"$json")" == "${#ids[@]}" && "$(jq '.passedTests // 0' <<<"$json")" == "${#ids[@]}" &&
     "$(jq '.failedTests // 0' <<<"$json")" == 0 ]] || return 1
-  printf '%s\n' "${ids[@]}" >"$UI_SHARDS_DIR/shard-$idx.retried"
+  # <id> TAB <first attempt seconds> TAB <first failure text, one line, at most 300 chars> per test, for the flaky log
+  : >"$UI_SHARDS_DIR/shard-$idx.retried"
+  for id in "${ids[@]}"; do
+    text=$(jq -r --arg id "$id" '[(.testFailures // [])[] | select(.testIdentifierString == $id) | .failureText][0] // "" | gsub("\\s+"; " ") | sub("^ "; "") | sub(" $"; "")' <<<"$first" 2>/dev/null | cut -c1-300) || text=""
+    secs=$(jq -r --arg id "$id" '[.. | objects | select(.nodeType == "Test Case" and .nodeIdentifier == $id) | .durationInSeconds][0] | if type == "number" then round else "-" end' <<<"$durs" 2>/dev/null) || secs="-"
+    printf '%s\t%s\t%s\n' "$id" "${secs:--}" "${text:--}" >>"$UI_SHARDS_DIR/shard-$idx.retried"
+  done
 }
 ui_shard() { # ui_shard <index> <udid> <xctestrun> <suite...>; runs in a background subshell
   local idx="$1" udid="$2" xr="$3" bundle only=() s attempt rc=0 t0=$SECONDS
@@ -567,8 +574,11 @@ ui_test_sharded() {
     if [[ -s "$UI_SHARDS_DIR/shard-$i.retried" ]]; then # failed in the shard, passed on an accepted retry: counts come from both bundles
       rp=$(xcrun xcresulttool get test-results summary --path "$UI_SHARDS_DIR/retry-$i.xcresult" --compact 2>/dev/null | jq '.passedTests // 0') || rp=0
       p=$((p + rp)); f=$((f - rp))
-      while read -r id; do
-        flaky+=("$id"); printf '%s %s %s\n' "$(date -u +%FT%TZ)" "$(git rev-parse --short HEAD)" "$id" >>"$UI_FLAKY_LOG"
+      local fsim fsecs ftext
+      fsim=$(sim_name_by_udid "${sims[i - 1]}"); fsim="${fsim// /_}"
+      while IFS=$'\t' read -r id fsecs ftext; do
+        flaky+=("$id")
+        printf '%s %s %s %s %s %s\n' "$(date -u +%FT%TZ)" "$(git rev-parse --short HEAD)" "$id" "${fsim:--}" "${fsecs:--}" "${ftext:--}" >>"$UI_FLAKY_LOG"
         echo "dev: warning: flaky under load, failed then passed on retry: $id" >&2
       done <"$UI_SHARDS_DIR/shard-$i.retried"
     fi
@@ -609,6 +619,42 @@ ui_test_sharded() {
 }
 
 # Progress of a running (or the last) ui-test, from the file the ui_progress_* functions keep up to date.
+# Per-test summary of $UI_FLAKY_LOG: test, how often it failed-then-passed, when and at which commit last, and that run's first
+# failure text. Fields 4-5 (shard sim, seconds) only exist on newer lines; a 3-field line has no message. Read-only.
+cmd_ui_flaky() {
+  local since="" cutoff="" cols
+  while (($#)); do
+    case "$1" in
+      --since) [[ "${2:-}" =~ ^[0-9]+$ ]] || die "ui-flaky: --since needs a number of days"; since="$2"; shift 2 ;;
+      *) die "usage: ./dev ui-flaky [--since <days>]" ;;
+    esac
+  done
+  [[ -s "$UI_FLAKY_LOG" ]] || { echo "ui-flaky: no flaky tests logged ($UI_FLAKY_LOG)"; return 0; }
+  [[ -z "$since" ]] || cutoff=$(date -u -v-"$since"d +%FT%TZ)
+  cols=$(tput cols 2>/dev/null || true); [[ "$cols" =~ ^[0-9]+$ ]] || cols="${COLUMNS:-120}"
+  awk -v cutoff="$cutoff" '
+    NF >= 3 && $1 >= cutoff {
+      id = $3; n[id]++
+      if ($1 >= last[id]) {
+        last[id] = $1; commit[id] = $2; msg = ""
+        for (i = 6; i <= NF; i++) msg = msg (i > 6 ? " " : "") $i
+        text[id] = msg
+      }
+    }
+    END { for (id in n) printf "%d\t%s\t%s\t%s\t%s\n", n[id], last[id], id, commit[id], (text[id] == "" ? "-" : text[id]) }
+  ' "$UI_FLAKY_LOG" | sort -t"$(printf '\t')" -k1,1nr -k2,2r | awk -F'\t' -v cols="$cols" '
+    { c[NR] = $1; d[NR] = substr($2, 1, 10); id[NR] = $3; sha[NR] = $4; m[NR] = $5; if (length($3) > w) w = length($3) }
+    END {
+      if (NR == 0) { print "ui-flaky: no flaky tests logged in that window"; exit }
+      room = cols - w - 5 - 10 - 7 - 8; if (room < 20) room = 20
+      printf "%-" w "s  %5s  %-10s  %-7s  %s\n", "TEST", "COUNT", "LAST", "COMMIT", "LAST MESSAGE"
+      for (i = 1; i <= NR; i++) {
+        t = m[i]; if (length(t) > room) t = substr(t, 1, room - 3) "..."
+        printf "%-" w "s  %5d  %-10s  %-7s  %s\n", id[i], c[i], d[i], sha[i], t
+      }
+    }'
+}
+
 cmd_ui_status() {
   local pid=""
   pid=$(cat "$UI_PROGRESS_DIR/pid" 2>/dev/null || true)
@@ -1435,6 +1481,7 @@ build              build the app for this checkout's simulator
 test [filter]      run WorkoutsTests (filter = suite or suite/test); prints totals, fails if none ran
 ui-test [filter]   run WorkoutsUITests (an unfiltered pass is sharded over DEV_UI_SHARDS pool sims and stamps HEAD, with its flaky tests, for the testflight --upload gate); prints totals, fails if none ran (filter HealthKitIntegrationUITests opts in to the real-Health test)
 tree <Name>        print the accessibility tree (XCUIApplication.debugDescription) of the `-preview <Name>` screen via TreeDumpUITests; no private AX bridge
+ui-flaky [--since <days>]  per-test summary of .build/ui-flaky.log (tests that failed, then passed on retry): count, last date and commit, last failure text; read-only
 ui-status          progress of a running ui-test (one line per shard: passed/total, failures, last test, elapsed), else the last stamp and the last run's final line (.build/ui-test.progress)
 coverage [test|ui-test]  per-target code coverage of the last passing test (default) or ui-test run (xccov); fails if none kept
 kit [filter]       swift test in Packages/WorkoutsKit; prints summary line, fails if filter matched nothing
@@ -1485,6 +1532,7 @@ case "$sub" in
   test) sim_guarded cmd_test "$@" ;;
   ui-test) sim_guarded cmd_ui_test "$@" ;;
   ui-status) cmd_ui_status ;;
+  ui-flaky) cmd_ui_flaky "$@" ;;
   tree) sim_guarded cmd_tree "$@" ;;
   kit) cmd_kit "$@" ;;
   kit-build) cmd_kit_build ;;
