@@ -69,11 +69,20 @@ final class CloudSyncMonitor {
         }
     }
 
-    /// Only finished events (an `endDate`) carry an outcome; a started one is ignored.
     nonisolated private static func map(_ event: NSPersistentCloudKitContainer.Event) -> CloudSyncEvent? {
-        guard let endedAt = event.endDate else { return nil }
+        map(endDate: event.endDate, type: event.type, succeeded: event.succeeded, error: event.error)
+    }
+
+    /// Only finished events (an `endDate`) carry an outcome; a started one is ignored.
+    nonisolated static func map(
+        endDate: Date?,
+        type: NSPersistentCloudKitContainer.EventType,
+        succeeded: Bool,
+        error: (any Error)?
+    ) -> CloudSyncEvent? {
+        guard let endedAt = endDate else { return nil }
         let kind: CloudSyncEvent.Kind =
-            switch event.type {
+            switch type {
             case .setup: .setup
             case .import: .importRecords
             case .export: .exportRecords
@@ -81,9 +90,9 @@ final class CloudSyncMonitor {
             }
         return CloudSyncEvent(
             kind: kind,
-            succeeded: event.succeeded,
+            succeeded: succeeded,
             endedAt: endedAt,
-            errorDescription: event.error?.localizedDescription
+            errorDescription: error?.localizedDescription
         )
     }
 
