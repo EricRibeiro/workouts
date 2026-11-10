@@ -10,13 +10,6 @@ extension WorkoutActivityState {
         guard let end = restEndsAt else { return nil }
         return now...max(now, end)
     }
-
-    /// The whole rest, start to end, for the progress ring. Falls back to 60 s when the total is unknown.
-    func restRange() -> ClosedRange<Date>? {
-        guard let end = restEndsAt else { return nil }
-        let total = TimeInterval(max(1, restTotal ?? 60))
-        return end.addingTimeInterval(-total)...end
-    }
 }
 
 extension WorkoutActivityState {

@@ -11,7 +11,8 @@ struct ActivityRing: View {
     let restOver: Bool
 
     var body: some View {
-        if restOver {
+        switch state.ringKind(restOver: restOver) {
+        case .over:
             ProgressView(value: 1) {
                 EmptyView()
             } currentValueLabel: {
@@ -21,7 +22,7 @@ struct ActivityRing: View {
             .tint(ActivityStyle.ok)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Rest over")
-        } else if let range = state.restRange() {
+        case .running(let range):
             ProgressView(timerInterval: range, countsDown: true) {
                 EmptyView()
             } currentValueLabel: {
@@ -30,7 +31,7 @@ struct ActivityRing: View {
             .progressViewStyle(.circular)
             .tint(ActivityStyle.accent)
             .activityTimerAccessibility(for: state)
-        } else {
+        case .idle:
             Image(systemName: ActivityStyle.glyph)
                 .foregroundStyle(ActivityStyle.accent)
                 .accessibilityLabel("Workout")
@@ -104,7 +105,7 @@ struct CompactLeadingContent: View {
                     ActivityCompactTimerText(state: state)
                 }
             }
-        } else if state.isRestRunning(restOver: restOver) {
+        } else if case .running = state.ringKind(restOver: restOver) {
             ActivityRing(state: state, restOver: false)
         } else {
             Image(systemName: ActivityStyle.glyph)

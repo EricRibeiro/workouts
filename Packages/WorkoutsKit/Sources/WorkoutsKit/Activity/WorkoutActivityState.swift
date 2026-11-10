@@ -118,6 +118,30 @@ public nonisolated struct WorkoutActivityState: Codable, Hashable, Sendable {
         guard let restEndsAt else { return false }
         return restEndsAt <= date
     }
+
+    /// The whole rest, start to end, for the progress ring. Falls back to 60 s when the total is unknown; nil when no
+    /// rest runs.
+    public func restRange() -> ClosedRange<Date>? {
+        guard let end = restEndsAt else { return nil }
+        let total = TimeInterval(max(1, restTotal ?? 60))
+        return end.addingTimeInterval(-total)...end
+    }
+
+    /// Which ring the Island draws. `restOver` wins over any range; a rest that exists but whose end has passed
+    /// without `restOver` is still `.running` (the system clamps the drained ring itself).
+    public func ringKind(restOver: Bool) -> RingKind {
+        if restOver { return .over }
+        if let range = restRange() { return .running(range) }
+        return .idle
+    }
+}
+
+/// The Island ring's three looks: a full `ok` checkmark ring, the draining rest ring over the whole rest, or the glyph
+/// alone.
+public nonisolated enum RingKind: Equatable, Sendable {
+    case over
+    case running(ClosedRange<Date>)
+    case idle
 }
 
 // MARK: - Engine mapping

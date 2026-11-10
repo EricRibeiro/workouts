@@ -347,3 +347,45 @@ import Testing
         #expect(state.isRestOver(at: now.addingTimeInterval(31)))
     }
 }
+
+@Suite struct ActivityRingKindTests {
+    private let now = Date(timeIntervalSinceReferenceDate: 1_000_000)
+
+    private func state(endsIn seconds: TimeInterval? = nil, total: Int? = nil) -> WorkoutActivityState {
+        WorkoutActivityState(
+            workoutName: "Push",
+            startedAt: now,
+            restEndsAt: seconds.map { now.addingTimeInterval($0) },
+            restTotal: total
+        )
+    }
+
+    @Test func noRestIsIdle() {
+        #expect(state().ringKind(restOver: false) == .idle)
+        #expect(state().restRange() == nil)
+    }
+
+    @Test func liveRangeRunsOverTheWholeRest() {
+        let end = now.addingTimeInterval(30)
+        #expect(state(endsIn: 30, total: 90).ringKind(restOver: false) == .running(end.addingTimeInterval(-90)...end))
+    }
+
+    @Test func unknownTotalFallsBackToSixtySeconds() {
+        let end = now.addingTimeInterval(10)
+        #expect(state(endsIn: 10).restRange() == end.addingTimeInterval(-60)...end)
+        #expect(state(endsIn: 10, total: 0).restRange() == end.addingTimeInterval(-1)...end)
+    }
+
+    @Test func overWinsOverARunningRange() {
+        #expect(state(endsIn: 30, total: 90).ringKind(restOver: true) == .over)
+    }
+
+    @Test func overWithoutARestIsStillOver() {
+        #expect(state().ringKind(restOver: true) == .over)
+    }
+
+    @Test func expiredRangeWithoutRestOverStaysRunning() {
+        let end = now.addingTimeInterval(-5)
+        #expect(state(endsIn: -5, total: 60).ringKind(restOver: false) == .running(end.addingTimeInterval(-60)...end))
+    }
+}
