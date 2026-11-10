@@ -11,7 +11,7 @@ final class AccessibilityAuditUITests: XCTestCase {
     // MARK: - Audit
 
     /// Where the audited screen sits, which decides what the filters in `isKnownIssue` may ignore.
-    private struct Context {
+    struct Context {
         /// A sheet or full-screen cover is up: the screen behind it is not reachable, so the audit's "potentially
         /// inaccessible" findings for it have no element to blame.
         var behindModal = false
@@ -82,7 +82,7 @@ final class AccessibilityAuditUITests: XCTestCase {
 
     /// Issues that are not defects in this app's views. Each rule names the element and why it is safe to ignore; none
     /// turns an audit type off, and none applies to an element the app draws and labels itself except where stated.
-    private static func isKnownIssue(_ issue: XCUIAccessibilityAuditIssue, app: XCUIApplication, context: Context)
+    static func isKnownIssue(_ issue: XCUIAccessibilityAuditIssue, app: XCUIApplication, context: Context)
         -> Bool
     {
         let element = issue.element

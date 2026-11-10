@@ -15,7 +15,7 @@ HEALTH_STAMP=".build/health-test.stamp"    # commit and time of the last HealthK
 # What the real-Health pass vouches for: a change to any of these since the stamped commit needs a new pass before an upload.
 HEALTH_PATHS=(Workouts/Features/Health/HealthKitSource.swift Workouts/Features/Health/HealthSeeder.swift Workouts/Workouts.entitlements WorkoutsUITests/HealthKitIntegrationUITests.swift)
 HEALTH_SIM="iPhone Duo Health"             # a clone outside the pool that keeps its Health authorization between runs
-UI_EXPECTED_SKIPS="${DEV_UI_EXPECTED_SKIPS:-5}" # an unfiltered ui-test skips PerfDriver 3, HealthKitIntegration 1, TreeDump 1
+UI_EXPECTED_SKIPS="${DEV_UI_EXPECTED_SKIPS:-7}" # an unfiltered ui-test skips PerfDriver 3, HealthKitIntegration 1, TreeDump 1, OpenPose 2
 # A stalled UI test fails (with a spindump) after this many seconds instead of silently eating a shard; DEV_UI_TEST_ALLOWANCE overrides.
 ui_timeout_args() { echo -test-timeouts-enabled YES -default-test-execution-time-allowance "${DEV_UI_TEST_ALLOWANCE:-240}"; }
 UI_PROGRESS=".build/ui-test.progress"   # one line per shard while ./dev ui-test runs, then a final "done:" line (./dev ui-status)
@@ -273,6 +273,7 @@ run_tests() { # run_tests <name> <target> [filter] [latest]: the passing bundle 
     XCB_VERBOSE=1 RUN_LOGGED_TAP=ui_progress_tap UI_PROG_SIM=$(sim_name_by_udid "$SIM_UDID")
   fi
   sim_reset_ui "$SIM_UDID"
+  [[ "$name" != ui-test ]] || ui_pose_apply
   [[ -n "$filter" ]] && only="$target/$filter"
   mkdir -p "$RESULTS"
   find "$RESULTS" -maxdepth 1 -name '*.xcresult' ! -name 'latest-*' -mmin +240 -exec rm -rf {} + 2>/dev/null || true
@@ -284,6 +285,7 @@ run_tests() { # run_tests <name> <target> [filter] [latest]: the passing bundle 
     # A retry against the same simulator hung again (2026-11-03); a cold boot cleared it.
     echo "dev: test runner hung before connecting; rebooting the simulator and retrying once" >&2
     xcrun simctl shutdown "$SIM_UDID" >/dev/null 2>&1 || true
+    if [[ "$name" == ui-test && -n "$UI_POSE" ]]; then sim_reset_ui "$SIM_UDID"; ui_pose_apply; fi # a cold boot comes up closed-portrait
     rm -rf "$bundle"; rc=0
     run_logged "$name" xcb test ${tmo[@]+"${tmo[@]}"} -parallel-testing-enabled NO -enableCodeCoverage YES -collect-test-diagnostics on-failure -only-testing:"$only" -resultBundlePath "$bundle" || rc=$?
   fi
@@ -377,7 +379,7 @@ skip_check() { # skip_check <skipped> <expected>: an unfiltered run that skips m
   local got="${1:-}" want="$2"
   [[ "$want" =~ ^[0-9]+$ ]] || { echo "dev: DEV_UI_EXPECTED_SKIPS=$want is not a number" >&2; return 1; }
   [[ "$got" == "$want" ]] && return 0
-  echo "FAILED: ui-test passed but skipped ${got:-an unknown number of} tests, expected $want (PerfDriver 3, HealthKitIntegration 1, TreeDump 1; DEV_UI_EXPECTED_SKIPS overrides); not writing $UI_STAMP" >&2
+  echo "FAILED: ui-test passed but skipped ${got:-an unknown number of} tests, expected $want (PerfDriver 3, HealthKitIntegration 1, TreeDump 1, OpenPose 2; DEV_UI_EXPECTED_SKIPS overrides); not writing $UI_STAMP" >&2
   return 1
 }
 health_stamp_write() { # health_stamp_write <file> <skipped> <commit> <when>: only a run that skipped nothing counts
@@ -398,6 +400,34 @@ health_sim_wanted() { is_health_filter "${1:-}" && [[ -z "${DEV_SIM:-}" && -z "$
 health_sim_require() { # reads SIM_TABLE
   [[ -n "$(sim_udid_by_name "$HEALTH_SIM")" ]] ||
     die "ui-test: no simulator named '$HEALTH_SIM' for HealthKitIntegrationUITests; create it: xcrun simctl clone \"$SIM_ORIGINAL\" \"$HEALTH_SIM\""
+}
+# DEV_POSE=<pose> ./dev ui-test <filter>: the Duo is posed (verified by Tools/duo) after sim_reset_ui, under the same lock, and
+# the runner sees TEST_RUNNER_DUO_POSE (DUO_POSE in the test). sim_release, the lock's EXIT trap, puts it back to
+# closed-portrait, so a failure or ^C restores it too. Filtered runs only: the sharded full run borrows unposed pool sims.
+# UI_POSE, not DEV_POSE, is what run_tests reads, so `tree` and `test` ignore an exported DEV_POSE.
+UI_POSE=""
+ui_pose_check() { # ui_pose_check <pose> <filter>: succeeds when a ui-test may run under that DEV_POSE; else prints why not
+  [[ -n "$1" ]] || return 0
+  [[ "$1" =~ ^(closed-portrait|closed-landscape|open-wide|open-tall)$ ]] \
+    || { echo "ui-test: DEV_POSE=$1 is not closed-portrait|closed-landscape|open-wide|open-tall"; return 1; }
+  [[ -n "$2" ]] || { echo "ui-test: DEV_POSE needs a filter (the full run is sharded over unposed sims): DEV_POSE=$1 ./dev ui-test <Suite>"; return 1; }
+}
+ui_pose_init() { # ui_pose_init [filter]: runs before sim_guarded, so UI_POSE is set in the shell whose EXIT trap restores
+  local why
+  why=$(ui_pose_check "${DEV_POSE:-}" "${1:-}") || die "$why"
+  UI_POSE="${DEV_POSE:-}"
+}
+ui_pose_apply() {
+  [[ -n "$UI_POSE" ]] || return 0
+  duo_bin
+  "$DUO_BIN" pose "$UI_POSE" --udid "$SIM_UDID" >/dev/null || die "ui-test: pose $UI_POSE failed"
+  export TEST_RUNNER_DUO_POSE="$UI_POSE"
+}
+ui_pose_restore() {
+  [[ -n "$UI_POSE" && -n "${SIM_UDID:-}" && -x "$DUO_BIN" ]] || return 0
+  "$DUO_BIN" pose closed-portrait --udid "$SIM_UDID" >/dev/null 2>&1 \
+    || echo "dev: warning: closed-portrait not restored after DEV_POSE=$UI_POSE; run ./dev pose closed-portrait" >&2
+  UI_POSE=""
 }
 ui_test_select_sim() { # ui_test_select_sim [filter]: runs before sim_guarded
   health_sim_wanted "${1:-}" || return 0
@@ -988,7 +1018,7 @@ sim_lock() { # sim_lock <lock-dir>
 }
 # Releasing a lock stamps the simulator as used just now (<lock>.lock -> <lock>.last-used); the idle reaper reads the stamp.
 sim_stamp_path() { local lock; lock=$(sim_lock_path "$1"); echo "${lock%.lock}.last-used"; } # sim_stamp_path <udid>
-sim_release() { [[ -z "$SIM_LOCK" ]] || { touch "${SIM_LOCK%.lock}.last-used" 2>/dev/null || true; rm -rf "$SIM_LOCK"; }; }
+sim_release() { [[ -z "$SIM_LOCK" ]] || { ui_pose_restore; touch "${SIM_LOCK%.lock}.last-used" 2>/dev/null || true; rm -rf "$SIM_LOCK"; }; }
 sim_unlock() { sim_release; trap - EXIT; }
 
 # Pool housekeeping. These take a simulator's lock without waiting (sim_grab fails when anyone holds it, so a run in
@@ -1766,6 +1796,16 @@ CKDB
   st_out_has "ck-schema fields prints type field type" "CD_Template CD_name STRING"
   st_run cmd_ck_schema fields "$ST_DIR/ck/missing.ckdb"; st_rc "ck-schema fields on a missing file" 1
 
+  # DEV_POSE: valid names on a filtered ui-test only.
+  st_run ui_pose_check "" ""; st_rc "ui_pose_check without DEV_POSE" 0
+  st_run ui_pose_check open-wide "OpenPoseUITests"; st_rc "ui_pose_check open-wide filtered" 0
+  st_run ui_pose_check closed-portrait "SmokeUITests/testX()"; st_rc "ui_pose_check closed-portrait filtered" 0
+  st_run ui_pose_check open-wide ""; st_rc "ui_pose_check open-wide unfiltered" 1; st_out_has "ui_pose_check open-wide unfiltered" "needs a filter"
+  st_run ui_pose_check open "OpenPoseUITests"; st_rc "ui_pose_check bad name" 1; st_out_has "ui_pose_check bad name" "is not closed-portrait"
+  ui_pose_init_rc() { DEV_POSE="$1"; ui_pose_init "$2"; echo "UI_POSE=$UI_POSE"; }
+  st_run ui_pose_init_rc open-tall OpenPoseUITests; st_out_has "ui_pose_init sets UI_POSE" "UI_POSE=open-tall"
+  st_run ui_pose_init_rc open-tall ""; st_rc "ui_pose_init dies unfiltered" 1
+
   echo "selftest: $ST_PASS passed, $ST_FAIL failed"
   ((ST_FAIL == 0))
 }
@@ -1814,10 +1854,12 @@ sims [--prune]     create the missing simulator clones (iPhone Duo 2..$DEV_SIM_P
                    or DEV_SIM_UDID=<udid> overrides)
 build              build the app for this checkout's simulator
 test [filter]      run WorkoutsTests (filter = suite or suite/test); prints totals, fails if none ran; an unfiltered pass writes .build/test.stamp (commit, clean, when), which `coverage` prints
-ui-test [filter]   run WorkoutsUITests (an unfiltered pass is sharded over DEV_UI_SHARDS pool sims and stamps HEAD, with its flaky tests, for the testflight --upload gate); prints totals, fails if none ran. An unfiltered run that does not skip exactly 5 tests (DEV_UI_EXPECTED_SKIPS) writes no stamp
+ui-test [filter]   run WorkoutsUITests (an unfiltered pass is sharded over DEV_UI_SHARDS pool sims and stamps HEAD, with its flaky tests, for the testflight --upload gate); prints totals, fails if none ran. An unfiltered run that does not skip exactly 7 tests (DEV_UI_EXPECTED_SKIPS) writes no stamp
                    and fails. A test running longer than DEV_UI_TEST_ALLOWANCE seconds (default 240) fails with a spindump (xcodebuild -test-timeouts-enabled). Filter HealthKitIntegrationUITests opts in to the real-Health test: it runs on the 'iPhone Duo Health' clone
                    (create it: xcrun simctl clone "iPhone Duo" "iPhone Duo Health"; DEV_SIM / DEV_SIM_UDID override), keeps its bundle as
                    latest-health.xcresult, and a pass with nothing skipped writes .build/health-test.stamp (commit, when)
+                   DEV_POSE=closed-portrait|closed-landscape|open-wide|open-tall (filtered runs only) poses the Duo first and restores closed-portrait
+                   when the lock is released, also after a failure; the runner sees DUO_POSE (OpenPoseUITests skips without DUO_POSE=open-wide)
 tree <Name>        print the accessibility tree (XCUIApplication.debugDescription) of the `-preview <Name>` screen via TreeDumpUITests; no private AX bridge
 ui-flaky [--since <days>]  per-test summary of .build/ui-flaky.log (tests that failed, then passed on retry): count, last date and commit, last failure text; read-only
 ui-status          progress of a running ui-test (one line per shard: passed/total, failures, last test, elapsed), else the last stamp and the last run's final line (.build/ui-test.progress)
@@ -1873,7 +1915,7 @@ sub="${1:-help}"
 case "$sub" in
   build) cmd_build ;;
   test) sim_guarded cmd_test "$@" ;;
-  ui-test) ui_test_select_sim "$@"; sim_guarded cmd_ui_test "$@" ;;
+  ui-test) ui_test_select_sim "$@"; ui_pose_init "$@"; sim_guarded cmd_ui_test "$@" ;;
   selftest) cmd_selftest ;;
   ui-status) cmd_ui_status ;;
   ui-flaky) cmd_ui_flaky "$@" ;;

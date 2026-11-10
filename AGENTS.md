@@ -55,6 +55,8 @@ SNAPSHOT_RECORD=1 ./dev test SnapshotTests   re-record the visual references (Wo
                         .build/results/ui-test-shards/ and .build/logs/; 1 = single sim; fewer when sims are scarce or the load average
                         is high). A test that fails and passes alone on one retry is reported as flaky (`.build/ui-flaky.log`, stamp
                         `flaky=`); flaky twice in a row fails. DEV_UI_RETRY=0 = strict. A filtered run uses one sim
+DEV_POSE=open-wide ./dev ui-test OpenPoseUITests   a filtered ui-test with the Duo posed first (closed-portrait|closed-landscape|open-wide|open-tall,
+                        verified); closed-portrait restored when the lock is released, also on failure; the runner sees DUO_POSE. Opt-in, before a phase's TestFlight
 ./dev ui-status         progress of a running ui-test (`.build/ui-test.progress`: a line per shard, `FAILED Suite/test` as it happens, `done: <totals>`); idle: last stamp + last run's final line
 ./dev ui-flaky [--since <days>]  per-test summary of `.build/ui-flaky.log` (tests that failed, then passed on retry): count, last date and commit, last failure text; read-only
 ./dev selftest         the stamp, gate, skipped-count, ui-flaky and DEV_SIM_KEEP parsing on fixture files in a temp dir; no simulator or xcodebuild, ~2s; not part of check
