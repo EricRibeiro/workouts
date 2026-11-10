@@ -468,6 +468,82 @@ Order: 7b.1, 7b.2, 7b.3 first; then 7b.4 → 7b.5; 7b.6 at the next media change
 Not automated, deliberately: sub-second XCUITest timing without the seam, frame-by-frame recording analysis, real
 CloudKit or 1,029-id fixtures, removing the Health/Live Activity gates, `-slowLoads` sweeps of every gallery entry.
 
+### Phase 7c — Covering the remaining gaps (research 2026-11-09, decisions JC130)
+
+Research, two independent Fable reviews and the ranked options: `docs/reviews/2026-11-09-coverage-research.md`. Seven gaps:
+Duo open poses, the rest picker, the real HealthKit store, CloudKit sync, the Live Activity, UI flakiness, SettingsFlow and
+the gate table. Order: 7c.0 first and alone (the stamp on 12f5649 lists both flaky tests, so a repeat fails the next full
+run); 7c.1–7c.8 in any order, parallel where files are disjoint; 7c.9–7c.16 after. Each task's proof is the narrowest
+command; `./dev check` plus the touched UI suites before every commit.
+
+- [ ] **7c.0 Flake fixes, then one full run**: the audit's `.hitRegion` known-issue rule also accepts a `.staticText` whose
+  label equals a `navigationBars.buttons` title (the title menu is exposed as a `UILabel` while the bar settles), and
+  `audit()` puts `issue.element?.debugDescription` in the failure text; `RestRingUITests.startRest` waits 15 s, not 5.
+  Proof: `./dev ui-test AccessibilityAuditUITests/testActiveWorkoutLogging()` and
+  `RestRingUITests/testRestEndsWhileSetFieldHasFocus()`, then a full `./dev ui-test` that stamps with `flaky=` empty.
+- [ ] **7c.1 Probe and flake log**: `RestStateProbe` mounts its 0.25 s `TimelineView` only while a rest is active (it ticks on
+  every screen of every UI test today); compare shard wall times before and after. `ui-flaky.log` lines gain the first
+  attempt's failure text, shard and seconds; `./dev ui-flaky` prints a per-test summary. Proof: `./dev ui-test
+  RestRingUITests`, a full run's log line, `./dev ui-flaky`.
+- [ ] **7c.2 Duo placement snapshot**: spike (15 min) that `ArrangementView` renders under `ImageRenderer`; then
+  `SnapshotBenchArrangementTests` with coloured placeholders under `BenchArrangementStyle` at 951×669, 669×951 and axes `[]`.
+  Proof: `./dev test SnapshotTests/BenchArrangementSnapshots`.
+- [ ] **7c.3 Rest picker UI tests**: `settable.restCaption.<id>` on the template caption; spoken option labels ("30 seconds",
+  "Off", "Default, 1 minute"); `TemplateEditorBlockMenuUITests`: open the picker, pick 90 / Off / Default, caption follows,
+  Cancel keeps it; `LoggingBlockMenuUITests`: launch with `-sampleNoRest`, pick 30, check a set, `rest.ring` reads 16–30 s
+  (ring helpers moved to `Support/`). Proof: the two suites.
+- [ ] **7c.4 HealthKitSource helpers**: `map`, `kind(of:)`, `quantity(_:in:)`, `text(_:)`, the unit choice in `statistic` and
+  the summary arithmetic become internal pure functions with `HealthKitSourceMappingTests` in WorkoutsTests. Also run
+  `./dev ui-test HealthKitIntegrationUITests` twice on one clone and record whether the sheet reappears
+  (`docs/port/healthkit.md`). Proof: `./dev test HealthKitSourceMappingTests`.
+- [ ] **7c.5 CloudKit seams**: `RecordFetching` protocol over `CKDatabase` in `CloudKitMediaSource` with a fake covering dark →
+  light fallback, `.unknownItem` → nil, rethrow, cancellation; `CloudSyncMonitor.map` over plain fields with three more
+  `CloudSyncStatusTests`. Proof: `./dev test CloudKitMediaSourceTests`, `./dev kit CloudSyncStatus`.
+- [ ] **7c.6 Remote-change end to end**: spike (30 min) whether a save through a second `ModelContainer` on the same on-disk
+  store posts `NSPersistentStoreRemoteChange`; `ForeignHistoryCheck` moves to the kit, `ModelContainer.workouts(at:)` is
+  added test-only; the test drives observer → author filter → engine with the mirror author (fallback: post the notification
+  from the test, keep the history assertions) and proves `InProgressResolution` never settles a recent remote row. Proof:
+  `./dev kit RemoteChange`.
+- [ ] **7c.7 Live Activity**: `WorkoutActivityState.ringKind(restOver:)` in the kit with a kit test, the views switch on it;
+  `RenderPreview` spike over `ActivityPreviews.swift` (expanded, compact, minimal, content), PNGs attached to the task.
+  Proof: `./dev kit ActivityState`, the PNGs.
+- [ ] **7c.8 SettingsFlow and docs**: `performTurnOff(_:)` seam with two tests; `WorkoutLinkRouterTests`
+  (`request`/`consume`); the gate table in `docs/reviews/2026-11-07-test-gaps.md` §6 rewritten with eleven rows and a
+  "kind" column (off / isolation / seam on), §2C's count fixed, the `-liveActivity` row corrected; the `simctl privacy …
+  reset all` line in `docs/port/healthkit.md` removed. Proof: `./dev test SettingsFlowTests`, `WorkoutLinkRouterTests`.
+- [ ] **7c.9 Health gate and sim keep-list** (`dev`): `.build/health-test.stamp` written by a filtered Health run with
+  `skippedTests == 0`, its xcresult saved under its own name; `tf_health_gate` on every `--upload` fails when
+  `HealthKitSource.swift`, `HealthSeeder.swift`, the entitlements or the test changed since the stamped commit
+  (`DEV_SKIP_HEALTH_GATE=1` overrides); `iPhone Duo Health` created outside the pool; `DEV_SIM_KEEP` (default `iPhone Duo
+  2,iPhone Duo Health`) skipped by `sim_heal` and `sims --prune` with a warning; `cmd_ui_test` refuses to stamp when
+  `skippedTests != 5`; `./dev test` writes a stamp; `./dev selftest` runs the stamp and gate parsing over fixture files.
+  Proof: `./dev selftest`, `./dev testflight` (export only) with and without a changed Health file.
+- [ ] **7c.10 Sleeps to predicates**: `CoverTimerUITests:17` → `label != before`; the three `SetTableKeyboardRevealUITests`
+  sleeps → `waitUntil` on frame equality across two reads; `LoggingBlockMenuUITests:124` stays. Proof: the three suites.
+- [ ] **7c.11 Posed UI suite**: spikes first (posing around `run_tests` without touching `sim_lock`'s EXIT trap; whether
+  `XCUIDevice.shared.orientation` re-lays out the open inner display, `docs/port/duo-layout.md`); then `DEV_POSE=<pose>`
+  honoured by a wrapper around `run_tests` (restore in the lock's release), `TEST_RUNNER_DUO_POSE`, and `OpenPoseUITests`
+  (window 951×669, pane in the right half, rotate, focused cell + draft + scroll survive; one audit pass of the open layout).
+  Opt-in, run before a phase's TestFlight. Proof: `DEV_POSE=open-wide ./dev ui-test OpenPoseUITests`.
+- [ ] **7c.12 Offline CloudKit model check** (WorkoutsTests): load the SwiftData-generated model into an
+  `NSPersistentCloudKitContainer` with `cloudKitContainerOptions` on a temp store and assert the load; try
+  `initializeCloudKitSchema(options: .dryRun)` and keep it only if it passes without an account. Proof: `./dev test
+  CloudKitModelTests`.
+- [ ] **7c.13 Live Activity builder**: `WorkoutLiveActivity`'s closures factored into `lockScreen(state:isStale:)` and
+  `islandRegions(...)` with tests; the remaining `ActivityConfiguration` lines recorded here as the appex ceiling.
+  Proof: `./dev test SnapshotTests/LiveActivitySnapshots`.
+- [ ] **7c.14 Import flow tests**: `runImport` returns its `Task`, `refreshAfterImport` tested with a real engine and store
+  (imported unfinished workout shows at once; a running one is untouched). Proof: `./dev test SettingsFlowTests`.
+- [ ] **7c.15 Runner hardening** (`dev`): `-test-timeouts-enabled YES -default-test-execution-time-allowance` on UI runs; one
+  dark `SmokeUITests` run in the full suite; `AppBundleTests` asserts `NSSupportsLiveActivities` and the time-sensitive
+  entitlement. Proof: `./dev ui-test SmokeUITests`, `./dev test AppBundleTests`.
+- [ ] **7c.16 Field-level schema diff**: `./dev ck-schema diff` compares each record type's field list between the exported
+  `.ckdb` and the current schema's attributes, not record types only. Proof: a fixture `.ckdb` missing one field fails.
+
+Not automated, deliberately (JC130): the hinge fold and bench pose (`./dev poses` stays the reviewer proof), the Island on
+the closed Duo and StandBy (Eric's device checks), a SpringBoard XCUITest of the Live Activity, `./dev sync-check` until a
+second device exists, push-driven sync merges, Production schema deploys, the file picker, notification taps.
+
 ### Phase 8 — Sync and final import (the very last steps; Eric, 2026-11-04)
 
 - [x] **8.1 CloudKit on**: flip the flag, promote the schema to production. Needs: 7.1. Proof: two simulators sync.
