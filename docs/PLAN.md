@@ -489,10 +489,10 @@ command; `./dev check` plus the touched UI suites before every commit.
   every screen of every UI test today); compare shard wall times before and after. `ui-flaky.log` lines gain the first
   attempt's failure text, shard and seconds; `./dev ui-flaky` prints a per-test summary. Proof: `./dev ui-test
   RestRingUITests`, a full run's log line, `./dev ui-flaky`.
-- [ ] **7c.2 Duo placement snapshot**: spike (15 min) that `ArrangementView` renders under `ImageRenderer`; then
+- [x] **7c.2 Duo placement snapshot** (done; `ArrangementView` renders under `ImageRenderer`, three references recorded): spike (15 min) that `ArrangementView` renders under `ImageRenderer`; then
   `SnapshotBenchArrangementTests` with coloured placeholders under `BenchArrangementStyle` at 951×669, 669×951 and axes `[]`.
   Proof: `./dev test SnapshotTests/BenchArrangementSnapshots`.
-- [ ] **7c.3 Rest picker UI tests**: `settable.restCaption.<id>` on the template caption; spoken option labels ("30 seconds",
+- [x] **7c.3 Rest picker UI tests** (done; spoken labels via `Duration.formatted(.units(width: .wide))`, ring helpers shared in `Support/RestRing+Helpers.swift`): `settable.restCaption.<id>` on the template caption; spoken option labels ("30 seconds",
   "Off", "Default, 1 minute"); `TemplateEditorBlockMenuUITests`: open the picker, pick 90 / Off / Default, caption follows,
   Cancel keeps it; `LoggingBlockMenuUITests`: launch with `-sampleNoRest`, pick 30, check a set, `rest.ring` reads 16–30 s
   (ring helpers moved to `Support/`). Proof: the two suites.
@@ -505,10 +505,10 @@ command; `./dev check` plus the touched UI suites before every commit.
   `oxygenSaturation` to `count` because HealthKit's percent is dimensionless like count and `count` is listed first, so the
   `%` entry is unreachable; fix by matching that identifier explicitly once the display path is checked. The twice-on-one-clone
   "answered" check is still to run (orchestrator).
-- [ ] **7c.5 CloudKit seams**: `RecordFetching` protocol over `CKDatabase` in `CloudKitMediaSource` with a fake covering dark →
+- [x] **7c.5 CloudKit seams** (done; `RecordFetching` carries the `CKOperation.Configuration` so `configuredWith` lives in the `CKDatabase` conformance; 12 + 7 tests): `RecordFetching` protocol over `CKDatabase` in `CloudKitMediaSource` with a fake covering dark →
   light fallback, `.unknownItem` → nil, rethrow, cancellation; `CloudSyncMonitor.map` over plain fields with three more
   `CloudSyncStatusTests`. Proof: `./dev test CloudKitMediaSourceTests`, `./dev kit CloudSyncStatus`.
-- [ ] **7c.6 Remote-change end to end**: spike (30 min) whether a save through a second `ModelContainer` on the same on-disk
+- [x] **7c.6 Remote-change end to end** (done; the spike showed SwiftData posts `NSPersistentStoreRemoteChange` for a second container's save, twice per save, so the test uses the real notification and nothing hand-posted; `ForeignHistoryCheck` in the kit with `localAuthor`): spike (30 min) whether a save through a second `ModelContainer` on the same on-disk
   store posts `NSPersistentStoreRemoteChange`; `ForeignHistoryCheck` moves to the kit, `ModelContainer.workouts(at:)` is
   added test-only; the test drives observer → author filter → engine with the mirror author (fallback: post the notification
   from the test, keep the history assertions) and proves `InProgressResolution` never settles a recent remote row. Proof:
