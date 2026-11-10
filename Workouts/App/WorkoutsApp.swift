@@ -173,7 +173,7 @@ struct WorkoutsApp: App {
         engine: ActiveWorkoutEngine,
         generation: StoreGeneration
     ) -> RemoteChangeObserver {
-        let history = ForeignHistoryCheck(context: context)
+        let history = ForeignHistoryCheck(context: context, localAuthor: contextAuthor)
         let observer = RemoteChangeObserver(shouldFire: { history.hasForeignTransactions() }) {
             do {
                 try store.reloadCustom(from: context)
@@ -186,32 +186,6 @@ struct WorkoutsApp: App {
         }
         observer.start()
         return observer
-    }
-
-    /// Reads the SwiftData history since the last call and says whether anything other than the app wrote to the store.
-    @MainActor
-    private final class ForeignHistoryCheck {
-        private let context: ModelContext
-        private var lastToken: DefaultHistoryToken?
-
-        init(context: ModelContext) { self.context = context }
-
-        /// Fails open: when the history cannot be read, a spurious reload is the old behaviour.
-        func hasForeignTransactions() -> Bool {
-            do {
-                var descriptor = HistoryDescriptor<DefaultHistoryTransaction>()
-                if let last = lastToken {
-                    descriptor.predicate = #Predicate { $0.token > last }
-                }
-                let transactions = try context.fetchHistory(descriptor)
-                if let newest = transactions.last?.token { lastToken = newest }
-                return transactions.contains { $0.author != WorkoutsApp.contextAuthor }
-            } catch {
-                Logger(subsystem: "com.ericribeiro.Workouts", category: "Sync")
-                    .error("Could not read the store history: \(error.localizedDescription, privacy: .public)")
-                return true
-            }
-        }
     }
 
     var body: some Scene {

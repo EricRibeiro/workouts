@@ -82,4 +82,16 @@ extension ModelContainer {
             configurations: [configuration]
         )
     }
+
+    /// A local on-disk container at `url`, for tests that open two containers on one store (no CloudKit). SwiftData tracks
+    /// history on a file store by default, which is what the remote-change path reads.
+    public static func workouts(at url: URL) throws -> ModelContainer {
+        let schema = Schema(versionedSchema: SchemaV2.self)
+        let configuration = ModelConfiguration(schema: schema, url: url, cloudKitDatabase: .none)
+        return try ModelContainer(
+            for: schema,
+            migrationPlan: WorkoutsMigrationPlan.self,
+            configurations: [configuration]
+        )
+    }
 }
