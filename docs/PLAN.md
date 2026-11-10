@@ -503,8 +503,9 @@ command; `./dev check` plus the touched UI suites before every commit.
   Seam done: `kind(of:)`, `quantity(_:in:)`, `text(_:)` internal; `statisticUnit(for:)`, `derive(...)` → `DerivedFields` and
   `effort(rated:estimated:)` extracted; 17 tests. Finding, pinned by a test and left as is: `statisticUnits` resolves
   `oxygenSaturation` to `count` because HealthKit's percent is dimensionless like count and `count` is listed first, so the
-  `%` entry is unreachable; fix by matching that identifier explicitly once the display path is checked. The twice-on-one-clone
-  "answered" check is still to run (orchestrator).
+  `%` entry is unreachable; fix by matching that identifier explicitly once the display path is checked. Twice-on-one-clone
+  check done (2026-11-09, `iPhone Duo Health`): both runs passed, the second in 7 s with no Health page to answer, so the grant
+  survives the runner's reinstall; the sheet deadline dropped from 90 s to 30 s.
 - [x] **7c.5 CloudKit seams** (done; `RecordFetching` carries the `CKOperation.Configuration` so `configuredWith` lives in the `CKDatabase` conformance; 12 + 7 tests): `RecordFetching` protocol over `CKDatabase` in `CloudKitMediaSource` with a fake covering dark →
   light fallback, `.unknownItem` → nil, rethrow, cancellation; `CloudSyncMonitor.map` over plain fields with three more
   `CloudSyncStatusTests`. Proof: `./dev test CloudKitMediaSourceTests`, `./dev kit CloudSyncStatus`.
@@ -551,11 +552,13 @@ command; `./dev check` plus the touched UI suites before every commit.
   context closures and the `DynamicIsland` assembly, about 20 of 43 lines, stay uncovered: only WidgetKit instantiates them.
 - [x] **7c.14 Import flow tests** (done; `runImport` returns its `Task`, `refreshAfterImport` internal, three tests with a real engine and store): `runImport` returns its `Task`, `refreshAfterImport` tested with a real engine and store
   (imported unfinished workout shows at once; a running one is untouched). Proof: `./dev test SettingsFlowTests`.
-- [ ] **7c.15 Runner hardening** (`dev`): `-test-timeouts-enabled YES -default-test-execution-time-allowance` on UI runs; one
+- [x] **7c.15 Runner hardening** (`dev`; done: `ui_timeout_args` with `DEV_UI_TEST_ALLOWANCE` (240 s) on the three UI-test invocations, `SmokeUITests.testSmokeInDarkAppearance` via `-AppleInterfaceStyle Dark`, three `AppBundleTests` on the plist, the appex and the source entitlements): `-test-timeouts-enabled YES -default-test-execution-time-allowance` on UI runs; one
   dark `SmokeUITests` run in the full suite; `AppBundleTests` asserts `NSSupportsLiveActivities` and the time-sensitive
   entitlement. Proof: `./dev ui-test SmokeUITests`, `./dev test AppBundleTests`.
-- [ ] **7c.16 Field-level schema diff**: `./dev ck-schema diff` compares each record type's field list between the exported
-  `.ckdb` and the current schema's attributes, not record types only. Proof: a fixture `.ckdb` missing one field fails.
+- [x] **7c.16 Field-level schema diff**: `./dev ck-schema diff` compares each record type's fields (name and type) between the
+  Development and Production exports, not record types only, and `./dev ck-schema fields <ckdb>` lists them offline; 13
+  selftest checks over fixtures (missing, retyped and extra field, absent type). A comparison against the SwiftData schema's
+  attributes is not possible offline and was left out. Proof: `./dev selftest`.
 
 Not automated, deliberately (JC130): the hinge fold and bench pose (`./dev poses` stays the reviewer proof), the Island on
 the closed Duo and StandBy (Eric's device checks), a SpringBoard XCUITest of the Live Activity, `./dev sync-check` until a
