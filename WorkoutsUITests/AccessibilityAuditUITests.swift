@@ -51,17 +51,27 @@ final class AccessibilityAuditUITests: XCTestCase {
         for types: XCUIAccessibilityAuditType = .all,
         _ context: Context = Context()
     ) throws {
-        do {
-            try app.performAccessibilityAudit(for: types) { issue in
-                Self.isKnownIssue(issue, app: app, context: context)
+        // An unfiltered issue is also recorded with its element's description, so a flake names what it hit.
+        let handler: (XCUIAccessibilityAuditIssue) -> Bool = { [self] issue in
+            let known = Self.isKnownIssue(issue, app: app, context: context)
+            if !known {
+                let element = issue.element?.debugDescription ?? "no element"
+                record(
+                    XCTIssue(
+                        type: .assertionFailure,
+                        compactDescription: "Unfiltered audit issue: \(issue.compactDescription) [\(element)]"
+                    )
+                )
             }
+            return known
+        }
+        do {
+            try app.performAccessibilityAudit(for: types, handler)
         } catch let error as NSError where error.domain == "com.apple.accessibilityAudit" && error.code == -902 {
             // "Invalid target app <pid>": the audit attached while the launch was still settling (seen only with several
             // simulators busy). It is a harness error, not a finding, so the audit runs once more; a second failure fails.
             _ = app.wait(for: .runningForeground, timeout: 10)
-            try app.performAccessibilityAudit(for: types) { issue in
-                Self.isKnownIssue(issue, app: app, context: context)
-            }
+            try app.performAccessibilityAudit(for: types, handler)
         }
     }
 
@@ -95,8 +105,11 @@ final class AccessibilityAuditUITests: XCTestCase {
             // The strip's zero-size toolbar container (see `Context.hasSystemStrip`): no element, nothing to resize.
             guard let element else { return context.hasSystemStrip }
             // The system navigation bar's title menu (`.toolbarTitleMenu`, the workout name in the logging cover) is a
-            // UIKit-owned button sized to its title; the app cannot set its hit region.
-            guard element.elementType == .button, !element.label.isEmpty else { return false }
+            // UIKit-owned button sized to its title (exposed as a static text while the bar settles); the app cannot
+            // set its hit region.
+            guard element.elementType == .button || element.elementType == .staticText, !element.label.isEmpty else {
+                return false
+            }
             return app.navigationBars.buttons[element.label].exists
 
         case .dynamicType:

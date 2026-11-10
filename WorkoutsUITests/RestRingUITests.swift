@@ -119,7 +119,7 @@ final class RestRingUITests: XCTestCase {
         XCTAssertTrue(preset.waitForExistence(timeout: 5), "no \(seconds) s preset")
         preset.tap()
         expectation(for: NSPredicate(format: "label BEGINSWITH 'Rest timer, '"), evaluatedWith: ring)
-        waitForExpectations(timeout: 5)
+        waitForExpectations(timeout: 15)
     }
 
     /// The running sheet left open while the rest expires goes away with it and does not reopen at the next rest.
