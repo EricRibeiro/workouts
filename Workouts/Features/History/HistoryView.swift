@@ -337,10 +337,10 @@ struct HistoryView: View {
                     .foregroundStyle(.tertiary)
                     .accessibilityHidden(true)
             }
-            .padding(12)
+            .padding(Metrics.cardPadding)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .background(.background.secondary, in: .rect(cornerRadius: 12))
-            .contentShape(.rect(cornerRadius: 12))
+            .cardBackground()
+            .cardContentShape()
         }
         .buttonStyle(.plain)
         .matchedTransitionSource(id: entry.id, in: zoom)
@@ -488,7 +488,7 @@ struct HistoryRow: View {
     }
 
     private var volumeLabel: some View {
-        MetricText(volumeText, style: .title2)
+        MetricText(volumeText, style: .title3)
             .foregroundStyle(.tint)
     }
 

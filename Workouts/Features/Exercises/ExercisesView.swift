@@ -24,6 +24,8 @@ struct ExercisesView: View {
     // Read here only so a unit or formula change in Settings recomputes the best sets.
     @AppStorage(SettingsKey.defaultUnit.rawValue) private var unitRaw = ""
     @AppStorage(SettingsKey.e1rmFormula.rawValue) private var formulaRaw = ""
+    @AppStorage(SettingsKey.fullExerciseNames.rawValue) private var fullNames = SettingsStore
+        .fullExerciseNamesDefault
     @State private var query = ""
     @State private var selection: ExercisesRoute?
     @State private var bestSets: [UUID: String] = [:]
@@ -106,7 +108,7 @@ struct ExercisesView: View {
             ForEach(results) { info in
                 let subtitle = ExerciseFilter.subtitle(for: info, labels: labels)
                 let best = bestSets[info.id] ?? ""
-                ExerciseRow(info: info, subtitle: subtitle, trailing: best)
+                ExerciseRow(info: info, subtitle: subtitle, trailing: best, fullNames: fullNames)
                     .tag(ExercisesRoute.exercise(info.id))
                     .listRowBackground(rowBackground(selected: selection == .exercise(info.id)))
                     .accessibilityAddTraits(selection == .exercise(info.id) ? .isSelected : [])

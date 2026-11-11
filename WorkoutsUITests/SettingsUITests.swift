@@ -37,6 +37,15 @@ final class SettingsUITests: XCTestCase {
     }
 
     @MainActor
+    func testFullExerciseNamesToggleIsOffByDefault() throws {
+        let app = launch()
+        let toggle = app.switches["settings.fullExerciseNames"]
+        for _ in 0..<4 where !toggle.exists { app.swipeUp() }
+        XCTAssertTrue(toggle.exists, "no full exercise names toggle")
+        XCTAssertEqual(toggle.value as? String, "0")
+    }
+
+    @MainActor
     func testWeeklyGoalStepperIncrements() throws {
         let app = launch()
         let stepper = app.steppers["settings.weeklyGoal"]

@@ -32,6 +32,56 @@ extension SnapshotTests {
             )
         }
 
+        /// "Full Exercise Names" on: a one-line name and a wrapping name stacked, both rows the same height, the short
+        /// name centred with its subtitle.
+        @Test(arguments: SnapshotVariant.all)
+        func fullNames(variant: SnapshotVariant) {
+            Snapshot.assert(
+                VStack(spacing: 0) {
+                    ExerciseRow(
+                        info: info("Bench Press"),
+                        subtitle: "Chest · Strength",
+                        trailing: "80 kg × 5",
+                        fullNames: true
+                    )
+                    Divider()
+                    ExerciseRow(
+                        info: info(Self.longName),
+                        subtitle: "Shoulders · Strength",
+                        trailing: "100 kg × 8",
+                        fullNames: true
+                    )
+                }
+                .padding(.horizontal, 16),
+                named: "full-names",
+                variant: variant
+            )
+        }
+
+        /// The default: a long name is cut to one line at the tail, so both rows have the natural one-line height
+        /// (at accessibility sizes the name wraps instead).
+        @Test(arguments: SnapshotVariant.all)
+        func oneLine(variant: SnapshotVariant) {
+            Snapshot.assert(
+                VStack(spacing: 0) {
+                    ExerciseRow(
+                        info: info("Bench Press"),
+                        subtitle: "Chest · Strength",
+                        trailing: "80 kg × 5"
+                    )
+                    Divider()
+                    ExerciseRow(
+                        info: info(Self.longName),
+                        subtitle: "Shoulders · Strength",
+                        trailing: "100 kg × 8"
+                    )
+                }
+                .padding(.horizontal, 16),
+                named: "one-line",
+                variant: variant
+            )
+        }
+
         /// The active workout's exercise header (`SetTable.nameLabel`, private to its view): the shared line-limit modifier on
         /// a long name beside the chevron that must stay visible after truncation. One line with an ellipsis at the default
         /// size, two lines at accessibility sizes.

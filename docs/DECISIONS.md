@@ -65,7 +65,9 @@ Eric deferred the technical choices to Claude. These close every item in `docs/p
   `onGeometryChange`, `max(2, 2 * floor(width / (2 * minCard)))`, so no card straddles the fold; with `.includeInactive`
   reserved regions the hinge gap widens. Card tap: compact -> medium-detent preview sheet (a Maps/Flighty-style panel, fine at
   phone size); regular -> push the preview (zoom transition). The grid's folder headers always show. The folder collapse flag
-  is per-device `@AppStorage`.
+  is per-device `@AppStorage`. Exercise rows (list and picker) show a one-line name, cut at the tail, so rows share one natural height. Settings →
+  Exercises → Full Exercise Names (`SettingsKey.fullExerciseNames`, per-device, off by default) wraps names to two lines and gives every row
+  the two-line height; accessibility sizes ignore it (names wrap, natural heights).
 - **Sheet placement**: on regular width every sheet names `presentationPlacement`: picker, settings, calendar, custom timer,
   finish summary → `.center`; rest ring → `.trailing` (it belongs to the strip's ring item).
 - **Active workout**: one presentation in both widths, a `fullScreenCover` on the root `TabView`, not tied to any tab. Layout
@@ -203,7 +205,8 @@ Eric deferred the technical choices to Claude. These close every item in `docs/p
   - Everything else is `.primary` / `.secondary` on `.fill.*` styles; card titles are plain `.headline`, untinted, no glyph.
   - Metrics are set Fitness-style by `MetricText` (kit `MetricPieces`): rounded medium digits, the unit in small caps glued
     to the number, in the value's colour. The Finish summary's stats are white metrics, and its PR count is gold when the
-    workout set a record.
+    workout set a record. On a wide sheet (the open Duo) the five stats are a row of tiles, caption over metric, and the
+    sheet's content keeps a readable width, centred; the compact sheet and accessibility sizes keep labelled rows.
 - **Set-row states** (active workout; `SetRow`, `SetProgress.nextIndex` over the rows that show a check):
   - *Done*: olive row, values as plain text (no field fill), a quiet lime disc (`ok` at 0.18) with a lime check.
   - *Next* (the block's first unchecked set): a raised row (`.fill.secondary` at 0.5), brighter fields (`.fill.tertiary`),
@@ -212,7 +215,9 @@ Eric deferred the technical choices to Claude. These close every item in `docs/p
   - An unchecked set never shows a check glyph. A refused check gets the red border, the announcement and a short shake,
     which Reduce Motion drops. The Previous cell omits the unit (`60 × 8`; the column header and the accessibility label
     carry it). The block header is the name (one line, two at accessibility sizes), its chevron and a `.secondary`
-    `ellipsis.circle`: no thumbnail, no progress line. Add Set is a full-width quiet row.
+    `ellipsis.circle`: no thumbnail, no progress line. Touch and hold on the header (not the note, the set rows or Add Set) opens the
+    same menu as the "…" (one shared builder), which stays as the visible route; blocks reorder only through its Reorder Exercises…
+    entry. Add Set is a full-width quiet row.
 - **Rest controls sit in one place per context** (Eric, 2026-11-10):
   - *A set's rest* (started by a check): an inline row directly under that set (`RestTimerRow`: `timer`, the countdown, a
     draining bar that accessibility sizes drop, **+30**, **Skip**; `rest.row.*`). It leaves at `endsAt`, without waiting for
@@ -222,8 +227,8 @@ Eric deferred the technical choices to Claude. These close every item in `docs/p
   - *Minimised*: the same group beside the resume ring on every tab root while a rest runs, its grace included
     (`resume.rest.*`), so a rest is skipped or extended without reopening the cover.
   - The ring's expanded sheet, the keyboard group, the notification actions and the Live Activity buttons apply to every rest.
-- **One-tap start** (Eric, 2026-11-10). Each template card carries a lime play disc (36 pt scaled, 44 pt target, trailing on
-  the name's first line; under the name at accessibility sizes) that starts the workout through the same `StartWorkoutFlow`
+- **One-tap start** (Eric, 2026-11-10). Each template card carries a lime play disc (28 pt scaled, 44 pt target, its trailing edge on
+  the card's 16 pt padding, centred on the name's first line; under the name at accessibility sizes) that starts the workout through the same `StartWorkoutFlow`
   as the preview's Start Workout, so a running workout raises "Workout in progress" first. It is a sibling overlay of the
   card button (a button cannot nest in a button), labelled "Start <name>" (`template.<uuid>.start`), disabled for a template
   with no exercises. The card's footer is the recency alone ("Yesterday", `.footnote`, `.primary`; none for a template never
@@ -240,6 +245,19 @@ Eric deferred the technical choices to Claude. These close every item in `docs/p
   takes its natural height in top-aligned columns (Recent PRs lists five rows, three at compact); only cards sharing a
   grid row stretch to it.
 - **Finish** is `flag.checkered` (prominent, lime): the checkmark belongs to sets.
+- **Proportions** (design review, 2026-11-11):
+  1. Solid lime is one action per surface: a disc of at most 28 pt on a card. The only larger solid lime is a sheet's
+     full-width primary button and the system's prominent toolbar item.
+  2. Repeating status marks (done sets, calendar days) use lime at 0.18 opacity with a lime glyph or digit, never a solid fill.
+  3. A control's drawn shape is at most about twice the cap height of the text on its line (28 beside a title, 32 in a 44 pt
+     row); the hit area stays 44.
+  4. A glyph fills 38 to 45% of its disc.
+  5. One large figure per card; a list row never uses a larger number style than the page's hero.
+  6. Every metric at `.title3` or above is `MetricText`.
+  7. Type steps down with containment: page title, section header (`.title3` semibold), card title (`.headline`), body
+     (`.subheadline`), meta (`.footnote`).
+  8. Annotation glyphs (trophy, chevron) are at most 1.35x the cap height of their text, never `imageScale(.large)`; overlays
+     respect the card's 16 pt inset.
 
 ## Pushed-screen chrome (2026-11-07)
 

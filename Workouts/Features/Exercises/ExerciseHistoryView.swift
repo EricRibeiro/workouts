@@ -81,10 +81,12 @@ struct ExerciseHistoryView: View {
             }
             if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: 8) }
             if session.prCount > 0 {
-                Label(
-                    session.prCount == 1 ? "1 PR" : "\(session.prCount) PRs",
-                    systemImage: "trophy.fill"
-                )
+                Label {
+                    Text(session.prCount == 1 ? "1 PR" : "\(session.prCount) PRs")
+                } icon: {
+                    Image(systemName: "trophy.fill")
+                        .foregroundStyle(Color.record)
+                }
                 .font(.footnote.weight(.semibold))
                 .foregroundStyle(.primary)
             }
@@ -126,8 +128,8 @@ struct ExerciseHistoryView: View {
             Spacer(minLength: 8)
             if set.isPR {
                 Image(systemName: "trophy.fill")
-                    .font(.footnote)
-                    .foregroundStyle(.tint)
+                    .font(.subheadline)
+                    .foregroundStyle(Color.record)
             }
         }
         .padding(.vertical, 8)

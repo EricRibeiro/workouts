@@ -50,6 +50,7 @@ public actor MediaStore {
     private nonisolated let bundle: Bundle
     private nonisolated let mediaDirectory: URL
     private nonisolated let capBytes: Int64
+    private nonisolated let cropCache: ThumbnailCropCache
     private struct InFlightFetch {
         let id: UUID
         let task: Task<URL?, any Error>
@@ -62,7 +63,7 @@ public actor MediaStore {
 
     /// - Parameters:
     ///   - source: Fills the cache on a miss; nil turns videos off (`video(for:scheme:)` returns nil).
-    ///   - bundle: Holds `Library/thumbs/<id>-<phase>.png`.
+    ///   - bundle: Holds `Library/thumbs/<id>-<phase>.png` and `Library/thumbs/thumb-crops.json`.
     ///   - cacheDirectory: Typically `Caches`; files go to `<cacheDirectory>/media/<sourceId>/video-<scheme>.mp4`.
     ///   - capBytes: Least-recently-used files are evicted past this total.
     public init(
@@ -73,6 +74,7 @@ public actor MediaStore {
     ) {
         self.source = source
         self.bundle = bundle
+        self.cropCache = ThumbnailCropCache(bundle: bundle)
         self.mediaDirectory = cacheDirectory.appendingPathComponent("media", isDirectory: true)
         self.capBytes = capBytes
     }
@@ -86,6 +88,12 @@ public actor MediaStore {
             withExtension: "png",
             subdirectory: "Library/thumbs"
         )
+    }
+
+    /// Where the figure sits in a library exercise's thumbnails (the union of its start and end frames), or nil when the
+    /// bundle has no crop manifest or no entry for the id. The manifest is read once, on the first call.
+    public nonisolated func thumbnailCrop(for id: UUID) -> CropRect? {
+        cropCache.crop(for: id)
     }
 
     // MARK: Videos

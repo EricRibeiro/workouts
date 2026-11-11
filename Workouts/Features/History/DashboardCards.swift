@@ -64,14 +64,16 @@ private struct WeekHeadline: View {
     let count: String
     let goalText: String
     let isDone: Bool
+    @ScaledMetric(relativeTo: .largeTitle) private var figureSize = 40
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
-            MetricText(count, style: .largeTitle)
+            Text(count)
+                .font(.system(size: figureSize, weight: .semibold, design: .rounded))
                 .foregroundStyle(isDone ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
                 .lineLimit(1)
             Text(goalText)
-                .font(.title3)
+                .font(.body)
                 .foregroundStyle(.secondary)
         }
     }

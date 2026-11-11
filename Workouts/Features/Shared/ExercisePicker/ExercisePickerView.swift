@@ -178,6 +178,8 @@ private struct ExercisePickerRow: View {
     let about: () -> Void
 
     @ScaledMetric(relativeTo: .body) private var glyphWidth = 28.0
+    @AppStorage(SettingsKey.fullExerciseNames.rawValue) private var fullNames = SettingsStore
+        .fullExerciseNamesDefault
 
     var body: some View {
         let subtitle = ExerciseFilter.subtitle(for: info, labels: labels)
@@ -191,7 +193,7 @@ private struct ExercisePickerRow: View {
                             .frame(width: glyphWidth)
                             .accessibilityHidden(true)
                     }
-                    ExerciseRow(info: info, subtitle: subtitle)
+                    ExerciseRow(info: info, subtitle: subtitle, fullNames: fullNames)
                 }
                 .contentShape(.rect)
             }

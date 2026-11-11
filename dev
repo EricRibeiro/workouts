@@ -834,6 +834,14 @@ cmd_kit() {
   kit_summary "${1:-}"
 }
 
+# Regenerates Resources/Library/thumbs/thumb-crops.json (the figure's crop rectangle per exercise) from the bundled thumbnails.
+cmd_thumb_crops() {
+  local bin=".build/thumb-crops"
+  mkdir -p "$bin"
+  run_logged thumb-crops xcrun swiftc -O Tools/thumb-crops.swift -o "$bin/thumb-crops" || return 1
+  "$bin/thumb-crops" Resources/Library/thumbs Resources/Library/thumbs/thumb-crops.json
+}
+
 # Whole-package line coverage: swift test --enable-code-coverage, then the TOTAL row of llvm-cov's report.
 cmd_kit_coverage() {
   [[ -d "$KIT" ]] || die "$KIT does not exist"
@@ -1939,6 +1947,7 @@ coverage [test|ui-test]  per-target code coverage of the last passing test (defa
 kit [filter]       swift test in Packages/WorkoutsKit; prints summary line, fails if filter matched nothing
 kit-coverage       swift test with coverage; prints the whole-package line coverage (llvm-cov TOTAL)
 kit-build          swift build in Packages/WorkoutsKit
+thumb-crops        regenerate Resources/Library/thumbs/thumb-crops.json (per-exercise figure crop rectangle, from Tools/thumb-crops.swift); deterministic, run by hand and commit the result
 lint               swift-format lint --strict
 format             swift-format in place
 run [-- args]      boot sim, build, install, launch; args go to the app (-- -preview <Name>); prints log command
@@ -1995,6 +2004,7 @@ case "$sub" in
   kit) cmd_kit "$@" ;;
   kit-build) cmd_kit_build ;;
   kit-coverage) cmd_kit_coverage ;;
+  thumb-crops) cmd_thumb_crops ;;
   coverage) cmd_coverage "$@" ;;
   lint) cmd_lint ;;
   format) cmd_format ;;

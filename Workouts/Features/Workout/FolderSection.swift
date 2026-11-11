@@ -125,7 +125,7 @@ private struct FolderHeader: View {
         } label: {
             HStack(spacing: 6) {
                 Text("\(name) (\(count))")
-                    .font(.headline)
+                    .font(.title3.weight(.semibold))
                     .foregroundStyle(.primary)
                 Image(systemName: "chevron.right")
                     .font(.footnote.weight(.semibold))

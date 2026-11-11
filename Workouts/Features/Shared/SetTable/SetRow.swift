@@ -32,6 +32,7 @@ struct SetRow: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ScaledMetric(relativeTo: .body) private var touch = 44.0
+    @ScaledMetric(relativeTo: .body) private var checkDiameter = 32.0
     @ScaledMetric(relativeTo: .body) private var labelWidth = Metrics.setLabelWidth
     @State private var refusedCount = 0
     @State private var showsRefusal = false
@@ -281,24 +282,29 @@ struct SetRow: View {
         AccessibilityNotification.Announcement("Enter weight and reps first").post()
     }
 
-    /// Done: a quiet tinted lime disc with a lime check. Not done: an empty ring and no glyph (heavy accent ring on the next
-    /// set, `.secondary` elsewhere), so the set to do now is the strongest mark in the column.
+    /// Done: a quiet tinted lime disc with a lime check. Not done: an empty ring and no glyph (heavier accent ring on the next
+    /// set, `.secondary` elsewhere), so the set to do now is the strongest mark in the column. The mark is drawn smaller than the
+    /// 44 pt hit area around it.
     private var checkButton: some View {
         Button(action: toggleCheck) {
             Image(systemName: "checkmark")
-                .font(.body.bold())
+                .font(.subheadline.bold())
                 .foregroundStyle(Color.ok)
                 .opacity(model.isChecked ? 1 : 0)
                 .symbolEffect(.bounce, value: model.isChecked)
                 .frame(width: touch, height: touch)
                 .background {
                     if model.isChecked {
-                        Circle().fill(Color.ok.opacity(0.18))
+                        Circle()
+                            .fill(Color.ok.opacity(0.18))
+                            .frame(width: checkDiameter, height: checkDiameter)
                     } else {
-                        Circle().strokeBorder(
-                            isNext ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.secondary),
-                            lineWidth: isNext ? 3 : 2
-                        )
+                        Circle()
+                            .strokeBorder(
+                                isNext ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.secondary),
+                                lineWidth: isNext ? 2.5 : 2
+                            )
+                            .frame(width: checkDiameter, height: checkDiameter)
                     }
                 }
                 .keyframeAnimator(initialValue: 0.0, trigger: refusedCount) { view, offset in

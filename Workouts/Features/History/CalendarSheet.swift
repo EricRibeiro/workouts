@@ -88,6 +88,8 @@ struct CalendarSheet: View {
     private var header: some View {
         HStack {
             Button("Previous month", systemImage: "chevron.left") { move(by: -1) }
+                .frame(minWidth: 44, minHeight: 44)
+                .contentShape(Rectangle())
                 .accessibilityIdentifier("calendar.prev")
             Spacer()
             Text(CalendarMonth.title(for: month, calendar: calendar))
@@ -97,12 +99,13 @@ struct CalendarSheet: View {
                 .accessibilityIdentifier("calendar.title")
             Spacer()
             Button("Next month", systemImage: "chevron.right") { move(by: 1) }
+                .frame(minWidth: 44, minHeight: 44)
+                .contentShape(Rectangle())
                 .accessibilityIdentifier("calendar.next")
         }
         .labelStyle(.iconOnly)
-        .buttonStyle(.bordered)
-        .buttonBorderShape(.circle)
-        .controlSize(.large)
+        .buttonStyle(.borderless)
+        .font(.title3.weight(.semibold))
     }
 
     private func move(by months: Int) {
@@ -145,15 +148,9 @@ struct CalendarSheet: View {
             .monospacedDigit()
             .lineLimit(1)
             .minimumScaleFactor(0.6)
-            .foregroundStyle(marked ? AnyShapeStyle(Color.onAccent) : AnyShapeStyle(.primary))
+            .foregroundStyle(marked ? AnyShapeStyle(Color.ok) : AnyShapeStyle(.primary))
             .frame(maxWidth: .infinity, minHeight: 44)
-            .background {
-                if marked { Circle().fill(.tint) }
-            }
-            .overlay {
-                if isToday { Circle().strokeBorder(.tint, lineWidth: 2) }
-                if isSelected { Circle().strokeBorder(.primary, lineWidth: 2).padding(-3) }
-            }
+            .modifier(DayMarks(marked: marked, isToday: isToday, isSelected: isSelected))
             .contentShape(Rectangle())
     }
 
@@ -216,6 +213,32 @@ struct CalendarSheet: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.top, 8)
+    }
+}
+
+/// A day's marks: the workout disc, today's ring and the selection ring. A modifier so the scaled diameter reads the grid's
+/// capped Dynamic Type size; the 44 pt cell stays the hit area.
+private struct DayMarks: ViewModifier {
+    let marked: Bool
+    let isToday: Bool
+    let isSelected: Bool
+    @ScaledMetric(relativeTo: .body) private var discSize: CGFloat = 36
+
+    func body(content: Content) -> some View {
+        content
+            .background {
+                if marked {
+                    Circle().fill(Color.ok.opacity(0.18)).frame(width: discSize, height: discSize)
+                }
+            }
+            .overlay {
+                if isToday {
+                    Circle().strokeBorder(Color.ok, lineWidth: 2).frame(width: discSize, height: discSize)
+                }
+                if isSelected {
+                    Circle().strokeBorder(.primary, lineWidth: 2).frame(width: discSize + 6, height: discSize + 6)
+                }
+            }
     }
 }
 

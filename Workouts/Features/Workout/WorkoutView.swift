@@ -195,7 +195,7 @@ struct WorkoutView: View {
             }
         } else {
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 20) {
+                FoldFlow {
                     ForEach(FolderOperations.ordered(folders)) { folder in
                         FolderSection(
                             folder: folder,

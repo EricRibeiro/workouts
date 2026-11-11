@@ -39,6 +39,7 @@ struct SettingsView: View {
             Form {
                 unitsAndRecords
                 workout
+                exercises
                 media
                 appleFitness
                 iCloud
@@ -200,6 +201,18 @@ struct SettingsView: View {
             Toggle("Keep screen on during a workout", isOn: bound.keepScreenOn)
                 .accessibilityLabel("Keep screen on during a workout")
                 .accessibilityIdentifier("settings.keepScreenOn")
+        }
+    }
+
+    private var exercises: some View {
+        Section {
+            Toggle("Full Exercise Names", isOn: bound.fullExerciseNames)
+                .accessibilityLabel("Full Exercise Names")
+                .accessibilityIdentifier("settings.fullExerciseNames")
+        } header: {
+            Text("Exercises")
+        } footer: {
+            Text("Names wrap to two lines and every row takes that height. When off, long names are cut to one line.")
         }
     }
 

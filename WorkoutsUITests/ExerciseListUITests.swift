@@ -59,6 +59,41 @@ final class ExerciseListUITests: XCTestCase {
         XCTAssertTrue(any["screen.exerciseDetail"].waitForExistence(timeout: 5), "tapping a row did not open a detail")
     }
 
+    /// By default every name is one line, cut at the tail, so rows next to each other match whether or not the name is long.
+    @MainActor
+    func testRowsHaveEqualHeightByDefault() throws {
+        let app = XCUIApplication.launchedPreview("Exercises", waitingFor: "screen.exercises")
+        let rows = rows(app)
+        XCTAssertTrue(rows.element(boundBy: 1).waitForExistence(timeout: 10), "fewer than two exercise rows")
+        let first = rows.element(boundBy: 0).frame
+        let second = rows.element(boundBy: 1).frame
+        XCTAssertGreaterThan(first.height, 0)
+        XCTAssertEqual(first.height, second.height, accuracy: 1, "first rows differ in height")
+    }
+
+    /// With "Full Exercise Names" on, names wrap to two lines and every row takes the two-line height, so rows still
+    /// match, and each is taller than a default one-line row.
+    @MainActor
+    func testRowsHaveEqualTwoLineHeightWithFullExerciseNames() throws {
+        let defaultApp = XCUIApplication.launchedPreview("Exercises", waitingFor: "screen.exercises")
+        let defaultRows = rows(defaultApp)
+        XCTAssertTrue(defaultRows.element(boundBy: 1).waitForExistence(timeout: 10), "fewer than two exercise rows")
+        let oneLineHeight = defaultRows.element(boundBy: 0).frame.height
+        defaultApp.terminate()
+
+        let app = XCUIApplication.launchedPreview(
+            "Exercises",
+            extraArguments: ["-fullExerciseNames", "YES"],
+            waitingFor: "screen.exercises"
+        )
+        let rows = rows(app)
+        XCTAssertTrue(rows.element(boundBy: 1).waitForExistence(timeout: 10), "fewer than two exercise rows")
+        let first = rows.element(boundBy: 0).frame
+        let second = rows.element(boundBy: 1).frame
+        XCTAssertEqual(first.height, second.height, accuracy: 1, "first rows differ in height")
+        XCTAssertGreaterThan(first.height, oneLineHeight, "full names did not reserve the two-line height")
+    }
+
     @MainActor
     func testBodyPartFilterAndShowRetired() throws {
         let app = XCUIApplication.launchedPreview("Exercises")

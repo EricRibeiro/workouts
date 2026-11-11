@@ -13,8 +13,10 @@ import WorkoutsKit
 ///
 /// Layout (`active-workout.md` section 2): one block per exercise, each a header (superset marker, name, rest caption,
 /// note), a column header, the set rows and a trailing **Add Set** row, in a `LazyVStack`. A set row deletes by swipe
-/// (`swipeActionsContainer()`), a block reorders by drag (`.reorderable()` + `reorderContainer`). On wide layouts the
-/// content keeps a readable width and is centred.
+/// (`swipeActionsContainer()`); a block reorders through the owner's Reorder Exercises… sheet (the header menu entry) or
+/// the header's VoiceOver "Move up" / "Move down" actions. Touch and hold on a header (not the note, the set rows or Add Set)
+/// opens the same menu as its "…" button, which stays as the visible route. On wide layouts the content keeps a readable
+/// width and is centred.
 ///
 /// The table does not provide a navigation container; the keyboard accessory group is a toolbar and needs the caller's.
 /// True while a set cell has keyboard focus. The logging screen reads it to thin its trailing toolbar strip, which the number
@@ -54,10 +56,6 @@ struct SetTable: View {
                     ForEach(sections) { section in
                         block(section, supersetNumber: numbers[section.id], order: order)
                     }
-                    .reorderable()
-                }
-                .reorderContainer(for: SetTableSection.self) { difference in
-                    reorder(sections, difference)
                 }
                 .padding(.horizontal, 8)
                 .padding(.vertical, 16)
@@ -186,49 +184,56 @@ struct SetTable: View {
         -> some View
     {
         VStack(alignment: .leading, spacing: 2) {
-            if let supersetNumber {
-                Text("Superset \(supersetNumber)")
-                    .font(.caption.bold())
-                    .foregroundStyle(Self.supersetColor(supersetNumber))
-                    .accessibilityIdentifier("settable.superset.\(section.id.uuidString)")
-            }
-            // The menu's glyph shares the name's first line (its centre on the line's centre) while its frame keeps 44 pt.
-            HStack(alignment: .firstTextBaseline, spacing: 0) {
-                Button {
-                    focusedSection.wrappedValue = section.id
-                    onSelectExercise?(section)
-                } label: {
-                    nameLabel(section)
-                        .font(.title3.bold())
-                        .foregroundStyle(.primary)
-                        .multilineTextAlignment(.leading)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .contentShape(.rect)
+            // Touch and hold on this part (not the note) opens the "…" menu's entries; the lift shows just this part.
+            VStack(alignment: .leading, spacing: 2) {
+                if let supersetNumber {
+                    Text("Superset \(supersetNumber)")
+                        .font(.caption.bold())
+                        .foregroundStyle(Self.supersetColor(supersetNumber))
+                        .accessibilityIdentifier("settable.superset.\(section.id.uuidString)")
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel(section.name)
-                .accessibilityAddTraits(.isHeader)
-                .accessibilityHint(onSelectExercise == nil ? "" : "Opens the exercise")
-                .accessibilityIdentifier("settable.name.\(section.id.uuidString)")
-                .accessibilityActions {
-                    // Only where the move is possible: no "Move up" on the first block, no "Move down" on the last.
-                    if SetTableLayout.moved(order, id: section.id, by: -1) != nil {
-                        Button("Move up") { moveBlock(section.id, order, by: -1) }
+                // The menu's glyph shares the name's first line (its centre on the line's centre) while its frame keeps 44 pt.
+                HStack(alignment: .firstTextBaseline, spacing: 0) {
+                    Button {
+                        focusedSection.wrappedValue = section.id
+                        onSelectExercise?(section)
+                    } label: {
+                        nameLabel(section)
+                            .font(.title3.bold())
+                            .foregroundStyle(.primary)
+                            .multilineTextAlignment(.leading)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(.rect)
                     }
-                    if SetTableLayout.moved(order, id: section.id, by: 1) != nil {
-                        Button("Move down") { moveBlock(section.id, order, by: 1) }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(section.name)
+                    .accessibilityAddTraits(.isHeader)
+                    .accessibilityHint(onSelectExercise == nil ? "" : "Opens the exercise")
+                    .accessibilityIdentifier("settable.name.\(section.id.uuidString)")
+                    .accessibilityActions {
+                        // Only where the move is possible: no "Move up" on the first block, no "Move down" on the last.
+                        if SetTableLayout.moved(order, id: section.id, by: -1) != nil {
+                            Button("Move up") { moveBlock(section.id, order, by: -1) }
+                        }
+                        if SetTableLayout.moved(order, id: section.id, by: 1) != nil {
+                            Button("Move down") { moveBlock(section.id, order, by: 1) }
+                        }
+                    }
+                    if let blockActions {
+                        blockMenu(section, actions: blockActions)
                     }
                 }
-                if let blockActions {
-                    blockMenu(section, actions: blockActions)
+                // The template editor shows the rest; during a workout it is only in the block menu's Update Rest Timer.
+                if source.mode == .template {
+                    Text(SetTableLayout.restCaption(seconds: section.restSeconds, defaultSeconds: defaultRestSeconds))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .accessibilityIdentifier("settable.restCaption.\(section.id.uuidString)")
                 }
             }
-            // The template editor shows the rest; during a workout it is only in the block menu's Update Rest Timer.
-            if source.mode == .template {
-                Text(SetTableLayout.restCaption(seconds: section.restSeconds, defaultSeconds: defaultRestSeconds))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .accessibilityIdentifier("settable.restCaption.\(section.id.uuidString)")
+            .contentShape(.contextMenuPreview, .rect(cornerRadius: 12))
+            .contextMenu {
+                if let blockActions { blockMenuContent(section, actions: blockActions) }
             }
             if !section.note.isEmpty {
                 SetTableNoteLine(
@@ -240,67 +245,74 @@ struct SetTable: View {
         }
     }
 
-    /// The header's trailing options menu. The entries are the owner's; the table only lays them out.
-    private func blockMenu(_ section: SetTableSection, actions: SetTableBlockActions) -> some View {
+    /// The block's options, shared by the "…" `Menu` and the header's touch-and-hold context menu so the two never drift. The
+    /// entries are the owner's; the table only lays them out. Never on screen together, so the identifiers do not collide.
+    @ViewBuilder
+    private func blockMenuContent(_ section: SetTableSection, actions: SetTableBlockActions) -> some View {
         let hasSets = actions.addWarmups != nil || actions.updateRest != nil
         let hasExercise =
             onSelectExercise != nil || actions.replace != nil || actions.superset != nil || actions.preferences != nil
         // Groups separated by Dividers, not `Section`s: a Section drops the buttons' accessibility identifiers (the menu
         // items then show only their labels, and the UI tests find them by identifier).
-        return Menu {
+        Group {
+            Button("Note…", systemImage: "note.text") { actions.note(section.id) }
+                .accessibilityIdentifier("settable.menu.note")
+        }
+        if hasSets {
+            Divider()
             Group {
-                Button("Note…", systemImage: "note.text") { actions.note(section.id) }
-                    .accessibilityIdentifier("settable.menu.note")
-            }
-            if hasSets {
-                Divider()
-                Group {
-                    if let addWarmups = actions.addWarmups {
-                        Button("Add Warm-up Sets", systemImage: "flame") { addWarmups(section.id) }
-                            .accessibilityIdentifier("settable.menu.warmup")
-                    }
-                    if let updateRest = actions.updateRest {
-                        Button("Update Rest Timer…", systemImage: "timer") { updateRest(section.id) }
-                            .accessibilityIdentifier("settable.menu.rest")
-                    }
+                if let addWarmups = actions.addWarmups {
+                    Button("Add Warm-up Sets", systemImage: "flame") { addWarmups(section.id) }
+                        .accessibilityIdentifier("settable.menu.warmup")
+                }
+                if let updateRest = actions.updateRest {
+                    Button("Update Rest Timer…", systemImage: "timer") { updateRest(section.id) }
+                        .accessibilityIdentifier("settable.menu.rest")
                 }
             }
-            if hasExercise {
-                Divider()
-                Group {
-                    if let onSelectExercise {
-                        Button("Exercise Info", systemImage: "info.circle") { onSelectExercise(section) }
-                            .accessibilityIdentifier("settable.menu.info")
-                    }
-                    if let replace = actions.replace {
-                        Button("Replace Exercise…", systemImage: "arrow.triangle.2.circlepath") { replace(section.id) }
-                            .accessibilityIdentifier("settable.menu.replace")
-                    }
-                    if let superset = actions.superset {
-                        Button("Superset…", systemImage: "link") { superset(section.id) }
-                            .accessibilityIdentifier("settable.menu.superset")
-                    }
-                    if let preferences = actions.preferences {
-                        Button("Preferences…", systemImage: "slider.horizontal.3") { preferences(section.id) }
-                            .accessibilityIdentifier("settable.menu.preferences")
-                    }
+        }
+        if hasExercise {
+            Divider()
+            Group {
+                if let onSelectExercise {
+                    Button("Exercise Info", systemImage: "info.circle") { onSelectExercise(section) }
+                        .accessibilityIdentifier("settable.menu.info")
+                }
+                if let replace = actions.replace {
+                    Button("Replace Exercise…", systemImage: "arrow.triangle.2.circlepath") { replace(section.id) }
+                        .accessibilityIdentifier("settable.menu.replace")
+                }
+                if let superset = actions.superset {
+                    Button("Superset…", systemImage: "link") { superset(section.id) }
+                        .accessibilityIdentifier("settable.menu.superset")
+                }
+                if let preferences = actions.preferences {
+                    Button("Preferences…", systemImage: "slider.horizontal.3") { preferences(section.id) }
+                        .accessibilityIdentifier("settable.menu.preferences")
                 }
             }
-            if let reorder = actions.reorder {
-                Divider()
-                Group {
-                    Button("Reorder Exercises…", systemImage: "arrow.up.arrow.down") { reorder() }
-                        .disabled(source.sections.count < 2)
-                        .accessibilityIdentifier("settable.menu.reorder")
-                }
+        }
+        if let reorder = actions.reorder {
+            Divider()
+            Group {
+                Button("Reorder Exercises…", systemImage: "arrow.up.arrow.down") { reorder() }
+                    .disabled(source.sections.count < 2)
+                    .accessibilityIdentifier("settable.menu.reorder")
             }
-            if let remove = actions.remove {
-                Divider()
-                Group {
-                    Button("Remove Exercise", systemImage: "trash", role: .destructive) { remove(section.id) }
-                        .accessibilityIdentifier("settable.menu.remove")
-                }
+        }
+        if let remove = actions.remove {
+            Divider()
+            Group {
+                Button("Remove Exercise", systemImage: "trash", role: .destructive) { remove(section.id) }
+                    .accessibilityIdentifier("settable.menu.remove")
             }
+        }
+    }
+
+    /// The header's trailing "…" button, the visible route to the block menu.
+    private func blockMenu(_ section: SetTableSection, actions: SetTableBlockActions) -> some View {
+        Menu {
+            blockMenuContent(section, actions: actions)
         } label: {
             Image(systemName: "ellipsis.circle")
                 .foregroundStyle(.secondary)
@@ -366,26 +378,11 @@ struct SetTable: View {
 
     // MARK: Reorder
 
-    /// The accessibility "Move Up" / "Move Down" actions of a block header: the drag's alternative, through the same
-    /// `source.reorder` path (`SetTableLayout.moved` builds the order the drag's `reordered` would).
+    /// The accessibility "Move Up" / "Move Down" actions of a block header: through `source.reorder`, the path the
+    /// Reorder Exercises… sheet uses (`SetTableLayout.moved` builds the new order).
     private func moveBlock(_ id: UUID, _ order: [UUID], by offset: Int) {
         guard let moved = SetTableLayout.moved(order, id: id, by: offset) else { return }
         source.reorder(moved, moving: [id])
-    }
-
-    private func reorder(
-        _ sections: [SetTableSection],
-        _ difference: ReorderDifference<UUID, ReorderableSingleCollectionIdentifier>
-    ) {
-        let destination: UUID?
-        switch difference.destination.position {
-        case .before(let id): destination = id
-        case .end: destination = nil
-        }
-        source.reorder(
-            SetTableLayout.reordered(sections.map(\.id), moving: difference.sources, before: destination),
-            moving: difference.sources
-        )
     }
 
     // MARK: Keyboard

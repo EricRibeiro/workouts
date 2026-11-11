@@ -53,7 +53,7 @@ struct RestTimerRow: View {
             let fraction = rest.total > 0 ? min(1, remaining / Double(rest.total)) : 0
             HStack(spacing: 8) {
                 Image(systemName: "timer")
-                    .foregroundStyle(.tint)
+                    .foregroundStyle(.secondary)
                     .accessibilityHidden(true)
                 Text(timerInterval: min(now, rest.endsAt)...rest.endsAt, countsDown: true)
                     .font(.title3.weight(.medium).monospacedDigit())
@@ -80,7 +80,7 @@ struct RestTimerRow: View {
                 }
                 Button(action: rest.add30) {
                     Text("+30")
-                        .font(.subheadline.weight(.semibold))
+                        .font(.body.weight(.semibold))
                         .frame(minWidth: touch, minHeight: touch)
                         .contentShape(.rect)
                 }

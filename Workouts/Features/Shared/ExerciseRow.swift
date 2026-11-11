@@ -9,10 +9,16 @@ import WorkoutsKit
 /// The content of one exercise row, shared by the Exercises list and the exercise picker: thumbnail, name, subtitle
 /// ("Body part · Category") and an optional secondary `trailing` text (the list's best set). It is only the label; the
 /// caller wraps it in the button, link or selectable row and names the accessibility element.
+///
+/// By default the name is one line, cut at the tail, so rows share one natural height. `fullNames` (the "Full Exercise
+/// Names" setting) lets it wrap to two lines and gives every row the height of a two-line name plus the subtitle: a
+/// hidden placeholder in the same fonts reserves it, so it follows Dynamic Type, and the real name and subtitle sit
+/// centred in it. Accessibility sizes ignore the setting: names wrap and rows take their natural height.
 struct ExerciseRow: View {
     let info: ExerciseInfo
     let subtitle: String
     var trailing: String = ""
+    var fullNames = false
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
@@ -30,11 +36,30 @@ struct ExerciseRow: View {
                 // Fill the row so a sibling (the picker's info button) sits at the trailing edge, not after the text.
                 .frame(maxWidth: .infinity, alignment: .leading)
             } else {
-                details
+                rowDetails
                 Spacer(minLength: 0)
                 trailingText
             }
         }
+    }
+
+    @ViewBuilder private var rowDetails: some View {
+        if fullNames {
+            ZStack(alignment: .leading) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("A\nA").font(.headline)
+                    Text("A").font(.subheadline)
+                }
+                .hidden()
+                details
+            }
+        } else {
+            details
+        }
+    }
+
+    private var nameLineLimit: Int? {
+        dynamicTypeSize.isAccessibilitySize ? nil : (fullNames ? 2 : 1)
     }
 
     private var details: some View {
@@ -43,6 +68,8 @@ struct ExerciseRow: View {
                 Text(info.name)
                     .font(.headline)
                     .foregroundStyle(.primary)
+                    .lineLimit(nameLineLimit)
+                    .truncationMode(.tail)
                 if info.isCustom { ExerciseTag(text: "Custom", tint: .accentColor) }
                 if info.isRetired { ExerciseTag(text: "Retired", tint: .secondary) }
             }
@@ -91,7 +118,9 @@ private struct ExerciseTag: View {
 }
 
 /// The bundled thumbnail: the start frame, cross-fading to the end frame and back on a loop like the web app's list
-/// (`ThumbnailCrossfade` holds the timing). A symbol stands in when there is no media (custom exercises).
+/// (`ThumbnailCrossfade` holds the timing). Both frames are drawn cropped to the figure (`MediaStore.thumbnailCrop`), so
+/// it fills the small frame instead of sitting in the empty space around it. A symbol stands in when there is no media
+/// (custom exercises).
 ///
 /// Performance with 1,038 rows: the `List` only builds rows near the screen, so only those load images (`AsyncImage`,
 /// the end frame only when it will animate) and only those run a clock. There is no timer per row: each visible
@@ -105,7 +134,7 @@ struct ExerciseThumbnail: View {
     @ScaledMetric(relativeTo: .body) private var scale: CGFloat = 1
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    init(id: UUID?, height: CGFloat = 36) {
+    init(id: UUID?, height: CGFloat = 44) {
         self.id = id
         baseHeight = height
     }
@@ -118,10 +147,20 @@ struct ExerciseThumbnail: View {
     /// Scaling is capped so a large Dynamic Type size cannot blow the thumbnail up (rows hide it at accessibility sizes).
     private var height: CGFloat { baseHeight * min(scale, 1.4) }
 
+    private var frameSize: CGSize { CGSize(width: height * 4 / 3, height: height) }
+
+    /// The bundled thumbnails are 178 x 100 px.
+    private static let imageAspect = 178.0 / 100
+
     var body: some View {
         Group {
             if let id, let startURL = Self.media.thumbnailURL(for: id, phase: .start) {
-                frames(start: startURL, end: animates ? Self.media.thumbnailURL(for: id, phase: .end) : nil)
+                let crop = Self.media.thumbnailCrop(for: id)
+                frames(
+                    start: startURL,
+                    end: animates ? Self.media.thumbnailURL(for: id, phase: .end) : nil,
+                    placement: crop?.placement(imageAspect: Self.imageAspect, in: frameSize)
+                )
             } else {
                 Image(systemName: "figure.strengthtraining.traditional")
                     .foregroundStyle(.secondary)
@@ -129,33 +168,43 @@ struct ExerciseThumbnail: View {
                     .background(Color.secondary.opacity(0.12))
             }
         }
-        .frame(width: height * 16 / 9, height: height)
+        .frame(width: frameSize.width, height: frameSize.height)
         .clipShape(.rect(cornerRadius: 6))
         .accessibilityHidden(true)
     }
 
     @ViewBuilder
-    private func frames(start: URL, end: URL?) -> some View {
+    private func frames(start: URL, end: URL?, placement: CropRect.Placement?) -> some View {
         if let end {
-            // 30 fps is plenty for a 64 pt opacity fade and halves the per-frame work of the visible rows.
+            // 30 fps is plenty for a 48 pt opacity fade and halves the per-frame work of the visible rows.
             TimelineView(.animation(minimumInterval: 1.0 / 30)) { context in
                 let endOpacity = ThumbnailCrossfade.endOpacity(at: context.date.timeIntervalSinceReferenceDate)
                 // The frames are transparent PNGs, so the start frame fades out as the end frame fades in; laying the
                 // end frame over a fully opaque start frame would show both poses at once.
                 ZStack {
-                    image(start).opacity(1 - endOpacity)
-                    image(end, placeholder: .clear).opacity(endOpacity)
+                    image(start, placement: placement).opacity(1 - endOpacity)
+                    image(end, placement: placement, placeholder: .clear).opacity(endOpacity)
                 }
             }
         } else {
-            image(start)
+            image(start, placement: placement)
         }
     }
 
     /// The end frame's placeholder is clear so a still-loading frame never tints the start frame while it fades in.
-    private func image(_ url: URL, placeholder: Color = .secondary.opacity(0.12)) -> some View {
+    private func image(_ url: URL, placement: CropRect.Placement?, placeholder: Color = .secondary.opacity(0.12))
+        -> some View
+    {
         AsyncImage(url: url) { image in
-            image.resizable().scaledToFill()
+            if let placement {
+                // The whole image at the placement's size and offset; the frame's clip hides the rest.
+                image.resizable()
+                    .frame(width: placement.size.width, height: placement.size.height)
+                    .offset(placement.offset)
+                    .frame(width: frameSize.width, height: frameSize.height, alignment: .topLeading)
+            } else {
+                image.resizable().scaledToFill()
+            }
         } placeholder: {
             placeholder
         }

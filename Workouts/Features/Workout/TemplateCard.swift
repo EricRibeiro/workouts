@@ -46,7 +46,7 @@ struct TemplateGrid: View {
     }
 }
 
-/// One template as a card on the History dashboard's surface: the name (title3 bold) with the lime play button centred
+/// One template as a card on the History dashboard's surface: the name (headline) with the lime play button centred
 /// on its first line, the first exercises one per line (superset bar, "+ N more"), then a footer pinned to the bottom:
 /// when the template was last performed in the primary colour (nothing for one never performed; "No exercises" in
 /// secondary for an empty one). The exercise count lives in the VoiceOver label. The surface is a button that opens the preview; the
@@ -59,13 +59,13 @@ struct TemplateCard: View {
     let actions: TemplateCardActions
     let open: () -> Void
 
-    @ScaledMetric(relativeTo: .title3) private var playSize: CGFloat = 36
+    @ScaledMetric(relativeTo: .headline) private var playSize: CGFloat = 28
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     /// The play button's tap target: never under 44 pt, whatever the circle's size.
     private var playHit: CGFloat { max(playSize, 44) }
     private var hasSuperset: Bool { summary.lines.contains { $0.supersetGroup != nil } }
-    private var titleFont: Font { .title3.weight(.bold) }
+    private var titleFont: Font { .headline }
 
     var body: some View {
         Button(action: open) {
@@ -109,7 +109,7 @@ struct TemplateCard: View {
             }
         } else {
             title
-                .padding(.trailing, playHit + 8)
+                .padding(.trailing, playSize + 12)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
@@ -149,7 +149,7 @@ struct TemplateCard: View {
                 .frame(width: playSize, height: playSize)
                 .overlay {
                     Image(systemName: "play.fill")
-                        .font(.subheadline)
+                        .font(.footnote)
                         .foregroundStyle(Color.onAccent)
                 }
                 .frame(width: playHit, height: playHit)

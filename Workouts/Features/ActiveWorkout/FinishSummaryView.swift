@@ -23,47 +23,42 @@ struct FinishSummaryView: View {
     let summary: FinishSummary
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(ExerciseStore.self) private var store: ExerciseStore?
     /// Flips once on appear; the one haptic plays then (`levelChange` for a record, `success` otherwise).
     @State private var celebrated = false
+    /// The sheet's measured width; it decides the wide layout and the readable-column margins.
+    @State private var sheetWidth: CGFloat = 0
+
+    /// Content wider than this is capped and centred.
+    private static let readableWidth: CGFloat = 592
+    /// Below this the sheet keeps its single stat rows and edge-to-edge sections.
+    private static let wideThreshold: CGFloat = 500
+
+    private var isWide: Bool { sheetWidth >= Self.wideThreshold }
+    /// Accessibility sizes keep the rows: a tile's value would not fit beside its neighbours.
+    private var showsGrid: Bool { isWide && !dynamicTypeSize.isAccessibilitySize }
+    private var readableMargin: CGFloat { max(0, (sheetWidth - Self.readableWidth) / 2) }
 
     var body: some View {
         NavigationStack {
             List {
                 Section {
                     header
+                        .listRowInsets(headerInsets)
                 }
                 .listRowBackground(Color.clear)
 
-                Section {
-                    stat(
-                        "Duration",
-                        Self.durationText(summary.duration),
-                        spoken: FitnessFormat.spokenDuration(seconds: summary.duration)
-                    )
-                    .accessibilityIdentifier("summary.duration")
-                    stat(
-                        "Volume",
-                        HistoryList.volumeText(summary.volume, unit: summary.volumeUnit),
-                        spoken: Self.spokenVolume(summary.volume, unit: summary.volumeUnit)
-                    )
-                    .accessibilityIdentifier("summary.volume")
-                    stat("Sets", "\(summary.setCount)", spoken: Self.counted(summary.setCount, "set"))
-                        .accessibilityIdentifier("summary.sets")
-                    stat(
-                        "Exercises",
-                        "\(summary.exerciseCount)",
-                        spoken: Self.counted(summary.exerciseCount, "exercise")
-                    )
-                    .accessibilityIdentifier("summary.exercises")
-                    stat(
-                        "PRs",
-                        "\(summary.prCount)",
-                        spoken: Self.counted(summary.prCount, "PR"),
-                        tint: summary.prCount > 0 ? Color.record : Color.primary,
-                        trophy: summary.prCount > 0
-                    )
-                    .accessibilityIdentifier("summary.prs")
+                if showsGrid {
+                    Section {
+                        statGrid
+                    }
+                } else {
+                    Section {
+                        ForEach(stats) { stat in
+                            statRow(stat)
+                        }
+                    }
                 }
 
                 ForEach(summary.prs, id: \.exerciseID) { exercise in
@@ -79,6 +74,12 @@ struct FinishSummaryView: View {
             // Stars fall behind the cards: rows are opaque, so only the header and the gutters show them and
             // every row stays fully readable. The grouped background moves from the list to this layer.
             .scrollContentBackground(.hidden)
+            .safeAreaPadding(.horizontal, readableMargin)
+            .onGeometryChange(for: CGFloat.self) {
+                $0.size.width
+            } action: {
+                sheetWidth = $0
+            }
             .background {
                 ZStack {
                     Color(.systemGroupedBackground)
@@ -126,29 +127,116 @@ struct FinishSummaryView: View {
         .accessibilityElement(children: .combine)
     }
 
-    /// One stat row: a white metric, or `tint` for the PR count.
-    private func stat(
-        _ title: String,
-        _ value: String,
-        spoken: String,
-        tint: Color = .primary,
-        trophy: Bool = false
-    ) -> some View {
-        LabeledContent {
-            HStack(spacing: 6) {
-                if trophy {
-                    Image(systemName: "trophy.fill")
-                        .font(.body)
-                        .accessibilityHidden(true)
-                }
-                MetricText(value, style: .title2)
+    /// At regular width the header drops its top inset so the check sits about 48 pt under the bar; compact keeps the default.
+    private var headerInsets: EdgeInsets? {
+        isWide ? EdgeInsets(top: 0, leading: 0, bottom: 8, trailing: 0) : nil
+    }
+
+    /// The five stats in reading order.
+    private var stats: [Stat] {
+        [
+            Stat(
+                id: "summary.duration",
+                title: "Duration",
+                value: Self.durationText(summary.duration),
+                spoken: FitnessFormat.spokenDuration(seconds: summary.duration)
+            ),
+            Stat(
+                id: "summary.volume",
+                title: "Volume",
+                value: HistoryList.volumeText(summary.volume, unit: summary.volumeUnit),
+                spoken: Self.spokenVolume(summary.volume, unit: summary.volumeUnit)
+            ),
+            Stat(
+                id: "summary.sets",
+                title: "Sets",
+                value: "\(summary.setCount)",
+                spoken: Self.counted(summary.setCount, "set")
+            ),
+            Stat(
+                id: "summary.exercises",
+                title: "Exercises",
+                value: "\(summary.exerciseCount)",
+                spoken: Self.counted(summary.exerciseCount, "exercise")
+            ),
+            Stat(
+                id: "summary.prs",
+                title: "PRs",
+                value: "\(summary.prCount)",
+                spoken: Self.counted(summary.prCount, "PR"),
+                tint: summary.prCount > 0 ? Color.record : Color.primary,
+                trophy: summary.prCount > 0
+            ),
+        ]
+    }
+
+    /// One stat: a white metric, or `tint` for the PR count.
+    private struct Stat: Identifiable {
+        let id: String
+        let title: String
+        let value: String
+        let spoken: String
+        var tint: Color = .primary
+        var trophy = false
+    }
+
+    /// The metric with its optional trophy, shared by the row and the tile.
+    private func metric(_ stat: Stat) -> some View {
+        HStack(spacing: 6) {
+            if stat.trophy {
+                Image(systemName: "trophy.fill")
+                    .font(.subheadline)
+                    .accessibilityHidden(true)
             }
-            .foregroundStyle(tint)
+            MetricText(stat.value, style: .title2)
+        }
+        .foregroundStyle(stat.tint)
+    }
+
+    /// Compact width and accessibility sizes: a label with its value at the trailing edge.
+    private func statRow(_ stat: Stat) -> some View {
+        LabeledContent {
+            metric(stat)
         } label: {
-            Text(title)
+            Text(stat.title)
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(title), \(spoken)")
+        .accessibilityLabel("\(stat.title), \(stat.spoken)")
+        .accessibilityIdentifier(stat.id)
+    }
+
+    /// Wide layout: equal-width, leading-aligned tiles, five across when they fit and 3 + 2 otherwise.
+    private var statGrid: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .top, spacing: 8) {
+                ForEach(stats) { stat in
+                    tile(stat).frame(minWidth: 92)
+                }
+            }
+            LazyVGrid(
+                columns: Array(repeating: GridItem(.flexible(), spacing: 8, alignment: .topLeading), count: 3),
+                alignment: .leading,
+                spacing: 16
+            ) {
+                ForEach(stats) { stat in
+                    tile(stat)
+                }
+            }
+        }
+        .padding(.vertical, 8)
+    }
+
+    private func tile(_ stat: Stat) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(stat.title)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            metric(stat)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(stat.title), \(stat.spoken)")
+        .accessibilityIdentifier(stat.id)
     }
 
     /// A record row; it opens the exercise's Records segment when the exercise is known to the store.
@@ -159,6 +247,8 @@ struct FinishSummaryView: View {
             Text(text)
         } icon: {
             Image(systemName: "trophy.fill")
+                .font(.subheadline)
+                .imageScale(.medium)
                 .foregroundStyle(Color.record)
         }
         if store?.exercise(id: exerciseID) != nil {

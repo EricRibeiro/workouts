@@ -144,7 +144,7 @@ omission over. The tab also owns folder and template management.
 - Unfiled templates ("My Templates"): gone by decision (2026-11-02, migration 0007). Quick Start: the web's lack of an
   empty workout is not carried over; native has Empty Workout (Add menu).
 - Distance and time-and-distance weight types are "(later)" on web (`PLAN.md:161`): out of scope here.
-- Up/down reorder sheets: web notes "drag can replace it later" (SWP); native uses drag/edit mode.
+- Up/down reorder sheets: web notes "drag can replace it later" (SWP); native reorders through the Reorder Exercises… sheet (drag handles) and VoiceOver Move up / Move down actions.
 - Exercise-header chart pill: removed on web (`IOS.md` C2a); the name opens the detail whose tabs include Charts.
 - Web plumbing not carried over: server write-then-reread, `beforeunload` guard, glass header scroll timeline,
   `useGridColumns`, IndexedDB.

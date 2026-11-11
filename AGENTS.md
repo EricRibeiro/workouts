@@ -63,6 +63,7 @@ DEV_POSE=open-wide ./dev ui-test OpenPoseUITests   a filtered ui-test with the D
 ./dev tree <Name>       accessibility tree (XCUIApplication.debugDescription) of the `-preview <Name>` screen via TreeDumpUITests (one sim, ~30s)
 ./dev coverage [kind]   per-target app coverage of the last passing test (default) or ui-test run (bundle kept in .build/results/latest-*)
 ./dev kit-coverage      swift test with coverage; prints the WorkoutsKit line-coverage TOTAL
+./dev thumb-crops       regenerate `Resources/Library/thumbs/thumb-crops.json` (per-exercise figure crop rectangle, `Tools/thumb-crops.swift`); deterministic, run by hand, commit the result
 ./dev run [-- args]     boot sim, install, launch the app; args go to the app (`-- -preview <Name>` = the gallery)
 ./dev screenshot [p]    PNG of the booted simulator (Duo has two displays; DEV_DISPLAY=primary|…)
 ./dev shot <p> [-- args] run + settle + screenshot under one simulator lock: the parallel-safe screen proof

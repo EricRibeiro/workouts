@@ -200,6 +200,20 @@ final class TemplateEditorBlockMenuUITests: XCTestCase {
         XCTAssertTrue(note.label.contains("Pause on the chest."), "label was \(note.label)")
     }
 
+    /// Touch and hold on a block's header opens the same menu as the "…" button.
+    @MainActor
+    func testTouchAndHoldOnTheHeaderOpensTheBlockMenu() throws {
+        let app = launchEditor()
+        let (_, section) = firstMenu(app)
+        let name = app.buttons["settable.name.\(section)"]
+        XCTAssertTrue(name.waitForExistence(timeout: 5), "no block name")
+        name.press(forDuration: 0.8)
+        XCTAssertTrue(
+            app.buttons["settable.menu.reorder"].firstMatch.waitForExistence(timeout: 5),
+            "touch and hold on the header opened no menu"
+        )
+    }
+
     /// Reorder Exercises… in the block menu opens the same reorder sheet as the title menu; Done closes it.
     @MainActor
     func testBlockMenuReorderOpensTheReorderSheet() throws {

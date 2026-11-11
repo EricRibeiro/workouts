@@ -417,7 +417,7 @@ struct DetailHeader: View {
                 title: "Records",
                 value: HistoryList.prText(count: detail.prCount),
                 symbol: "trophy.fill",
-                tint: .yellow
+                tint: Color.record
             )
             : nil
         let effort = health?.effort.map { effort in
@@ -481,8 +481,8 @@ struct DetailHeader: View {
                         .font(.subheadline)
                         .foregroundStyle(stat.tint)
                 }
-                Text(stat.value)
-                    .font(.headline)
+                MetricText(stat.value, style: .title2)
+                    .foregroundStyle(.primary)
                 if let unit = stat.unit {
                     Text(unit)
                         .font(.footnote)
@@ -555,6 +555,7 @@ private struct ExerciseBlockView: View {
                     Spacer(minLength: 0)
                     if line.isPR {
                         Image(systemName: "trophy.fill")
+                            .font(.subheadline)
                             .foregroundStyle(Color.record)
                     }
                 }
@@ -562,9 +563,14 @@ private struct ExerciseBlockView: View {
             if !block.prLines.isEmpty {
                 Divider()
                 ForEach(block.prLines, id: \.self) { text in
-                    Label(text, systemImage: "trophy")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                    Label {
+                        Text(text)
+                    } icon: {
+                        Image(systemName: "trophy")
+                            .foregroundStyle(Color.record)
+                    }
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
                 }
             }
         }
@@ -608,6 +614,7 @@ private struct ExerciseBlockView: View {
                 .fixedSize(horizontal: false, vertical: true)
             if !block.prLines.isEmpty {
                 Image(systemName: "trophy.fill")
+                    .font(.subheadline)
                     .foregroundStyle(Color.record)
             }
         }

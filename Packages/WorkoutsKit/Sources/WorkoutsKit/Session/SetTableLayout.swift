@@ -41,8 +41,8 @@ public nonisolated enum SetTableLayout {
     }
 
     /// `order` after moving `id` one place up (`offset` -1) or down (`offset` +1), the VoiceOver "Move Up" / "Move Down"
-    /// actions' counterpart of a drag. Nil when `id` is not in `order` or is already at that end, so the caller offers no
-    /// action there. Goes through `reordered`, so a drag and an action produce the same order.
+    /// actions' order. Nil when `id` is not in `order` or is already at that end, so the caller offers no action there.
+    /// Goes through `reordered`.
     public static func moved<ID: Hashable>(_ order: [ID], id: ID, by offset: Int) -> [ID]? {
         guard offset == -1 || offset == 1, let index = order.firstIndex(of: id) else { return nil }
         let target = index + offset

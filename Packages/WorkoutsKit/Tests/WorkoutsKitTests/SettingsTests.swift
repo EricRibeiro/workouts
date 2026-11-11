@@ -14,6 +14,7 @@ import Testing
         #expect(store.keepScreenOn)
         #expect(!store.downloadAllVideos)
         #expect(!store.healthEnrichmentEnabled)
+        #expect(!store.fullExerciseNames)
     }
 
     @Test func writeThroughPersistsAndFreshStoreReadsItBack() {
@@ -27,6 +28,7 @@ import Testing
         store.keepScreenOn = false
         store.downloadAllVideos = true
         store.healthEnrichmentEnabled = true
+        store.fullExerciseNames = true
 
         #expect(backend.object(forKey: SettingsKey.defaultUnit.rawValue) as? String == "kg")
         #expect(backend.object(forKey: SettingsKey.e1rmFormula.rawValue) as? String == "brzycki")
@@ -41,6 +43,7 @@ import Testing
         #expect(!fresh.keepScreenOn)
         #expect(fresh.downloadAllVideos)
         #expect(fresh.healthEnrichmentEnabled)
+        #expect(fresh.fullExerciseNames)
     }
 
     @Test func everyKeyIsWrittenUnderItsOwnName() {
@@ -54,10 +57,11 @@ import Testing
         store.keepScreenOn = false
         store.downloadAllVideos = true
         store.healthEnrichmentEnabled = true
+        store.fullExerciseNames = true
         for key in SettingsKey.allCases {
             #expect(backend.object(forKey: key.rawValue) != nil, "\(key) not written")
         }
-        #expect(SettingsKey.allCases.count == 8)
+        #expect(SettingsKey.allCases.count == 9)
     }
 
     @Test func invalidStoredValuesFallBack() {
@@ -67,6 +71,7 @@ import Testing
             SettingsKey.defaultRestSeconds.rawValue: 99_999,
             SettingsKey.weeklyGoal.rawValue: 0,
             SettingsKey.keepScreenOn.rawValue: "maybe",
+            SettingsKey.fullExerciseNames.rawValue: 3.5,
             SettingsKey.downloadAllVideos.rawValue: 7.5,
             SettingsKey.restPresets.rawValue: "nope",
         ])
@@ -76,6 +81,7 @@ import Testing
         #expect(store.defaultRestSeconds == 60)
         #expect(store.weeklyGoal == 3)
         #expect(store.keepScreenOn)
+        #expect(!store.fullExerciseNames)
         #expect(!store.downloadAllVideos)
         #expect(store.restPresets.isEmpty)
     }
@@ -88,6 +94,7 @@ import Testing
             SettingsKey.keepScreenOn.rawValue: "NO",
             SettingsKey.downloadAllVideos.rawValue: "YES",
             SettingsKey.healthEnrichmentEnabled.rawValue: "1",
+            SettingsKey.fullExerciseNames.rawValue: "YES",
         ])
         let store = SettingsStore(backend: backend)
         #expect(store.defaultRestSeconds == 90)
@@ -95,6 +102,7 @@ import Testing
         #expect(!store.keepScreenOn)
         #expect(store.downloadAllVideos)
         #expect(store.healthEnrichmentEnabled)
+        #expect(store.fullExerciseNames)
         let outOfRange = InMemoryBackend([SettingsKey.defaultRestSeconds.rawValue: "99999"])
         #expect(SettingsStore(backend: outOfRange).defaultRestSeconds == 60)
     }

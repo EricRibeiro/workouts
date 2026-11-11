@@ -62,6 +62,42 @@ final class LoggingBlockMenuUITests: XCTestCase {
         XCTAssertTrue(app.buttons["cover.finish"].firstMatch.isHittable, "the cover is not back in front")
     }
 
+    /// Touch and hold on a block's header opens the block menu's entries; Reorder Exercises… there opens the reorder sheet.
+    @MainActor
+    func testTouchAndHoldOnTheHeaderOpensTheBlockMenu() throws {
+        let app = launchCover()
+        let any = app.descendants(matching: .any)
+        let (_, section) = firstMenu(app)
+        let name = app.buttons["settable.name.\(section)"]
+        XCTAssertTrue(name.waitForExistence(timeout: 5), "no block name")
+        name.press(forDuration: 0.8)
+
+        let reorder = app.buttons["settable.menu.reorder"].firstMatch
+        XCTAssertTrue(reorder.waitForExistence(timeout: 5), "touch and hold on the header opened no menu")
+        reorder.tap()
+        let rows = any.matching(NSPredicate(format: "identifier BEGINSWITH 'reorder.row.'"))
+        XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: 5), "the reorder sheet did not open")
+    }
+
+    /// A long press on a block header, dragged to the next block's header, does not lift the block: the Reorder Exercises…
+    /// sheet is the only way to reorder.
+    @MainActor
+    func testLongPressOnABlockHeaderDoesNotReorder() throws {
+        let app = launchCover()
+        let names = app.buttons.matching(
+            NSPredicate(format: "identifier MATCHES '^settable\\\\.name\\\\.[0-9A-Fa-f-]{36}$'")
+        )
+        XCTAssertTrue(names.element(boundBy: 1).waitForExistence(timeout: 10), "the workout has fewer than two blocks")
+        func order() -> [String] {
+            names.allElementsBoundByIndex.sorted { $0.frame.minY < $1.frame.minY }.map(\.identifier)
+        }
+        let before = order()
+        let first = names.element(boundBy: 0)
+        let second = names.element(boundBy: 1)
+        first.press(forDuration: 1.2, thenDragTo: second)
+        XCTAssertEqual(order(), before, "a long press and drag on a block header reordered the blocks")
+    }
+
     @MainActor
     func testSupersetGroupsTwoBlocks() throws {
         let app = launchCover()

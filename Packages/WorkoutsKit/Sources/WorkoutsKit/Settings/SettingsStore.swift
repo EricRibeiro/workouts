@@ -11,6 +11,7 @@ public nonisolated enum SettingsKey: String, CaseIterable, Sendable {
     case keepScreenOn
     case downloadAllVideos
     case healthEnrichmentEnabled
+    case fullExerciseNames
 }
 
 /// App settings, outside SwiftData. Loads from the backend on init; every property writes through on change. Stored
@@ -25,6 +26,7 @@ public final class SettingsStore {
     public static let keepScreenOnDefault = true
     public static let downloadAllVideosDefault = false
     public static let healthEnrichmentEnabledDefault = false
+    public static let fullExerciseNamesDefault = false
 
     /// Most custom rest presets kept.
     public static let maxRestPresets = 6
@@ -70,6 +72,11 @@ public final class SettingsStore {
         }
     }
 
+    /// Names wrap to two lines and every row takes that height; off, a name is cut to one line.
+    public var fullExerciseNames: Bool {
+        didSet { backend.set(fullExerciseNames, forKey: SettingsKey.fullExerciseNames.rawValue) }
+    }
+
     public init(backend: any SettingsBackend = UserDefaultsBackend()) {
         self.backend = backend
 
@@ -104,6 +111,7 @@ public final class SettingsStore {
         keepScreenOn = bool(.keepScreenOn, default: Self.keepScreenOnDefault)
         downloadAllVideos = bool(.downloadAllVideos, default: Self.downloadAllVideosDefault)
         healthEnrichmentEnabled = bool(.healthEnrichmentEnabled, default: Self.healthEnrichmentEnabledDefault)
+        fullExerciseNames = bool(.fullExerciseNames, default: Self.fullExerciseNamesDefault)
     }
 
     /// Keeps the valid (1-3600), distinct entries in order, at most 6; anything that is not `[Int]` becomes `[]`.
