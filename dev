@@ -491,6 +491,31 @@ sim_reset_ui() { # sim_reset_ui <udid>
   xcrun simctl ui "$1" appearance light >/dev/null 2>&1 || true
 }
 
+# Snapshot tests and UI tests assume the Duo closed and portrait; an earlier `./dev pose open-wide` leaves it open (2026-11-11:
+# 30 snapshot diffs in untouched screens). Reads the pose cheaply (hinge + lit panel) and restores closed-portrait when it differs.
+pose_describe() { # pose_describe <hinge line> <panels table>: the pose name (closed-portrait|closed-landscape|open-wide|open-tall|half-open) or unknown
+  local lit rot=""
+  lit=$(grep ' lit ' <<<"$2" | head -n 1) || true
+  [[ "$lit" =~ rot([0-9]+)[[:space:]]*$ ]] && rot="${BASH_REMATCH[1]}"
+  case "$1" in
+    *"pose: half-open"*) echo half-open ;;
+    *"pose: closed"*) case "$rot" in 0) echo closed-portrait ;; 90 | 270) echo closed-landscape ;; *) echo unknown ;; esac ;;
+    *"pose: open"*) case "$rot" in 90 | 270) echo open-wide ;; 0 | 180) echo open-tall ;; *) echo unknown ;; esac ;;
+    *) echo unknown ;;
+  esac
+}
+pose_verdict() { [[ "${1:-}" == closed-portrait ]] && echo ok || echo restore; } # pose_verdict <pose_describe output>: ok or restore
+sim_pose_guard() { # sim_pose_guard <label> <udid>: the simulator must be booted
+  local hinge panels now
+  duo_bin
+  hinge=$("$DUO_BIN" hinge --udid "$2" 2>/dev/null) || hinge=""
+  panels=$("$DUO_BIN" panels --udid "$2" 2>/dev/null) || panels=""
+  now=$(pose_describe "$hinge" "$panels")
+  [[ "$(pose_verdict "$now")" == ok ]] && return 0
+  echo "dev: $1: the simulator was left ${now/unknown/in an unknown pose}; restoring closed-portrait (snapshots and UI tests need it)" >&2
+  "$DUO_BIN" pose closed-portrait --udid "$2" >/dev/null || die "$1: restoring closed-portrait failed (see the duo message above); run ./dev pose closed-portrait"
+}
+
 run_tests() { # run_tests <name> <target> [filter] [latest]: the passing bundle is kept as latest-<latest>.xcresult (default: <name>)
   local name="$1" target="$2" filter="${3:-}" latest="${4:-$1}"
   local only="$target" bundle="$RESULTS/$name-$$.xcresult" rc=0 tmo=()
@@ -502,7 +527,7 @@ run_tests() { # run_tests <name> <target> [filter] [latest]: the passing bundle 
     XCB_VERBOSE=1 RUN_LOGGED_TAP=ui_progress_tap UI_PROG_SIM=$(sim_name_by_udid "$SIM_UDID")
   fi
   sim_reset_ui "$SIM_UDID"
-  [[ "$name" != ui-test ]] || ui_pose_apply
+  if [[ "$name" != ui-test ]]; then sim_pose_guard "$name" "$SIM_UDID"; elif [[ -n "$UI_POSE" ]]; then ui_pose_apply; else sim_pose_guard "$name" "$SIM_UDID"; fi
   [[ -n "$filter" ]] && only="$target/$filter"
   mkdir -p "$RESULTS"
   find "$RESULTS" -maxdepth 1 -name '*.xcresult' ! -name 'latest-*' -mmin +240 -exec rm -rf {} + 2>/dev/null || true
@@ -856,6 +881,7 @@ ui_shard() { # ui_shard <index> <udid> <xctestrun> <suite...>; runs in a backgro
   shift 3
   bundle="$PWD/$UI_SHARDS_DIR/shard-$idx.xcresult" # absolute: ui_cleanup finds this checkout's xcodebuilds by it
   sim_reset_ui "$udid"
+  sim_pose_guard ui-test "$udid"
   for s in "$@"; do only+=(-only-testing:"WorkoutsUITests/$s"); done
   # Progress: no -quiet here, so xcodebuild prints each test's result and ui_progress_tap (between it and the log filter)
   # turns them into this shard's line in the progress file. The planned test count comes from the enumeration, if it worked.
@@ -2191,6 +2217,21 @@ CKDB
   ui_pose_init_rc() { DEV_POSE="$1"; ui_pose_init "$2"; echo "UI_POSE=$UI_POSE"; }
   st_run ui_pose_init_rc open-tall OpenPoseUITests; st_out_has "ui_pose_init sets UI_POSE" "UI_POSE=open-tall"
   st_run ui_pose_init_rc open-tall ""; st_rc "ui_pose_init dies unfiltered" 1
+  # pose guard: pose_describe reads `duo hinge` + `duo panels` text, pose_verdict says whether closed-portrait must be restored.
+  pg_panels() { printf 'LCD    %s   1398x2034 px  466x678 pt  rot%s\nLCD-1  %s   2007x2853 px  669x951 pt  rot%s\n' "$1" "$2" "$3" "$4"; }
+  pg_hinge() { echo "angleDegrees: $1, angleValid: true, pose: $2, litPanel: $3"; }
+  st_eq "pose_describe closed portrait" closed-portrait "$(pose_describe "$(pg_hinge 0 closed LCD)" "$(pg_panels lit 0 dark 0)")"
+  st_eq "pose_describe open wide" open-wide "$(pose_describe "$(pg_hinge 180 open LCD-1)" "$(pg_panels dark 0 lit 90)")"
+  st_eq "pose_describe open tall" open-tall "$(pose_describe "$(pg_hinge 180 open LCD-1)" "$(pg_panels dark 0 lit 0)")"
+  st_eq "pose_describe closed landscape" closed-landscape "$(pose_describe "$(pg_hinge 0 closed LCD)" "$(pg_panels lit 90 dark 0)")"
+  st_eq "pose_describe half-open" half-open "$(pose_describe "$(pg_hinge 123.3 half-open LCD-1)" "$(pg_panels dark 0 lit 0)")"
+  st_eq "pose_describe unreadable" unknown "$(pose_describe "" "")"
+  st_eq "pose_verdict closed-portrait" ok "$(pose_verdict closed-portrait)"
+  st_eq "pose_verdict open-wide" restore "$(pose_verdict open-wide)"
+  st_eq "pose_verdict open-tall" restore "$(pose_verdict open-tall)"
+  st_eq "pose_verdict closed-landscape" restore "$(pose_verdict closed-landscape)"
+  st_eq "pose_verdict half-open" restore "$(pose_verdict half-open)"
+  st_eq "pose_verdict unknown" restore "$(pose_verdict unknown)"
 
   # Full-run marker: no marker, stale, live other, own, ancestor, override, claim and release. pid_alive/pid_parent are stubbed
   # (alive: 555 and this shell; ancestors of this shell: 800, then 700).
@@ -2389,8 +2430,8 @@ build              build the app for this checkout's simulator
                    (outside a full run, a simulator command, build included, exits 75 when DEV_MAX_BUSY_SIMS (default 2; 0 = off) other pool simulators are held by live processes or were used in the last DEV_BUSY_WINDOW_SEC (default 120) seconds (a command's own simulator and ones its ancestors used do not count), checked again once the lock is taken, and prints a warning
                    when the 1-minute load average is above twice the CPU count; sims and ui-status show a running full run's pid, checkout and start time)
                    (DEV_GATE_WAIT_SEC: how long a gated command waits, looking again every DEV_GATE_POLL_SEC (20) seconds, before it exits 75; default 1800 for check, whose lint, kit and duo-test steps run first and never wait, 0 (refuse at once) for every other command; an explicit value applies to any gated command)
-test [filter]      run WorkoutsTests (filter = suite or suite/test); prints totals, fails if none ran; an unfiltered pass writes .build/test.stamp (commit, clean, when), which `coverage` prints
-ui-test [filter]   run WorkoutsUITests (an unfiltered pass is sharded over DEV_UI_SHARDS pool sims and stamps HEAD, with its flaky tests, for the testflight --upload gate); prints totals, fails if none ran. A test whose first attempt crashed the app fails the run even when its retry passes (not flaky; no stamp). An unfiltered run that does not skip exactly 17 tests (DEV_UI_EXPECTED_SKIPS) writes no stamp
+test [filter]      run WorkoutsTests (filter = suite or suite/test); first restores closed-portrait if the Duo was left posed; prints totals, fails if none ran; an unfiltered pass writes .build/test.stamp (commit, clean, when), which `coverage` prints
+ui-test [filter]   run WorkoutsUITests (without DEV_POSE the Duo is first restored to closed-portrait if it was left posed; an unfiltered pass is sharded over DEV_UI_SHARDS pool sims and stamps HEAD, with its flaky tests, for the testflight --upload gate); prints totals, fails if none ran. A test whose first attempt crashed the app fails the run even when its retry passes (not flaky; no stamp). An unfiltered run that does not skip exactly 17 tests (DEV_UI_EXPECTED_SKIPS) writes no stamp
                    and fails. A test running longer than DEV_UI_TEST_ALLOWANCE seconds (default 240) fails with a spindump (xcodebuild -test-timeouts-enabled). Filter HealthKitIntegrationUITests opts in to the real-Health test: it runs on the 'iPhone Duo Health' clone
                    (create it: xcrun simctl clone "iPhone Duo" "iPhone Duo Health"; DEV_SIM / DEV_SIM_UDID override), keeps its bundle as
                    latest-health.xcresult, and a pass with nothing skipped writes .build/health-test.stamp (commit, when)
