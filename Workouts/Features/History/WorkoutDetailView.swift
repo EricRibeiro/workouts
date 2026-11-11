@@ -353,6 +353,8 @@ struct DetailHeader: View {
         var symbol: String?
         var tint: Color = .primary
         var hierarchical = false
+        /// The record count takes its tint; the other values stay primary.
+        var tintsValue = false
     }
 
     var body: some View {
@@ -415,9 +417,10 @@ struct DetailHeader: View {
             detail.prCount > 0
             ? Stat(
                 title: "Records",
-                value: HistoryList.prText(count: detail.prCount),
+                value: "\(detail.prCount)",
                 symbol: "trophy.fill",
-                tint: Color.record
+                tint: Color.record,
+                tintsValue: true
             )
             : nil
         let effort = health?.effort.map { effort in
@@ -481,13 +484,8 @@ struct DetailHeader: View {
                         .font(.subheadline)
                         .foregroundStyle(stat.tint)
                 }
-                MetricText(stat.value, style: .title2)
-                    .foregroundStyle(.primary)
-                if let unit = stat.unit {
-                    Text(unit)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
+                MetricText(stat.unit.map { "\(stat.value) \($0)" } ?? stat.value, style: .title2)
+                    .foregroundStyle(stat.tintsValue ? stat.tint : Color.primary)
             }
         }
     }
@@ -566,7 +564,7 @@ private struct ExerciseBlockView: View {
                     Label {
                         Text(text)
                     } icon: {
-                        Image(systemName: "trophy")
+                        Image(systemName: "trophy.fill")
                             .foregroundStyle(Color.record)
                     }
                     .font(.footnote)

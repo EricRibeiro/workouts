@@ -43,6 +43,25 @@ final class OpenPoseUITests: XCTestCase {
         }
     }
 
+    /// The Workout tab's two sample folders flow side by side on the open Duo: headers at the same height, the second one
+    /// right of the display's middle (the fold).
+    @MainActor
+    func testOpenWideFoldersSitSideBySide() throws {
+        let app = XCUIApplication.launchedPreview("Workout", waitingFor: "screen.workout")
+        let window = app.windows.firstMatch.frame
+        XCTAssertEqual(window.width, 951, accuracy: 1)
+
+        let headers = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH 'workout.folder.' AND identifier ENDSWITH '.toggle'")
+        )
+        XCTAssertTrue(headers.element(boundBy: 1).waitForExistence(timeout: 10), "fewer than two folders")
+        let first = headers.element(boundBy: 0).waitUntilFrameSettles()
+        let second = headers.element(boundBy: 1).waitUntilFrameSettles()
+        XCTAssertEqual(first.minY, second.minY, accuracy: 2, "headers \(first) and \(second) are not side by side")
+        XCTAssertGreaterThan(second.minX, window.midX, "second folder \(second) is not right of the fold")
+        XCTAssertLessThan(first.maxX, window.midX, "first folder \(first) reaches the fold")
+    }
+
     /// One audit pass of the open logging cover, with `AccessibilityAuditUITests`' known-issue filter.
     @MainActor
     func testOpenWideLoggingAudit() throws {

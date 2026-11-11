@@ -210,7 +210,7 @@ Eric deferred the technical choices to Claude. These close every item in `docs/p
 - **Set-row states** (active workout; `SetRow`, `SetProgress.nextIndex` over the rows that show a check):
   - *Done*: olive row, values as plain text (no field fill), a quiet lime disc (`ok` at 0.18) with a lime check.
   - *Next* (the block's first unchecked set): a raised row (`.fill.secondary` at 0.5), brighter fields (`.fill.tertiary`),
-    an empty 3 pt lime ring. It is the strongest mark in the column.
+    an empty 2.5 pt lime ring. It is the strongest mark in the column.
   - *Pending*: no row fill, `.fill.quaternary` fields, an empty 2 pt `.secondary` ring.
   - An unchecked set never shows a check glyph. A refused check gets the red border, the announcement and a short shake,
     which Reduce Motion drops. The Previous cell omits the unit (`60 × 8`; the column header and the accessibility label
@@ -247,13 +247,15 @@ Eric deferred the technical choices to Claude. These close every item in `docs/p
 - **Finish** is `flag.checkered` (prominent, lime): the checkmark belongs to sets.
 - **Proportions** (design review, 2026-11-11):
   1. Solid lime is one action per surface: a disc of at most 28 pt on a card. The only larger solid lime is a sheet's
-     full-width primary button and the system's prominent toolbar item.
+     full-width primary button, the system's prominent toolbar item and the Finish summary's completion check (a 43 pt solid
+     lime disc: a one-off celebration mark, not a control).
   2. Repeating status marks (done sets, calendar days) use lime at 0.18 opacity with a lime glyph or digit, never a solid fill.
   3. A control's drawn shape is at most about twice the cap height of the text on its line (28 beside a title, 32 in a 44 pt
      row); the hit area stays 44.
   4. A glyph fills 38 to 45% of its disc.
   5. One large figure per card; a list row never uses a larger number style than the page's hero.
-  6. Every metric at `.title3` or above is `MetricText`.
+  6. Every metric at `.title3` or above is `MetricText`; the History hero count is the exception, a bare 40 pt rounded
+     figure because it has no unit.
   7. Type steps down with containment: page title, section header (`.title3` semibold), card title (`.headline`), body
      (`.subheadline`), meta (`.footnote`).
   8. Annotation glyphs (trophy, chevron) are at most 1.35x the cap height of their text, never `imageScale(.large)`; overlays

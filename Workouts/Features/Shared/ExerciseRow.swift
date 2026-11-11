@@ -176,7 +176,7 @@ struct ExerciseThumbnail: View {
     @ViewBuilder
     private func frames(start: URL, end: URL?, placement: CropRect.Placement?) -> some View {
         if let end {
-            // 30 fps is plenty for a 48 pt opacity fade and halves the per-frame work of the visible rows.
+            // 30 fps is plenty for a 44 pt-high (4:3) opacity fade and halves the per-frame work of the visible rows.
             TimelineView(.animation(minimumInterval: 1.0 / 30)) { context in
                 let endOpacity = ThumbnailCrossfade.endOpacity(at: context.date.timeIntervalSinceReferenceDate)
                 // The frames are transparent PNGs, so the start frame fades out as the end frame fades in; laying the

@@ -87,9 +87,7 @@ struct CalendarSheet: View {
 
     private var header: some View {
         HStack {
-            Button("Previous month", systemImage: "chevron.left") { move(by: -1) }
-                .frame(minWidth: 44, minHeight: 44)
-                .contentShape(Rectangle())
+            monthButton("Previous month", systemImage: "chevron.left", by: -1)
                 .accessibilityIdentifier("calendar.prev")
             Spacer()
             Text(CalendarMonth.title(for: month, calendar: calendar))
@@ -98,14 +96,23 @@ struct CalendarSheet: View {
                 .accessibilityAddTraits(.isHeader)
                 .accessibilityIdentifier("calendar.title")
             Spacer()
-            Button("Next month", systemImage: "chevron.right") { move(by: 1) }
-                .frame(minWidth: 44, minHeight: 44)
-                .contentShape(Rectangle())
+            monthButton("Next month", systemImage: "chevron.right", by: 1)
                 .accessibilityIdentifier("calendar.next")
         }
         .labelStyle(.iconOnly)
         .buttonStyle(.borderless)
         .font(.title3.weight(.semibold))
+    }
+
+    /// The 44 pt frame and shape live in the label so the whole square is tappable, not just the glyph.
+    private func monthButton(_ title: LocalizedStringKey, systemImage: String, by months: Int) -> some View {
+        Button {
+            move(by: months)
+        } label: {
+            Label(title, systemImage: systemImage)
+                .frame(minWidth: 44, minHeight: 44)
+                .contentShape(Rectangle())
+        }
     }
 
     private func move(by months: Int) {
@@ -222,7 +229,10 @@ private struct DayMarks: ViewModifier {
     let marked: Bool
     let isToday: Bool
     let isSelected: Bool
-    @ScaledMetric(relativeTo: .body) private var discSize: CGFloat = 36
+    @ScaledMetric(relativeTo: .body) private var scaledDiscSize: CGFloat = 36
+
+    /// Capped so the disc and its selection ring stay inside the 44 pt cell at the largest grid size.
+    private var discSize: CGFloat { min(scaledDiscSize, 40) }
 
     func body(content: Content) -> some View {
         content

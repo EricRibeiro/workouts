@@ -160,6 +160,74 @@ public nonisolated enum FoldPlacement {
         return (column, spacing, column)
     }
 
+    // MARK: Sections in columns
+
+    /// Where one section goes: its frame inside the container (x from the container's leading edge, y from its top).
+    public nonisolated struct SectionFrame: Equatable, Sendable {
+        public var x: CGFloat
+        public var y: CGFloat
+        public var width: CGFloat
+        public var height: CGFloat
+
+        public init(x: CGFloat, y: CGFloat, width: CGFloat, height: CGFloat) {
+            self.x = x
+            self.y = y
+            self.width = width
+            self.height = height
+        }
+
+        public var maxX: CGFloat { x + width }
+        public var maxY: CGFloat { y + height }
+    }
+
+    /// The frames of every section and the container's total height.
+    public nonisolated struct SectionLayout: Equatable, Sendable {
+        public var frames: [SectionFrame]
+        public var height: CGFloat
+
+        public init(frames: [SectionFrame], height: CGFloat) {
+            self.frames = frames
+            self.height = height
+        }
+    }
+
+    /// Places `count` sections in `columns` columns (1 or 2) inside a container `total` wide. One column, or a lone
+    /// section, takes the full width and the sections stack `rowSpacing` apart. Two columns take the sections in turn
+    /// (first left, second right, third left again), each column a top-aligned stack independent of the other, at the
+    /// widths `columnWidths` gives around `division` (equal on both sides of an off-centre fold, nothing inside the
+    /// gutter). `height(index, width)` is section `index`'s height when proposed `width`; it is asked once per section,
+    /// at the width the section is placed at.
+    public static func sectionFrames(
+        count: Int,
+        total: CGFloat,
+        division: ClosedRange<CGFloat>?,
+        columns: Int,
+        columnSpacing: CGFloat,
+        rowSpacing: CGFloat,
+        height: (_ index: Int, _ width: CGFloat) -> CGFloat
+    ) -> SectionLayout {
+        guard count > 0 else { return SectionLayout(frames: [], height: 0) }
+        let twoColumns = columns >= 2 && count > 1
+        let widths = twoColumns ? columnWidths(total: total, division: division, spacing: columnSpacing) : nil
+        let rightX = widths.map { $0.left + $0.gap } ?? 0
+        var bottoms: [CGFloat] = [0, 0]
+        var placed = [false, false]
+        var frames: [SectionFrame] = []
+        frames.reserveCapacity(count)
+        for index in 0..<count {
+            let column = twoColumns ? index % 2 : 0
+            let width = widths.map { column == 0 ? $0.left : $0.right } ?? total
+            let sectionHeight = height(index, width)
+            let y = bottoms[column] + (placed[column] ? rowSpacing : 0)
+            frames.append(
+                SectionFrame(x: column == 0 ? 0 : rightX, y: y, width: width, height: sectionHeight)
+            )
+            bottoms[column] = y + sectionHeight
+            placed[column] = true
+        }
+        return SectionLayout(frames: frames, height: max(bottoms[0], bottoms[1]))
+    }
+
     // MARK: Grid columns around the fold
 
     /// One column of a grid: its width and the space after it (the gutter to the next column).

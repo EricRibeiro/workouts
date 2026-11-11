@@ -11,6 +11,21 @@ import Testing
         )
     }
 
+    @Test func aWordAfterAUnitJoinsItWithItsSpace() {
+        #expect(
+            pieces("10 All Out") == [
+                MetricPiece(text: "10", isUnit: false),
+                MetricPiece(text: "All Out", isUnit: true),
+            ]
+        )
+        #expect(
+            pieces("128 bpm") == [MetricPiece(text: "128", isUnit: false), MetricPiece(text: "bpm", isUnit: true)]
+        )
+        #expect(
+            pieces("342 kcal") == [MetricPiece(text: "342", isUnit: false), MetricPiece(text: "kcal", isUnit: true)]
+        )
+    }
+
     @Test func glued() {
         #expect(pieces("40min") == [MetricPiece(text: "40", isUnit: false), MetricPiece(text: "min", isUnit: true)])
     }

@@ -219,8 +219,9 @@ struct WorkoutView: View {
                     if !unfiled.isEmpty {
                         VStack(alignment: .leading, spacing: 12) {
                             Text("Unfiled (\(unfiled.count))")
-                                .font(.headline)
+                                .font(.title3.weight(.semibold))
                                 .foregroundStyle(.primary)
+                                .frame(minHeight: 44)
                                 .accessibilityAddTraits(.isHeader)
                                 .accessibilityIdentifier("workout.unfiled")
                             TemplateGrid(

@@ -71,6 +71,31 @@ final class HistoryCalendarUITests: XCTestCase {
     }
 
     @MainActor
+    func testMonthButtonsAreTappableOffCentre() throws {
+        let app = launchAndOpenCalendar()
+        let title = app.staticTexts["calendar.title"]
+        XCTAssertTrue(title.waitForExistence(timeout: 5))
+        let next = app.buttons["calendar.next"]
+        let previous = app.buttons["calendar.prev"]
+        for button in [next, previous] {
+            XCTAssertGreaterThanOrEqual(button.frame.width, 44, "\(button.identifier) is narrower than 44 pt")
+            XCTAssertGreaterThanOrEqual(button.frame.height, 44, "\(button.identifier) is shorter than 44 pt")
+        }
+
+        let start = title.label
+        next.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.1)).tap()
+        let forward = app.staticTexts["calendar.title"].label
+        XCTAssertNotEqual(forward, start, "an off-centre tap on Next month did not move the month")
+
+        previous.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.9)).tap()
+        XCTAssertEqual(
+            app.staticTexts["calendar.title"].label,
+            start,
+            "an off-centre tap on Previous month did not move the month"
+        )
+    }
+
+    @MainActor
     func testDoneDismisses() throws {
         let app = launchAndOpenCalendar()
         app.buttons["calendar.done"].tap()

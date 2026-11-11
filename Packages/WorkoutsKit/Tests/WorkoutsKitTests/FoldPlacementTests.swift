@@ -219,6 +219,133 @@ import Testing
         #expect(trailing.left == 394 && trailing.right == 394)
     }
 
+    // MARK: Sections in columns
+
+    private func sections(
+        _ heights: [CGFloat],
+        total: CGFloat = 800,
+        division: ClosedRange<CGFloat>? = 390...410,
+        columns: Int = 2
+    ) -> FoldPlacement.SectionLayout {
+        FoldPlacement.sectionFrames(
+            count: heights.count,
+            total: total,
+            division: division,
+            columns: columns,
+            columnSpacing: 12,
+            rowSpacing: 20,
+            height: { index, _ in heights[index] }
+        )
+    }
+
+    @Test func noSectionsHaveNoFramesAndNoHeight() {
+        let layout = sections([])
+        #expect(layout.frames.isEmpty && layout.height == 0)
+    }
+
+    @Test func aSingleSectionTakesTheFullWidthEvenInTwoColumns() {
+        let layout = sections([150])
+        #expect(layout.frames == [.init(x: 0, y: 0, width: 800, height: 150)])
+        #expect(layout.height == 150)
+    }
+
+    @Test func twoSectionsSitSideBySideAtTheSameTop() {
+        let layout = sections([100, 60])
+        #expect(layout.frames[0] == .init(x: 0, y: 0, width: 390, height: 100))
+        #expect(layout.frames[1] == .init(x: 410, y: 0, width: 390, height: 60))
+        #expect(layout.height == 100)
+    }
+
+    @Test func threeSectionsTakeTheColumnsInTurnAndTheThirdStacksUnderTheFirst() {
+        let layout = sections([100, 60, 40])
+        #expect(layout.frames[2] == .init(x: 0, y: 120, width: 390, height: 40))
+        #expect(layout.height == 160)
+    }
+
+    @Test func fiveSectionsAlternateAndEachColumnStacksIndependently() {
+        let layout = sections([100, 30, 50, 200, 70])
+        #expect(layout.frames.map(\.x) == [0, 410, 0, 410, 0])
+        // Left column: 100, 50, 70; right column: 30, 200.
+        #expect(layout.frames.map(\.y) == [0, 0, 120, 50, 190])
+        #expect(layout.frames[4].maxY == 260)
+        #expect(layout.height == 260)
+    }
+
+    @Test func unequalHeightsKeepColumnsTopAlignedAndIndependent() {
+        // A tall first section does not push the second down or stretch it.
+        let layout = sections([500, 40, 40, 40])
+        #expect(layout.frames[0].y == 0 && layout.frames[1].y == 0)
+        #expect(layout.frames[1].height == 40)
+        #expect(layout.frames[3].y == 60)
+        // Left column: 500 + 20 + 40; right column: 40 + 20 + 40.
+        #expect(layout.height == 560)
+    }
+
+    @Test func theTallerColumnSetsTheHeightWhicheverSideItIsOn() {
+        #expect(sections([40, 500]).height == 500)
+        #expect(sections([500, 40]).height == 500)
+    }
+
+    @Test func oneColumnStacksFullWidthWithTheRowSpacing() {
+        let layout = sections([100, 60, 40], columns: 1)
+        #expect(layout.frames.map(\.x) == [0, 0, 0])
+        #expect(layout.frames.allSatisfy { $0.width == 800 })
+        #expect(layout.frames.map(\.y) == [0, 120, 200])
+        #expect(layout.height == 240)
+    }
+
+    @Test func oneColumnIgnoresTheDivision() {
+        let withFold = sections([100, 60], columns: 1)
+        let without = sections([100, 60], division: nil, columns: 1)
+        #expect(withFold == without)
+    }
+
+    @Test func columnsAreAskedForTheirHeightAtTheirOwnWidth() {
+        var asked: [(Int, CGFloat)] = []
+        _ = FoldPlacement.sectionFrames(
+            count: 3,
+            total: 800,
+            division: 390...410,
+            columns: 2,
+            columnSpacing: 12,
+            rowSpacing: 20,
+            height: { index, width in
+                asked.append((index, width))
+                return 10
+            }
+        )
+        #expect(asked.map(\.0) == [0, 1, 2])
+        #expect(asked.allSatisfy { $0.1 == 390 })
+    }
+
+    @Test func sectionWidthsAreEqualOnBothSidesOfAnOffCentreFold() {
+        // Open wide, bar strip trailing: 440 | 351 pt halves around a 12 pt fold in an 803 pt container.
+        let layout = sections([100, 100, 100], total: 803, division: 440...452)
+        #expect(layout.frames[0].width == 351)
+        #expect(layout.frames[1].width == 351)
+        #expect(layout.frames[2].width == 351)
+        // The columns hug the outer margins; the wider half's surplus is the gutter.
+        #expect(layout.frames[0].x == 0)
+        #expect(layout.frames[1].maxX == 803)
+    }
+
+    @Test func nothingIsPlacedInsideTheFoldGutter() {
+        let folds: [ClosedRange<CGFloat>] = [390...410, 400...400, 440...452, 351...363, 458.5...458.5]
+        for fold in folds {
+            let layout = sections([100, 80, 60, 40, 20], total: 803, division: fold)
+            for frame in layout.frames where frame.width < 803 {
+                #expect(frame.maxX <= fold.lowerBound + 0.001 || frame.x >= fold.upperBound - 0.001)
+            }
+            #expect(layout.frames.allSatisfy { $0.x >= 0 && $0.maxX <= 803 + 0.001 })
+        }
+    }
+
+    @Test func noDivisionSplitsEvenlyAroundTheColumnSpacing() {
+        let layout = sections([10, 10], division: nil)
+        #expect(layout.frames[0] == .init(x: 0, y: 0, width: 394, height: 10))
+        #expect(layout.frames[1] == .init(x: 406, y: 0, width: 394, height: 10))
+    }
+
     // MARK: Grid columns around the fold
 
     @Test func foldColumnsGiveEveryColumnTheNarrowerHalfsWidthOnAnOffCentreHinge() throws {

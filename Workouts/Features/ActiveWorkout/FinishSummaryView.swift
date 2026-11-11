@@ -31,14 +31,14 @@ struct FinishSummaryView: View {
     @State private var sheetWidth: CGFloat = 0
 
     /// Content wider than this is capped and centred.
-    private static let readableWidth: CGFloat = 592
+    @ScaledMetric(relativeTo: .body) private var readableWidth = 592.0
     /// Below this the sheet keeps its single stat rows and edge-to-edge sections.
-    private static let wideThreshold: CGFloat = 500
+    @ScaledMetric(relativeTo: .body) private var wideThreshold = 500.0
 
-    private var isWide: Bool { sheetWidth >= Self.wideThreshold }
+    private var isWide: Bool { sheetWidth >= wideThreshold }
     /// Accessibility sizes keep the rows: a tile's value would not fit beside its neighbours.
     private var showsGrid: Bool { isWide && !dynamicTypeSize.isAccessibilitySize }
-    private var readableMargin: CGFloat { max(0, (sheetWidth - Self.readableWidth) / 2) }
+    private var readableMargin: CGFloat { max(0, (sheetWidth - readableWidth) / 2) }
 
     var body: some View {
         NavigationStack {
@@ -231,7 +231,10 @@ struct FinishSummaryView: View {
             Text(stat.title)
                 .font(.caption)
                 .foregroundStyle(.secondary)
+            // One line at its full width, so the five-across row only fits when every tile does.
             metric(stat)
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .ignore)

@@ -6,10 +6,12 @@
 import SwiftUI
 import WorkoutsKit
 
-/// The Workout tab's sections: one column at compact width, two fold-aware columns at regular width (the closed Duo's
-/// width versus the open one). Sections take the columns in order, first left, second right, third left again, so the
-/// reading and VoiceOver order stay the section order. Each column is a top-aligned stack, so a tall section does not
-/// stretch its neighbour. A single section keeps the full width, its own grid placing cards around the fold.
+/// The Workout tab's sections in one container at every width, so folding or unfolding the Duo moves the sections instead of
+/// rebuilding them (a section's grid width, an open menu and a zoom source survive). At compact width it is one full-width
+/// column; at regular width (the closed Duo's width versus the open one) two fold-aware columns. Sections take the columns in
+/// order, first left, second right, third left again, so the reading and VoiceOver order stay the section order. Each column
+/// is a top-aligned stack, so a tall section does not stretch its neighbour. A single section keeps the full width, its own
+/// grid placing cards around the fold. The placement itself is `FoldPlacement.sectionFrames`.
 struct FoldFlow<Content: View>: View {
     var spacing: CGFloat = 20
     @ViewBuilder let content: Content
@@ -20,78 +22,55 @@ struct FoldFlow<Content: View>: View {
     @State private var division: ClosedRange<CGFloat>?
 
     var body: some View {
-        if horizontalSizeClass == .regular {
-            FoldFlowLayout(division: division, rowSpacing: spacing) {
-                content
-            }
-            .onGeometryChange(for: ClosedRange<CGFloat>?.self) { proxy in
-                FoldPlacement.columnGap(
-                    divisions: proxy.reservedRegions(kind: .division, options: .includeInactive).map(\.frame),
-                    width: proxy.size.width
-                )
-            } action: {
-                division = $0
-            }
-        } else {
-            LazyVStack(alignment: .leading, spacing: spacing) {
-                content
-            }
+        FoldFlowLayout(columns: horizontalSizeClass == .regular ? 2 : 1, division: division, rowSpacing: spacing) {
+            content
+        }
+        .onGeometryChange(for: ClosedRange<CGFloat>?.self) { proxy in
+            FoldPlacement.columnGap(
+                divisions: proxy.reservedRegions(kind: .division, options: .includeInactive).map(\.frame),
+                width: proxy.size.width
+            )
+        } action: {
+            division = $0
         }
     }
 }
 
-/// Two columns of equal width (the narrower half's, around the fold; see `FoldPlacement.columnWidths`) that take the
-/// subviews alternately, each at its natural height from the top.
+/// One or two columns (two of equal width, the narrower half's, around the fold; see `FoldPlacement.columnWidths`) that take
+/// the subviews alternately, each at its natural height from the top. The arithmetic is `FoldPlacement.sectionFrames`.
 private struct FoldFlowLayout: Layout {
+    var columns: Int
     var division: ClosedRange<CGFloat>?
     var rowSpacing: CGFloat
     var columnSpacing: CGFloat = 12
 
+    private func placement(total: CGFloat, subviews: Subviews) -> FoldPlacement.SectionLayout {
+        FoldPlacement.sectionFrames(
+            count: subviews.count,
+            total: total,
+            division: division,
+            columns: columns,
+            columnSpacing: columnSpacing,
+            rowSpacing: rowSpacing,
+            height: { index, width in
+                subviews[index].sizeThatFits(ProposedViewSize(width: width, height: nil)).height
+            }
+        )
+    }
+
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         let total = proposal.width ?? 0
-        if subviews.count == 1 {
-            let height = subviews[0].sizeThatFits(ProposedViewSize(width: total, height: nil)).height
-            return CGSize(width: total, height: height)
-        }
-        let widths = FoldPlacement.columnWidths(total: total, division: division, spacing: columnSpacing)
-        var heights: [CGFloat] = [0, 0]
-        for (index, subview) in subviews.enumerated() {
-            let column = index % 2
-            let height = subview.sizeThatFits(
-                ProposedViewSize(width: column == 0 ? widths.left : widths.right, height: nil)
-            )
-            .height
-            heights[column] += (heights[column] > 0 ? rowSpacing : 0) + height
-        }
-        return CGSize(width: total, height: max(heights[0], heights[1]))
+        return CGSize(width: total, height: placement(total: total, subviews: subviews).height)
     }
 
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        if subviews.count == 1 {
-            subviews[0].place(
-                at: bounds.origin,
-                anchor: .topLeading,
-                proposal: ProposedViewSize(width: bounds.width, height: nil)
-            )
-            return
-        }
-        let widths = FoldPlacement.columnWidths(total: bounds.width, division: division, spacing: columnSpacing)
-        let rightX = bounds.minX + widths.left + widths.gap
-        var bottoms: [CGFloat] = [bounds.minY, bounds.minY]
-        var placed = [false, false]
-        for (index, subview) in subviews.enumerated() {
-            let column = index % 2
-            let width = column == 0 ? widths.left : widths.right
-            let proposed = ProposedViewSize(width: width, height: nil)
-            let height = subview.sizeThatFits(proposed).height
-            let y = bottoms[column] + (placed[column] ? rowSpacing : 0)
+        let layout = placement(total: bounds.width, subviews: subviews)
+        for (subview, frame) in zip(subviews, layout.frames) {
             subview.place(
-                at: CGPoint(x: column == 0 ? bounds.minX : rightX, y: y),
+                at: CGPoint(x: bounds.minX + frame.x, y: bounds.minY + frame.y),
                 anchor: .topLeading,
-                proposal: proposed
+                proposal: ProposedViewSize(width: frame.width, height: nil)
             )
-            bottoms[column] = y + height
-            placed[column] = true
         }
     }
 }

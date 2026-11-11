@@ -99,6 +99,15 @@ private struct FolderHeader: View {
     let move: (FolderMove) -> Void
     let delete: () -> Void
 
+    /// Regular width lays the folders in two columns, so a move goes sideways: earlier or later in the order.
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+    private var sideBySide: Bool { horizontalSizeClass == .regular }
+    private var earlierTitle: LocalizedStringKey { sideBySide ? "Move Earlier" : "Move Up" }
+    private var laterTitle: LocalizedStringKey { sideBySide ? "Move Later" : "Move Down" }
+    private var earlierSymbol: String { sideBySide ? "arrow.left" : "arrow.up" }
+    private var laterSymbol: String { sideBySide ? "arrow.right" : "arrow.down" }
+
     var body: some View {
         menu
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -113,11 +122,11 @@ private struct FolderHeader: View {
             Button("Rename Folder", systemImage: "pencil", action: rename)
                 .accessibilityIdentifier("workout.folder.rename")
             if canMoveUp {
-                Button("Move Up", systemImage: "arrow.up") { move(.up) }
+                Button(earlierTitle, systemImage: earlierSymbol) { move(.up) }
                     .accessibilityIdentifier("workout.folder.moveUp")
             }
             if canMoveDown {
-                Button("Move Down", systemImage: "arrow.down") { move(.down) }
+                Button(laterTitle, systemImage: laterSymbol) { move(.down) }
                     .accessibilityIdentifier("workout.folder.moveDown")
             }
             Button("Delete Folder", systemImage: "trash", role: .destructive, action: delete)
@@ -150,8 +159,8 @@ private struct FolderHeader: View {
         // The menu opens on a long press, which VoiceOver cannot do: the same actions, under the same conditions.
         .accessibilityActions {
             Button("Rename Folder", action: rename)
-            if canMoveUp { Button("Move Up") { move(.up) } }
-            if canMoveDown { Button("Move Down") { move(.down) } }
+            if canMoveUp { Button(earlierTitle) { move(.up) } }
+            if canMoveDown { Button(laterTitle) { move(.down) } }
             Button("Delete Folder", action: delete)
         }
         .accessibilityIdentifier("workout.folder.\(id.uuidString).toggle")
