@@ -18,7 +18,7 @@ struct ExerciseRecordsRoute: Hashable {
 }
 
 /// The centred summary sheet shown after Finish (`active-workout.md` section 3): a check, "Workout complete", the
-/// workout's ordinal, and Fitness-style coloured values. Done sits in the Close slot; nothing is bottom-anchored.
+/// workout's ordinal, and white `MetricText` stats (the PR count is gold when there is a record). Done sits in the Close slot; nothing is bottom-anchored.
 struct FinishSummaryView: View {
     let summary: FinishSummary
 
@@ -39,28 +39,30 @@ struct FinishSummaryView: View {
                     stat(
                         "Duration",
                         Self.durationText(summary.duration),
-                        spoken: FitnessFormat.spokenDuration(seconds: summary.duration),
-                        tint: .statDuration
+                        spoken: FitnessFormat.spokenDuration(seconds: summary.duration)
                     )
                     .accessibilityIdentifier("summary.duration")
                     stat(
                         "Volume",
                         HistoryList.volumeText(summary.volume, unit: summary.volumeUnit),
-                        spoken: Self.spokenVolume(summary.volume, unit: summary.volumeUnit),
-                        tint: .statVolume
+                        spoken: Self.spokenVolume(summary.volume, unit: summary.volumeUnit)
                     )
                     .accessibilityIdentifier("summary.volume")
-                    stat("Sets", "\(summary.setCount)", spoken: Self.counted(summary.setCount, "set"), tint: .statSets)
+                    stat("Sets", "\(summary.setCount)", spoken: Self.counted(summary.setCount, "set"))
                         .accessibilityIdentifier("summary.sets")
                     stat(
                         "Exercises",
                         "\(summary.exerciseCount)",
-                        spoken: Self.counted(summary.exerciseCount, "exercise"),
-                        tint: .statExercises
+                        spoken: Self.counted(summary.exerciseCount, "exercise")
                     )
                     .accessibilityIdentifier("summary.exercises")
-                    stat("PRs", "\(summary.prCount)", spoken: Self.counted(summary.prCount, "PR"), tint: .statPRs)
-                        .accessibilityIdentifier("summary.prs")
+                    stat(
+                        "PRs",
+                        "\(summary.prCount)",
+                        spoken: Self.counted(summary.prCount, "PR"),
+                        tint: summary.prCount > 0 ? Color.record : Color.primary
+                    )
+                    .accessibilityIdentifier("summary.prs")
                 }
 
                 ForEach(summary.prs, id: \.exerciseID) { exercise in
@@ -123,12 +125,10 @@ struct FinishSummaryView: View {
         .accessibilityElement(children: .combine)
     }
 
-    private func stat(_ title: String, _ value: String, spoken: String, tint: Color) -> some View {
+    /// One stat row: a white metric, or `tint` for the PR count.
+    private func stat(_ title: String, _ value: String, spoken: String, tint: Color = .primary) -> some View {
         LabeledContent {
-            Text(value)
-                .font(.title2.bold())
-                .fontDesign(.rounded)
-                .monospacedDigit()
+            MetricText(value, style: .title2)
                 .foregroundStyle(tint)
         } label: {
             Text(title)

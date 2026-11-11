@@ -9,13 +9,19 @@ extension SnapshotTests {
     /// The Live Activity views (compiled into the test bundle from `WorkoutsLiveActivity/`): the expanded Island row,
     /// the compact and minimal presentations, the closed Duo's narrow compact stack and the Lock Screen banner. The
     /// Island is always black, so the Island cases render in dark mode only, on a black shape sized like the system's
-    /// region, over a lighter backdrop so the shape shows.
+    /// region, over a lighter backdrop so the shape shows. The system draws the Lock Screen banner in the device's
+    /// appearance even though the app is dark-only, so the banner is compared in dark and in light.
     ///
     /// States are built from the real clock, half a second inside the second the timers should show (elapsed 1520.5 s, rest
     /// 74.5 s left), so the system-drawn timers (read once, at render) never flip to a neighbouring second.
     @MainActor
     struct LiveActivitySnapshots {
         private static let dark = SnapshotVariant(name: "dark", colorScheme: .dark, dynamicTypeSize: .large)
+        private static let light = SnapshotVariant(name: "large-light", colorScheme: .light, dynamicTypeSize: .large)
+
+        /// The Lock Screen banner's variants: the standard large dark one (`SnapshotVariant.all`) and light.
+        private static let lockScreenVariants: [SnapshotVariant] =
+            SnapshotVariant.all.filter { $0.dynamicTypeSize == .large } + [light]
 
         private static func set(number: Int = 3, isEmpty: Bool = false) -> WorkoutActivitySet {
             WorkoutActivitySet(
@@ -226,7 +232,7 @@ extension SnapshotTests {
             }
         }
 
-        @Test(arguments: SnapshotVariant.all.filter { $0.dynamicTypeSize == .large })
+        @Test(arguments: lockScreenVariants)
         func lockScreenWorking(variant: SnapshotVariant) {
             Snapshot.assert(
                 Banner(state: Self.working(), restOver: false),
@@ -236,7 +242,7 @@ extension SnapshotTests {
             )
         }
 
-        @Test(arguments: SnapshotVariant.all.filter { $0.dynamicTypeSize == .large })
+        @Test(arguments: lockScreenVariants)
         func lockScreenResting(variant: SnapshotVariant) {
             Snapshot.assert(
                 Banner(state: Self.resting(), restOver: false),
@@ -246,11 +252,12 @@ extension SnapshotTests {
             )
         }
 
-        @Test func lockScreenRestOver() {
+        @Test(arguments: [dark, light])
+        func lockScreenRestOver(variant: SnapshotVariant) {
             Snapshot.assert(
                 Banner(state: Self.restOver(), restOver: true),
                 named: "lock-rest-over",
-                variant: Self.dark,
+                variant: variant,
                 engine: .hostedFitting
             )
         }

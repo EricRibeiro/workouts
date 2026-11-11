@@ -15,8 +15,6 @@ import WorkoutsKit
 //   Color.onOkFill        black glyph or text on okFill
 //   Color.danger          destructive text and icons
 //   Color.onAccent        black label on a filled lime accent shape
-//   Color.statDuration, statVolume, statSets, statExercises, statPRs
-//                         Finish summary stat values (22pt bold), each at least 3:1 on #1C1C1E and black
 //   Color.record          personal-record trophy: system yellow
 //   Color.chartBelowGoal  weekly-goal chart bar for a week under the goal: the lime accent at 0.35 alpha
 //   Color.warmup          warm-up set kind

@@ -8,17 +8,39 @@ import WorkoutsKit
 
 /// The counting-down rest, inline under the set whose check started it: the countdown, the draining bar and Add 30 s / Skip. It is
 /// not a set row (no swipe actions); it is where a set's rest is controlled, so the logging toolbar shows the ring alone.
-/// The engine keeps an over rest for a few seconds (the toolbar pill flashes `0:00`); this row disappears at `endsAt` instead.
+/// The engine keeps an over rest for a few seconds (the toolbar pill flashes `0:00`); this row fades out at `endsAt` instead, the
+/// rows below sliding up as they do on Skip (a plain fade under Reduce Motion).
 struct RestTimerRow: View {
     let rest: SetTableRest
+    @State private var isShown: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @ScaledMetric(relativeTo: .body) private var touch = 44.0
     @ScaledMetric(relativeTo: .body) private var barHeight = 6.0
 
+    init(rest: SetTableRest) {
+        self.rest = rest
+        _isShown = State(initialValue: Date.now < rest.endsAt)
+    }
+
+    // This view outlives the row it gates (an empty body takes no height), so the exit transition has a view to run on. The task
+    // restarts when +30 s moves `endsAt`, and re-shows the row when a new rest for the same set reuses this view.
     var body: some View {
-        // One entry at `endsAt` re-renders the gate exactly when the countdown reaches 0; +30 s swaps the schedule.
-        TimelineView(.explicit([rest.endsAt])) { _ in
-            if Date.now < rest.endsAt { row }
+        ZStack {
+            if isShown {
+                row.transition(.opacity)
+            }
+        }
+        .task(id: rest.endsAt) {
+            let wait = rest.endsAt.timeIntervalSinceNow
+            guard wait > 0 else {
+                isShown = false
+                return
+            }
+            isShown = true
+            try? await Task.sleep(for: .seconds(wait))
+            guard !Task.isCancelled else { return }
+            withAnimation(reduceMotion ? .easeOut(duration: 0.2) : .snappy) { isShown = false }
         }
     }
 

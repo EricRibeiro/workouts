@@ -6,7 +6,7 @@ import WorkoutsKit
 @testable import Workouts
 
 extension SnapshotTests {
-    /// The finish summary sheet: the check, the ordinal, the five coloured stats and the PR sections.
+    /// The finish summary sheet: the check, the ordinal, the five white stats (gold PR count) and the PR sections.
     @MainActor
     struct FinishSummarySnapshots {
         @Test(arguments: SnapshotVariant.all)

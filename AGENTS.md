@@ -100,7 +100,8 @@ Rules for the loop:
 - **Run the narrowest proof.** One failing test → `./dev kit 'Suite/test'` or `./dev test Suite/test()`,
   not `./dev check`. `check` is for the end of a task.
 - **Visual regressions are caught by snapshot tests.** `WorkoutsTests/Snapshot` renders components (default and
-  accessibility-3 Dynamic Type, dark) and pixel-compares them with the PNGs in
+  accessibility-3 Dynamic Type, dark; the Live Activity's Lock Screen banner also in light, since the system draws it in the
+  device's appearance) and pixel-compares them with the PNGs in
   `WorkoutsTests/__Snapshots__/<File>/` (`./dev test SnapshotTests`, part of `./dev check`). A failure writes
   `<name>.actual.png` beside the reference (git-ignored): view it. Re-record only for an *intended* visual change, after
   viewing the `.actual.png`: `SNAPSHOT_RECORD=1 ./dev test SnapshotTests` (or one suite, `SnapshotTests/ExerciseRowSnapshots`),

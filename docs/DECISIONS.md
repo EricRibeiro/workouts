@@ -202,7 +202,8 @@ Eric deferred the technical choices to Claude. These close every item in `docs/p
     and stay distinct from lime.
   - Everything else is `.primary` / `.secondary` on `.fill.*` styles; card titles are plain `.headline`, untinted, no glyph.
   - Metrics are set Fitness-style by `MetricText` (kit `MetricPieces`): rounded medium digits, the unit in small caps glued
-    to the number, in the value's colour.
+    to the number, in the value's colour. The Finish summary's stats are white metrics, and its PR count is gold when the
+    workout set a record.
 - **Set-row states** (active workout; `SetRow`, `SetProgress.nextIndex` over the rows that show a check):
   - *Done*: olive row, values as plain text (no field fill), a quiet lime disc (`ok` at 0.18) with a lime check.
   - *Next* (the block's first unchecked set): a raised row (`.fill.secondary` at 0.5), brighter fields (`.fill.tertiary`),
