@@ -47,8 +47,9 @@ struct TemplateGrid: View {
 }
 
 /// One template as a card on the History dashboard's surface: the name (title3 bold) with the lime play button centred
-/// on its first line, the first exercises one per line (superset bar, "+ N more"), then one secondary line (exercise
-/// count, and when it was last performed) pinned to the bottom. The surface is a button that opens the preview; the
+/// on its first line, the first exercises one per line (superset bar, "+ N more"), then a footer pinned to the bottom:
+/// when the template was last performed in the primary colour (nothing for one never performed; "No exercises" in
+/// secondary for an empty one). The exercise count lives in the VoiceOver label. The surface is a button that opens the preview; the
 /// play button is its own button, floated over the card, that starts the workout. At accessibility sizes the play
 /// button drops below the name.
 struct TemplateCard: View {
@@ -189,24 +190,21 @@ struct TemplateCard: View {
         }
     }
 
-    /// "6 exercises · Yesterday" on one line, or stacked without the dot when that does not fit.
+    /// The recency alone ("Yesterday", "5 days ago"), in the primary colour so it does not read as another exercise. A
+    /// template never performed shows no footer, and an empty one shows its count ("No exercises") in secondary.
+    @ViewBuilder
     private var meta: some View {
-        ViewThatFits(in: .horizontal) {
-            Text(oneLineMeta)
-                .lineLimit(1)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(summary.countText)
-                if let last = summary.lastPerformed { Text(last) }
-            }
+        if let last = summary.lastPerformed {
+            Text(last)
+                .font(.footnote)
+                .foregroundStyle(.primary)
+                .multilineTextAlignment(.leading)
+        } else if summary.lines.isEmpty {
+            Text(summary.countText)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.leading)
         }
-        .font(.footnote)
-        .foregroundStyle(.secondary)
-        .multilineTextAlignment(.leading)
-    }
-
-    private var oneLineMeta: String {
-        guard let last = summary.lastPerformed else { return summary.countText }
-        return "\(summary.countText) · \(last)"
     }
 }
 

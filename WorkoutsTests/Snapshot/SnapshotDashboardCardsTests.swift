@@ -9,12 +9,19 @@ extension SnapshotTests {
     /// width, and the empty state of a new install.
     @MainActor
     struct DashboardCardsSnapshots {
-        private static func entry(_ name: String, day: Int, minutes: Int, volume: Double) -> HistoryEntry {
+        private static func entry(
+            _ name: String,
+            month: Int = 10,
+            day: Int,
+            minutes: Int,
+            volume: Double
+        ) -> HistoryEntry {
             let start =
-                DateComponents(calendar: SnapshotFixtures.calendar, year: 2026, month: 10, day: day, hour: 18).date
+                DateComponents(calendar: SnapshotFixtures.calendar, year: 2026, month: month, day: day, hour: 18).date
                 ?? SnapshotFixtures.now
             return HistoryEntry(
-                id: UUID(uuidString: "00000000-0000-0000-0000-0000000D00\(String(format: "%02d", day))") ?? UUID(),
+                id: UUID(uuidString: "00000000-0000-0000-0000-000000D0" + String(format: "%02d%02d", month, day))
+                    ?? UUID(),
                 name: name,
                 startedAt: start,
                 durationSeconds: minutes * 60,
@@ -25,12 +32,16 @@ extension SnapshotTests {
             )
         }
 
-        /// Newest first, as the History list passes them. The fixed `now` is Sunday 1 November, so three are this week.
+        /// Newest first, as the History list passes them. The fixed `now` is Sunday 1 November, so three are this week and the
+        /// older ones fill the four weeks before it (the averages).
         private static let entries = [
             entry("Pull Day", day: 31, minutes: 62, volume: 9_450),
             entry("Push Day", day: 29, minutes: 55, volume: 8_120.5),
             entry("Leg Day", day: 27, minutes: 71, volume: 14_300),
             entry("Upper Body", day: 20, minutes: 48, volume: 7_600),
+            entry("Push Day", day: 13, minutes: 52, volume: 8_900),
+            entry("Pull Day", day: 6, minutes: 60, volume: 10_200),
+            entry("Leg Day", month: 9, day: 30, minutes: 66, volume: 12_800),
         ]
 
         private static let recentPRs = [
@@ -77,11 +88,11 @@ extension SnapshotTests {
         /// Two columns at inner-display width, default text size only (at accessibility sizes the column minimum scales up
         /// and the grid is one column again, which `phone` covers). The grid measures its width in a state update, which
         /// `ImageRenderer` lays out for but does not re-fit the height to, and a hosted window cannot be wider than the
-        /// scene; so the height is pinned (the cards are about 350 pt tall).
+        /// scene; so the height is pinned (the cards are about 400 pt tall).
         @Test(arguments: SnapshotVariant.all.filter { $0.dynamicTypeSize == .large })
         func wide(variant: SnapshotVariant) {
             Snapshot.assert(
-                cards().environment(\.horizontalSizeClass, .regular).frame(height: 372, alignment: .top),
+                cards().environment(\.horizontalSizeClass, .regular).frame(height: 400, alignment: .top),
                 named: "wide",
                 variant: variant,
                 width: 800

@@ -15,6 +15,7 @@ struct ExercisesView: View {
     @Environment(ExerciseStore.self) private var store
     @Environment(SettingsStore.self) private var settings
     @Environment(\.modelContext) private var context
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     /// The newest edit among finished workouts: with the store generation it keys the best-set task without reading every
     /// workout. A delete or an import that updates an older workout bumps the generation.
     @Query(Workout.newestFinishedEdit) private var newest: [Workout]
@@ -65,6 +66,16 @@ struct ExercisesView: View {
         return store.exercise(id: id) != nil
     }
 
+    private var listFill: Color {
+        Color(horizontalSizeClass == .regular ? .secondarySystemBackground : .systemBackground)
+    }
+
+    /// A custom row background replaces the system's selection highlight, so the selected row at regular width draws its own
+    /// one step lighter than the column.
+    private func rowFill(selected: Bool) -> Color {
+        selected && horizontalSizeClass == .regular ? Color(.tertiarySystemBackground) : listFill
+    }
+
     private var list: some View {
         let plain = store.search(query, includeRetired: showRetired)
         // Only when the plain search found nothing and the parser answered for this exact text (PLAN 4.6).
@@ -81,11 +92,13 @@ struct ExercisesView: View {
                 bodyPart: $bodyPart,
                 category: $category
             )
+            .listRowBackground(listFill)
             ForEach(results) { info in
                 let subtitle = ExerciseFilter.subtitle(for: info, labels: labels)
                 let best = bestSets[info.id] ?? ""
                 ExerciseRow(info: info, subtitle: subtitle, trailing: best)
                     .tag(ExercisesRoute.exercise(info.id))
+                    .listRowBackground(rowFill(selected: selection == .exercise(info.id)))
                     .matchedTransitionSource(id: info.id, in: zoomNamespace)
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel(
@@ -98,6 +111,12 @@ struct ExercisesView: View {
             }
         }
         .listStyle(.plain)
+        // Beside the detail (regular width) the list column is a pane in the cards' fill; alone on the closed display it is the
+        // screen, black like the other tabs. The split view fills its columns with the `.navigation` background (the sidebar
+        // material by default); the `.navigationSplitView` placement only colours what sits behind them.
+        .scrollContentBackground(.hidden)
+        .background(listFill, ignoresSafeAreaEdges: .all)
+        .containerBackground(listFill, for: .navigation)
         .overlay {
             if results.isEmpty {
                 NoExerciseResultsView(query: query, hasFilter: bodyPart != nil || category != nil)

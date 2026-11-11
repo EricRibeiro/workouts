@@ -29,6 +29,19 @@ nonisolated func mondayFirst(_ calendar: Calendar) -> Calendar {
     return calendar
 }
 
+/// The Mondays of the last `weeks` weeks ending with the one containing `now`, oldest first. `calendar` must already be
+/// ``mondayFirst(_:)``; every week series cuts its weeks here so they agree across DST changes and time zones.
+nonisolated func weekStarts(weeks: Int, calendar: Calendar, now: Date) -> [Date] {
+    guard weeks > 0, let current = calendar.dateInterval(of: .weekOfYear, for: now)?.start else { return [] }
+    var starts: [Date] = []
+    for back in stride(from: weeks - 1, through: 0, by: -1) {
+        if let start = calendar.date(byAdding: .weekOfYear, value: -back, to: current) {
+            starts.append(start)
+        }
+    }
+    return starts
+}
+
 /// The last `weeks` Monday-first weeks ending with the one containing `now`, oldest first and zero-filled, with the
 /// number of `workouts` (finished workouts' start dates) in each. Weeks are cut in `calendar`'s time zone, so a
 /// workout at 23:30 Sunday and one at 00:30 Monday fall in different weeks even across a DST change.
@@ -38,16 +51,8 @@ public nonisolated func weeklyCounts(
     weeks: Int = 8,
     now: Date
 ) -> [WeekCount] {
-    guard weeks > 0 else { return [] }
     let calendar = mondayFirst(calendar)
-    guard let current = calendar.dateInterval(of: .weekOfYear, for: now)?.start else { return [] }
-
-    var starts: [Date] = []
-    for back in stride(from: weeks - 1, through: 0, by: -1) {
-        if let start = calendar.date(byAdding: .weekOfYear, value: -back, to: current) {
-            starts.append(start)
-        }
-    }
+    let starts = weekStarts(weeks: weeks, calendar: calendar, now: now)
 
     var counts: [Date: Int] = [:]
     for workout in workouts {

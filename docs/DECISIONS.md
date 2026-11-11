@@ -226,8 +226,16 @@ Eric deferred the technical choices to Claude. These close every item in `docs/p
   the name's first line; under the name at accessibility sizes) that starts the workout through the same `StartWorkoutFlow`
   as the preview's Start Workout, so a running workout raises "Workout in progress" first. It is a sibling overlay of the
   card button (a button cannot nest in a button), labelled "Start <name>" (`template.<uuid>.start`), disabled for a template
-  with no exercises. It is the only visible action on a card; the others stay in the `contextMenu`. Tapping the card still
+  with no exercises. The card's footer is the recency alone ("Yesterday", `.footnote`, `.primary`; none for a template never
+  performed, "No exercises" in `.secondary` for an empty one); the exercise count is in its VoiceOver label. The play disc is
+  the only visible action on a card; the others stay in the `contextMenu`. Tapping the card still
   opens the preview. A mis-tap costs a Discard, never data.
+- **History dashboard order and the hero** (Eric, 2026-11-10). The page opens with the This Week hero, then the weekly chart,
+  then Recent PRs and Last Workout; at regular width the left column is hero then chart, the right Recent PRs then Last
+  Workout. The hero is the done count as the big lime figure beside "of 3 workouts", one equal-width capsule per goal
+  workout under it (lime done, `.fill.tertiary` the rest, decorative), then Volume and Time as white `MetricText` over a
+  "avg" line, the mean of the four weeks before this one (shown only with history; the two metrics stack at accessibility
+  sizes). The Fitness lines stay below. The accessibility sentence appends the four-week averages.
 - **Finish** is `flag.checkered` (prominent, lime): the checkmark belongs to sets.
 
 ## Pushed-screen chrome (2026-11-07)

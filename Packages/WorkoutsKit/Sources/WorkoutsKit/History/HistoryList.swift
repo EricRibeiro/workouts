@@ -181,6 +181,26 @@ public nonisolated enum HistoryList {
         "\(volume.formatted(volumeStyle)) \(unit.rawValue)"
     }
 
+    /// `850`, `1.5k`, `12k`, `22.3k`, `1.2M`: an axis label without a unit, one decimal at most and no trailing `.0`.
+    /// Rounding rolls over, so `999.5` is `1k` and `999,950` is `1M`, never `1000` or `1000k`.
+    public static func compactVolumeText(_ volume: Double) -> String {
+        guard volume.isFinite else { return "0" }
+        let value = max(volume, 0)
+        let whole = value.rounded(.toNearestOrAwayFromZero)
+        if whole < 1000 { return "\(Int(whole))" }
+        let thousands = tenths(value / 1000)
+        if thousands < 10_000 { return tenthsText(thousands) + "k" }
+        return tenthsText(tenths(value / 1_000_000)) + "M"
+    }
+
+    private static func tenths(_ value: Double) -> Int {
+        Int((value * 10).rounded(.toNearestOrAwayFromZero))
+    }
+
+    private static func tenthsText(_ tenths: Int) -> String {
+        tenths % 10 == 0 ? "\(tenths / 10)" : "\(tenths / 10).\(tenths % 10)"
+    }
+
     /// Whole units, thousands separators, halves rounded up (away from zero), always en_US. A `FormatStyle` is a Sendable
     /// value, so this one is shared by every row and by the background reader.
     private static let volumeStyle = FloatingPointFormatStyle<Double>.number

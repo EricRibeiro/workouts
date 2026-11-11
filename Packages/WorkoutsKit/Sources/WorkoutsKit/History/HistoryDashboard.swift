@@ -15,6 +15,36 @@ public nonisolated struct ThisWeekSummary: Hashable, Sendable {
     }
 }
 
+/// Everything finished workouts did in one Monday-first week: the bars of the weekly volume chart.
+public nonisolated struct WeekTotal: Hashable, Sendable {
+    /// Start of the Monday, in the calendar's time zone.
+    public var weekStart: Date
+    public var workouts: Int
+    public var durationSeconds: Int
+    /// Total volume in the entries' display unit, rounded once to 0.5 like ``ThisWeekSummary/volume``.
+    public var volume: Double
+
+    public init(weekStart: Date, workouts: Int, durationSeconds: Int, volume: Double) {
+        self.weekStart = weekStart
+        self.workouts = workouts
+        self.durationSeconds = durationSeconds
+        self.volume = volume
+    }
+}
+
+/// The mean week before the current one: what "this week" is compared against.
+public nonisolated struct WeekBaseline: Hashable, Sendable {
+    public var volume: Double
+    public var durationSeconds: Int
+    public var workouts: Double
+
+    public init(volume: Double, durationSeconds: Int, workouts: Double) {
+        self.volume = volume
+        self.durationSeconds = durationSeconds
+        self.workouts = workouts
+    }
+}
+
 /// A record newly set in a finished workout, for the "Recent PRs" card: one per exercise session, showing its
 /// first record (e1RM, heaviest, volume, reps, duration, in that order).
 public nonisolated struct RecentPR: Identifiable, Hashable, Sendable {
@@ -94,6 +124,102 @@ public nonisolated enum HistoryDashboard {
             volume: displayedVolume(kg: inWeek.reduce(0) { $0 + $1.volumeKg }, displayUnit: weekUnit),
             unit: weekUnit
         )
+    }
+
+    /// The last `weeks` Monday-first weeks ending with the one containing `now`, oldest first and zero-filled, with each
+    /// week's workouts, duration and volume. Weeks are cut like ``weeklyCounts(workouts:calendar:weeks:now:)``. Volume is
+    /// the unrounded kg summed and rounded once, in the first entry's unit (entries share the display unit; kg when empty).
+    public static func weeklyTotals(
+        entries: [HistoryEntry],
+        weeks: Int,
+        calendar: Calendar,
+        now: Date
+    ) -> [WeekTotal] {
+        let calendar = mondayFirst(calendar)
+        let starts = weekStarts(weeks: weeks, calendar: calendar, now: now)
+        let unit = entries.first?.unit ?? .kg
+        var sums: [Date: (workouts: Int, seconds: Int, kg: Double)] = [:]
+        for entry in entries {
+            guard let start = calendar.dateInterval(of: .weekOfYear, for: entry.startedAt)?.start else { continue }
+            var sum = sums[start] ?? (0, 0, 0)
+            sum.workouts += 1
+            sum.seconds += entry.durationSeconds
+            sum.kg += entry.volumeKg
+            sums[start] = sum
+        }
+        return starts.map { start in
+            let sum = sums[start] ?? (0, 0, 0)
+            return WeekTotal(
+                weekStart: start,
+                workouts: sum.workouts,
+                durationSeconds: sum.seconds,
+                volume: displayedVolume(kg: sum.kg, displayUnit: unit)
+            )
+        }
+    }
+
+    /// For each value, the mean of the `window` values before it; nil while fewer than `window` precede it. The value
+    /// itself is left out, so a week in progress never drags its own baseline. A `window` of 0 or less gives all nil.
+    public static func trailingAverages(_ values: [Double], window: Int) -> [Double?] {
+        values.indices.map { index in
+            guard window > 0, index >= window else { return nil }
+            return values[(index - window)..<index].reduce(0, +) / Double(window)
+        }
+    }
+
+    /// The mean week among the `window` weeks before the last of `totals` (the current week); nil when fewer than
+    /// `window` weeks precede it or when those weeks hold no workouts.
+    public static func baseline(totals: [WeekTotal], window: Int = 4) -> WeekBaseline? {
+        guard window > 0, totals.count > window else { return nil }
+        let previous = totals[(totals.count - 1 - window)..<(totals.count - 1)]
+        let workouts = previous.reduce(0) { $0 + $1.workouts }
+        guard workouts > 0 else { return nil }
+        let count = Double(window)
+        let seconds = Double(previous.reduce(0) { $0 + $1.durationSeconds })
+        return WeekBaseline(
+            volume: previous.reduce(0) { $0 + $1.volume } / count,
+            durationSeconds: Int((seconds / count).rounded()),
+            workouts: Double(workouts) / count
+        )
+    }
+
+    /// The top of the volume chart's y axis: 3 to 5 equal steps of 1, 2, 2.5 or 5 times a power of ten, the combination
+    /// whose top is the smallest value that reaches the busiest week (a tie goes to the count nearest 4); 1 when every
+    /// week is zero.
+    public static func volumeAxisTop(totals: [WeekTotal]) -> Double {
+        volumeAxis(totals: totals).top
+    }
+
+    /// The distance between the volume chart's gridlines: `volumeAxisTop` divided into 3 to 5 equal steps; 1 when every
+    /// week is zero.
+    public static func volumeAxisStep(totals: [WeekTotal]) -> Double {
+        volumeAxis(totals: totals).step
+    }
+
+    private static func volumeAxis(totals: [WeekTotal]) -> (top: Double, step: Double) {
+        let busiest = totals.map(\.volume).max() ?? 0
+        guard busiest > 0, busiest.isFinite else { return (1, 1) }
+        let magnitude = pow(10, floor(log10(busiest)))
+        var best: (top: Double, step: Double, count: Int)?
+        // Steps from a tenth of the busiest week's magnitude to ten times it cover every 3 to 5 step axis that can reach it.
+        for exponent in -1...1 {
+            for base in [1.0, 2, 2.5, 5] {
+                let step = base * magnitude * pow(10, Double(exponent))
+                for count in 3...5 {
+                    let top = step * Double(count)
+                    guard top >= busiest * (1 - 1e-9) else { continue }
+                    let tolerance = top * 1e-9
+                    if let current = best {
+                        if top > current.top + tolerance { continue }
+                        let closer = abs(count - 4) < abs(current.count - 4)
+                        if top >= current.top - tolerance && !closer { continue }
+                    }
+                    best = (top, step, count)
+                }
+            }
+        }
+        guard let best else { return (1, 1) }
+        return (best.top, best.step)
     }
 
     /// Active calories (from Apple Fitness) summed over the finished `workouts` started in the Monday-first week containing

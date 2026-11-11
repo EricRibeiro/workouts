@@ -101,6 +101,23 @@ fileprivate func perSessionPRCounts(
         #expect(HistoryList.volumeText(999.4, unit: .lb) == "999 lb")
     }
 
+    @Test func compactVolumeTextShortensAxisLabels() {
+        #expect(HistoryList.compactVolumeText(0) == "0")
+        #expect(HistoryList.compactVolumeText(850) == "850")
+        #expect(HistoryList.compactVolumeText(1_500) == "1.5k")
+        #expect(HistoryList.compactVolumeText(12_000) == "12k")
+        #expect(HistoryList.compactVolumeText(22_318) == "22.3k")
+        #expect(HistoryList.compactVolumeText(1_200_000) == "1.2M")
+    }
+
+    @Test func compactVolumeTextNeverPrintsAThousandOfAnything() {
+        #expect(HistoryList.compactVolumeText(999.4) == "999")
+        #expect(HistoryList.compactVolumeText(999.5) == "1k")
+        #expect(HistoryList.compactVolumeText(999_949) == "999.9k")
+        #expect(HistoryList.compactVolumeText(999_950) == "1M")
+        #expect(HistoryList.compactVolumeText(1_000) == "1k")
+    }
+
     @Test func prTextPluralises() {
         #expect(HistoryList.prText(count: 1) == "1 PR")
         #expect(HistoryList.prText(count: 3) == "3 PRs")

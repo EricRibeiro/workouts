@@ -189,12 +189,26 @@ import Testing
         // A flat-open hinge reports no width: the gutter is 12 pt centred on it, so the columns never touch.
         let flat = FoldPlacement.columnWidths(total: 800, division: 400...400, spacing: 12)
         #expect(flat.left == 394 && flat.gap == 12 && flat.right == 394)
-        // Off centre (a bar strip on one side): still centred on the hinge.
+        // Off centre (a bar strip on one side): both columns take the narrower half's width and the surplus widens the
+        // gutter around the hinge.
         let offCentre = FoldPlacement.columnWidths(total: 853, division: 458.5...458.5, spacing: 12)
-        #expect(offCentre.left == 452.5 && offCentre.gap == 12 && offCentre.right == 388.5)
+        #expect(offCentre.left == 388.5 && offCentre.gap == 76 && offCentre.right == 388.5)
         // A fold wider than the spacing keeps its own width.
         let wide = FoldPlacement.columnWidths(total: 800, division: 390...410, spacing: 12)
         #expect(wide.gap == 20)
+    }
+
+    @Test func columnWidthsAreEqualWhicheverHalfIsWider() {
+        // Open wide with the bar strip trailing: 440 | 351 pt halves around a 12 pt fold.
+        let leftWider = FoldPlacement.columnWidths(total: 803, division: 440...452, spacing: 12)
+        #expect(leftWider.left == 351 && leftWider.right == 351 && leftWider.gap == 101)
+        // The mirror image: the wider half on the right.
+        let rightWider = FoldPlacement.columnWidths(total: 803, division: 351...363, spacing: 12)
+        #expect(rightWider.left == 351 && rightWider.right == 351 && rightWider.gap == 101)
+        // The gutter contains the fold and the columns still fill the width.
+        #expect(leftWider.left <= 440 && leftWider.left + leftWider.gap >= 452)
+        #expect(rightWider.left <= 351 && rightWider.left + rightWider.gap >= 363)
+        #expect(leftWider.left + leftWider.gap + leftWider.right == 803)
     }
 
     @Test func columnWidthsFallBackToEvenWhenASideIsTooNarrow() {
@@ -207,24 +221,83 @@ import Testing
 
     // MARK: Grid columns around the fold
 
-    @Test func foldColumnsPutTheMiddleGutterOnAnOffCentreHinge() throws {
+    @Test func foldColumnsGiveEveryColumnTheNarrowerHalfsWidthOnAnOffCentreHinge() throws {
         // Open wide: a 951 pt display, hinge at x = 475.5, a 17 pt margin and a 64 pt bar strip on the trailing edge. The
         // grid starts at x = 17 and is 951 - 17 - 17 - 64 = 853 pt wide, so the hinge is at 458.5 in the grid's own space
-        // and an inactive hinge reports no width.
+        // and an inactive hinge reports no width. The halves are 452.5 and 388.5 pt.
         let hinge: CGFloat = 458.5
         let columns = try #require(
             FoldPlacement.foldColumns(width: 853, minimum: 160, spacing: 12, division: hinge...hinge)
         )
         #expect(columns.count == 4)
-        // Two columns a side; the gutter between them is 12 pt, centred on the hinge.
-        #expect(columns[1].spacingAfter == 12)
+        let column = (388.5 - 12) / 2
+        #expect(columns.allSatisfy { abs($0.width - column) < 0.001 })
+        // The surplus of the wider half sits in the gutter, which contains the hinge's 12 pt division.
+        #expect(abs(columns[1].spacingAfter - (853 - 2 * 388.5)) < 0.001)
         let leftEdge = columns[0].width + 12 + columns[1].width
-        #expect(abs(leftEdge - (hinge - 6)) < 0.001)
-        #expect(abs(leftEdge + 12 - (hinge + 6)) < 0.001)
-        // Nothing crosses and the grid still fills its width.
+        #expect(leftEdge <= hinge - 6 + 0.001)
+        #expect(leftEdge + columns[1].spacingAfter >= hinge + 6 - 0.001)
+        // The grid still fills its width, outer margins untouched.
         let total = columns.reduce(0) { $0 + $1.width + $1.spacingAfter }
         #expect(abs(total - 853) < 0.001)
         #expect(columns.allSatisfy { $0.width >= 160 })
+    }
+
+    @Test func foldColumnsAreEqualWhenTheWiderHalfIsOnTheRight() throws {
+        // Mirror of a 440 | 351 split: the division is 351 pt from the left edge, the right half is the wider one.
+        let columns = try #require(
+            FoldPlacement.foldColumns(width: 791, minimum: 160, spacing: 12, division: 351...351)
+        )
+        let mirrored = try #require(
+            FoldPlacement.foldColumns(width: 791, minimum: 160, spacing: 12, division: 440...440)
+        )
+        #expect(columns.count == 4 && mirrored.count == 4)
+        let column = (345 - 12) / 2.0
+        #expect(columns.allSatisfy { abs($0.width - column) < 0.001 })
+        #expect(mirrored.allSatisfy { abs($0.width - column) < 0.001 })
+        // The columns hug the outer margins on both sides, so the grid is the mirror image of the other.
+        #expect(abs(columns[1].spacingAfter - mirrored[1].spacingAfter) < 0.001)
+        let total = columns.reduce(0) { $0 + $1.width + $1.spacingAfter }
+        #expect(abs(total - 791) < 0.001)
+        // Right half starts where the grid's right-hand columns end at the trailing margin.
+        let rightStart = 791 - (2 * column + 12)
+        #expect(rightStart >= 351 + 6 - 0.001)
+    }
+
+    @Test func foldColumnsSplitUnequalHalvesIntoFourEqualColumns() throws {
+        // 440 | 351 around a 12 pt division: the 440 pt half's columns shrink to the 351 pt half's width.
+        let columns = try #require(
+            FoldPlacement.foldColumns(width: 803, minimum: 160, spacing: 12, division: 440...452)
+        )
+        #expect(columns.count == 4)
+        let column = (351 - 12) / 2.0
+        #expect(columns.allSatisfy { abs($0.width - column) < 0.001 })
+        #expect(abs(columns[1].spacingAfter - (803 - 2 * 351)) < 0.001)
+    }
+
+    @Test func foldColumnsAreOnePerHalfWhenOnlyOneFits() throws {
+        // Halves are 394 and 354 pt; neither holds two 300 pt columns, so each has one, both 354 wide.
+        let columns = try #require(
+            FoldPlacement.foldColumns(width: 760, minimum: 300, spacing: 12, division: 400...400)
+        )
+        #expect(columns.count == 2)
+        #expect(columns.allSatisfy { abs($0.width - 354) < 0.001 })
+        #expect(abs(columns[0].spacingAfter - 52) < 0.001)
+        #expect(columns[1].spacingAfter == 0)
+    }
+
+    @Test func foldColumnsGutterAlwaysContainsTheDivision() throws {
+        for hinge in stride(from: CGFloat(330), through: 520, by: 10) {
+            let columns = try #require(
+                FoldPlacement.foldColumns(width: 850, minimum: 160, spacing: 12, division: hinge...(hinge + 8))
+            )
+            let perHalf = columns.count / 2
+            let lowerEnd = columns[..<perHalf].reduce(0) { $0 + $1.width } + 12 * CGFloat(perHalf - 1)
+            let gutter = columns[perHalf - 1].spacingAfter
+            #expect(lowerEnd <= hinge + 0.001)
+            #expect(lowerEnd + gutter >= hinge + 8 - 0.001)
+            #expect(lowerEnd + gutter >= lowerEnd + 12 - 0.001)
+        }
     }
 
     @Test func foldColumnsKeepAWideDivisionAsTheGutter() throws {

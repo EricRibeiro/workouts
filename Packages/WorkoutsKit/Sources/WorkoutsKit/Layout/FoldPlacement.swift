@@ -136,10 +136,11 @@ public nonisolated enum FoldPlacement {
         return frame.minX > 0 && frame.maxX < width ? frame.minX...frame.maxX : nil
     }
 
-    /// Left width, gutter width and right width for two columns in `total`: split around `division` when there is one that
-    /// leaves room, else two equal columns around `spacing`. The gutter is the division widened to at least `spacing`
-    /// around its centre (a flat-open hinge reports almost no width, and the columns must not touch). When either side
-    /// would be narrower than `minimumColumn`, the split is even instead.
+    /// Left width, gutter width and right width for two columns in `total`: both columns take the width of the narrower half
+    /// around `division` when there is one that leaves room, so the outer margins stay and the wider half's surplus goes into
+    /// the gutter, which still contains the division; else two equal columns around `spacing`. The gutter is the division
+    /// widened to at least `spacing` around its centre (a flat-open hinge reports almost no width, and the columns must not
+    /// touch). When either side would be narrower than `minimumColumn`, the split is even instead.
     public static func columnWidths(
         total: CGFloat,
         division: ClosedRange<CGFloat>?,
@@ -151,7 +152,8 @@ public nonisolated enum FoldPlacement {
             let lower = division.lowerBound - widen
             let upper = division.upperBound + widen
             if lower >= minimumColumn, total - upper >= minimumColumn {
-                return (lower, upper - lower, total - upper)
+                let column = min(lower, total - upper)
+                return (column, total - 2 * column, column)
             }
         }
         let column = max(0, (total - spacing) / 2)
@@ -174,8 +176,10 @@ public nonisolated enum FoldPlacement {
     /// The columns of a grid `width` wide whose middle gutter is `division`, so no card crosses the fold: the same number of
     /// columns before the division and after it, each at least `minimum` wide. The gutter is the division widened to at
     /// least `spacing` around its centre (an inactive hinge reports no width). The halves are unequal when the grid is off
-    /// the display's centre (a bar strip on one side), so each half sizes its own columns. Nil when there is no division
-    /// inside the grid or a half cannot hold one column at `minimum`; the caller then uses its fold-less column count.
+    /// the display's centre (a bar strip on one side). Every column gets the width the narrower half gives it, so a card
+    /// looks the same on both sides; the outer margins stay and the wider half's surplus goes into the gutter around the
+    /// fold. Nil when there is no division inside the grid or a half cannot hold one column at `minimum`; the caller then
+    /// uses its fold-less column count.
     public static func foldColumns(
         width: CGFloat,
         minimum: CGFloat,
@@ -191,10 +195,11 @@ public nonisolated enum FoldPlacement {
         func fit(_ half: CGFloat) -> Int { Int(((half + spacing) / (minimum + spacing)).rounded(.down)) }
         let perHalf = min(fit(lower), fit(trailing))
         guard perHalf >= 1 else { return nil }
-        func half(_ extent: CGFloat, lastGap: CGFloat) -> [GridColumn] {
-            let column = (extent - spacing * CGFloat(perHalf - 1)) / CGFloat(perHalf)
-            return (0..<perHalf).map { GridColumn(width: column, spacingAfter: $0 == perHalf - 1 ? lastGap : spacing) }
+        let narrow = min(lower, trailing)
+        let column = (narrow - spacing * CGFloat(perHalf - 1)) / CGFloat(perHalf)
+        func half(lastGap: CGFloat) -> [GridColumn] {
+            (0..<perHalf).map { GridColumn(width: column, spacingAfter: $0 == perHalf - 1 ? lastGap : spacing) }
         }
-        return half(lower, lastGap: upper - lower) + half(trailing, lastGap: 0)
+        return half(lastGap: width - 2 * narrow) + half(lastGap: 0)
     }
 }

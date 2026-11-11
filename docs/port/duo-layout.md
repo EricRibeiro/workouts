@@ -59,7 +59,7 @@ status bar, toolbar items, tab bar. Rules that follow:
   trailing; choose with `presentationPlacement(_:)`. Sheets, popovers, alerts and menus move off
   the fold automatically.
 - Grids: prefer an **even number of columns** so nothing straddles the fold; keep outer margins
-  and widen the gap around the hinge (Apple's Fitness example). Our template grid
+  and widen the gap around the hinge (Apple's Fitness example); when the bar strip makes the halves unequal, every column takes the narrower half's width and the wider half's surplus goes into that gap (the same rule for the card grids and for the dashboard's and workout detail's two columns). Our template grid
   derives an even column count from its own width (`DECISIONS.md`), not from the size class.
 - New windows can only be created on the inner display; not something this app needs.
 

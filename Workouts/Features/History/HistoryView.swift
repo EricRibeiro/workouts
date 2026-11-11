@@ -192,16 +192,9 @@ struct HistoryView: View {
                             // One row, so the chart and the cards under it share the grid's gap (separate list rows
                             // would add the row insets between them).
                             VStack(spacing: Metrics.dashboardSpacing) {
-                                WeeklyGoalSection(starts: finished.map(\.startedAt))
-                                DashboardSection(
-                                    entries: entries,
-                                    recentPRs: recentPRs,
-                                    weekActiveKcal: weekKcal,
-                                    weekAverageBpm: weekBpm,
-                                    isLoaded: hasLoadedSummary
-                                ) {
-                                    path.append(.workout($0))
-                                }
+                                dashboard(.hero, weekKcal: weekKcal, weekBpm: weekBpm)
+                                WeeklyGoalSection(starts: finished.map(\.startedAt), entries: entries)
+                                dashboard(.rest, weekKcal: weekKcal, weekBpm: weekBpm)
                             }
                             .listRowSeparator(.hidden)
                             .listRowBackground(Color.clear)
@@ -285,6 +278,19 @@ struct HistoryView: View {
     private var avgHeartRateByWorkout: [UUID: Double] {
         finished.reduce(into: [:]) { result, workout in
             if let bpm = workout.avgHeartRate { result[workout.id] = bpm }
+        }
+    }
+
+    private func dashboard(_ part: DashboardCards.Part, weekKcal: Double?, weekBpm: Double?) -> some View {
+        DashboardSection(
+            entries: entries,
+            recentPRs: recentPRs,
+            weekActiveKcal: weekKcal,
+            weekAverageBpm: weekBpm,
+            isLoaded: hasLoadedSummary,
+            part: part
+        ) {
+            path.append(.workout($0))
         }
     }
 
