@@ -166,6 +166,10 @@ final class AccessibilityAuditUITests: XCTestCase {
             // same pattern also covers Workout Detail's best-set text (`386 lb × 5`), a plain unlimited `Text` whose
             // frame equals its glyph bounds.
             if element.label.contains(" × ") { return true }
+            // The This Week card's `usually 20,973 lb` lines: a plain unlimited `Text` whose frame equals its glyph bounds,
+            // in full at the default and accessibility sizes (checked on screenshots). The figure is what is usual by now, so
+            // it changes with the clock and only some values trip the audit.
+            if element.label.hasPrefix("usually ") { return true }
             // The template cards' exercise lines and "+ N more" (one line at the default size; at accessibility sizes the
             // names wrap, so this never applies there). The card is one VoiceOver element and the audit still walks the
             // texts inside it; the rule matches the element by position, inside a card's button, and only these lines
