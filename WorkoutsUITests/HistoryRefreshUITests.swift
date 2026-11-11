@@ -66,6 +66,7 @@ final class HistoryRefreshUITests: XCTestCase {
             app.keyboards.firstMatch.waitForExistence(timeout: 5),
             "pulling the list down did not open search"
         )
+        app.keyboards.firstMatch.assertStaysPresent(for: 4, "search closed by itself after the pull")
         XCTAssertTrue(app.searchFields.firstMatch.exists, "no search field after the pull")
         app.otherElements["Refreshing content"].assertStaysAbsent(for: 1.5, "a refresh spinner after the pull")
     }

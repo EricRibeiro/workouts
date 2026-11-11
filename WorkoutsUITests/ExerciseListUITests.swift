@@ -72,6 +72,7 @@ final class ExerciseListUITests: XCTestCase {
         start.press(forDuration: 0.1, thenDragTo: start.withOffset(CGVector(dx: 0, dy: 260)))
 
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5), "pulling down did not open search")
+        app.keyboards.firstMatch.assertStaysPresent(for: 4, "search closed by itself after the pull")
         let search = app.searchFields.firstMatch
         XCTAssertTrue(search.exists)
         search.typeText("bench\n")

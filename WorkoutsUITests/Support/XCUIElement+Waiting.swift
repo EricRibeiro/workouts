@@ -45,6 +45,27 @@ extension XCUIElement {
     }
 }
 
+extension XCUIElement {
+    /// Asserts the element exists now and keeps existing for `duration`, polling every 0.2 s: a transient element (search
+    /// presented, then closed again by a loop) passes `waitForExistence` and would pass a single `exists` read.
+    @MainActor
+    func assertStaysPresent(
+        for duration: TimeInterval = 1,
+        _ message: @autoclosure () -> String = "",
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let deadline = Date().addingTimeInterval(duration)
+        repeat {
+            guard exists else {
+                XCTFail(message(), file: file, line: line)
+                return
+            }
+            Thread.sleep(forTimeInterval: 0.2)
+        } while Date() < deadline
+    }
+}
+
 extension XCUIApplication {
     /// Dismisses the sheet whose content starts at `top` (any element near the sheet's top, such as its detail's name) by
     /// dragging down from just above that element to the bottom of the window: the grabber's area, which dismisses at
