@@ -20,6 +20,11 @@ struct AppBundleTests {
         #expect(session.categoryOptions.contains(.mixWithOthers))
     }
 
+    /// The app is dark-only: the Info.plist pins the interface style.
+    @Test func infoPlistPinsTheDarkInterfaceStyle() {
+        #expect(Bundle.main.infoDictionary?["UIUserInterfaceStyle"] as? String == "Dark")
+    }
+
     /// The Live Activity needs the app to opt in; without the key `Activity.request` throws at run time.
     @Test func infoPlistSupportsLiveActivities() {
         #expect(Bundle.main.infoDictionary?["NSSupportsLiveActivities"] as? Bool == true)

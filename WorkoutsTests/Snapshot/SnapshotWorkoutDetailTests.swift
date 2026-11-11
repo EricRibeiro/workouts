@@ -10,7 +10,7 @@ extension SnapshotTests {
     /// The pushed workout detail in its two states, hosted in a `NavigationStack` like the real push: the loading frame
     /// (the detail load held by the DEBUG `slowLoads` seam, PLAN 7b.4) and the loaded screen. Both are recorded, and
     /// `Snapshot.assertSameChrome` requires their navigation bar and title to be identical (PLAN 7b.5, DECISIONS.md
-    /// "Pushed-screen chrome"). Light, default Dynamic Type: the chrome rule does not vary with either.
+    /// "Pushed-screen chrome"). Dark, default Dynamic Type: the chrome rule does not vary with either.
     ///
     /// Serialized because the hold is a process-wide `UserDefaults` key.
     @MainActor
@@ -72,8 +72,16 @@ extension SnapshotTests {
             let loaded = try await render(workoutID: newest.id, environment: environment, held: false, unlike: loading)
 
             // The bar's glass varies per simulator, so the references skip it; the chrome check below compares it in-run.
-            // The references take the draw at the fixed settle (the spinner's phase is time-based and recorded there).
-            Snapshot.assert(png: loading.atSettle, named: "loading", variant: Self.variant, excludingTop: 80)
+            // The loading frame's spinner phase is time-based, so a 72 pt square around it is masked out. It is centred in
+            // the content area below the bar: (188, 445) pt in the 390 x 844 frame.
+            let spinner = CGRect(x: 188 - 36, y: 445 - 36, width: 72, height: 72)
+            Snapshot.assert(
+                png: loading.atSettle,
+                named: "loading",
+                variant: Self.variant,
+                excludingTop: 80,
+                excluding: spinner
+            )
             Snapshot.assert(png: loaded.atSettle, named: "loaded", variant: Self.variant, excludingTop: 80)
             // The chrome check takes the draws after each bar stopped animating (`renderSettled`), not a fixed sleep.
             // The hosted frame has no status bar, so the inline bar ends at ~80 pt and the first card starts right under it.

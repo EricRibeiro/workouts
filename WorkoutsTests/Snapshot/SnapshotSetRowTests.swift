@@ -21,6 +21,43 @@ extension SnapshotTests {
             )
         }
 
+        /// One done row, the NEXT row (lit fields, accent check ring) and a pending row.
+        @Test(arguments: SnapshotVariant.all)
+        func nextRow(variant: SnapshotVariant) {
+            let next = UUID()
+            let rows = [
+                SetRowModel(
+                    id: UUID(),
+                    number: 1,
+                    previousText: "60 kg × 8",
+                    previousShortText: "60 × 8",
+                    weightText: "60",
+                    repsText: "8",
+                    isChecked: true
+                ),
+                SetRowModel(
+                    id: next,
+                    number: 2,
+                    previousText: "60 kg × 8",
+                    previousShortText: "60 × 8",
+                    weightText: "60",
+                    repsText: "8"
+                ),
+                SetRowModel(
+                    id: UUID(),
+                    number: 3,
+                    previousText: "60 kg × 8",
+                    previousShortText: "60 × 8"
+                ),
+            ]
+            Snapshot.assert(
+                SnapshotSetRowHost(rows: rows, nextID: next),
+                named: "nextRow",
+                variant: variant,
+                engine: .hostedFitting
+            )
+        }
+
         @Test(arguments: SnapshotVariant.all)
         func templateRows(variant: SnapshotVariant) {
             let rows = [
@@ -61,6 +98,7 @@ extension SnapshotTests {
                     number: 5,
                     kind: .warmup,
                     previousText: "40 kg × 10",
+                    previousShortText: "40 × 10",
                     weightText: "40",
                     repsText: "10",
                     isChecked: true
@@ -69,6 +107,7 @@ extension SnapshotTests {
                     id: UUID(),
                     number: 6,
                     previousText: "10 kg × 0:45",
+                    previousShortText: "10 × 0:45",
                     weightText: "10",
                     repsText: "0:45",
                     isChecked: true,
@@ -78,6 +117,7 @@ extension SnapshotTests {
                     id: UUID(),
                     number: 7,
                     previousText: "1:00",
+                    previousShortText: "1:00",
                     repsText: "1:00",
                     isChecked: true,
                     measure: .duration,

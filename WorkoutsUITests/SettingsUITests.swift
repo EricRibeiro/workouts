@@ -37,27 +37,6 @@ final class SettingsUITests: XCTestCase {
     }
 
     @MainActor
-    func testAppearancePickerDefaultsToSystemAndSwitchesToDark() throws {
-        let app = launch()
-        let appearance = app.segmentedControls["settings.appearance"]
-        for _ in 0..<3 where !appearance.exists { app.swipeUp() }
-        XCTAssertTrue(appearance.waitForExistence(timeout: 10), "no appearance control")
-        XCTAssertTrue(appearance.buttons["System"].isSelected)
-        appearance.buttons["Dark"].tap()
-        XCTAssertTrue(appearance.buttons["Dark"].isSelected)
-        XCTAssertFalse(appearance.buttons["System"].isSelected)
-    }
-
-    @MainActor
-    func testLaunchArgumentSelectsDark() throws {
-        let app = XCUIApplication.launchedForTesting(["-preview", "Settings", "-appearance", "dark"])
-        let appearance = app.segmentedControls["settings.appearance"]
-        for _ in 0..<3 where !appearance.exists { app.swipeUp() }
-        XCTAssertTrue(appearance.waitForExistence(timeout: 10), "no appearance control")
-        XCTAssertTrue(appearance.buttons["Dark"].isSelected)
-    }
-
-    @MainActor
     func testWeeklyGoalStepperIncrements() throws {
         let app = launch()
         let stepper = app.steppers["settings.weeklyGoal"]

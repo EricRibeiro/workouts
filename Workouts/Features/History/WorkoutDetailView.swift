@@ -555,7 +555,7 @@ private struct ExerciseBlockView: View {
                     Spacer(minLength: 0)
                     if line.isPR {
                         Image(systemName: "trophy.fill")
-                            .foregroundStyle(.tint)
+                            .foregroundStyle(Color.record)
                     }
                 }
             }
@@ -608,7 +608,7 @@ private struct ExerciseBlockView: View {
                 .fixedSize(horizontal: false, vertical: true)
             if !block.prLines.isEmpty {
                 Image(systemName: "trophy.fill")
-                    .foregroundStyle(.tint)
+                    .foregroundStyle(Color.record)
             }
         }
     }
@@ -758,7 +758,7 @@ struct SaveTemplateSheet: View {
                     WorkoutDetailView(workoutID: first.id)
                         .task(id: first.id) { await enrich(first) }
                 } else {
-                    ProgressView()
+                    ProgressView().tint(.secondary)
                 }
             }
             .environment(settings)
@@ -811,6 +811,7 @@ private struct DelayedLoadingIndicator: View {
 
     var body: some View {
         ProgressView()
+            .tint(.secondary)
             .controlSize(.large)
             .opacity(isVisible ? 1 : 0)
             .accessibilityLabel(label)

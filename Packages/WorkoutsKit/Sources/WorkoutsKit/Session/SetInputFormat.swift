@@ -120,14 +120,21 @@ public nonisolated enum SetInputFormat {
     }
 
     /// The Previous cell text: `60 kg × 8`, `12 reps`, `20 kg × 45 s`; nil when the previous set recorded nothing. A
-    /// weight-less column (`showsWeight == false`) drops the weight.
-    public static func previousText(_ previous: PreviousSet?, unit: WeightUnit, showsWeight: Bool = true) -> String? {
+    /// weight-less column (`showsWeight == false`) drops the weight; `showsUnit == false` drops
+    /// the weight's unit (`60 × 8`).
+    public static func previousText(
+        _ previous: PreviousSet?,
+        unit: WeightUnit,
+        showsWeight: Bool = true,
+        showsUnit: Bool = true
+    ) -> String? {
         guard let previous else { return nil }
         let text = formatSetDetail(
             weight: showsWeight ? previous.weight : nil,
             unit: unit,
             reps: previous.reps,
-            durationSeconds: previous.durationSeconds
+            durationSeconds: previous.durationSeconds,
+            showsUnit: showsUnit
         )
         return text.isEmpty ? nil : text
     }

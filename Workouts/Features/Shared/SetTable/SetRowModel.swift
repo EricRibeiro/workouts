@@ -15,6 +15,8 @@ struct SetRowModel: Identifiable, Hashable {
     var kind: SetKind = .normal
     /// The Previous cell text (`60 kg × 8`), nil when there is none; built by `SetInputFormat.previousText`.
     var previousText: String?
+    /// The visible Previous without the weight's unit (`60 × 8`); falls back to `previousText`.
+    var previousShortText: String?
     var weightText: String = ""
     /// The reps field's text, or the duration in seconds when `measure` is `.duration`.
     var repsText: String = ""

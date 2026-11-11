@@ -47,6 +47,10 @@ extension SetTableSection {
 /// stays engine-agnostic; only the active source supplies one.
 struct SetTableRest {
     let endsAt: Date
+    /// The rest's full length in seconds, for the inline row's progress bar.
+    var total: Int = 0
+    /// The set whose check started the rest; nil for a rest started by hand.
+    var setID: UUID? = nil
     let skip: () -> Void
     let add30: () -> Void
 }

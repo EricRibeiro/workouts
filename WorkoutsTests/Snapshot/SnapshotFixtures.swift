@@ -31,6 +31,8 @@ enum SnapshotFixtures {
 /// Wraps a set row, which needs a `@FocusState` binding that only a parent view can own.
 struct SnapshotSetRowHost: View {
     let rows: [SetRowModel]
+    /// The row drawn as the one to do now (`SetRow.isNext`).
+    var nextID: UUID?
     @FocusState private var focus: SetRowField?
 
     var body: some View {
@@ -38,6 +40,7 @@ struct SnapshotSetRowHost: View {
             ForEach(rows) { row in
                 SetRow(
                     model: row,
+                    isNext: row.id == nextID,
                     focus: $focus,
                     onCycleKind: {},
                     onApplyPrevious: {},

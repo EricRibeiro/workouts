@@ -130,6 +130,12 @@ import Testing
         #expect(SetInputFormat.previousText(lifted, unit: .kg) == "60 kg × 8")
         #expect(SetInputFormat.previousText(lifted, unit: .lb, showsWeight: false) == "8 reps")
         #expect(SetInputFormat.previousText(PreviousSet(weight: 20, durationSeconds: 45), unit: .kg) == "20 kg × 0:45")
+        #expect(SetInputFormat.previousText(lifted, unit: .kg, showsUnit: false) == "60 × 8")
+        #expect(
+            SetInputFormat.previousText(PreviousSet(weight: 20, durationSeconds: 45), unit: .lb, showsUnit: false)
+                == "20 × 0:45"
+        )
+        #expect(SetInputFormat.previousText(lifted, unit: .kg, showsWeight: false, showsUnit: false) == "8 reps")
         #expect(SetInputFormat.previousText(PreviousSet(), unit: .kg) == nil)
         #expect(SetInputFormat.previousText(nil, unit: .kg) == nil)
     }

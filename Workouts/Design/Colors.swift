@@ -6,28 +6,25 @@
 import SwiftUI
 import WorkoutsKit
 
-// The semantic palette lives in `Assets.xcassets/Colors` (light and dark). Xcode generates the
+// The semantic palette lives in `Assets.xcassets/Colors` (the app is dark-only). Xcode generates the
 // `Color` symbols from it (`ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS`):
 //
-//   Color.ok              green for text and icons on a page surface
-//   Color.okFill          green for filled shapes (a checked set); pair with dark text
-//   Color.okRow           soft green row tint behind a checked set
-//   Color.onOkFill        dark glyph or text on okFill
+//   Color.ok              lime #C4F861 text accent for text and icons on a page surface
+//   Color.okFill          lime #C4F861 for filled shapes (the swatches only; a done set uses `ok`); pair with onOkFill
+//   Color.okRow           dark olive #1B2A0A row tint behind a checked set
+//   Color.onOkFill        black glyph or text on okFill
 //   Color.danger          destructive text and icons
-//   Color.onAccent        text on a filled accent shape: white in light, black in dark (white on #0A84FF is 3.65:1)
+//   Color.onAccent        black label on a filled lime accent shape
 //   Color.statDuration, statVolume, statSets, statExercises, statPRs
-//                         Finish summary stat values (22pt bold): at least 3:1 on white and #F2F2F7 in light and on
-//                         #1C1C1E and black in dark
-//   Color.record          personal-record trophy: dark gold #8A5C00 in light (5.8:1 on white), system yellow in dark
-//   Color.chartBelowGoal  weekly-goal chart bar for a week under the goal: paler blue in light, deeper blue in dark, each
-//                         about 2:1 from the accent bar (the accent at 0.75 opacity was 1.5:1 in dark) and 2:1 or more
-//                         from the card fill
+//                         Finish summary stat values (22pt bold), each at least 3:1 on #1C1C1E and black
+//   Color.record          personal-record trophy: system yellow
+//   Color.chartBelowGoal  weekly-goal chart bar for a week under the goal: the lime accent at 0.35 alpha
 //   Color.warmup          warm-up set kind
 //   Color.setKindDrop     drop set kind
 //   Color.setKindFailure  failure set kind
 //   Color.superset1…6     superset group colours (purple, teal, magenta, orange, indigo, olive); each is at least
-//                         3:1 against the system and secondary backgrounds in both appearances and is distinct
-//                         from the accent blue, ok green, danger red and warm-up amber. Use `Color.superset(_:)`.
+//                         3:1 against the system and secondary backgrounds and is distinct from the lime accent,
+//                         danger red and warm-up amber. Use `Color.superset(_:)`.
 //
 // The accent is `AccentColor` (`Color.accentColor`, `.tint`). Everything else is system material.
 

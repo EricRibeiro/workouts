@@ -20,7 +20,7 @@ final class AccessibilityAuditUITests: XCTestCase {
         /// The second pass: an accessibility text size is on, and only `.dynamicType` / `.textClipped` run.
         var largeText = false
         /// The logging pane, whose exercise names truncate by design (`SetTable` applies `exerciseNameLineLimit` in
-        /// `.active` mode: one line, two at accessibility sizes).
+        /// `.active` mode: one line, two at accessibility sizes; a template card's exercise lines are one per exercise).
         var truncatesExerciseNames = false
         /// A bare screen in a navigation stack with toolbar items (the gallery's editor, picker and set-table hosts):
         /// on the closed Duo the system draws the vertical status and toolbar strip beside it. The strip's clock and

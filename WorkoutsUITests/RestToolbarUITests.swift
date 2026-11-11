@@ -1,7 +1,8 @@
 import XCTest
 
-/// The logging toolbar's rest controls (task 2.6): while a rest runs, Skip and +30 s sit beside the ring; +30 s lengthens the
-/// rest, Skip ends it, checking a set starts it again, and Minimise returns to the Workout tab.
+/// The logging toolbar's rest controls (task 2.6): while a rest started by hand runs, Skip and +30 s sit beside the ring; +30 s
+/// lengthens the rest, Skip ends it, checking a set starts a rest whose controls are the inline row's (not the toolbar's), and
+/// Minimise returns to the Workout tab.
 final class RestToolbarUITests: XCTestCase {
     override func setUpWithError() throws {
         continueAfterFailure = false
@@ -52,7 +53,10 @@ final class RestToolbarUITests: XCTestCase {
         ).element(boundBy: 0)
         XCTAssertTrue(check.waitForExistence(timeout: 10))
         check.tap()
-        XCTAssertTrue(skip.waitForExistence(timeout: 5), "checking a set did not start a rest")
+        let rowSkip = app.buttons["rest.row.skip"].firstMatch
+        XCTAssertTrue(rowSkip.waitForExistence(timeout: 5), "checking a set did not start a rest (inline row)")
+        XCTAssertFalse(skip.exists, "a set's rest must not duplicate Skip in the toolbar")
+        XCTAssertFalse(plus30.exists, "a set's rest must not duplicate +30 s in the toolbar")
 
         // Minimise lands on the Workout tab.
         app.buttons["cover.minimise"].firstMatch.tap()

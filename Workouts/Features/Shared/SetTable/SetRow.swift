@@ -15,6 +15,8 @@ import WorkoutsKit
 /// One line normally; the cells stack in two lines at accessibility sizes or whenever the line does not fit.
 struct SetRow: View {
     let model: SetRowModel
+    /// The first unchecked set of an exercise in the active workout: the one to do now (lit fields, accent check ring).
+    var isNext = false
     var focus: FocusState<SetRowField?>.Binding
     let onCycleKind: () -> Void
     let onApplyPrevious: () -> Void
@@ -28,6 +30,7 @@ struct SetRow: View {
     let onDelete: () -> Void
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ScaledMetric(relativeTo: .body) private var touch = 44.0
     @ScaledMetric(relativeTo: .body) private var labelWidth = Metrics.setLabelWidth
     @State private var refusedCount = 0
@@ -48,7 +51,7 @@ struct SetRow: View {
         .padding(.horizontal, 8)
         .background(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(model.isChecked ? Color.okRow : .clear)
+                .fill(rowFill)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
@@ -68,6 +71,11 @@ struct SetRow: View {
         .accessibilityElement(children: .contain)
         .accessibilityLabel(SetInputFormat.setAccessibilityLabel(number: model.number, kind: model.kind))
         .accessibilityIdentifier("setrow.\(model.id.uuidString)")
+    }
+
+    private var rowFill: AnyShapeStyle {
+        if model.isChecked { return AnyShapeStyle(Color.okRow) }
+        return isNext ? AnyShapeStyle(.fill.secondary.opacity(0.5)) : AnyShapeStyle(Color.clear)
     }
 
     // MARK: Layouts
@@ -143,8 +151,8 @@ struct SetRow: View {
     private var previousButton: some View {
         if let previous = model.previousText {
             Button(action: onApplyPrevious) {
-                Text(previous)
-                    .font(.subheadline.monospacedDigit())
+                Text(model.previousShortText ?? previous)
+                    .font(.system(.subheadline, design: .rounded, weight: .medium).monospacedDigit())
                     .foregroundStyle(Color.setSecondaryText)
                     .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
                     .minimumScaleFactor(0.8)
@@ -198,6 +206,7 @@ struct SetRow: View {
             placeholder: model.weightPlaceholder,
             keyboard: .decimalPad,
             isChecked: model.isChecked,
+            isNext: isNext,
             field: SetRowField(setID: model.id, column: .weight),
             focus: focus,
             label: "Weight",
@@ -227,6 +236,7 @@ struct SetRow: View {
             placeholder: model.repsPlaceholder,
             keyboard: .numberPad,
             isChecked: model.isChecked,
+            isNext: isNext,
             field: SetRowField(setID: model.id, column: .reps),
             focus: focus,
             label: isDuration ? "Duration" : "Reps",
@@ -271,23 +281,34 @@ struct SetRow: View {
         AccessibilityNotification.Announcement("Enter weight and reps first").post()
     }
 
-    /// Done: dark on the green fill. Not done: `.secondary` on `.quaternary`, so a column of unchecked sets does not read as
-    /// a column of done ones; the green fill is the one strong state. No new tint.
-    private var checkGlyphStyle: AnyShapeStyle {
-        model.isChecked ? AnyShapeStyle(Color.onOkFill) : AnyShapeStyle(.secondary)
-    }
-
+    /// Done: a quiet tinted lime disc with a lime check. Not done: an empty ring and no glyph (heavy accent ring on the next
+    /// set, `.secondary` elsewhere), so the set to do now is the strongest mark in the column.
     private var checkButton: some View {
         Button(action: toggleCheck) {
             Image(systemName: "checkmark")
                 .font(.body.bold())
-                .foregroundStyle(checkGlyphStyle)
-                .symbolEffect(.wiggle, value: refusedCount)
+                .foregroundStyle(Color.ok)
+                .opacity(model.isChecked ? 1 : 0)
+                .symbolEffect(.bounce, value: model.isChecked)
                 .frame(width: touch, height: touch)
-                .background(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(model.isChecked ? AnyShapeStyle(Color.okFill) : AnyShapeStyle(.quaternary))
-                )
+                .background {
+                    if model.isChecked {
+                        Circle().fill(Color.ok.opacity(0.18))
+                    } else {
+                        Circle().strokeBorder(
+                            isNext ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.secondary),
+                            lineWidth: isNext ? 3 : 2
+                        )
+                    }
+                }
+                .keyframeAnimator(initialValue: 0.0, trigger: refusedCount) { view, offset in
+                    view.offset(x: reduceMotion ? 0 : offset)
+                } keyframes: { _ in
+                    LinearKeyframe(6, duration: 0.05)
+                    LinearKeyframe(-6, duration: 0.1)
+                    LinearKeyframe(4, duration: 0.1)
+                    LinearKeyframe(0, duration: 0.05)
+                }
                 .contentShape(.rect)
         }
         .buttonStyle(.plain)
@@ -406,6 +427,7 @@ struct SetRow: View {
                     id: UUID(),
                     number: 1,
                     previousText: "60 kg × 8",
+                    previousShortText: "60 × 8",
                     weightText: "60",
                     repsText: "8"
                 ),
@@ -414,6 +436,7 @@ struct SetRow: View {
                     number: 2,
                     kind: .warmup,
                     previousText: "40 kg × 10",
+                    previousShortText: "40 × 10",
                     weightText: "40",
                     repsText: "10"
                 ),
@@ -422,6 +445,7 @@ struct SetRow: View {
                     number: 3,
                     kind: .drop,
                     previousText: "50 kg × 12",
+                    previousShortText: "50 × 12",
                     weightText: "50",
                     repsText: "12"
                 ),
@@ -430,6 +454,7 @@ struct SetRow: View {
                     number: 4,
                     kind: .failure,
                     previousText: "62.5 kg × 6",
+                    previousShortText: "62.5 × 6",
                     weightText: "62.5",
                     repsText: "6"
                 ),
@@ -437,6 +462,7 @@ struct SetRow: View {
                     id: UUID(),
                     number: 5,
                     previousText: "60 kg × 8",
+                    previousShortText: "60 × 8",
                     weightText: "60",
                     repsText: "8",
                     isChecked: true
@@ -445,6 +471,7 @@ struct SetRow: View {
                     id: UUID(),
                     number: 6,
                     previousText: "62.5 kg × 8",
+                    previousShortText: "62.5 × 8",
                     weightPlaceholder: "62.5",
                     repsPlaceholder: "8"
                 ),
@@ -452,6 +479,7 @@ struct SetRow: View {
                     id: UUID(),
                     number: 7,
                     previousText: "10 kg × 0:45",
+                    previousShortText: "10 × 0:45",
                     weightText: "10",
                     repsText: "0:45",
                     weightPlaceholder: "10",

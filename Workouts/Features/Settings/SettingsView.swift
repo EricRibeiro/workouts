@@ -39,7 +39,6 @@ struct SettingsView: View {
             Form {
                 unitsAndRecords
                 workout
-                display
                 media
                 appleFitness
                 iCloud
@@ -178,21 +177,6 @@ struct SettingsView: View {
         } footer: {
             // One footer for both rows: a Section has a single footer. The spec's two footers, in row order.
             Text("Logged weights stay as entered. Brzycki reads higher at low reps.")
-        }
-    }
-
-    private var display: some View {
-        Section("Display") {
-            VStack(alignment: .leading) {
-                Text("Appearance")
-                Picker("Appearance", selection: bound.appearance) {
-                    ForEach(Appearance.allCases, id: \.self) { Text($0.title).tag($0) }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .accessibilityLabel("Appearance")
-                .accessibilityIdentifier("settings.appearance")
-            }
         }
     }
 

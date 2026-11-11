@@ -73,6 +73,17 @@ fileprivate func perSessionPRCounts(
         )
     }
 
+    @Test func shortDateTextIsWeekdayAndDay() {
+        #expect(HistoryList.shortDateText(date(2026, 11, 1), calendar: Self.toronto) == "Sun 1")
+        #expect(HistoryList.shortDateText(date(2025, 12, 31), calendar: Self.toronto) == "Wed 31")
+    }
+
+    @Test func shortDateTextUsesTheCalendarTimeZone() {
+        // 2026-11-02 02:30 UTC is still Sunday evening in Toronto.
+        let instant = Date(timeIntervalSince1970: 1_793_586_600)
+        #expect(HistoryList.shortDateText(instant, calendar: Self.toronto) == "Sun 1")
+    }
+
     @Test func durationText() {
         #expect(HistoryList.durationText(seconds: 0) == "<1min")
         #expect(HistoryList.durationText(seconds: 59) == "<1min")

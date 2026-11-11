@@ -86,6 +86,7 @@ struct SetTable: View {
         // The table leaving the screen (cover minimised) with a field still focused.
         .onDisappear { source.commitEdits() }
         .animation(.snappy, value: sections.flatMap { $0.rows.map(\.id) })
+        .animation(.snappy, value: source.rest?.setID)
         .setKeyboardToolbar(
             step: { direction in step(direction, in: sections) },
             // Only the active workout has a previous set to copy; the template and past editors get no Previous key.
@@ -105,6 +106,9 @@ struct SetTable: View {
 
     private func block(_ section: SetTableSection, supersetNumber: Int?, order: [UUID]) -> some View {
         VStack(alignment: .leading, spacing: 0) {
+            let checkable = section.rows.filter(\.showsCheck)
+            let progress = SetProgress(checked: checkable.map(\.isChecked))
+            let nextID = progress.nextIndex.map { checkable[$0].id }
             header(section, supersetNumber: supersetNumber, order: order)
             // At accessibility sizes a row with a Previous line stacks (the cells carry captions instead); one without it
             // (template and past editors) stays on one line, so the header still applies.
@@ -114,6 +118,7 @@ struct SetTable: View {
             ForEach(section.rows) { row in
                 SetRow(
                     model: row,
+                    isNext: row.id == nextID,
                     focus: $focus,
                     onCycleKind: { source.cycleKind(of: row.id) },
                     onApplyPrevious: { source.applyPrevious(to: row.id) },
@@ -122,6 +127,7 @@ struct SetTable: View {
                     onToggleCheck: { toggleCheck(row) },
                     onDelete: { source.deleteSet(row.id) }
                 )
+                .padding(.vertical, 2)
                 .id(row.id)
                 .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                     Button(role: .destructive) {
@@ -130,6 +136,10 @@ struct SetTable: View {
                         Label("Delete", systemImage: "trash")
                     }
                     .accessibilityIdentifier("setrow.\(row.id.uuidString).delete")
+                }
+                if let rest = source.rest, rest.setID == row.id {
+                    RestTimerRow(rest: rest)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
                 }
             }
             addSetRow(section)
@@ -167,6 +177,14 @@ struct SetTable: View {
     }
 
     private func header(_ section: SetTableSection, supersetNumber: Int?, order: [UUID]) -> some View {
+        headerText(section, supersetNumber: supersetNumber, order: order)
+            .padding(.horizontal, 8)
+            .padding(.bottom, 8)
+    }
+
+    private func headerText(_ section: SetTableSection, supersetNumber: Int?, order: [UUID])
+        -> some View
+    {
         VStack(alignment: .leading, spacing: 2) {
             if let supersetNumber {
                 Text("Superset \(supersetNumber)")
@@ -220,8 +238,6 @@ struct SetTable: View {
                 )
             }
         }
-        .padding(.horizontal, 8)
-        .padding(.bottom, 8)
     }
 
     /// The header's trailing options menu. The entries are the owner's; the table only lays them out.
@@ -287,6 +303,7 @@ struct SetTable: View {
             }
         } label: {
             Image(systemName: "ellipsis.circle")
+                .foregroundStyle(.secondary)
                 // Centred over the check column; with no check column (template and past editors) the cells run to the
                 // trailing edge, so the glyph aligns there. The hit target stays `touch` wide either way.
                 .frame(
@@ -299,6 +316,7 @@ struct SetTable: View {
                 // centre on the name's x-height centre instead of sitting it on the baseline.
                 .alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] + 6 }
         }
+        .tint(.secondary)
         .accessibilityLabel("\(section.name) options")
         .accessibilityIdentifier("settable.menu.\(section.id.uuidString)")
     }
@@ -311,7 +329,7 @@ struct SetTable: View {
             if row.showsPrevious { Text("Previous").frame(maxWidth: .infinity) }
             if row.showsWeight { Text(row.unit.rawValue).frame(maxWidth: .infinity) }
             Text(row.measure == .duration ? "Time" : "Reps").frame(maxWidth: .infinity)
-            if row.showsCheck { Image(systemName: "checkmark").frame(width: touch) }
+            if row.showsCheck { Color.clear.frame(width: touch, height: 1) }
         }
         .font(.caption.weight(.semibold))
         .foregroundStyle(.secondary)
@@ -326,12 +344,14 @@ struct SetTable: View {
             source.addSet(to: section.id)
         } label: {
             Label("Add Set", systemImage: "plus")
-                .frame(maxWidth: .infinity, minHeight: touch, alignment: .leading)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, minHeight: touch)
+                .background(.fill.quaternary, in: .rect(cornerRadius: 10, style: .continuous))
                 .contentShape(.rect)
         }
         .buttonStyle(.plain)
-        .foregroundStyle(.tint)
-        .padding(.horizontal, 8)
+        .padding(.top, 4)
         .accessibilityLabel("Add set")
         .accessibilityHint("Adds a set to \(section.name)")
         .accessibilityIdentifier("settable.addset.\(section.id.uuidString)")

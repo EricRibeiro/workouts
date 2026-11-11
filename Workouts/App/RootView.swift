@@ -37,11 +37,6 @@ struct RootView: View {
     /// minimised workout relaunches as only the resume ring.
     @AppStorage("workoutCoverWasOpen") private var coverWasOpen = false
 
-    /// A presentation keeps its last override when the preference goes back to nil (System), so it gets the root's resolved scheme.
-    private var presentationScheme: ColorScheme {
-        settings?.appearance.colorScheme ?? colorScheme
-    }
-
     var body: some View {
         TabView(selection: Binding(get: { navigation.selectedTab }, set: { navigation.select($0) })) {
             Tab("History", systemImage: "clock.arrow.circlepath", value: AppTab.history) {
@@ -82,7 +77,6 @@ struct RootView: View {
             onDismiss: openPendingWorkout
         ) {
             SettingsView()
-                .preferredColorScheme(presentationScheme)
                 .presentationPlacement(.center)
         }
         .sheet(
@@ -93,7 +87,6 @@ struct RootView: View {
             }
         ) { item in
             FinishSummaryView(summary: item.summary)
-                .preferredColorScheme(presentationScheme)
                 .presentationPlacement(.center)
         }
         .templateUpdateDialog($templateUpdate, apply: applyTemplateUpdate)
@@ -114,7 +107,6 @@ struct RootView: View {
                 onDiscarded: { navigation.endWorkout() },
                 onSavedWithoutSummary: { id in workoutSaved(id: id, summary: nil) }
             )
-            .preferredColorScheme(presentationScheme)
             // What is actually showing, as opposed to requested: the resume ring keys off this.
             .onAppear { navigation.isWorkoutCoverOnScreen = true }
             .onDisappear { navigation.isWorkoutCoverOnScreen = false }

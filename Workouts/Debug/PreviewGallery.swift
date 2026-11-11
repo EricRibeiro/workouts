@@ -243,6 +243,12 @@
                         try engine.startEmpty()
                     }
                 }
+                // Three sets done so the screenshot shows done, next and pending rows.
+                if let first = (engine.workout?.exercises ?? []).min(by: { $0.position < $1.position }) {
+                    for set in (first.sets ?? []).sorted(by: { $0.position < $1.position }).prefix(3) {
+                        try? engine.check(set)
+                    }
+                }
                 self.engine = engine
             } catch {
                 failure = error.localizedDescription

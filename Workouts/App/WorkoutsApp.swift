@@ -190,8 +190,7 @@ struct WorkoutsApp: App {
 
     var body: some Scene {
         WindowGroup {
-            // One call at the scene root (app and gallery alike): presentations only inherit it when they open, so RootView re-applies it to each one.
-            content.preferredColorScheme(settings.appearance.colorScheme)
+            content
         }
         // The rest notification and the Live Activity are debounced (300 ms); a change just before the screen locks must
         // reach them before the system suspends the app.

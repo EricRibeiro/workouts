@@ -13,7 +13,7 @@ Eric deferred the technical choices to Claude. These close every item in `docs/p
 - **A proof never depends on a tool's mood** (finding 5): the Xcode MCP is optional; the proof of record is the `-preview` gallery
   (`./dev run -- -preview <Name>` + `./dev screenshot`) and XCUITests (`./dev ui-test`).
 - **History is a `NavigationStack` in both widths** (finding 7); only Exercises keeps `NavigationSplitView`.
-- Rest controls: toolbar group = **Skip + +30 s** everywhere (Island, notification, strip, keyboard group); **−10 s / +10 s** only
+- Rest controls: **Skip + +30 s** everywhere (Island, notification, keyboard group, and the one place per context in "Visual language"); **−10 s / +10 s** only
   inside the running rest sheet. No Repeat workout (Save as Template is the reuse path). Weeks start Monday.
 
 ## Data and sync
@@ -29,7 +29,7 @@ Eric deferred the technical choices to Claude. These close every item in `docs/p
   unit and formula changes recompute derived numbers; `@AppStorage` alone would not) with a protocol and one key list:
   **`UserDefaults`** now, `NSUbiquitousKeyValueStore` only if a second device appears (8.2). Keys: `defaultUnit`,
   `defaultRestSeconds` (90), `weeklyGoal` (3), `e1rmFormula` (epley), `restPresets`, `keepScreenOn` (true), `downloadAllVideos`
-  (false, Wi-Fi only). Appearance follows the system.
+  (false, Wi-Fi only). No appearance key: the app is dark-only.
 - Library: 1,038 exercises bundled as `library.json` + thumbnails (`scripts/build-library`), decoded once into a read-only
   `LibraryCatalog` (`retired` is a flag in the file; display labels ride in it). Custom exercises are `@Model Exercise` rows
   carrying their own unit/bar/rest defaults; `TemplateExercise`/`WorkoutExercise` hold `exerciseID: UUID` (and an `exerciseName`
@@ -55,8 +55,8 @@ Eric deferred the technical choices to Claude. These close every item in `docs/p
 - **Settings**: the gear `toolbar` button on every tab (Workout, History, Exercises), in every pose, opening a `Form` sheet (judgment-calls.md: Settings moved from the sidebar bottom bar to the toolbar everywhere).
 - **Toolbar items** carry a symbol and a title; the ellipsis belongs to the system's `ToolbarOverflowMenu`, so no `⋯` menus.
   Workout: Settings (`gearshape`), Add (`plus`, a `Menu`: **Empty Workout** / New Template / New Folder); other screens' items
-  are in their specs. Row and card actions are `contextMenu` + `swipeActions` only; only content blocks inside the set table
-  may keep `ellipsis.circle`. Task screens set `toolbarVerticalCompressionBehavior(.prefersToolbarItems)` and order items
+  are in their specs. Row and card actions are `contextMenu` + `swipeActions` only, except the template card's play button ("Visual language");
+  only content blocks inside the set table may keep `ellipsis.circle`. Task screens set `toolbarVerticalCompressionBehavior(.prefersToolbarItems)` and order items
   Close → prominent → state (ring) → actions, since the bottom overflows first: nothing below the ring may be needed mid-set.
 - Exercises uses `NavigationSplitView(columnVisibility: .all)` with `.balanced` and no column-width modifiers: on regular width the
   list is a **permanent** pane beside the detail (never behind a toggle; JC52); the system keeps columns off the fold (compact
@@ -73,7 +73,7 @@ Eric deferred the technical choices to Claude. These close every item in `docs/p
   SwiftUI` suffices), set table primary, exercise pane (video, instructions, Previous, records) secondary, following
   the focused exercise: side by side when wide, stacked when tall, split across the fold when partially open
   (`docs/port/duo-layout.md`). Folding only changes the size class, so draft, focus and scroll are untouched. Minimise is the
-  cover's Close-slot item (`Button("Minimise", systemImage: "chevron.down")`) with Finish (`checkmark`, prominent) next: no grab
+  cover's Close-slot item (`Button("Minimise", systemImage: "chevron.down")`) with Finish (`flag.checkered`, prominent) next: no grab
   handle, drag or tab-tap (a cover has no interactive dismissal, no tab bar). It dismisses the cover; the resume control (and Live
   Activity) restore it; a running workout survives any tab change.
 - Minimised workout lives in the system bars, never in a bottom pill (Eric, 2026-11-03: no native app on the Duo has a bottom bar;
@@ -84,15 +84,14 @@ Eric deferred the technical choices to Claude. These close every item in `docs/p
   moves it). So the running ring item is a `Label` whose icon is a thin draining arc drawn with `Image(size:renderer:)` (Eric:
   like Claude's context indicator), no digits; the countdown is in its accessibility label ("Rest timer, 4:57"), the rest
   sheet, the keyboard group and the Live Activity. The strip renders it as a template (foreground colour, no tinted track). It is the resume control (tap restores) and the logging screen's own timer item; no
-  `.glassEffect()`. Toolbar items do not inherit on push, so a shared `ViewModifier` applies it on every screen's root. Additive:
-  nothing else (no sidebar card, JC52). No `.tabViewBottomAccessory`.
+  `.glassEffect()`. Toolbar items do not inherit on push, so a shared `ViewModifier` applies it on every screen's root. Additive: while a rest runs, the Skip / +30 s group sits beside it ("Visual language"); nothing else (no sidebar card, JC52). No `.tabViewBottomAccessory`.
   History and Exercises lists set `tabBarMinimizeBehavior(.onScrollDown)`.
 - `AppNavigation` (@Observable, WorkoutsKit) with typed routes, so Live Activity buttons and notification actions can open the
   logging screen or a template. App Intents exist only behind those buttons (no Shortcuts or Spotlight).
 
 ## Active workout behaviour
 
-- Start from a template or **Empty Workout** (Workout tab → Add; name "Workout"); exactly one in progress. Finish summary is a
+- Start from a template (the card's play button, or Start Workout in its preview) or **Empty Workout** (Workout tab → Add; name "Workout"); exactly one in progress. Finish summary is a
   centred sheet with a **PR count** (native improvement; `prsInSession` exists): Done is its Close-slot item, nothing
   bottom-anchored (`active-workout.md` §3).
 - Web rules kept verbatim (`docs/port/screens/active-workout.md`): check → rest starts (superset too, on every check), presets
@@ -109,9 +108,9 @@ Eric deferred the technical choices to Claude. These close every item in `docs/p
 - Rest UI: the controls live in the bars. The ring `ToolbarItem` is idle: a stopwatch `Menu`: 0:30 / 1:00 / 2:00 / 3:00, a
   divider, saved customs (newest first), "Custom…" opening a small sheet with two `Picker` wheels (min / sec; SwiftUI has no
   countdown `DatePicker`) and a Start toolbar item; running: the countdown, opening the expanded sheet (Clock's ring, remaining
-  over total) whose −10 s / +10 s / Skip are a horizontal `ToolbarItemGroup` placed by the system. While a rest runs the logging
-  toolbar gains a `ToolbarItemGroup` of **Skip** (`forward.end`) and **+30 s** (`goforward.30`) below the ring, stacked like
-  Flighty's map tool group; the keyboard `ToolbarItemGroup` prepends the countdown, Skip and +30 s. No `safeAreaBar`, no bottom
+  over total) whose −10 s / +10 s / Skip are a horizontal `ToolbarItemGroup` placed by the system. Skip and +30 s sit in one place per context
+  ("Visual language": the inline row for a set's rest, a `ToolbarItemGroup` of `forward.end` and `goforward.30` for a rest started
+  by hand and beside the minimised ring); the keyboard `ToolbarItemGroup` prepends the countdown, Skip and +30 s. No `safeAreaBar`, no bottom
   glass.
 - Keyboard: system `.decimalPad` with a keyboard `ToolbarItemGroup` (−step, +step, Previous, Done) and a Next that advances weight
   → reps → next row; steps from the web. It covers half the closed screen, so Next is the mitigation; custom keypad only if this
@@ -140,7 +139,7 @@ Eric deferred the technical choices to Claude. These close every item in `docs/p
   confirm `.warning`, minimise/restore `.selection`.
 - **Liquid Glass**: system bars and controls; no hand-placed `.glassEffect()` (nothing floats over content);
   `.navigationTransition(.zoom(sourceID:in:))` + `.matchedTransitionSource(id:in:)` on card/row → preview/detail. Eric's palette
-  becomes semantic asset-catalog colours (accent, ok, danger, warm-up, set-kind), light/dark; everything else is system material.
+  is semantic asset-catalog colours, one dark value each ("Visual language"); everything else is system material.
 - **Accessibility**: every interactive element labelled (agents and XCUITests navigate by the tree); Dynamic Type everywhere; at
   AX sizes each set row becomes a two-line stack via `ViewThatFits`.
 - **Natural-language search is in-app only** (Eric, 2026-11-03; PLAN 4.6). The on-device Foundation Models model
@@ -184,6 +183,51 @@ Eric deferred the technical choices to Claude. These close every item in `docs/p
 - **A review is a phase gate, read-only** (PLAN 2.11, 3.8, 4.7, 5.8): findings P0–P3 with the fix classified (token / shared
   component / conceptual / local), P0–P2 become worker tasks, taste rows become one batched question to Eric. Accessibility
   audits stay with Apple's `accessibility-*` skills (6.3); poses stay with `verify-ui` (6.2).
+
+## Visual language: lime, dark-only (2026-11-10)
+
+- **Dark-only** (Eric, 2026-11-10). `INFOPLIST_KEY_UIUserInterfaceStyle = Dark` on the app target; there is no Appearance
+  setting, no `preferredColorScheme` and no light variant of a colour, snapshot or UI test (variants: `large-dark`,
+  `ax3-dark`). The system still draws its own surfaces: the Lock Screen Live Activity follows the phone's appearance, so the
+  extension keeps adaptive colours (`ActivityStyle`) and never reads the app's single-valued colour sets.
+  `./dev ui-env appearance` changes the simulator, not the app.
+- **Colour roles.** One accent, lime `#C4F861` (`AccentColor`, `.tint`, `Color.ok`), on black and system fills.
+  - *Lime fill, black content* (`Color.onAccent`): the actions that start or end a session and the completion mark (the
+    card's play disc, Start Workout, Finish, New Template, the summary's check). Nothing else is a lime fill.
+  - *Lime text or stroke*: the one value that matters on a surface (a History row's volume, the dashboard's "1 / 3", chart
+    bars at the goal), the next set's ring, the rest row's bar and controls, a done set's check.
+  - *Dark olive* `#1B2A0A` (`Color.okRow`): the row behind a done set. A week under the goal is the accent at 0.35 alpha
+    (`Color.chartBelowGoal`).
+  - *Gold* (`Color.record`): personal records only, always with `trophy.fill`. Set-kind and superset colours are unchanged
+    and stay distinct from lime.
+  - Everything else is `.primary` / `.secondary` on `.fill.*` styles; card titles are plain `.headline`, untinted, no glyph.
+  - Metrics are set Fitness-style by `MetricText` (kit `MetricPieces`): rounded medium digits, the unit in small caps glued
+    to the number, in the value's colour.
+- **Set-row states** (active workout; `SetRow`, `SetProgress.nextIndex` over the rows that show a check):
+  - *Done*: olive row, values as plain text (no field fill), a quiet lime disc (`ok` at 0.18) with a lime check.
+  - *Next* (the block's first unchecked set): a raised row (`.fill.secondary` at 0.5), brighter fields (`.fill.tertiary`),
+    an empty 3 pt lime ring. It is the strongest mark in the column.
+  - *Pending*: no row fill, `.fill.quaternary` fields, an empty 2 pt `.secondary` ring.
+  - An unchecked set never shows a check glyph. A refused check gets the red border, the announcement and a short shake,
+    which Reduce Motion drops. The Previous cell omits the unit (`60 × 8`; the column header and the accessibility label
+    carry it). The block header is the name (one line, two at accessibility sizes), its chevron and a `.secondary`
+    `ellipsis.circle`: no thumbnail, no progress line. Add Set is a full-width quiet row.
+- **Rest controls sit in one place per context** (Eric, 2026-11-10):
+  - *A set's rest* (started by a check): an inline row directly under that set (`RestTimerRow`: `timer`, the countdown, a
+    draining bar that accessibility sizes drop, **+30**, **Skip**; `rest.row.*`). It leaves at `endsAt`, without waiting for
+    the engine's grace. The logging toolbar shows the ring alone.
+  - *A rest started by hand* (the ring's menu; no `setID`): the logging toolbar's **Skip** / **+30 s** group
+    (`RestToolbarGroup`, `rest.toolbar.*`).
+  - *Minimised*: the same group beside the resume ring on every tab root while a rest runs, its grace included
+    (`resume.rest.*`), so a rest is skipped or extended without reopening the cover.
+  - The ring's expanded sheet, the keyboard group, the notification actions and the Live Activity buttons apply to every rest.
+- **One-tap start** (Eric, 2026-11-10). Each template card carries a lime play disc (36 pt scaled, 44 pt target, trailing on
+  the name's first line; under the name at accessibility sizes) that starts the workout through the same `StartWorkoutFlow`
+  as the preview's Start Workout, so a running workout raises "Workout in progress" first. It is a sibling overlay of the
+  card button (a button cannot nest in a button), labelled "Start <name>" (`template.<uuid>.start`), disabled for a template
+  with no exercises. It is the only visible action on a card; the others stay in the `contextMenu`. Tapping the card still
+  opens the preview. A mis-tap costs a Discard, never data.
+- **Finish** is `flag.checkered` (prominent, lime): the checkmark belongs to sets.
 
 ## Pushed-screen chrome (2026-11-07)
 

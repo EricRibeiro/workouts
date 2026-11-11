@@ -78,7 +78,7 @@
     }
 
     /// `-uiTesting` only: a zero-size accessibility element `debug.interfaceStyle` whose value is the colour scheme the root
-    /// view sees (`dark` or `light`), so a dark-appearance test can assert the launch argument took effect.
+    /// view sees (`dark` or `light`), so a test can assert the app really runs dark.
     private struct InterfaceStyleProbe: ViewModifier {
         @Environment(\.colorScheme) private var colorScheme
 

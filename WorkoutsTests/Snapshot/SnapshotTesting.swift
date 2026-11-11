@@ -33,11 +33,9 @@ struct SnapshotVariant: Sendable, CustomTestStringConvertible {
         }
     }
 
-    /// Default size and the accessibility size the app's own previews check, each in light and dark.
+    /// Default size and the accessibility size the app's own previews check; the app is dark-only.
     static let all: [SnapshotVariant] = [
-        SnapshotVariant(name: "large-light", colorScheme: .light, dynamicTypeSize: .large),
         SnapshotVariant(name: "large-dark", colorScheme: .dark, dynamicTypeSize: .large),
-        SnapshotVariant(name: "ax3-light", colorScheme: .light, dynamicTypeSize: .accessibility3),
         SnapshotVariant(name: "ax3-dark", colorScheme: .dark, dynamicTypeSize: .accessibility3),
     ]
 }
@@ -101,6 +99,7 @@ enum Snapshot {
         named name: String,
         variant: SnapshotVariant,
         excludingTop topPoints: CGFloat = 0,
+        excluding region: CGRect? = nil,
         filePath: String = #filePath,
         sourceLocation: SourceLocation = #_sourceLocation
     ) {
@@ -128,7 +127,7 @@ enum Snapshot {
                 )
                 return
             }
-            if let problem = difference(between: png, and: expected, excludingTop: topPoints) {
+            if let problem = difference(between: png, and: expected, excludingTop: topPoints, excluding: region) {
                 try png.write(to: actual)
                 let message: String =
                     "\(name)-\(variant.name) differs from its reference: \(problem). "
@@ -302,6 +301,8 @@ enum Snapshot {
             .background(Color(.systemBackground))
             .dynamicTypeSize(variant.dynamicTypeSize)
             .environment(\.colorScheme, variant.colorScheme)
+            // Outside the app's window the asset-catalog accent is not applied, so `.tint` and `Color.accentColor` would be system blue.
+            .tint(Color("AccentColor", bundle: .main))
             .environment(\.locale, Locale(identifier: "en_US"))
             // The finish stars would otherwise differ per frame; this draws their static Reduce Motion scatter.
             .environment(\.staticCelebration, true)
@@ -491,22 +492,42 @@ enum Snapshot {
 
     /// Nil when the images match within tolerance, else why not. `excludingTop` skips the top points of both images: the
     /// Liquid Glass of a navigation bar samples per-simulator lighting, so a bar is compared frame to frame within one run
-    /// (`assertSameChrome`), not against a stored reference (tests review r1 P1-1).
-    static func difference(between actual: Data, and expected: Data, excludingTop topPoints: CGFloat = 0) -> String? {
+    /// (`assertSameChrome`), not against a stored reference (tests review r1 P1-1). `excluding` skips a rectangle (in
+    /// points) of both images, for a region that animates on its own clock, such as a spinner.
+    static func difference(
+        between actual: Data,
+        and expected: Data,
+        excludingTop topPoints: CGFloat = 0,
+        excluding region: CGRect? = nil
+    ) -> String? {
         guard let a = pixels(actual), let e = pixels(expected) else { return "an image could not be decoded" }
         guard a.width == e.width, a.height == e.height else {
             return "size \(a.width)x\(a.height) px, reference \(e.width)x\(e.height) px"
         }
         let skipped = min(Int(topPoints * scale), a.height)
+        let masked = region.map {
+            (
+                x: Int($0.minX * scale)..<Int($0.maxX * scale),
+                y: Int($0.minY * scale)..<Int($0.maxY * scale)
+            )
+        }
         var differing = 0
+        var maskedPixels = 0
         for index in stride(from: skipped * a.width * 4, to: a.bytes.count, by: 4) {
+            if let masked {
+                let pixel = index / 4
+                if masked.x.contains(pixel % a.width) && masked.y.contains(pixel / a.width) {
+                    maskedPixels += 1
+                    continue
+                }
+            }
             for channel in 0..<4
             where abs(Int(a.bytes[index + channel]) - Int(e.bytes[index + channel])) > channelThreshold {
                 differing += 1
                 break
             }
         }
-        let total = a.width * (a.height - skipped)
+        let total = a.width * (a.height - skipped) - maskedPixels
         let fraction = Double(differing) / Double(max(1, total))
         guard fraction > maxDifferingFraction else { return nil }
         let percent = (fraction * 100).formatted(.number.precision(.fractionLength(2)))

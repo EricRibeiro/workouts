@@ -263,9 +263,11 @@ public nonisolated func formatSetDetail(
     weight: Double?,
     unit: WeightUnit,
     reps: Int?,
-    durationSeconds: Int?
+    durationSeconds: Int?,
+    showsUnit: Bool = true
 ) -> String {
-    let load = (weight ?? 0) > 0 ? weight.map { WeightFormat.text($0, unit: unit) } : nil
+    let load =
+        (weight ?? 0) > 0 ? weight.map { showsUnit ? WeightFormat.text($0, unit: unit) : WeightFormat.number($0) } : nil
     let amount: String? =
         if let reps, reps > 0 {
             load == nil ? "\(reps) \(reps == 1 ? "rep" : "reps")" : "\(reps)"

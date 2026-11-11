@@ -25,15 +25,12 @@ extension XCUIApplication {
         return app
     }
 
-    /// `arguments` plus the pinned environment: Large text and the light interface style, so a run never depends on what a
-    /// pool simulator was left at. A caller's own `-UIPreferredContentSizeCategoryName` / `-AppleInterfaceStyle` wins.
+    /// `arguments` plus the pinned environment: Large text, so a run never depends on what a pool simulator was left at.
+    /// A caller's own `-UIPreferredContentSizeCategoryName` wins. The app is dark-only (`UIUserInterfaceStyle`), so no style is pinned.
     static func withDefaultEnvironment(_ arguments: [String]) -> [String] {
         var result = arguments
         if !arguments.contains("-UIPreferredContentSizeCategoryName") {
             result += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryL"]
-        }
-        if !arguments.contains("-AppleInterfaceStyle") {
-            result += ["-AppleInterfaceStyle", "Light"]
         }
         return result
     }

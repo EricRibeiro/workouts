@@ -74,7 +74,8 @@ DEV_POSE=open-wide ./dev ui-test OpenPoseUITests   a filtered ui-test with the D
 ./dev orient <o> [p]    rotate portrait|landscape-left|landscape-right, verified by devicectl + lit panel; p as for fold
 ./dev pose <name> [p]   closed-portrait|closed-landscape|open-wide (951x669 pt)|open-tall (669x951 pt) = fold + orient, verified; p as for fold
 ./dev poses <dir> [-- args]  run, then all four poses as settled PNGs <dir>/<name>.png under one simulator lock; always ends closed-portrait
-./dev ui-env [content_size <size>] [appearance light|dark] | reset   text size / appearance of THIS checkout's sim (no args = print; reset = large/light).
+./dev ui-env [content_size <size>] [appearance light|dark] | reset   text size / appearance of THIS checkout's sim (no args = print; reset = large/light). The app is
+                        always dark whatever the sim says; `appearance` only changes the system surfaces around it.
                         test, ui-test and tree reset it to large/light first: re-apply before `./dev shot`
 ./dev home [p]          Home screen (the app keeps running); ./dev duo <verb> = Tools/duo pass-through (panels, hinge [--app = the app's own status, launch with `-- -logHinge`], settle, screenshot)
 ./dev duo-test          swift test for Tools/duo (~1s; part of check)
@@ -99,7 +100,7 @@ Rules for the loop:
 - **Run the narrowest proof.** One failing test → `./dev kit 'Suite/test'` or `./dev test Suite/test()`,
   not `./dev check`. `check` is for the end of a task.
 - **Visual regressions are caught by snapshot tests.** `WorkoutsTests/Snapshot` renders components (default and
-  accessibility-3 Dynamic Type, light and dark) and pixel-compares them with the PNGs in
+  accessibility-3 Dynamic Type, dark) and pixel-compares them with the PNGs in
   `WorkoutsTests/__Snapshots__/<File>/` (`./dev test SnapshotTests`, part of `./dev check`). A failure writes
   `<name>.actual.png` beside the reference (git-ignored): view it. Re-record only for an *intended* visual change, after
   viewing the `.actual.png`: `SNAPSHOT_RECORD=1 ./dev test SnapshotTests` (or one suite, `SnapshotTests/ExerciseRowSnapshots`),
@@ -110,8 +111,8 @@ Rules for the loop:
   with the `-preview` gallery, and every task whose proof is a preview or a flow lists 0.10 in its `Needs`.
   UI tests launch with `-uiTesting` (in-memory store, no leftover state).
 - **The UI proof of record is `./dev`; the Xcode MCP is the first shortcut.** A screen is proven by `./dev run -- -preview <Name>` (PLAN
-  task 0.10; until it lands, plain `./dev run`; a `#if DEBUG` `PreviewGallery` hosting the same views as the `#Preview`s, fed by the sample container; set Dynamic Type and
-  dark with `./dev ui-env content_size <size>` / `./dev ui-env appearance dark`, never `simctl ui booted`: that hits an arbitrary sim) followed by `./dev screenshot`; a flow is proven by an XCUITest in `WorkoutsUITests`
+  task 0.10; until it lands, plain `./dev run`; a `#if DEBUG` `PreviewGallery` hosting the same views as the `#Preview`s, fed by the sample container; set Dynamic Type
+  with `./dev ui-env content_size <size>` (previews and screenshots are rendered dark: the app is dark-only; `ui-env appearance` changes the simulator, not the app), never `simctl ui booted`: that hits an arbitrary sim) followed by `./dev screenshot`; a flow is proven by an XCUITest in `WorkoutsUITests`
   (`./dev ui-test Suite/test()`), which also forces the accessibility identifiers below. Xcode's MCP tools (plugin
   `xcode-integration` in Claude Code, `xcrun agent plugin path --plugin-format codex` in Codex) connect by default; reach
   for them first. `RenderPreview` checks layout, Dynamic Type and dark without a simulator (`XcodeOpenWorkspace` on this

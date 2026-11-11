@@ -189,6 +189,7 @@ struct WorkoutView: View {
             } actions: {
                 Button("New Template", systemImage: "square.and.pencil") { editing = .new }
                     .buttonStyle(.borderedProminent)
+                    .foregroundStyle(Color.onAccent)
                     .accessibilityLabel("New Template")
                     .accessibilityIdentifier("workout.empty.newTemplate")
             }
@@ -258,7 +259,10 @@ struct WorkoutView: View {
             edit: edit,
             duplicate: { template in perform { try FolderOperations.duplicate(template, in: context) } },
             move: { template, folder in perform { try FolderOperations.move(template, to: folder, in: context) } },
-            delete: { deletingTemplate = $0 }
+            delete: { deletingTemplate = $0 },
+            start: { template in
+                startFlow.begin(.template(template), engine: engine, errors: errors, present: workoutStarted)
+            }
         )
     }
 

@@ -46,6 +46,7 @@ struct EngineSetTableSource: SetTableDataSource {
                         number: index + 1,
                         kind: set.kind,
                         previousText: SetInputFormat.previousText(previous, unit: row.unit),
+                        previousShortText: SetInputFormat.previousText(previous, unit: row.unit, showsUnit: false),
                         weightText: SetInputFormat.weightText(set.weight),
                         repsText: timed
                             ? SetInputFormat.durationText(set.durationSeconds) : SetInputFormat.countText(set.reps),
@@ -75,6 +76,8 @@ struct EngineSetTableSource: SetTableDataSource {
         guard let endsAt = engine.restTimer.endsAt else { return nil }
         return SetTableRest(
             endsAt: endsAt,
+            total: engine.restTimer.total ?? 0,
+            setID: engine.restTimer.setID,
             skip: { perform { try engine.skipRest() } },
             add30: { perform { try engine.adjustRest(by: 30) } }
         )

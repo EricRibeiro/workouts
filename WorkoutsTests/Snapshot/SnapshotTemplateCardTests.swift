@@ -19,7 +19,12 @@ extension SnapshotTests {
             )
             let template = try #require(templates.first)
             let finished = try context.fetch(Workout.allFinished)
-            let summary = TemplateCardSummary.make(for: template, finishedWorkouts: finished, now: SnapshotFixtures.now)
+            let summary = TemplateCardSummary.make(
+                for: template,
+                finishedWorkouts: finished,
+                maxLines: 3,
+                now: SnapshotFixtures.now
+            )
             Snapshot.assert(
                 SnapshotTemplateCardHost(template: template, summary: summary),
                 named: "card",

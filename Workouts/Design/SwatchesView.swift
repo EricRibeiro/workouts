@@ -59,12 +59,6 @@ struct SwatchesView: View {
     }
 }
 
-#Preview("Light") {
+#Preview {
     SwatchesView()
-        .preferredColorScheme(.light)
-}
-
-#Preview("Dark") {
-    SwatchesView()
-        .preferredColorScheme(.dark)
 }

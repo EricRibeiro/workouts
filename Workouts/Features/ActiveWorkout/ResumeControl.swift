@@ -14,18 +14,27 @@ import WorkoutsKit
 /// in every state, Fitness-style, with a `dumbbell.fill` glyph inside (not the Exercises tab's figure, which sits in the same
 /// strip, and not the `stopwatch`, which means "start a rest"): a bare accent track while no rest runs, the accent arc
 /// draining while one does, and an ok-coloured ring with a `checkmark` while the finished rest sits in its grace. The elapsed
-/// time or the countdown rides in the accessibility label (the strip drops values). The ring only displays: the rest's end
+/// time or the countdown rides in the accessibility label (the strip drops values). The ring only displays; while a rest counts down, Skip and +30 s (`RestToolbarGroup`) sit beside it, on every
+/// tab root. The rest's end
 /// (haptic, announcement, forgetting the over rest) is watched by the one `RestExpiryWatcher` that `RootView` hosts while the
 /// cover is closed, so it also fires on pushed screens where no ring exists.
 private struct ResumeControl: ViewModifier {
     @Environment(ActiveWorkoutEngine.self) private var engine: ActiveWorkoutEngine?
     @Environment(AppNavigation.self) private var navigation: AppNavigation?
+    @Environment(SaveErrors.self) private var errors: SaveErrors?
     @State private var restoreCount = 0
 
     func body(content: Content) -> some View {
         content
             .toolbar {
                 if let engine, let navigation, let workout = engine.liveWorkout, !navigation.isWorkoutCoverOnScreen {
+                    // Skip and +30 s while any rest counts down (an over rest in its grace included; the cover shows this group only for a rest started by hand, a set's rest has its inline row).
+                    // Lowest visibility priority: on a short strip the pair goes to the system overflow before the ring does.
+                    if engine.restTimer.isActive {
+                        ToolbarSpacer(.fixed, placement: .primaryAction)
+                        RestToolbarGroup(engine: engine, idPrefix: "resume.rest", errors: errors)
+                            .visibilityPriority(.low)
+                    }
                     // Its own glass group, still last: the ring is a status, not a third action beside the others.
                     ToolbarSpacer(.fixed, placement: .primaryAction)
                     ToolbarItem(placement: .primaryAction) {
@@ -44,6 +53,7 @@ private struct ResumeControl: ViewModifier {
                             }
                         }
                     }
+                    .visibilityPriority(.high)
                 }
             }
             .sensoryFeedback(.selection, trigger: restoreCount)

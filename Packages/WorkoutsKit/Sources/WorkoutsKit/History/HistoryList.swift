@@ -163,6 +163,11 @@ public nonisolated enum HistoryList {
         return date.formatted(sameYear ? dayStyle(in: calendar) : dayWithYearStyle(in: calendar))
     }
 
+    /// `Sun 1`: the abbreviated weekday and day of the month, for rows that sit under a month header.
+    public static func shortDateText(_ date: Date, calendar: Calendar = .current) -> String {
+        date.formatted(shortDayStyle(in: calendar))
+    }
+
     /// `1h 12min`, `45min`, `<1min` (under a minute; also 0). A whole hour reads `1h 0min`.
     public static func durationText(seconds: Int) -> String {
         let minutes = max(0, seconds) / 60
@@ -221,6 +226,12 @@ public nonisolated enum HistoryList {
         timeZone: .gmt,
         calendar: Calendar(identifier: .gregorian)
     )
+    private static let shortDayFormat = Date.VerbatimFormatStyle(
+        format: "\(weekday: .abbreviated) \(day: .defaultDigits)",
+        locale: Locale(identifier: "en_US"),
+        timeZone: .gmt,
+        calendar: Calendar(identifier: .gregorian)
+    )
     private static let dayWithYearFormat = Date.VerbatimFormatStyle(
         format: "\(weekday: .wide), \(month: .abbreviated) \(day: .defaultDigits), \(year: .padded(4))",
         locale: Locale(identifier: "en_US"),
@@ -234,6 +245,10 @@ public nonisolated enum HistoryList {
 
     private static func dayStyle(in calendar: Calendar) -> Date.VerbatimFormatStyle {
         applying(calendar, to: dayFormat)
+    }
+
+    private static func shortDayStyle(in calendar: Calendar) -> Date.VerbatimFormatStyle {
+        applying(calendar, to: shortDayFormat)
     }
 
     private static func dayWithYearStyle(in calendar: Calendar) -> Date.VerbatimFormatStyle {

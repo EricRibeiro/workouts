@@ -371,7 +371,7 @@ extension View {
                 if let first = finished.first {
                     PastWorkoutEditor(workoutID: first.id)
                 } else {
-                    ProgressView()
+                    ProgressView().tint(.secondary)
                 }
             }
             .environment(settings)

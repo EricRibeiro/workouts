@@ -20,8 +20,8 @@ browser modes) reads only web markup, and the rest conflicts with system chrome.
 
 Gather before judging, and batch: one look per configuration, fix-list in hand, not a screenshot per thought.
 
-- `./dev shot <png> -- -preview <Name>` for every screen in scope, closed portrait, **light and dark**
-  (`./dev ui-env appearance dark|light`), at the default size and `accessibility-extra-large`
+- `./dev shot <png> -- -preview <Name>` for every screen in scope, closed portrait, **dark only** (the app is dark-only;
+  `ui-env appearance` changes the simulator, not the app), at the default size and `accessibility-extra-large`
   (`./dev ui-env content_size …`; `./dev ui-env reset` after, which sets large/light; tests and `./dev tree` reset it too, so re-apply before each shot). One open-wide capture per screen via `./dev fold open`
   (skill `verify-ui`), then `./dev fold closed`.
 - Read the screen's source files and the shared components it uses (`Workouts/Design`, `Features/Shared`).
@@ -48,10 +48,10 @@ Score each; 0 = broken, 2 = partial, 4 = nothing to fix. Keep the key finding pe
    section header than below; spacing from the system's defaults or one shared constant, never a different literal per
    view; grids derive columns from their own width; nothing straddles the fold or sits under the strip; rows and cells
    hit 44 pt; the large title collapses on scroll.
-3. **Colour and appearance.** Text and placeholders ≥ 4.5:1 in both appearances (a "Previous" value shown as a prompt is
+3. **Colour and appearance.** Text and placeholders ≥ 4.5:1 in dark (a "Previous" value shown as a prompt is
    content, so it reads like content, not like a hint); meaning carried by the semantic asset colours only (accent, ok,
    danger, warm-up, set-kind, superset) and never by raw opacity; one tint for interactive elements; cards separate by
-   fill, no rims; dark mode designed, not inverted; superset colours distinguishable from each other and from ok/danger.
+   fill, no rims; dark designed for its own sake, not inverted from a light scheme; superset colours distinguishable from each other and from ok/danger.
 4. **Type and content.** Text styles only (`.largeTitle` … `.caption2`), SF, no fixed sizes; the real copy fits at
    `accessibility3` (`ViewThatFits`, truncation where the web truncated); numerals in set cells and tables are monospaced
    digits; copy is the web's (`docs/port/screens/`), controls name their action, errors name the problem and the recovery.

@@ -73,7 +73,7 @@ struct ActiveWorkoutCover: View {
                 }
                 if engine?.workout != nil {
                     ToolbarItem(placement: .confirmationAction) {
-                        Button("Finish", systemImage: "checkmark") {
+                        Button("Finish", systemImage: "flag.checkered") {
                             guard let engine else { return }
                             finishFlow.begin(
                                 engine: engine,
@@ -94,15 +94,10 @@ struct ActiveWorkoutCover: View {
                             RestRingItem()
                         }
                     }
-                    if let engine, engine.restTimer.isActive, !isEditingSet {
-                        ToolbarItemGroup(placement: .primaryAction) {
-                            Button("Skip", systemImage: "forward.end") { perform { try engine.skipRest() } }
-                                .accessibilityLabel("Skip rest")
-                                .accessibilityIdentifier("rest.toolbar.skip")
-                            Button("+30 s", systemImage: "goforward.30") { perform { try engine.adjustRest(by: 30) } }
-                                .accessibilityLabel("Add 30 seconds")
-                                .accessibilityIdentifier("rest.toolbar.plus30")
-                        }
+                    // Skip and +30 s sit here only for a rest started by hand from the ring (no `setID`); a set's rest has
+                    // the inline row under the checked set, so the toolbar keeps the ring alone.
+                    if let engine, engine.restTimer.isActive, engine.restTimer.setID == nil, !isEditingSet {
+                        RestToolbarGroup(engine: engine, idPrefix: "rest.toolbar", errors: errors)
                     }
                     if !isEditingSet {
                         ToolbarItem(placement: .primaryAction) {

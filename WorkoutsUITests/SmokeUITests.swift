@@ -37,7 +37,7 @@ final class SmokeUITests: XCTestCase {
         let app = makeApp()
 
         XCTAssertTrue(app.descendants(matching: .any)["screen.workout"].waitForExistence(timeout: 10))
-        XCTAssertEqual(interfaceStyle(app), "light")
+        XCTAssertEqual(interfaceStyle(app), "dark")
 
         // The system tab bar (the trailing strip on the closed Duo).
         let history = app.descendants(matching: .any)["tab.history"].firstMatch
@@ -64,25 +64,6 @@ final class SmokeUITests: XCTestCase {
             app.descendants(matching: .any)["screen.settings"].waitUntilGone(timeout: 5),
             "Settings is still up after Done"
         )
-    }
-
-    /// The three tabs in the dark interface style, forced through the app's own Appearance setting (`-appearance dark`):
-    /// the `-AppleInterfaceStyle` launch argument does not change the scheme on iOS (the `debug.interfaceStyle` probe read
-    /// `light` under it). This is the one dark pass of the sharded full suite (no `simctl ui`, nothing to restore).
-    @MainActor
-    func testSmokeInDarkAppearance() throws {
-        let app = makeApp(["-appearance", "dark"])
-        XCTAssertTrue(app.descendants(matching: .any)["screen.workout"].waitForExistence(timeout: 10))
-        XCTAssertEqual(interfaceStyle(app), "dark")
-
-        for (tab, screen) in [
-            ("tab.history", "screen.history"), ("tab.exercises", "screen.exercises"), ("tab.workout", "screen.workout"),
-        ] {
-            let button = app.descendants(matching: .any)[tab].firstMatch
-            XCTAssertTrue(button.waitForExistence(timeout: 5), tab)
-            button.tap()
-            XCTAssertTrue(app.descendants(matching: .any)[screen].waitForExistence(timeout: 5), screen)
-        }
     }
 
     /// JC52: the tab bar is the three main tabs and nothing else (no app sidebar, no template tabs), sample templates or not.

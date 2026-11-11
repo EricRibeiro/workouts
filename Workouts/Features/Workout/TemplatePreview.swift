@@ -123,6 +123,7 @@ struct TemplatePreview: View {
                 .frame(maxWidth: .infinity)
         }
         .buttonStyle(.borderedProminent)
+        .foregroundStyle(Color.onAccent)
         .buttonBorderShape(.capsule)
         .controlSize(.large)
         .disabled(!isEnabled)

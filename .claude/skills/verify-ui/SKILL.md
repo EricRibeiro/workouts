@@ -14,8 +14,8 @@ Xcode's MCP (steps 1 and 3 below) is the first shortcut; a proof must not depend
 record:
 
 - **Screens**: `./dev run -- -preview <Name>` launches the `#if DEBUG` `PreviewGallery` root, which hosts the same views as the
-  `#Preview`s on the sample container (PLAN task 0.10). Dynamic Type and dark: `./dev ui-env content_size
-  accessibility-extra-large`, `./dev ui-env appearance dark` (this checkout's sim, under the lock; `./dev ui-env reset` = large/light;
+  `#Preview`s on the sample container (PLAN task 0.10). Dynamic Type: `./dev ui-env content_size
+  accessibility-extra-large` (the app is dark-only, so screenshots are dark whatever `ui-env appearance` says; this checkout's sim, under the lock; `./dev ui-env reset` = large/light;
   tests, `ui-test` and `./dev tree` reset to large/light, so re-apply ui-env before `./dev shot`). Prefer `./dev shot <png> -- -preview <Name>`: run,
   settle and screenshot under one simulator lock, so a parallel worker cannot install its build in between. Then Read the PNG.
 - **Flows**: an XCUITest in `WorkoutsUITests`, run with `./dev ui-test Suite/test()`. It navigates by accessibility
@@ -49,8 +49,7 @@ dark mode. They are the wrong tool for navigation flows and state.
 ./dev shot <png> [-- args]   # run + settle (two identical captures, status bar pinned to 9:41) + screenshot in one lock hold: the parallel-safe proof
 ./dev shot --burst <png> [-- args]   # 15 lit-panel captures ~100 ms apart from launch, tiled into one labelled grid: a reviewer artifact for transitions; --settle stays the steady-state proof
 ```
-Dark mode / text size: `./dev ui-env appearance dark`,
-`./dev ui-env content_size accessibility-extra-large`; `./dev ui-env reset` afterwards (large/light). Tests and `./dev tree`
+Text size (the app is always dark): `./dev ui-env content_size accessibility-extra-large`; `./dev ui-env reset` afterwards (large/light). Tests and `./dev tree`
 reset these too, so re-apply before `./dev shot`.
 Logs: `xcrun simctl spawn booted log stream --predicate 'subsystem == "com.ericribeiro.Workouts"'`.
 

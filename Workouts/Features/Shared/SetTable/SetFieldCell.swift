@@ -16,6 +16,8 @@ struct SetFieldCell: View {
     let keyboard: UIKeyboardType
     /// A checked row's cells drop their fill so the values read as plain text (still editable).
     let isChecked: Bool
+    /// The row to do now: its cells get the brighter fill; the other unchecked rows stay dim.
+    var isNext = false
     let field: SetRowField
     var focus: FocusState<SetRowField?>.Binding
     let label: String
@@ -47,7 +49,8 @@ struct SetFieldCell: View {
 
     private var fill: AnyShapeStyle {
         if isFocused { return AnyShapeStyle(Color.accentColor.opacity(0.2)) }
-        return isChecked ? AnyShapeStyle(Color.clear) : AnyShapeStyle(.quaternary)
+        if isChecked { return AnyShapeStyle(Color.clear) }
+        return isNext ? AnyShapeStyle(.fill.tertiary) : AnyShapeStyle(.fill.quaternary)
     }
 
     var body: some View {
@@ -60,7 +63,7 @@ struct SetFieldCell: View {
         .keyboardType(keyboard)
         .focused(focus, equals: field)
         .multilineTextAlignment(.center)
-        .font(.body.monospacedDigit())
+        .font(.system(.body, design: .rounded, weight: .medium).monospacedDigit())
         .lineLimit(1)
         .frame(idealWidth: idealWidth, maxWidth: .infinity, minHeight: minHeight)
         .background(

@@ -419,19 +419,20 @@ struct HistoryView: View {
     }
 }
 
-/// One History row: name, date, then duration, volume and (from Apple Fitness) active calories and average heart rate,
-/// and the PR count with a trophy.
-private struct HistoryRow: View {
+/// One History row in the style of a Fitness session: the name and short date, the volume in the accent colour with the
+/// duration beside it and the PR count (gold) at the trailing edge, and a neutral line of the Apple Fitness values when
+/// there are any.
+struct HistoryRow: View {
     let entry: HistoryEntry
     var activeKcal: Double?
     var avgBpm: Double?
 
-    /// `45min · 15,421 lb · 266 kcal · 128 bpm`.
-    private var statsText: String {
-        var parts = [
-            HistoryList.durationText(seconds: entry.durationSeconds),
-            HistoryList.volumeText(entry.volume, unit: entry.unit),
-        ]
+    private var volumeText: String { HistoryList.volumeText(entry.volume, unit: entry.unit) }
+    private var durationText: String { HistoryList.durationText(seconds: entry.durationSeconds) }
+
+    /// `266 kcal · 128 bpm`; empty without Health values.
+    private var healthText: String {
+        var parts: [String] = []
         if let activeKcal { parts.append(FitnessFormat.kcalText(activeKcal)) }
         if let avgBpm { parts.append(HistoryDashboard.heartRateText(avgBpm)) }
         return parts.joined(separator: " · ")
@@ -439,25 +440,86 @@ private struct HistoryRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(entry.name)
-                .font(.headline)
-            Text(HistoryList.dateText(entry.startedAt))
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-            Text(statsText)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-            if entry.prCount > 0 {
-                HStack(spacing: 4) {
-                    Image(systemName: "trophy.fill")
-                    Text(HistoryList.prText(count: entry.prCount))
-                }
-                .font(.subheadline)
-                .foregroundStyle(.primary)
+            titleLine
+            metricsLine
+            if !healthText.isEmpty {
+                Text(healthText)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
             }
         }
         .padding(.vertical, 2)
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var nameLabel: some View {
+        Text(entry.name)
+            .font(.headline)
+            .foregroundStyle(.primary)
+    }
+
+    private var dateLabel: some View {
+        Text(HistoryList.shortDateText(entry.startedAt))
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+    }
+
+    /// Name and date on one line; the date drops under the name when the two do not fit side by side.
+    private var titleLine: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                nameLabel.lineLimit(1)
+                Spacer(minLength: 8)
+                dateLabel.lineLimit(1)
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                nameLabel
+                dateLabel
+            }
+        }
+    }
+
+    private var volumeLabel: some View {
+        MetricText(volumeText, style: .title2)
+            .foregroundStyle(.tint)
+    }
+
+    private var durationLabel: some View {
+        Text(durationText)
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+    }
+
+    /// Volume, duration beside it and the PR count at the trailing edge; the duration and PRs wrap under the volume
+    /// when the line does not fit.
+    private var metricsLine: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                if !volumeText.isEmpty { volumeLabel.lineLimit(1) }
+                durationLabel.lineLimit(1)
+                Spacer(minLength: 8)
+                prLabel
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    if !volumeText.isEmpty { volumeLabel }
+                    durationLabel
+                }
+                prLabel
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var prLabel: some View {
+        if entry.prCount > 0 {
+            HStack(spacing: 3) {
+                Image(systemName: "trophy.fill")
+                Text("\(entry.prCount)")
+            }
+            .font(.footnote.weight(.semibold))
+            .foregroundStyle(Color.record)
+        }
     }
 }
 

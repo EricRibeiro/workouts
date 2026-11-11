@@ -14,7 +14,6 @@ import Testing
         #expect(store.keepScreenOn)
         #expect(!store.downloadAllVideos)
         #expect(!store.healthEnrichmentEnabled)
-        #expect(store.appearance == .system)
     }
 
     @Test func writeThroughPersistsAndFreshStoreReadsItBack() {
@@ -28,9 +27,7 @@ import Testing
         store.keepScreenOn = false
         store.downloadAllVideos = true
         store.healthEnrichmentEnabled = true
-        store.appearance = .dark
 
-        #expect(backend.object(forKey: SettingsKey.appearance.rawValue) as? String == "dark")
         #expect(backend.object(forKey: SettingsKey.defaultUnit.rawValue) as? String == "kg")
         #expect(backend.object(forKey: SettingsKey.e1rmFormula.rawValue) as? String == "brzycki")
         #expect(backend.object(forKey: SettingsKey.restPresets.rawValue) as? [Int] == [45, 150])
@@ -44,7 +41,6 @@ import Testing
         #expect(!fresh.keepScreenOn)
         #expect(fresh.downloadAllVideos)
         #expect(fresh.healthEnrichmentEnabled)
-        #expect(fresh.appearance == .dark)
     }
 
     @Test func everyKeyIsWrittenUnderItsOwnName() {
@@ -58,11 +54,10 @@ import Testing
         store.keepScreenOn = false
         store.downloadAllVideos = true
         store.healthEnrichmentEnabled = true
-        store.appearance = .light
         for key in SettingsKey.allCases {
             #expect(backend.object(forKey: key.rawValue) != nil, "\(key) not written")
         }
-        #expect(SettingsKey.allCases.count == 9)
+        #expect(SettingsKey.allCases.count == 8)
     }
 
     @Test func invalidStoredValuesFallBack() {
@@ -74,7 +69,6 @@ import Testing
             SettingsKey.keepScreenOn.rawValue: "maybe",
             SettingsKey.downloadAllVideos.rawValue: 7.5,
             SettingsKey.restPresets.rawValue: "nope",
-            SettingsKey.appearance.rawValue: "sepia",
         ])
         let store = SettingsStore(backend: backend)
         #expect(store.defaultUnit == .lb)
@@ -84,7 +78,6 @@ import Testing
         #expect(store.keepScreenOn)
         #expect(!store.downloadAllVideos)
         #expect(store.restPresets.isEmpty)
-        #expect(store.appearance == .system)
     }
 
     /// Launch arguments (`-defaultRestSeconds 90`, `-keepScreenOn NO`) land in the defaults as strings.
@@ -109,8 +102,6 @@ import Testing
     @Test func wrongTypedEnumValuesFallBack() {
         let backend = InMemoryBackend([SettingsKey.defaultUnit.rawValue: 3])
         #expect(SettingsStore(backend: backend).defaultUnit == .lb)
-        let appearance = InMemoryBackend([SettingsKey.appearance.rawValue: 2])
-        #expect(SettingsStore(backend: appearance).appearance == .system)
     }
 
     @Test func storedRestPresetsAreSanitized() {

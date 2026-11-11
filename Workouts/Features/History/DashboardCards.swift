@@ -16,11 +16,10 @@ extension View {
     }
 }
 
-/// A dashboard card: a tinted title row (symbol, title, a trailing chevron when the card opens something) over its
+/// A dashboard card: a title row (title, a trailing chevron when the card opens something) over its
 /// content. One accessibility element: the caller supplies the sentence and the identifier.
 struct DashboardCard<Content: View>: View {
     let title: String
-    let systemImage: String
     var opens = false
     /// The summary has not arrived: the content is drawn as placeholder blocks and the sentence says so, instead of
     /// presenting an empty result as fact.
@@ -28,19 +27,21 @@ struct DashboardCard<Content: View>: View {
     let label: String
     let identifier: String
     @ViewBuilder let content: Content
+    @ScaledMetric(relativeTo: .caption2) private var chevronSize = 24
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
-                Label(title, systemImage: systemImage)
-                    .labelStyle(.fixedIcon)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.tint)
+                Text(title)
+                    .font(.headline)
+                    .foregroundStyle(.primary)
                 Spacer(minLength: 4)
                 if opens {
                     Image(systemName: "chevron.right")
-                        .font(.footnote.weight(.semibold))
-                        .foregroundStyle(.tertiary)
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: chevronSize, height: chevronSize)
+                        .background(Circle().fill(.fill.tertiary))
                 }
             }
             content
@@ -61,10 +62,8 @@ struct DashboardCard<Content: View>: View {
 private struct CardValue: View {
     let text: String
     var body: some View {
-        Text(text)
-            .font(.system(.largeTitle, design: .rounded, weight: .semibold))
-            .monospacedDigit()
-            .foregroundStyle(.primary)
+        MetricText(text, style: .largeTitle)
+            .foregroundStyle(.tint)
             .minimumScaleFactor(0.6)
             .lineLimit(1)
     }
@@ -137,7 +136,6 @@ struct DashboardCards: View {
         let heartRateLabel = weekAverageBpm.map { ", \(HistoryDashboard.heartRateSpoken($0))" } ?? ""
         return DashboardCard(
             title: "This Week",
-            systemImage: "calendar",
             isLoading: !isLoaded,
             label:
                 "This week, \(week.workouts) of \(goal) \(goal == 1 ? "workout" : "workouts")\(detailLabel)\(calorieLabel)\(heartRateLabel)",
@@ -180,7 +178,6 @@ struct DashboardCards: View {
             : "Recent PRs, " + recentPRs.map(\.sentence).joined(separator: "; ")
         return DashboardCard(
             title: "Recent PRs",
-            systemImage: "medal.fill",
             isLoading: !isLoaded,
             label: sentence,
             identifier: "history.card.recentPRs"
@@ -208,7 +205,7 @@ struct DashboardCards: View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             Image(systemName: "trophy.fill")
                 .font(.subheadline)
-                .foregroundStyle(.tint)
+                .foregroundStyle(Color.record)
             VStack(alignment: .leading, spacing: 0) {
                 Text(name)
                     .font(.subheadline.weight(.semibold))
@@ -228,7 +225,6 @@ struct DashboardCards: View {
         } label: {
             DashboardCard(
                 title: "Last Workout",
-                systemImage: "figure.strengthtraining.traditional",
                 opens: true,
                 label: "Last workout, \(entry.name), \(date), \(detail)",
                 identifier: "history.card.lastWorkout"
