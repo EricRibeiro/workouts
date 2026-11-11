@@ -192,6 +192,8 @@ touches a view, layout, iOS 27 API or intent.
   read/set build settings, add targets; always followed by `xcprojformatter`.
 - `.claude/skills/design-review` — the read-only critique at the end of each UI phase (slop test, five scored
   dimensions, state inventory, P0–P3 findings → worker tasks, taste → Eric). HIG and `DECISIONS.md` are its authority.
+- `docs/fitness-reference.md` (not a skill) — fill a simulator's Health store with `-seedHealthHistory` and drive Apple's
+  Fitness app there as the visual reference; what populates, what cannot, and the look worth copying.
 - `.claude/skills/verify-ui` — render a preview, run on the Duo, screenshot, drive the UI, and
   what each pose of the Duo should be checked for.
 - Apple's bundled skills come with the Xcode plugin (`xcode-integration:<name>`). The ones that matter here:
