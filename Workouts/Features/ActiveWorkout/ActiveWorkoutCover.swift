@@ -352,13 +352,13 @@ struct ActiveWorkoutCover: View {
     }
 
     private func addExercises(_ infos: [ExerciseInfo]) {
-        perform { _ = try engine?.addExercises(infos) }
+        perform { _ = try withAnimation(.snappy) { try engine?.addExercises(infos) } }
     }
 
     /// The picker's Superset: adds the picks, then groups them as one superset.
     private func addSuperset(_ infos: [ExerciseInfo]) {
         guard let engine else { return }
-        perform { try engine.makeSuperset(try engine.addExercises(infos)) }
+        perform { try withAnimation(.snappy) { try engine.makeSuperset(try engine.addExercises(infos)) } }
     }
 }
 

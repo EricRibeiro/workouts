@@ -220,7 +220,6 @@ struct SetTable: View {
             onDelete: { deleteSet(row.id) }
         )
         .padding(.vertical, 2)
-        .id(row.id)
         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
             Button(role: .destructive) {
                 deleteSet(row.id)
@@ -524,10 +523,11 @@ struct SetTable: View {
     }
 
     /// Keyboard avoidance lifts the content above the keyboard but not above the floating keyboard toolbar pill, which
-    /// would hide the focused row; centring it keeps it clear of both.
+    /// would hide the focused row; centring it keeps it clear of both. The target is the lazy element's own identity, which
+    /// resolves a row that is not realised yet.
     private func revealFocusedRow(_ proxy: ScrollViewProxy) {
         guard let field = focus else { return }
-        withAnimation(.snappy) { proxy.scrollTo(field.setID, anchor: .center) }
+        withAnimation(.snappy) { proxy.scrollTo(Item.row(field.setID), anchor: .center) }
     }
 
     private func focusNext(in sections: [SetTableSection]) {

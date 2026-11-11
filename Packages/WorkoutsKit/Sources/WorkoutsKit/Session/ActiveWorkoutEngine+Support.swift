@@ -25,6 +25,12 @@ struct PlanLookup {
     var result: LookupResult<SetPlan>
 }
 
+/// A cached "Previous or plan has a duration" answer and the template `updatedAt` it was computed against.
+struct TimedLookup {
+    var templateStamp: Date?
+    var value: Bool
+}
+
 enum LookupKind {
     case previous
     case plan

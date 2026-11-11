@@ -193,7 +193,7 @@ struct DashboardCards: View {
         case hero, rest
     }
 
-    /// The columns come from `EvenColumnGrid`: an even count from two up, so no card straddles the fold; the cards of a
+    /// The columns come from `EvenColumnGrid`: an even count from two up, so no card straddles the fold when the Duo is half-folded; the cards of a
     /// grid row share its height. The hero alone is one full-width card.
     @ViewBuilder
     var body: some View {

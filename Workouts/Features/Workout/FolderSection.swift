@@ -60,7 +60,7 @@ struct FolderSection: View {
     static func collapsedKey(for id: UUID) -> String { "workoutFolderCollapsed.\(id.uuidString)" }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 0) {
             FolderHeader(
                 id: folder.id,
                 name: name,
@@ -99,18 +99,9 @@ private struct FolderHeader: View {
     let move: (FolderMove) -> Void
     let delete: () -> Void
 
-    /// Regular width lays the folders in two columns, so a move goes sideways: earlier or later in the order.
-    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-
-    private var sideBySide: Bool { horizontalSizeClass == .regular }
-    private var earlierTitle: LocalizedStringKey { sideBySide ? "Move Earlier" : "Move Up" }
-    private var laterTitle: LocalizedStringKey { sideBySide ? "Move Later" : "Move Down" }
-    private var earlierSymbol: String { sideBySide ? "arrow.left" : "arrow.up" }
-    private var laterSymbol: String { sideBySide ? "arrow.right" : "arrow.down" }
-
     var body: some View {
         menu
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .sectionHeaderBox()
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("workout.folder.\(id.uuidString)")
     }
@@ -122,11 +113,11 @@ private struct FolderHeader: View {
             Button("Rename Folder", systemImage: "pencil", action: rename)
                 .accessibilityIdentifier("workout.folder.rename")
             if canMoveUp {
-                Button(earlierTitle, systemImage: earlierSymbol) { move(.up) }
+                Button("Move Up", systemImage: "arrow.up") { move(.up) }
                     .accessibilityIdentifier("workout.folder.moveUp")
             }
             if canMoveDown {
-                Button(laterTitle, systemImage: laterSymbol) { move(.down) }
+                Button("Move Down", systemImage: "arrow.down") { move(.down) }
                     .accessibilityIdentifier("workout.folder.moveDown")
             }
             Button("Delete Folder", systemImage: "trash", role: .destructive, action: delete)
@@ -134,8 +125,7 @@ private struct FolderHeader: View {
         } label: {
             HStack(spacing: 6) {
                 Text("\(name) (\(count))")
-                    .font(.title3.weight(.semibold))
-                    .foregroundStyle(.primary)
+                    .sectionTitleStyle()
                 Image(systemName: "chevron.right")
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(.secondary)
@@ -144,7 +134,7 @@ private struct FolderHeader: View {
             // The title and chevron toggle the folder: give them the HIG's 44 pt minimum hit target. The row hugs its
             // content (the frame that pushes it to the leading edge sits outside the Menu), so the empty trailing space is
             // not tappable and the hit area never spans the hinge on the open Duo.
-            .frame(minHeight: 44)
+            .frame(minHeight: 44, alignment: .bottom)
             .contentShape(Rectangle())
         } primaryAction: {
             withAnimation { collapsed.toggle() }
@@ -159,8 +149,8 @@ private struct FolderHeader: View {
         // The menu opens on a long press, which VoiceOver cannot do: the same actions, under the same conditions.
         .accessibilityActions {
             Button("Rename Folder", action: rename)
-            if canMoveUp { Button(earlierTitle) { move(.up) } }
-            if canMoveDown { Button(laterTitle) { move(.down) } }
+            if canMoveUp { Button("Move Up") { move(.up) } }
+            if canMoveDown { Button("Move Down") { move(.down) } }
             Button("Delete Folder", action: delete)
         }
         .accessibilityIdentifier("workout.folder.\(id.uuidString).toggle")

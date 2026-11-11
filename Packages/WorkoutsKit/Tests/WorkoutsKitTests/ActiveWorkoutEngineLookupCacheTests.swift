@@ -248,6 +248,25 @@ import Testing
         #expect(engine.plan(for: first)?.weight == 120)
     }
 
+    @Test func aTemplateEditThatAddsADurationMakesACachedRepsRowTimed() throws {
+        let rig = try EngineTests.Rig()
+        defer { withExtendedLifetime(rig) {} }
+        let plan = try template(rig, exercise: LibraryFixture.squat, sets: [(100, 5, nil)])
+        let engine = try rig.makeEngine()
+        let workout = try engine.start(from: plan)
+        let row = try #require(rows(workout).first)
+        #expect(!engine.isTimed(row))
+        #expect(!engine.isTimed(row))
+
+        var draft = TemplateDraft(plan, timedByDefault: { _ in true })
+        let setID = try #require(draft.exercises.first?.sets.first?.id)
+        draft.setCount(45, for: setID)
+        rig.clock.advance(60)
+        try draft.save(to: plan, in: rig.context, now: rig.clock.date)
+        #expect(engine.plan(for: try #require(sets(row).first))?.durationSeconds == 45)
+        #expect(engine.isTimed(row))
+    }
+
     @Test func changingTheUnitReconvertsPrevious() throws {
         let (rig, engine, row) = try squatRig()
         defer { withExtendedLifetime(rig) {} }

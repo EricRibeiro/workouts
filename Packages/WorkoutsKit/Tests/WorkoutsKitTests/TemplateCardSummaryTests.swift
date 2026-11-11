@@ -161,6 +161,208 @@ import Testing
         #expect(index.lastPerformed(of: pull) == daysAgo(2))
     }
 
+    // MARK: Sets per line
+
+    private func detail(_ sets: [TemplateSet]) throws -> String? {
+        let context = try makeTestContext()
+        let template = Template(name: "Push")
+        context.insert(template)
+        let row = TemplateExercise(exerciseName: "A", template: template)
+        context.insert(row)
+        for (position, set) in sets.enumerated() {
+            set.position = position
+            set.templateExercise = row
+            context.insert(set)
+        }
+        return TemplateCardSummary.make(for: template, finishedWorkouts: [], now: now).lines.first?.detail
+    }
+
+    @Test func equalRepsReadCountTimesReps() throws {
+        #expect(try detail((0..<4).map { _ in TemplateSet(reps: 8) }) == "4 × 8")
+    }
+
+    @Test func mixedRepsReadSets() throws {
+        #expect(try detail([TemplateSet(reps: 8), TemplateSet(reps: 6), TemplateSet(reps: 8)]) == "3 sets")
+    }
+
+    @Test func unplannedRepsReadSets() throws {
+        #expect(try detail([TemplateSet(), TemplateSet()]) == "2 sets")
+        #expect(try detail([TemplateSet(reps: 8), TemplateSet()]) == "2 sets")
+    }
+
+    @Test func warmupsAreExcluded() throws {
+        let sets = [TemplateSet(kind: .warmup, reps: 12), TemplateSet(reps: 5), TemplateSet(reps: 5)]
+        #expect(try detail(sets) == "2 × 5")
+        #expect(try detail([TemplateSet(kind: .warmup, reps: 12)]) == nil)
+    }
+
+    @Test func timedSets() throws {
+        #expect(try detail((0..<3).map { _ in TemplateSet(durationSeconds: 45) }) == "3 × 45 s")
+        #expect(try detail((0..<2).map { _ in TemplateSet(durationSeconds: 90) }) == "2 × 1:30")
+        #expect(try detail([TemplateSet(durationSeconds: 45), TemplateSet(durationSeconds: 60)]) == "2 sets")
+    }
+
+    @Test func noWorkingSetsAnswerNil() throws {
+        #expect(try detail([]) == nil)
+    }
+
+    @Test func oneSetIsSingular() throws {
+        #expect(try detail([TemplateSet()]) == "1 set")
+        #expect(try detail([TemplateSet(reps: 10)]) == "1 × 10")
+    }
+
+    @Test func sixLinesWithOverflow() throws {
+        let context = try makeTestContext()
+        let names = ["A", "B", "C", "D", "E", "F", "G", "H"]
+        let template = makeTemplate(context, exercises: names.map { ($0, 3, nil) })
+        let summary = TemplateCardSummary.make(for: template, finishedWorkouts: [], maxLines: 6, now: now)
+        #expect(summary.lines.map(\.text) == ["A", "B", "C", "D", "E", "F"])
+        #expect(summary.lines.allSatisfy { $0.detail == "3 sets" })
+        #expect(summary.overflowText == "+ 2 more")
+        #expect(summary.exerciseCount == 8)
+    }
+
+    // MARK: Last duration
+
+    @Test func lastDurationComesFromTheNewestFinishedWorkout() throws {
+        let context = try makeTestContext()
+        let template = makeTemplate(context, exercises: [("A", 1, nil)])
+        let old = Workout(
+            name: "Push",
+            startedAt: daysAgo(9),
+            finishedAt: daysAgo(9).addingTimeInterval(1_800),
+            template: template
+        )
+        let new = Workout(
+            name: "Push",
+            startedAt: daysAgo(4),
+            finishedAt: daysAgo(4).addingTimeInterval(3_120),
+            template: template
+        )
+        let running = Workout(name: "Push", startedAt: daysAgo(0), template: template)
+        let summary = TemplateCardSummary.make(
+            for: template,
+            finishedWorkouts: [old, running, new],
+            now: now,
+            calendar: calendar
+        )
+        #expect(summary.lastPerformed == "4 days ago")
+        #expect(summary.lastDurationText == "52min")
+        #expect(
+            summary.accessibilityLabel(name: "Push")
+                == "Push, 1 exercise, last done 4 days ago, last session 52 minutes"
+        )
+    }
+
+    @Test func lastDurationAbsentWhenNeverPerformed() throws {
+        let context = try makeTestContext()
+        let template = makeTemplate(context, exercises: [("A", 1, nil)])
+        let running = Workout(name: "Push", startedAt: daysAgo(0), template: template)
+        let summary = TemplateCardSummary.make(for: template, finishedWorkouts: [running], now: now)
+        #expect(summary.lastDurationText == nil)
+        #expect(summary.accessibilityLabel(name: "Push") == "Push, 1 exercise")
+    }
+
+    @Test func lastDurationFollowsTheSameNameFallback() throws {
+        let context = try makeTestContext()
+        let template = makeTemplate(context, exercises: [("A", 1, nil)])
+        let imported = Workout(
+            name: "push",
+            startedAt: daysAgo(2),
+            finishedAt: daysAgo(2).addingTimeInterval(4_500)
+        )
+        let index = TemplateCardSummary.LastPerformedIndex(finishedWorkouts: [imported])
+        #expect(index.lastDurationSeconds(of: template) == 4_500)
+        #expect(
+            TemplateCardSummary.make(for: template, index: index, now: now, calendar: calendar).lastDurationText
+                == "1h 15min"
+        )
+    }
+
+    /// A fresh context over a saved folder holding one template with two exercises (3 and 2 sets): every object is a
+    /// fault, as the Workout tab's grid has them.
+    private func faultedFolder() throws -> (ModelContext, TemplateFolder, Template) {
+        let container = try makeTestContainer()
+        let seed = ModelContext(container)
+        let folder = TemplateFolder(name: "Legs")
+        seed.insert(folder)
+        makeTemplate(seed, exercises: [("A", 3, nil), ("B", 2, nil)]).folder = folder
+        try seed.save()
+        let context = ModelContext(container)
+        let template = try #require(try context.fetch(FetchDescriptor<Template>()).first)
+        _ = (template.exercises ?? []).flatMap { $0.sets ?? [] }
+        return (context, try #require(try context.fetch(FetchDescriptor<TemplateFolder>()).first), template)
+    }
+
+    @Test func summaryOfATemplateDeletedWithItsFolderIsHarmless() throws {
+        let (context, folder, template) = try faultedFolder()
+        let exercise = try #require(template.exercises?.first)
+        let set = try #require(exercise.sets?.first)
+        try FolderOperations.delete(folder, .deleteTemplates, in: context)
+        #expect(template.isGone && exercise.isGone && set.isGone)
+        let summary = TemplateCardSummary.make(for: template, finishedWorkouts: [], now: now)
+        #expect(summary.lines.allSatisfy { $0.detail == nil })
+    }
+
+    @Test func summaryOfAStandaloneDeletedTemplateIsHarmless() throws {
+        let (context, _, template) = try faultedFolder()
+        try FolderOperations.delete(template, in: context)
+        let summary = TemplateCardSummary.make(for: template, finishedWorkouts: [], now: now)
+        #expect(summary.lines.allSatisfy { $0.detail == nil })
+    }
+
+    @Test func detachedFixturesKeepTheirSetsText() {
+        let template = Template(name: "Push")
+        #expect(!template.isGone)
+        let row = TemplateExercise(exerciseName: "Bench", position: 0, template: template)
+        template.exercises = [row]
+        row.sets = (0..<3).map { TemplateSet(position: $0, templateExercise: row) }
+        let summary = TemplateCardSummary.make(for: template, finishedWorkouts: [], now: now)
+        #expect(summary.lines.map(\.text) == ["Bench"])
+        #expect(summary.lines.first?.detail == "3 sets")
+    }
+
+    @Test func accessibilityEntriesSpeakNamesSetsAndOverflow() throws {
+        let context = try makeTestContext()
+        let template = Template(name: "Push")
+        context.insert(template)
+        let plans: [(String, [TemplateSet])] = [
+            ("Bench", (0..<4).map { _ in TemplateSet(reps: 6) }),
+            ("Plank", (0..<3).map { _ in TemplateSet(durationSeconds: 45) }),
+            ("Curl", [TemplateSet(reps: 10)]),
+            ("Dip", [TemplateSet(reps: 8), TemplateSet()]),
+            ("Stretch", []),
+        ]
+        for (position, plan) in plans.enumerated() {
+            let row = TemplateExercise(exerciseName: plan.0, position: position, template: template)
+            context.insert(row)
+            for (index, set) in plan.1.enumerated() {
+                set.position = index
+                set.templateExercise = row
+                context.insert(set)
+            }
+        }
+        let summary = TemplateCardSummary.make(for: template, finishedWorkouts: [], maxLines: 4, now: now)
+        #expect(
+            summary.accessibilityEntries.map { [$0.label, $0.value] } == [
+                ["Bench", "4 sets of 6 reps"],
+                ["Plank", "3 sets of 45 seconds"],
+                ["Curl", "1 set of 10 reps"],
+                ["Dip", "2 sets"],
+                ["And 1 more", "exercises"],
+            ]
+        )
+    }
+
+    @Test func accessibilityEntriesWithoutSetsOrOverflow() throws {
+        let context = try makeTestContext()
+        let template = makeTemplate(context, exercises: [("A", 0, nil)])
+        let summary = TemplateCardSummary.make(for: template, finishedWorkouts: [], now: now)
+        #expect(summary.accessibilityEntries.map { [$0.label, $0.value] } == [["A", "No sets"]])
+        let empty = TemplateCardSummary.make(for: Template(name: "E"), finishedWorkouts: [], now: now)
+        #expect(empty.accessibilityEntries.isEmpty)
+    }
+
     @Test func relativeTextBuckets() {
         func text(_ days: Int) -> String {
             TemplateCardSummary.relativeText(daysAgo(days), now: now, calendar: calendar)

@@ -175,8 +175,9 @@ struct HistoryView: View {
             let weekKcal = HistoryDashboard.weekActiveCalories(workouts: finished)
             let weekBpm = HistoryDashboard.weekAverageHeartRate(workouts: finished)
             let heartRates = avgHeartRateByWorkout
+            let showsDashboard = !isSearching && scope == .all
             List {
-                if !isSearching && scope == .all {
+                if showsDashboard {
                     Section {
                         if horizontalSizeClass == .regular {
                             // One row, two columns, the gutter on the fold when half open (`DashboardColumns`).
@@ -188,6 +189,7 @@ struct HistoryView: View {
                                 isLoaded: hasLoadedSummary,
                                 chart: { WeeklyGoalSection(starts: finished.map(\.startedAt), entries: entries) }
                             ) { path.append(.workout($0)) }
+                            .listRowInsets(regularRowInsets)
                             .listRowSeparator(.hidden)
                             .listRowBackground(Color.clear)
                         } else {
@@ -198,34 +200,53 @@ struct HistoryView: View {
                                 WeeklyGoalSection(starts: finished.map(\.startedAt), entries: entries)
                                 dashboard(.rest, weekKcal: weekKcal, weekBpm: weekBpm)
                             }
+                            .listRowInsets(rowInsets)
                             .listRowSeparator(.hidden)
                             .listRowBackground(Color.clear)
                         }
                     }
                 }
                 ForEach(sections) { section in
-                    Section(section.title) {
-                        if horizontalSizeClass == .regular {
-                            // One list row per month holding a grid whose gutter is the fold, so no session straddles it.
-                            // A `List` row is full width and `swipeActions` are per row, so the actions live in each
-                            // card's context menu here (and as VoiceOver actions).
-                            EvenColumnGrid(minimum: 280) {
-                                ForEach(section.entries) { entry in
-                                    card(entry, activeKcal: activeKcal[entry.id], avgBpm: heartRates[entry.id])
+                    if horizontalSizeClass == .regular {
+                        // One list row per month: the title, then a grid whose gutter is the fold when the Duo is
+                        // half-folded, so no session straddles it. The title is part of the row, so it scrolls with its
+                        // cards like the Workout tab's folder header (a `Section` header would pin over them). A
+                        // `List` row is full width and `swipeActions` are per row, so the actions live in each card's
+                        // context menu here (and as VoiceOver actions).
+                        Section {
+                            VStack(alignment: .leading, spacing: 0) {
+                                Text(section.title)
+                                    .sectionTitleStyle()
+                                    .sectionHeaderBox()
+                                    // 28 pt over the content before it (none above the first month when the dashboard is hidden).
+                                    .padding(.top, showsDashboard || section.id != sections.first?.id ? 28 : 0)
+                                    .accessibilityAddTraits(.isHeader)
+                                EvenColumnGrid(minimum: 280) {
+                                    ForEach(section.entries) { entry in
+                                        card(entry, activeKcal: activeKcal[entry.id], avgBpm: heartRates[entry.id])
+                                    }
                                 }
                             }
-                            .padding(.vertical, 4)
+                            .listRowInsets(regularRowInsets)
                             .listRowSeparator(.hidden)
                             .listRowBackground(Color.clear)
-                        } else {
+                        }
+                    } else {
+                        Section {
                             ForEach(section.entries) { entry in
                                 row(entry, activeKcal: activeKcal[entry.id], avgBpm: heartRates[entry.id])
+                                    .listRowInsets(rowInsets)
                             }
+                        } header: {
+                            Text(section.title)
+                                .listRowInsets(rowInsets)
                         }
                     }
                 }
             }
             .listStyle(.plain)
+            // The month titles carry their own 28 pt above at regular width.
+            .listSectionSpacing(horizontalSizeClass == .regular ? .custom(0) : .default)
             .fitnessRefresh(health, context: context)
             .overlay {
                 if sections.isEmpty && !entries.isEmpty {
@@ -267,6 +288,17 @@ struct HistoryView: View {
                 Text(failure.message)
             }
         }
+    }
+
+    /// Row insets of the regular-width dashboard and month grids: the Workout tab's margins on both sides.
+    private var regularRowInsets: EdgeInsets {
+        EdgeInsets(top: 0, leading: Metrics.contentMargin, bottom: 0, trailing: Metrics.contentMargin)
+    }
+
+    /// Compact-width insets: the same side margins as the Workout tab's cards (the system keeps its bar strip out of the
+    /// safe area), the list's default vertical padding.
+    private var rowInsets: EdgeInsets {
+        EdgeInsets(top: 8, leading: Metrics.contentMargin, bottom: 8, trailing: Metrics.contentMargin)
     }
 
     /// Active calories from Apple Fitness per workout, for the workouts that have them.

@@ -188,7 +188,7 @@ struct WorkoutDetailView: View {
         // Read from the model here, not from `detail`: Health data lands after the workout was saved and does
         // not touch `updatedAt`, so the stats and the chart appear (and go) as the model changes.
         let health = workout?.healthSummary
-        return FoldPages(margin: 16, spacing: 16) {
+        return FoldPages(margin: Metrics.contentMargin, spacing: 16) {
             VStack(alignment: .leading, spacing: 16) {
                 headerAndChart(detail, health: health)
             }
@@ -213,7 +213,9 @@ struct WorkoutDetailView: View {
                 timeline: SetTimeline.make(workout: workout),
                 average: health.avgHeartRate,
                 maximum: health.maxHeartRate,
-                zones: health.zones
+                zones: health.zones,
+                showsAverage: health.avgHeartRate == nil,
+                showsMaximum: health.maxHeartRate == nil
             )
             .dashboardCardStyle()
             .accessibilityElement(children: .contain)

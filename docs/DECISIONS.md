@@ -61,7 +61,9 @@ Eric deferred the technical choices to Claude. These close every item in `docs/p
 - **The hinge: ignored flat, respected half-folded** (Eric, 2026-11-11, JC134; reviews do not flag content crossing a flat hinge).
   With the Duo open flat the fold is an inactive division and layouts ignore it, as Apple's Fitness does (`docs/fitness-reference/open/`):
   equal columns across the full content width with the normal gutter, cards and text crossing the hinge. Only when the Duo is
-  half-folded (the fold is an active division) do grids, columns and panes keep content off it. Layouts therefore read active
+  half-folded (the fold is an active division) do grids, columns and panes keep content off it: the fold is the gutter, the
+  outer margins stay and each side's content runs up to the fold's edge, so the two sides differ in width when the container is
+  off-centre (a bar strip takes about 88 pt on one side: e.g. 435 pt left of the fold and 351 pt right of it). Layouts therefore read active
   divisions only (`reservedRegions(kind: .division).filter(\.isActive)`), never `.includeInactive`.
 - Exercises uses `NavigationSplitView(columnVisibility: .all)` with `.balanced`: on regular width the
   list is a **permanent** pane beside the detail (never behind a toggle; JC52), with a large inline title like the Workout tab. The
@@ -252,9 +254,17 @@ Eric deferred the technical choices to Claude. These close every item in `docs/p
   card button (a button cannot nest in a button), labelled "Start <name>" (`template.<uuid>.start`), disabled for a template
   with no exercises. The card's footer is the recency alone ("Yesterday", `.footnote`, `.primary`; none for a template never
   performed, "No exercises" in `.secondary` for an empty one); the exercise count is in its VoiceOver label. The play disc is
-  the only visible action on a card; the others stay in the `contextMenu`. A card lists up to three exercise names, one per line, without a set count (the "4 × "
-  prefix cost four characters of a 170 pt card; the preview shows the sets). Tapping the card still
-  opens the preview. A mis-tap costs a Discard, never data.
+  the only visible action on a card; the others stay in the `contextMenu`. The card's content follows its own
+  width and the grid's size class. The number of lines comes from the horizontal size class: three exercise names at
+  compact width, six at regular width, where the grid is two cards per row across the content width, as Apple's Fitness
+  does. What a line shows comes from the card's width: a card under 260 pt (scaled; the closed Duo in portrait, about
+  170 pt) shows the name alone and the recency footer, without a set count (the preview shows the sets); a card of 260 pt
+  or more (the open Duo, and the closed Duo in landscape) follows each name with its sets on the trailing edge ("4 × 8",
+  "3 × 45 s"; the name gives way, the sets never truncate) and adds the last session's duration to the footer
+  ("4 days ago · 52min"). Names always start on the title's leading edge; a superset's bar hangs in the card's padding,
+  6 pt left of the text. The lines reach VoiceOver as custom content on the card. Folders stack in one full-width column
+  at every width. Tapping the
+  card still opens the preview. A mis-tap costs a Discard, never data.
 - **History dashboard order and the hero** (Eric, 2026-11-10). The page opens with the This Week hero, then the weekly chart,
   then Recent PRs and Last Workout; at regular width the left column is hero then chart, the right Recent PRs then Last
   Workout. The hero is the done count as the big lime figure beside "of 3 workouts", one equal-width capsule per goal
@@ -280,6 +290,13 @@ Eric deferred the technical choices to Claude. These close every item in `docs/p
      (`.subheadline`), meta (`.footnote`).
   8. Annotation glyphs (trophy, chevron) are at most 1.35x the cap height of their text, never `imageScale(.large)`; overlays
      respect the card's 16 pt inset.
+  9. Every tab shares its edges and its section header, closed and open: content runs from `Metrics.contentMargin` (20 pt)
+     to the same margin before the bar strip, and a section header (a Workout folder, a History month at regular width) is
+     `sectionTitleStyle().sectionHeaderBox()`: the title at the bottom of a 44 pt box, 8 pt over its cards, 28 pt under the
+     content before it at regular width, scrolling away with its cards (never pinned). `OpenPoseUITests` asserts the shared
+     edges in the open and closed poses.
+  10. A label on a chart band is the whole name or nothing, never a truncation: the heart-rate chart draws the names that
+      fit in a strip above the plot, clear of the set ticks. A card's title is its first line, the chart's included.
 
 ## Pushed-screen chrome (2026-11-07)
 

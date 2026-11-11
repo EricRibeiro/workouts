@@ -15,14 +15,16 @@ extension SnapshotTests {
             HeartRateZoneTime(index: 3, lowerBPM: 151, upperBPM: 162, seconds: 75),
         ]
 
-        private func chart() -> some View {
+        private func chart(showsFigures: Bool = true) -> some View {
             let sample = HeartRateChartDemo.sample
             return HeartRateChart(
                 series: sample.series,
                 timeline: sample.timeline,
                 average: 118,
                 maximum: 161,
-                zones: Self.zones
+                zones: Self.zones,
+                showsAverage: showsFigures,
+                showsMaximum: showsFigures
             )
             // The top axis label overhangs the plot; the screen's card padding gives it room, so the snapshot does too.
             .padding(.horizontal, 16)
@@ -40,6 +42,17 @@ extension SnapshotTests {
             Snapshot.assert(
                 chart().environment(\.horizontalSizeClass, .regular),
                 named: "superset-wide",
+                variant: variant,
+                width: 700
+            )
+        }
+
+        /// The detail screen's form: its stat tiles carry the average and max, so the title carries no figures.
+        @Test(arguments: SnapshotVariant.all)
+        func supersetWideNoFigures(variant: SnapshotVariant) {
+            Snapshot.assert(
+                chart(showsFigures: false).environment(\.horizontalSizeClass, .regular),
+                named: "superset-wide-no-figures",
                 variant: variant,
                 width: 700
             )

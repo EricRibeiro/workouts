@@ -42,10 +42,10 @@ public final class ActiveWorkoutEngine {
     /// filled on first read so a table build does not redo the sorts for every set. They read only the workout's
     /// structure (exercise and set order, kinds, ids, unit), ``previousCache`` and the template, never typed values or
     /// checks, so only structural edits clear them (``invalidateLookups()``); the plan entries also carry the
-    /// template's `updatedAt`, which a template edit stamps.
+    /// template's `updatedAt`, which a template edit stamps; the timed answers carry it too, as they read the plan.
     @ObservationIgnored var previousLookups: [UUID: LookupResult<PreviousSet>] = [:]
     @ObservationIgnored var planLookups: [UUID: PlanLookup] = [:]
-    @ObservationIgnored var derivedTimedLookups: [UUID: Bool] = [:]
+    @ObservationIgnored var derivedTimedLookups: [UUID: TimedLookup] = [:]
     /// Test seam: called each time a Previous or plan lookup is computed instead of served from the cache.
     @ObservationIgnored var lookupProbe: ((LookupKind) -> Void)?
 
@@ -381,18 +381,20 @@ public final class ActiveWorkoutEngine {
         if timedExercises.contains(row.id) { return true }
         if timedByDefault(row.exerciseID) { return true }
         // A typed or filled duration is read live (cheap); what Previous and the plan say is cached per row.
+        let stamp = row.workout?.template?.updatedAt
         let timed =
             (row.sets ?? []).contains { $0.durationSeconds != nil }
-            || (derivedTimedLookups[row.id] ?? computeDerivedTimed(row))
+            || derivedTimed(row, stamp: stamp)
         if timed { timedExercises.insert(row.id) }
         return timed
     }
 
-    private func computeDerivedTimed(_ row: WorkoutExercise) -> Bool {
+    private func derivedTimed(_ row: WorkoutExercise, stamp: Date?) -> Bool {
+        if let cached = derivedTimedLookups[row.id], cached.templateStamp == stamp { return cached.value }
         let timed = sortedSets(of: row).contains {
             previous(for: $0)?.durationSeconds != nil || plan(for: $0)?.durationSeconds != nil
         }
-        derivedTimedLookups[row.id] = timed
+        derivedTimedLookups[row.id] = TimedLookup(templateStamp: stamp, value: timed)
         return timed
     }
 

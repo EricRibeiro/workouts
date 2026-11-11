@@ -28,6 +28,19 @@ enum Metrics {
 }
 
 extension View {
+    /// The title of a section over a grid of cards: a Workout tab folder and a History month look alike.
+    func sectionTitleStyle() -> some View {
+        font(.title3.weight(.semibold))
+            .foregroundStyle(.primary)
+    }
+
+    /// The box around a `sectionTitleStyle()` title: at least 44 pt tall with the text at its bottom, and 8 pt between
+    /// the title and the cards under it, so it reads as that section's header rather than floating between two.
+    func sectionHeaderBox() -> some View {
+        frame(maxWidth: .infinity, minHeight: 44, alignment: .bottomLeading)
+            .padding(.bottom, 8)
+    }
+
     /// The card background shared by every grouped surface: `secondarySystemBackground`, continuous 20 pt corners.
     func cardBackground() -> some View {
         background(

@@ -61,7 +61,9 @@ status bar, toolbar items, tab bar. Rules that follow:
 - Grids: prefer an **even number of columns**. Apple's guidance is to keep outer margins and widen the gap around the hinge;
   Apple's own Fitness app does not do this when the Duo is flat (`docs/fitness-reference/open/`: equal columns across the
   full width, cards crossing the hinge). This app follows Fitness: the hinge is ignored when flat and respected only when the
-  Duo is half-folded (an active division), where the middle gutter widens to the fold (`DECISIONS.md`, "The hinge"). Our grid
+  Duo is half-folded (an active division), where the fold is the gutter and each side's columns fill up to it, so the two
+  sides differ in width when a bar strip makes them unequal (`DECISIONS.md`, "The hinge"). At large text sizes, when
+  a side is narrower than the scaled column minimum, that side keeps one column rather than letting a card cross the fold. Our grid
   derives an even column count from its own width, not from the size class.
 - New windows can only be created on the inner display; not something this app needs.
 
@@ -128,6 +130,6 @@ Apps Eric likes the feel of: Claude, Flighty, Apple Fitness.
 - Icon-only strip items with symbol + title: toolbar items are glass symbols, never text pills.
 - The ellipsis is the system's: overflow is `ToolbarOverflowMenu`, no hand-made ⋯ menus.
 - Prominent action at the top of a panel: Start Workout sits under the title, like Flighty's `+ Add Friend`.
-- Nothing straddles the fold: even grid columns from width, `ArrangementView` for editors on regular width.
+- Half-folded, nothing straddles the fold (flat open the hinge is ignored): even grid columns from width, `ArrangementView` for editors on regular width.
 - No fixed column widths; `NavigationSplitView` sizes to the fold.
 - Dynamic Island exists only on the closed display.

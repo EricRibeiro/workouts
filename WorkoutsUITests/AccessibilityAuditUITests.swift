@@ -106,6 +106,20 @@ final class AccessibilityAuditUITests: XCTestCase {
             // That is the system semantic colour, so fixing it means choosing a darker secondary for the whole app: a
             // taste call. Anything the audit rates "failed" (below that band) still fails the test, except:
             if description.contains("nearly passed") { return true }
+            // A text cut by the window's top or bottom edge (the last row of a scrolled list, e.g. the set table's `Reps`
+            // header at y 669 of 678): the audit measures the visible sliver of its glyphs and rates it "failed"; fully
+            // on screen the same text measures as its neighbours do. A text pushed past a side edge is a layout defect
+            // and still fails. Every skip is recorded in the test's activity log.
+            if let element, element.elementType == .staticText {
+                let window = app.windows.firstMatch.frame
+                let frame = element.frame
+                let crossesTopOrBottom = frame.minY < window.minY || frame.maxY > window.maxY
+                if crossesTopOrBottom && frame.minX >= window.minX && frame.maxX <= window.maxX {
+                    let skipped = "Contrast skipped, text cut by the window edge: '\(element.label)' \(frame)"
+                    XCTContext.runActivity(named: skipped) { _ in }
+                    return true
+                }
+            }
             // TODO(Eric, design): the template preview is a medium-detent sheet; its `.secondary` rows are measured over
             // the sheet's translucent system material and the dimmed Workout tab, and read "failed". Opaque
             // `presentationBackground` would fix it but changes the look of every sheet.
@@ -146,12 +160,17 @@ final class AccessibilityAuditUITests: XCTestCase {
             guard element.elementType == .staticText else { return false }
             // Exercise names in the logging pane: one line (two at accessibility sizes) by design.
             if context.truncatesExerciseNames && Self.sampleExerciseNames.contains(element.label) { return true }
-            // The template card's and preview's plan lines (`6 × Barbell Bench Press`): `lineLimit(1)` at the default
+            // The template preview's plan lines (`6 × Barbell Bench Press`): `lineLimit(1)` at the default
             // size (`exerciseNameLineLimit` in the preview), fully wrapped at accessibility sizes (checked on a
             // screenshot; the audit reports the wrapped card text as clipped at the bottom of the scroll view). The
             // same pattern also covers Workout Detail's best-set text (`386 lb × 5`), a plain unlimited `Text` whose
             // frame equals its glyph bounds.
             if element.label.contains(" × ") { return true }
+            // The template cards' exercise lines and "+ N more" (one line at the default size; at accessibility sizes the
+            // names wrap, so this never applies there). The card is one VoiceOver element and the audit still walks the
+            // texts inside it; the rule matches the element by position, inside a card's button, and only these lines
+            // (its title and footer must render in full).
+            if !context.largeText, Self.isCardExerciseLine(element, in: app) { return true }
             if context.largeText { return false }
             // Short single-line labels at the default size whose frame equals their glyph bounds. None sets a line
             // limit, a fixed frame or a scale factor, so each renders in full:
@@ -165,6 +184,25 @@ final class AccessibilityAuditUITests: XCTestCase {
         default:
             return false
         }
+    }
+
+    /// A text of a template card's exercise list: its frame lies inside a `workout.template.*` button and it is neither
+    /// the card's title (its topmost text) nor its footer (the recency, `Today`, `5 days ago`, a date, with the last
+    /// session's duration after a ` · `, or `No exercises`).
+    private static func isCardExerciseLine(_ element: XCUIElement, in app: XCUIApplication) -> Bool {
+        let cards = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'workout.template.'"))
+        let frame = element.frame
+        for index in 0..<cards.count {
+            let card = cards.element(boundBy: index)
+            guard card.frame.contains(frame) else { continue }
+            let footer =
+                #"^(Today|Yesterday|\d+ (days|weeks) ago|[A-Z][a-z]{2} \d{1,2}, \d{4}|No exercises)( · .+)?$"#
+            if element.label.range(of: footer, options: .regularExpression) != nil { return false }
+            let title = card.descendants(matching: .staticText).allElementsBoundByIndex
+                .min { $0.frame.minY < $1.frame.minY }
+            return title.map { $0.frame != frame } ?? false
+        }
+        return false
     }
 
     // MARK: - Default text size

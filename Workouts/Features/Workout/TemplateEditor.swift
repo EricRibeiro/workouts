@@ -286,11 +286,13 @@ private struct TemplateEditorContent: View {
     // MARK: Actions
 
     private func addExercises(_ infos: [ExerciseInfo], asSuperset: Bool) {
-        draft.addExercises(
-            infos,
-            defaultUnit: settings?.defaultUnit ?? SettingsStore.defaultUnitDefault,
-            asSuperset: asSuperset
-        )
+        withAnimation(.snappy) {
+            draft.addExercises(
+                infos,
+                defaultUnit: settings?.defaultUnit ?? SettingsStore.defaultUnitDefault,
+                asSuperset: asSuperset
+            )
+        }
     }
 
     private func cancel() {

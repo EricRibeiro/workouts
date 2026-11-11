@@ -7,10 +7,15 @@ import XCTest
 /// No rotation test: on the open inner display `XCUIDevice.shared.orientation = .landscapeLeft` leaves the window at 951×669
 /// and the pane where it was (spike, 2026-11-09), so a placement change cannot be driven from XCUITest.
 final class OpenPoseUITests: XCTestCase {
+    private var pose: String { ProcessInfo.processInfo.environment["DUO_POSE"] ?? "" }
+
     override func setUpWithError() throws {
         continueAfterFailure = false
+        // The edges test also runs in the closed poses; the others need the open inner display.
+        let runsInAnyPose = name.contains("testHistoryAndWorkoutShareEdges")
+        let allowed = runsInAnyPose ? ["open-wide", "closed-portrait", "closed-landscape"] : ["open-wide"]
         try XCTSkipIf(
-            ProcessInfo.processInfo.environment["DUO_POSE"] != "open-wide",
+            !allowed.contains(pose),
             "run with DEV_POSE=open-wide ./dev ui-test OpenPoseUITests"
         )
     }
@@ -43,10 +48,10 @@ final class OpenPoseUITests: XCTestCase {
         }
     }
 
-    /// The Workout tab's two sample folders flow side by side on the open Duo: headers at the same height, in two equal
-    /// columns across the content width that ignore the flat hinge (the second one starts left of the display's middle).
+    /// The Workout tab's two sample folders stack in one full-width column on the open Duo: the second header sits below the
+    /// first folder's cards and both headers start at the same x.
     @MainActor
-    func testOpenWideFoldersSitSideBySide() throws {
+    func testOpenWideFoldersStackFullWidth() throws {
         let app = XCUIApplication.launchedPreview("Workout", waitingFor: "screen.workout")
         let window = app.windows.firstMatch.frame
         XCTAssertEqual(window.width, 951, accuracy: 1)
@@ -57,14 +62,54 @@ final class OpenPoseUITests: XCTestCase {
         XCTAssertTrue(headers.element(boundBy: 1).waitForExistence(timeout: 10), "fewer than two folders")
         let first = headers.element(boundBy: 0).waitUntilFrameSettles()
         let second = headers.element(boundBy: 1).waitUntilFrameSettles()
-        XCTAssertEqual(first.minY, second.minY, accuracy: 2, "headers \(first) and \(second) are not side by side")
-        XCTAssertGreaterThan(second.minX, first.maxX, "second folder \(second) overlaps the first \(first)")
-        XCTAssertEqual(
-            second.minX,
-            window.width * 0.46,
-            accuracy: 20,
-            "second folder \(second) is not at the second equal column"
+        XCTAssertEqual(first.minX, second.minX, accuracy: 2, "headers \(first) and \(second) do not share a left edge")
+        let cards = app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier BEGINSWITH 'workout.template.'")
         )
+        let firstCardsBottom = cards.allElementsBoundByIndex.map(\.frame)
+            .filter { $0.minY > first.maxY && $0.maxY <= second.minY }
+            .map(\.maxY).max()
+        XCTAssertNotNil(firstCardsBottom, "no template card between the two headers")
+        XCTAssertGreaterThan(
+            second.minY,
+            firstCardsBottom ?? .infinity,
+            "second folder \(second) is not below the first's cards"
+        )
+    }
+
+    /// History and the Workout tab share their content edges in every Duo pose (`DEV_POSE=open-wide|closed-portrait|
+    /// closed-landscape`): the first History card starts on the same x as the first template card and the right-most
+    /// History card ends on the same x as the right-most template card.
+    @MainActor
+    func testHistoryAndWorkoutShareEdges() throws {
+        func cardFrames(_ preview: String, screen: String, prefix: String) -> [CGRect] {
+            let app = XCUIApplication.launchedPreview(preview, waitingFor: screen)
+            let cards = app.descendants(matching: .any).matching(
+                NSPredicate(format: "identifier BEGINSWITH %@", prefix)
+            )
+            XCTAssertTrue(cards.firstMatch.waitForExistence(timeout: 10), "no \(prefix) card in \(preview)")
+            _ = cards.firstMatch.waitUntilFrameSettles()
+            let window = app.windows.firstMatch.frame
+            return cards.allElementsBoundByIndex.map(\.frame).filter { $0.width > 0 && window.intersects($0) }
+        }
+        // A compact History row's frame is its whole list cell, margins included, so the compact poses measure the dashboard
+        // cards (which the first screen shows); the open display's month grid cards are real card frames.
+        let historyPrefix = pose == "open-wide" ? "history.row." : "history.card."
+        let history = cardFrames("History", screen: "screen.history", prefix: historyPrefix)
+        let workout = cardFrames("Workout", screen: "screen.workout", prefix: "workout.template.")
+        let historyFirst = history.sorted { ($0.minY, $0.minX) < ($1.minY, $1.minX) }.first
+        let workoutFirst = workout.sorted { ($0.minY, $0.minX) < ($1.minY, $1.minX) }.first
+        XCTAssertNotNil(historyFirst)
+        XCTAssertNotNil(workoutFirst)
+        XCTAssertEqual(
+            historyFirst?.minX ?? 0,
+            workoutFirst?.minX ?? -1,
+            accuracy: 2,
+            "first cards \(String(describing: historyFirst)) and \(String(describing: workoutFirst))"
+        )
+        let historyRight = history.map(\.maxX).max() ?? 0
+        let workoutRight = workout.map(\.maxX).max() ?? -1
+        XCTAssertEqual(historyRight, workoutRight, accuracy: 2, "right-most card edges differ")
     }
 
     /// One audit pass of the open logging cover, with `AccessibilityAuditUITests`' known-issue filter.

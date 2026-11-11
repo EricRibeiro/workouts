@@ -79,7 +79,7 @@ struct ActivityTimerCaption: View {
     var body: some View {
         Text(state.isRestRunning(restOver: restOver) ? "Rest" : "Elapsed")
             .font(.caption)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(ActivityStyle.secondaryText)
             .accessibilityHidden(true)  // the timer element's label already says it
     }
 }

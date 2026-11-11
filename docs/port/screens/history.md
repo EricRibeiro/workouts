@@ -104,7 +104,7 @@ detail, which can be edited after the fact. Settings is not a tab (section 8).
 - Calendar: a sheet with a month grid (`Grid`, Monday first, always), day tap -> workouts of the day -> push detail.
 - Edit past workout: reuse the shared exercise editor in a past mode, pushed from the workout detail (not a cover
   or sheet); on regular width its body is the logging screen's `ArrangementView(primary: SetTable, secondary:
-  exercise pane)` so the table never straddles the fold.
+  exercise pane)` so the table never straddles the fold when the Duo is half-folded.
 - Save as Template: sheet with folder picker. Toast -> `sensoryFeedback(.success)` and the sheet dismissing; no banner.
 - Units, volume, best sets and PR counts are derived on read in WorkoutsKit, not stored.
 - Settings: not a tab and not in the split; `DECISIONS.md` (gear toolbar item on the Workout tab, plus

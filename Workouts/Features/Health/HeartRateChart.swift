@@ -7,6 +7,11 @@ import Charts
 import SwiftUI
 import WorkoutsKit
 
+private struct FittingLabelKey: PreferenceKey {
+    static let defaultValue = false
+    static func reduce(value: inout Bool, nextValue: () -> Bool) { value = value || nextValue() }
+}
+
 /// The finished-workout heart-rate chart: the Health series as a line, drawn over the workout's own set timeline (a
 /// shaded band per exercise, a tick per completed set), the average and max beneath, and the time in each zone.
 ///
@@ -19,19 +24,27 @@ struct HeartRateChart: View {
     var average: Double?
     var maximum: Double?
     var zones: [HeartRateZoneTime] = []
+    /// False when the host shows the workout's average (or max) itself, so the screen carries each figure once.
+    var showsAverage = true
+    var showsMaximum = true
 
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.dynamicTypeSize) private var typeSize
     @State private var selection: Double?
+    /// Whether any band name fits its band, learned from the overlay; the strip above the plot takes height only then.
+    @State private var hasFittingLabel = false
+    /// Height of the strip above the plot that carries the band names (one `.caption2` line).
+    @ScaledMetric(relativeTo: .caption2) private var labelStripHeight: CGFloat = 16
 
     /// A line needs two points; with fewer the caller leaves the chart out.
     static func canShow(series: [HeartRatePoint]) -> Bool { series.count >= 2 }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
+            title
             chart
-            caption
             zoneSection
+            source
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         // A container, so the zones keep their own identifier (a bare identifier here would replace it).
@@ -56,6 +69,11 @@ struct HeartRateChart: View {
         HeartRateSeries.plottedAverage(of: points, storedAverage: average)
     }
 
+    /// Band names are regular-width only, and the strip above the plot is reserved only when a name fits.
+    private var showsLabelStrip: Bool {
+        horizontalSizeClass == .regular && hasFittingLabel
+    }
+
     private var blocks: [SetTimeline.Block] {
         timeline.blocks.map {
             var block = $0
@@ -76,13 +94,6 @@ struct HeartRateChart: View {
         let intervals = typeSize.isAccessibilitySize ? 2.0 : 5.0
         let step = steps.first { xMax / $0 <= intervals } ?? 7200
         return Array(stride(from: 0, through: xMax, by: step))
-    }
-
-    /// Narrowest share of the axis a band may cover and still carry its label; thinner bands would clip or collide.
-    private static let minLabelFraction = 0.08
-
-    private func labelFits(_ block: SetTimeline.Block) -> Bool {
-        (block.end - block.start) / xMax >= Self.minLabelFraction
     }
 
     /// Supersets are tinted with their number's colour (as on the logging screen); other exercises alternate shades.
@@ -111,15 +122,6 @@ struct HeartRateChart: View {
             ForEach(Array(blocks.enumerated()), id: \.offset) { position, block in
                 RectangleMark(xStart: .value("Start", block.start), xEnd: .value("End", block.end))
                     .foregroundStyle(Self.bandFill(block, position: position))
-                    .annotation(position: .overlay, alignment: .topLeading, spacing: 2) {
-                        if horizontalSizeClass == .regular, labelFits(block) {
-                            Text(block.name)
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                                .padding(.leading, 2)
-                        }
-                    }
             }
             ForEach(Array(timeline.setTicks.enumerated()), id: \.offset) { _, tick in
                 RuleMark(x: .value("Set", max(0, tick.offset)))
@@ -153,6 +155,8 @@ struct HeartRateChart: View {
                     .foregroundStyle(.red)
             }
         }
+        .chartOverlay { proxy in bandLabels(proxy) }
+        .onPreferenceChange(FittingLabelKey.self) { hasFittingLabel = $0 }
         .chartXSelection(value: $selection)
         .chartXScale(domain: 0...xMax)
         .chartYScale(domain: .automatic(includesZero: false))
@@ -175,15 +179,47 @@ struct HeartRateChart: View {
             }
         }
         .frame(height: 120)
+        .padding(.top, showsLabelStrip ? labelStripHeight : 0)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityText)
+    }
+
+    /// Each band's name in a strip directly above the plot, at the band's leading edge, only when the whole name fits
+    /// the band's drawn width (an annotation's `targetSize` does not report it, so the chart proxy measures the band).
+    @ViewBuilder
+    private func bandLabels(_ proxy: ChartProxy) -> some View {
+        if horizontalSizeClass == .regular {
+            GeometryReader { geometry in
+                if let plotFrame = proxy.plotFrame {
+                    let origin = geometry[plotFrame].origin
+                    ForEach(Array(blocks.enumerated()), id: \.offset) { _, block in
+                        if let start = proxy.position(forX: block.start), let end = proxy.position(forX: block.end),
+                            end > start
+                        {
+                            ViewThatFits(in: .horizontal) {
+                                Text(block.name)
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                                    .padding(.leading, 4)
+                                    .preference(key: FittingLabelKey.self, value: true)
+                                Color.clear
+                            }
+                            .frame(width: end - start, height: labelStripHeight, alignment: .leading)
+                            .offset(x: origin.x + start, y: origin.y - labelStripHeight)
+                        }
+                    }
+                }
+            }
+            .allowsHitTesting(false)
+        }
     }
 
     private var accessibilityText: String {
         var text = "Heart rate"
         var parts: [String] = []
-        if let shownAverage { parts.append("average \(FitnessFormat.wholeNumber(shownAverage))") }
-        if let shownMaximum { parts.append("max \(FitnessFormat.wholeNumber(shownMaximum))") }
+        if showsAverage, let shownAverage { parts.append("average \(FitnessFormat.wholeNumber(shownAverage))") }
+        if showsMaximum, let shownMaximum { parts.append("max \(FitnessFormat.wholeNumber(shownMaximum))") }
         if !parts.isEmpty { text += ", " + parts.joined(separator: ", ") + " beats per minute" }
         if !timeline.isEmpty {
             text +=
@@ -192,27 +228,36 @@ struct HeartRateChart: View {
         return text
     }
 
-    // MARK: Caption
+    // MARK: Title and source
 
-    private var caption: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(captionText)
-                .font(.footnote)
-                .monospacedDigit()
-            Text("Data from Apple Health")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-        }
-        .accessibilityElement(children: .combine)
+    private var title: some View {
+        Text(titleText)
+            .font(.footnote)
+            .monospacedDigit()
+            .accessibilityAddTraits(.isHeader)
     }
 
-    private var captionText: String {
+    private var titleText: String {
         var parts = ["Heart Rate"]
-        if let shownAverage { parts.append("Avg \(FitnessFormat.wholeNumber(shownAverage))") }
-        if let shownMaximum { parts.append("Max \(FitnessFormat.wholeNumber(shownMaximum))") }
+        var hasFigure = false
+        if showsAverage, let shownAverage {
+            parts.append("Avg \(FitnessFormat.wholeNumber(shownAverage))")
+            hasFigure = true
+        }
+        if showsMaximum, let shownMaximum {
+            parts.append("Max \(FitnessFormat.wholeNumber(shownMaximum))")
+            hasFigure = true
+        }
         var text = parts.joined(separator: " \u{00B7} ")
-        if shownAverage != nil || shownMaximum != nil { text += " bpm" }
+        if hasFigure { text += " bpm" }
         return text
+    }
+
+    /// Last, under the zones when they show, since it credits everything above it, the zones included.
+    private var source: some View {
+        Text("Data from Apple Health")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
     }
 
     // MARK: Zones

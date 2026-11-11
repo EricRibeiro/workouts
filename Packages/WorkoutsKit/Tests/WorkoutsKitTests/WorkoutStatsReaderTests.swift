@@ -162,6 +162,32 @@ import Testing
         #expect(actual == expected)
     }
 
+    @Test func lastPerformedIndexCarriesTheNewestFinishedDuration() async throws {
+        let container = try makeTestContainer()
+        let context = container.mainContext
+        let template = Template(name: "Push")
+        context.insert(template)
+        let start = Date(timeIntervalSince1970: 1_790_000_000)
+        context.insert(
+            Workout(name: "Push", startedAt: start, finishedAt: start.addingTimeInterval(1_800), template: template)
+        )
+        let newerStart = start.addingTimeInterval(86_400)
+        context.insert(
+            Workout(
+                name: "Push",
+                startedAt: newerStart,
+                finishedAt: newerStart.addingTimeInterval(3_120),
+                template: template
+            )
+        )
+        context.insert(Workout(name: "Push", startedAt: newerStart.addingTimeInterval(86_400), template: template))
+        try context.save()
+
+        let index = try await WorkoutStatsReader.loadLastPerformedIndex(in: container)
+        #expect(index.lastPerformed(of: template) == newerStart)
+        #expect(index.lastDurationSeconds(of: template) == 3_120)
+    }
+
     @Test func exerciseDetailEqualsTheSynchronousFold() async throws {
         let catalog = try Self.realCatalog()
         let store = ExerciseStore(catalog: catalog)

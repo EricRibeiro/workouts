@@ -129,7 +129,7 @@ omission over. The tab also owns folder and template management.
   folder pickers: sheet or `Menu`.
 - Editor: pushed in both widths (Mail's model: one more level beside the sidebar), not a `fullScreenCover`. On
   regular width the body is the same `ArrangementView(primary: SetTable, secondary: exercise pane)` as the logging
-  screen (`PLAN.md` task 2.10), so the Set | Previous | lbs | Reps table never straddles the fold in the book pose.
+  screen (`PLAN.md` task 2.10), so the Set | Previous | lbs | Reps table never straddles the fold in the half-folded book pose.
   No width cap: fixed widths are forbidden. The name row is `navigationTitle` plus `toolbarTitleMenu` (Edit
   Template Name, Add Note); Save and Close sit in the strip. Per-exercise ⋯ stays a content-level `Menu` with a
   nested Preferences `Menu` (it is content, not a bar). **+ Add Set** is a plain trailing `Label("Add Set",

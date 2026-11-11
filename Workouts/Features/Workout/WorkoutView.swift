@@ -195,7 +195,8 @@ struct WorkoutView: View {
             }
         } else {
             ScrollView {
-                FoldFlow {
+                // One container at every width, so folding the Duo moves the sections instead of rebuilding them.
+                VStack(alignment: .leading, spacing: horizontalSizeClass == .regular ? 28 : 20) {
                     ForEach(FolderOperations.ordered(folders)) { folder in
                         FolderSection(
                             folder: folder,
@@ -217,11 +218,10 @@ struct WorkoutView: View {
                         )
                     }
                     if !unfiled.isEmpty {
-                        VStack(alignment: .leading, spacing: 12) {
+                        VStack(alignment: .leading, spacing: 0) {
                             Text("Unfiled (\(unfiled.count))")
-                                .font(.title3.weight(.semibold))
-                                .foregroundStyle(.primary)
-                                .frame(minHeight: 44)
+                                .sectionTitleStyle()
+                                .sectionHeaderBox()
                                 .accessibilityAddTraits(.isHeader)
                                 .accessibilityIdentifier("workout.unfiled")
                             TemplateGrid(

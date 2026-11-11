@@ -13,6 +13,8 @@ import WorkoutsKit
 struct RestTimerRow: View {
     let rest: SetTableRest
     @State private var isShown: Bool
+    @State private var activations = 0
+    @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @ScaledMetric(relativeTo: .body) private var touch = 44.0
@@ -65,7 +67,7 @@ struct RestTimerRow: View {
                     Spacer(minLength: 0)
                 } else {
                     RestDrainBar(endsAt: rest.endsAt, total: rest.total, height: barHeight)
-                        .id(rest.endsAt)
+                        .id(BarKey(endsAt: rest.endsAt, activations: activations))
                         .accessibilityHidden(true)
                 }
                 Button(action: rest.add30) {
@@ -86,6 +88,9 @@ struct RestTimerRow: View {
             }
             .buttonStyle(.borderless)
         }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { activations += 1 }
+        }
         .padding(.horizontal, 8)
         .frame(minHeight: touch)
         .background(.fill.secondary, in: .rect(cornerRadius: 10, style: .continuous))
@@ -95,8 +100,15 @@ struct RestTimerRow: View {
     }
 }
 
+/// The identity of a drain bar: a new `endsAt` (+30 s) or a return to the foreground makes a fresh bar that starts from the clock's
+/// remaining fraction, since a suspended app does not keep a running animation in step with the countdown.
+private struct BarKey: Hashable {
+    let endsAt: Date
+    let activations: Int
+}
+
 /// The lime capsule draining over the rest's remaining time: one linear animation started when the bar appears, so no per-second
-/// state change drives it. The row keys it by `endsAt`, so +30 s makes a fresh bar that starts from the new fraction.
+/// state change drives it. The row re-keys it (see `BarKey`) to restart from the true remaining fraction.
 private struct RestDrainBar: View {
     let endsAt: Date
     let total: Int

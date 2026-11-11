@@ -59,12 +59,14 @@ struct SnapshotSetRowHost: View {
 struct SnapshotTemplateCardHost: View {
     let template: Template
     let summary: TemplateCardSummary
+    var size: TemplateCard.Size = .compact
     @Namespace private var namespace
 
     var body: some View {
         TemplateCard(
             template: template,
             summary: summary,
+            size: size,
             namespace: namespace,
             actions: TemplateCardActions(),
             open: {}

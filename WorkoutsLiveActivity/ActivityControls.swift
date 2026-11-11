@@ -20,11 +20,13 @@ struct ActivityControls: View {
                     ActivityControlLabel(title: "Skip", symbol: "forward.end.fill")
                 }
                 .buttonStyle(.bordered)
+                .foregroundStyle(ActivityStyle.accent)
                 .accessibilityLabel("Skip rest")
                 Button(intent: AddRestIntent(seconds: 30)) {
                     ActivityControlLabel(title: "+30 s", symbol: "goforward.30")
                 }
                 .buttonStyle(.bordered)
+                .foregroundStyle(ActivityStyle.accent)
                 .accessibilityLabel("Add 30 seconds of rest")
             }
             Button(intent: DoneSetIntent(setID: state.current?.setID ?? UUID())) {

@@ -18,21 +18,21 @@ struct LockScreenActivityView: View {
                 // "Rest over" is said by the timer row below, so the set line stays plain here.
                 Text(state.activityDetailText)
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(ActivityStyle.secondaryText)
                     .lineLimit(1)
             }
             .accessibilityElement(children: .combine)
             timerRow
             if state.setsTotal > 0 {
                 HStack(spacing: 8) {
-                    ProgressView(value: Double(min(state.setsDone, state.setsTotal)), total: Double(state.setsTotal))
-                        .progressViewStyle(.linear)
-                        .tint(ActivityStyle.accent)
-                        .accessibilityHidden(true)  // the caption says it
+                    ActivityProgressBar(
+                        fraction: Double(min(state.setsDone, state.setsTotal)) / Double(state.setsTotal)
+                    )
+                    .accessibilityHidden(true)  // the caption says it
                     if let text = state.setsProgressText {
                         Text(text)
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(ActivityStyle.secondaryText)
                             .lineLimit(1)
                     }
                 }
@@ -41,6 +41,7 @@ struct LockScreenActivityView: View {
             ActivityControls(state: state, restOver: restOver)
         }
         .padding(16)
+        .foregroundStyle(ActivityStyle.primaryText)
         .environment(\.colorScheme, .dark)
     }
 
@@ -53,7 +54,7 @@ struct LockScreenActivityView: View {
                 Spacer(minLength: 0)
                 ActivityTimerText(state: state, restOver: true, alignment: .trailing)
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(ActivityStyle.secondaryText)
             } else {
                 ActivityTimerCaption(state: state)
                 ActivityTimerText(state: state, alignment: .leading)
@@ -61,6 +62,26 @@ struct LockScreenActivityView: View {
                 Spacer(minLength: 0)
             }
         }
+    }
+}
+
+/// The set-progress bar: an explicit track and the accent fill, since the system's linear `ProgressView` draws its track
+/// in a semantic fill that could follow the device's light appearance.
+struct ActivityProgressBar: View {
+    /// 0...1.
+    let fraction: Double
+
+    var body: some View {
+        Capsule()
+            .fill(ActivityStyle.track)
+            .frame(height: 4)
+            .overlay(alignment: .leading) {
+                GeometryReader { proxy in
+                    Capsule()
+                        .fill(ActivityStyle.accent)
+                        .frame(width: proxy.size.width * min(max(fraction, 0), 1))
+                }
+            }
     }
 }
 
