@@ -46,7 +46,8 @@ Score each; 0 = broken, 2 = partial, 4 = nothing to fix. Keep the key finding pe
    zoom transitions on card/row → detail; `Form` for settings-shaped content; no `UIScreen`, idiom or orientation reads.
 2. **Hierarchy and layout.** One primary action per screen, obvious; tight groups, generous separation, more space above a
    section header than below; spacing from the system's defaults or one shared constant, never a different literal per
-   view; grids derive columns from their own width; nothing straddles the fold or sits under the strip; rows and cells
+   view; grids derive columns from their own width; nothing straddles the fold or sits under the strip (one settled exception, not a finding: the Exercises tab's
+   detail pane crosses the fold on the open Duo, the owner's choice, JC133 and `DECISIONS.md` "Exercises uses"); rows and cells
    hit 44 pt; the large title collapses on scroll.
 3. **Colour and appearance.** Text and placeholders ≥ 4.5:1 in dark (a "Previous" value shown as a prompt is
    content, so it reads like content, not like a hint); meaning carried by the semantic asset colours only (accent, ok,

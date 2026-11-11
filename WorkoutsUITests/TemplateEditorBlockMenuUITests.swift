@@ -33,17 +33,17 @@ final class TemplateEditorBlockMenuUITests: XCTestCase {
         return (menu, String(menu.identifier.dropFirst("settable.menu.".count)))
     }
 
-    private func weightFieldCount(in app: XCUIApplication, section: String) -> Int {
-        app.descendants(matching: .any)["settable.section.\(section)"].textFields.matching(
-            NSPredicate(format: "identifier BEGINSWITH 'setrow.' AND identifier ENDSWITH '.weight'")
-        ).count
+    /// Where the block's Add Set row sits: it moves down as the block gains rows (a block is not one container, so its rows
+    /// cannot be counted inside it).
+    private func addSetBottom(in app: XCUIApplication, section: String) -> CGFloat {
+        app.buttons["settable.addset.\(section)"].firstMatch.frame.maxY
     }
 
     @MainActor
     func testAddWarmupSetsGrowsTheBlock() throws {
         let app = launchEditor()
         let (menu, section) = firstMenu(app)
-        let before = weightFieldCount(in: app, section: section)
+        let before = addSetBottom(in: app, section: section)
 
         menu.tap()
         let warmup = app.buttons["settable.menu.warmup"].firstMatch
@@ -56,7 +56,7 @@ final class TemplateEditorBlockMenuUITests: XCTestCase {
             app.alerts["Add a working weight first"].waitForExistence(timeout: 2),
             "unexpected no-weight alert"
         )
-        let grew = NSPredicate { _, _ in self.weightFieldCount(in: app, section: section) > before }
+        let grew = NSPredicate { _, _ in self.addSetBottom(in: app, section: section) > before }
         let expectation = XCTNSPredicateExpectation(predicate: grew, object: nil)
         XCTAssertEqual(XCTWaiter().wait(for: [expectation], timeout: 5), .completed, "no warm-up rows were added")
     }

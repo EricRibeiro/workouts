@@ -26,6 +26,7 @@
         case finishSummary = "FinishSummary"
         case exerciseDetail = "ExerciseDetail"
         case workoutDetail = "WorkoutDetail"
+        case workoutDetailHealth = "WorkoutDetailHealth"
         case pastEditor = "PastEditor"
         case customExerciseForm = "CustomExerciseForm"
         case customExerciseFormEdit = "CustomExerciseFormEdit"
@@ -34,6 +35,7 @@
         case exercisePane = "ExercisePane"
         case exerciseInfoSheet = "ExerciseInfoSheet"
         case heartRateChart = "HeartRateChart"
+        case foldPages = "FoldPages"
 
         var id: String { rawValue }
 
@@ -67,6 +69,7 @@
                 }
             case .exerciseDetail: ExerciseDetailDemo()
             case .workoutDetail: WorkoutDetailDemo()
+            case .workoutDetailHealth: WorkoutDetailDemo(withHealth: true)
             case .pastEditor: PastEditorDemo()
             case .customExerciseForm: SheetHost { CustomExerciseFormView(prefill: "Zz Sled Drag") }
             case .customExerciseFormEdit: CustomExerciseFormEditDemo()
@@ -75,6 +78,7 @@
             case .exercisePane: ExercisePaneDemo()
             case .exerciseInfoSheet: ExerciseInfoSheetDemo()
             case .heartRateChart: HeartRateChartDemo()
+            case .foldPages: FoldPagesDemo()
             case .exercisePickerMulti:
                 ExercisePickerView(title: "Add Exercises", mode: .multiple(add: { _ in }, superset: { _ in }))
             }

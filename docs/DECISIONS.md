@@ -60,9 +60,9 @@ Eric deferred the technical choices to Claude. These close every item in `docs/p
   Close → prominent → state (ring) → actions, since the bottom overflows first: nothing below the ring may be needed mid-set.
 - Exercises uses `NavigationSplitView(columnVisibility: .all)` with `.balanced`: on regular width the
   list is a **permanent** pane beside the detail (never behind a toggle; JC52), with a large inline title like the Workout tab. The
-  list column ends on the fold: beside a vertical division (`reservedRegions(kind: .division, options: .includeInactive)` through
-  `FoldPlacement.columnGap`) its width is the division's leading edge and the detail is inset by the division's width, so it starts
-  after the hinge; otherwise the system width with a 320 pt minimum (compact -> push); the empty detail is a `ContentUnavailableView` ("Select an Exercise"). History and Workout are single columns in both
+  list column keeps the system width with a 320 pt minimum and the detail takes the rest, **crossing the fold on purpose**
+  (Eric, 2026-11-11, JC133; reviews do not flag it): a list widened to the fold makes the system overlay it on the detail, and a
+  detail inset past the fold loses a third of its width for an empty strip. Compact width pushes the detail; the empty detail is a `ContentUnavailableView` ("Select an Exercise"). History and Workout are single columns in both
   widths. The Workout tab is a **card grid** (collapsible folders) with an even column count from the grid's own width via
   `onGeometryChange`, `max(2, 2 * floor(width / (2 * minCard)))`, so no card straddles the fold; with `.includeInactive`
   reserved regions the hinge gap widens. Card tap: compact -> medium-detent preview sheet (a Maps/Flighty-style panel, fine at
@@ -70,13 +70,19 @@ Eric deferred the technical choices to Claude. These close every item in `docs/p
   is per-device `@AppStorage`. Exercise rows (list and picker) show a one-line name, cut at the tail, so rows share one natural height. Settings →
   Exercises → Full Exercise Names (`SettingsKey.fullExerciseNames`, per-device, off by default) wraps names to two lines and gives every row
   the two-line height; accessibility sizes ignore it (names wrap, natural heights).
+- **Workout detail, open wide**: two pages anchored on the hinge (`FoldPages`), each filling its own half and scrolling on its
+  own, with a different job per page: the summary and heart-rate chart on the leading page, every exercise card in order on the
+  trailing one. Closed and open-tall keep the single scroll (summary, chart, exercises).
 - **Sheet placement**: on regular width every sheet names `presentationPlacement`: picker, settings, calendar, custom timer,
   finish summary → `.center`; rest ring → `.trailing` (it belongs to the strip's ring item).
 - **Active workout**: one presentation in both widths, a `fullScreenCover` on the root `TabView`, not tied to any tab. Layout
   follows `horizontalSizeClass`: compact → the set table; regular → an `ArrangementView` (iOS 27.1, in SwiftUICore: `import
   SwiftUI` suffices), set table primary, exercise pane (video, instructions, Previous, records) secondary, following
   the focused exercise: side by side when wide, stacked when tall, split across the fold when partially open
-  (`docs/port/duo-layout.md`). Folding only changes the size class, so draft, focus and scroll are untouched. Minimise is the
+  (`docs/port/duo-layout.md`). The two panes (and the template and past-workout editors') meet at the hinge in every open pose:
+  side by side on a vertical division, active or inactive (flat open-wide), stacked on an inactive horizontal one (open-tall),
+  bench mode on an active horizontal one (laptop), equal halves only with no division (`BenchArrangement` reads the inactive
+  regions too; the container excludes the bar strip, so its centre is not the hinge). Folding only changes the size class, so draft, focus and scroll are untouched. Minimise is the
   cover's Close-slot item (`Button("Minimise", systemImage: "chevron.down")`) with Finish (`flag.checkered`, prominent) next: no grab
   handle, drag or tab-tap (a cover has no interactive dismissal, no tab bar). It dismisses the cover; the resume control (and Live
   Activity) restore it; a running workout survives any tab change.

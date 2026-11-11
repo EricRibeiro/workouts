@@ -62,40 +62,6 @@ final class OpenPoseUITests: XCTestCase {
         XCTAssertLessThan(first.maxX, window.midX, "first folder \(first) reaches the fold")
     }
 
-    /// The Exercises tab on the open Duo ends its list on the fold and starts the detail after it, so the exercise video and
-    /// text are never cut by the hinge (the fold gutter is about 40 pt wide, centred on the window's middle).
-    @MainActor
-    func testOpenWideExercisesListEndsAtTheFold() throws {
-        let app = XCUIApplication.launchedPreview("Exercises", waitingFor: "screen.exercises")
-        let window = app.windows.firstMatch.frame
-        XCTAssertEqual(window.width, 951, accuracy: 1)
-
-        let rows = app.descendants(matching: .any).matching(
-            NSPredicate(format: "identifier BEGINSWITH 'exercises.row.'")
-        )
-        let first = rows.element(boundBy: 0)
-        XCTAssertTrue(first.waitForExistence(timeout: 10), "no exercise rows")
-        first.tap()
-
-        let title = app.descendants(matching: .any)["exerciseDetail.name"]
-        XCTAssertTrue(title.waitForExistence(timeout: 10), "the detail did not open")
-        let row = first.waitUntilFrameSettles()
-        let detail = title.waitUntilFrameSettles()
-        XCTAssertLessThanOrEqual(row.maxX, window.midX + 2, "list row \(row) reaches the fold")
-        XCTAssertGreaterThanOrEqual(detail.minX, window.midX - 2, "detail title \(detail) starts before the fold")
-
-        // The list must not be drawn over the detail: its row never intersects the detail's title or segments, and the
-        // detail is hittable (an overlaid, dimmed detail is not).
-        let about = app.buttons["About"].firstMatch
-        XCTAssertTrue(about.waitForExistence(timeout: 5), "the detail's About segment is missing")
-        let aboutFrame = about.waitUntilFrameSettles()
-        XCTAssertTrue(title.isHittable, "detail title is covered")
-        XCTAssertTrue(about.isHittable, "detail About segment is covered")
-        XCTAssertFalse(row.intersects(detail), "list row \(row) overlaps the detail title \(detail)")
-        XCTAssertFalse(row.intersects(aboutFrame), "list row \(row) overlaps the About segment \(aboutFrame)")
-        XCTAssertLessThanOrEqual(row.maxX, detail.minX, "list row \(row) ends after the detail title \(detail) starts")
-    }
-
     /// One audit pass of the open logging cover, with `AccessibilityAuditUITests`' known-issue filter.
     @MainActor
     func testOpenWideLoggingAudit() throws {

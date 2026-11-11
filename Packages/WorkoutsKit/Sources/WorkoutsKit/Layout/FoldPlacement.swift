@@ -4,8 +4,8 @@ import CoreGraphics
 /// `BenchLayout` and the dashboard's two columns, kept out of SwiftUI so the geometry can be tested without a simulator.
 ///
 /// Inputs are plain values read from the container: its size, the active `.division` regions' frames in the container's own
-/// coordinate space (`GeometryProxy.reservedRegions(kind: .division)`, already filtered to active ones), and the axes the
-/// arrangement may split along. While the keyboard is up in the laptop pose the system reports no division and a shorter
+/// coordinate space (`GeometryProxy.reservedRegions(kind: .division, options: .includeInactive)`, split into the active
+/// ones and the inactive ones), and the axes the arrangement may split along. While the keyboard is up in the laptop pose the system reports no division and a shorter
 /// container, so that case is simply "no divisions, smaller size".
 public nonisolated enum FoldPlacement {
     /// The axes an arrangement may split along (the kit's mirror of `Axis.Set`).
@@ -44,16 +44,35 @@ public nonisolated enum FoldPlacement {
         public var isBench: Bool { kind == .bench }
     }
 
-    /// The decision. A horizontal division (wider than tall, the laptop hinge) wins when the vertical axis is allowed and
-    /// gives bench mode; a vertical one (book) splits left/right when the horizontal axis is allowed. With no usable
-    /// division the area splits in two equal halves by its shape (wide: side by side, else stacked). No axes: single.
-    public static func placement(size: CGSize, divisions: [CGRect], axes: Axes) -> Placement {
+    /// The decision. An active horizontal division (wider than tall, the laptop hinge) wins when the vertical axis is allowed
+    /// and gives bench mode; an active vertical one (book) splits left/right when the horizontal axis is allowed. Inactive
+    /// divisions (the hinge of a flat-open Duo, which the system reports but does not split on) are met too: a vertical one
+    /// splits left/right on it, a horizontal one stacks the views on it, each leaving the division's thickness empty, so the
+    /// two views meet at the hinge even when the container is off the display's centre (a bar strip on one side). An inactive
+    /// division counts only when it lies strictly inside the container. With no usable division the area splits in two equal
+    /// halves by its shape (wide: side by side, else stacked). No axes: single.
+    public static func placement(
+        size: CGSize,
+        divisions: [CGRect],
+        inactiveDivisions: [CGRect] = [],
+        axes: Axes
+    ) -> Placement {
         guard !axes.isEmpty else { return Placement(kind: .single, lead: 0, gap: 0) }
         if axes.contains(.vertical), let fold = divisions.first(where: { $0.width > $0.height }) {
             return Placement(kind: .bench, lead: max(0, fold.minY), gap: fold.height)
         }
         if axes.contains(.horizontal), let fold = divisions.first(where: { $0.width < $0.height }) {
             return Placement(kind: .sideBySide, lead: max(0, fold.minX), gap: fold.width)
+        }
+        if axes.contains(.horizontal),
+            let fold = inactiveDivisions.first(where: { $0.width < $0.height && $0.minX > 0 && $0.maxX < size.width })
+        {
+            return Placement(kind: .sideBySide, lead: fold.minX, gap: fold.width)
+        }
+        if axes.contains(.vertical),
+            let fold = inactiveDivisions.first(where: { $0.width > $0.height && $0.minY > 0 && $0.maxY < size.height })
+        {
+            return Placement(kind: .stacked, lead: fold.minY, gap: fold.height)
         }
         if size.width > size.height, axes.contains(.horizontal) {
             return Placement(kind: .sideBySide, lead: size.width / 2, gap: 0)
@@ -158,6 +177,50 @@ public nonisolated enum FoldPlacement {
         }
         let column = max(0, (total - spacing) / 2)
         return (column, spacing, column)
+    }
+
+    // MARK: Two pages on the hinge
+
+    /// A page's horizontal extent inside its container: x from the container's leading edge.
+    public nonisolated struct PageFrame: Equatable, Sendable {
+        public var x: CGFloat
+        public var width: CGFloat
+
+        public init(x: CGFloat, width: CGFloat) {
+            self.x = x
+            self.width = width
+        }
+
+        public var maxX: CGFloat { x + width }
+    }
+
+    /// The two pages of a screen split on the hinge.
+    public nonisolated struct PageFrames: Equatable, Sendable {
+        public var leading: PageFrame
+        public var trailing: PageFrame
+
+        public init(leading: PageFrame, trailing: PageFrame) {
+            self.leading = leading
+            self.trailing = trailing
+        }
+    }
+
+    /// The frames of two pages in a container `total` wide that each fill their own side of `division`: the leading page runs
+    /// from `margin` to the division's leading edge, the trailing page from the division's trailing edge to `margin` short of
+    /// the container's end, so the division is the only gutter and the halves may differ in width (a bar strip on one side).
+    /// Nil when there is no division, when it does not lie strictly inside the container, or when either page would be
+    /// narrower than `minimumPage`; the caller then stacks the pages.
+    public static func pageFrames(
+        total: CGFloat,
+        division: ClosedRange<CGFloat>?,
+        margin: CGFloat,
+        minimumPage: CGFloat = 44
+    ) -> PageFrames? {
+        guard let division, division.lowerBound > 0, division.upperBound < total else { return nil }
+        let leading = PageFrame(x: margin, width: division.lowerBound - margin)
+        let trailing = PageFrame(x: division.upperBound, width: total - margin - division.upperBound)
+        guard leading.width >= minimumPage, trailing.width >= minimumPage else { return nil }
+        return PageFrames(leading: leading, trailing: trailing)
     }
 
     // MARK: Sections in columns

@@ -10,9 +10,12 @@ import WorkoutsKit
 /// (the exercise pane) in one fixed view tree, placed by `BenchLayout`, so folding never rebuilds the table and its focus and
 /// scroll position survive every pose change.
 ///
-/// It reproduces what the system's `.split.axes(axes)` does, measured on the Duo (6.2): with no active division the two halves
-/// are equal (side by side when the area is wider than tall, primary above secondary otherwise); with the Duo half-open the
-/// split follows the division region, so each view sits entirely on its own side of the fold (book: primary left, pane right).
+/// The two views meet at the hinge in every open pose, as the system's `.split.axes(axes)` does for an active division, measured
+/// on the Duo (6.2): with the Duo half-open the split follows the division region, so each view sits entirely on its own side of
+/// the fold (book: primary left, pane right). Flat open, the hinge is an inactive division and the views meet on it the same
+/// way (side by side on a vertical one, stacked on a horizontal one): the area excludes the system's bar strip, so its centre is
+/// not the hinge. With no division at all the two halves are equal (side by side when the area is wider than tall, primary above
+/// secondary otherwise).
 /// One pose differs on purpose: half-open with the hinge across the display ("bench mode", laptop) puts the secondary on the
 /// upper half, with the rest countdown above it while a rest runs, and the primary on the lower half, where the keyboard lands.
 /// No axes (compact width, or no pane to show) gives the primary the whole area. While the keyboard is up in the laptop pose
@@ -53,8 +56,13 @@ private struct BenchArrangementBody: View {
         var foldAxes: FoldPlacement.Axes = []
         if axes.contains(.horizontal) { foldAxes.insert(.horizontal) }
         if axes.contains(.vertical) { foldAxes.insert(.vertical) }
-        let divisions = proxy.reservedRegions(kind: .division).filter(\.isActive).map(\.frame)
-        return FoldPlacement.placement(size: proxy.size, divisions: divisions, axes: foldAxes)
+        let regions = proxy.reservedRegions(kind: .division, options: .includeInactive)
+        return FoldPlacement.placement(
+            size: proxy.size,
+            divisions: regions.filter(\.isActive).map(\.frame),
+            inactiveDivisions: regions.filter { !$0.isActive }.map(\.frame),
+            axes: foldAxes
+        )
     }
 }
 

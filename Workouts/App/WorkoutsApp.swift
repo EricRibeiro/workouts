@@ -95,7 +95,7 @@ struct WorkoutsApp: App {
                 timedByDefault: { [store] in store.exercise(id: $0)?.isTimed ?? false }
             )
             #if DEBUG
-                try Self.startSampleWorkoutIfRequested(engine: engine, context: context)
+                try Self.startSampleWorkoutIfRequested(engine: engine, context: context, store: store)
                 try Self.seedOldWorkoutIfRequested(context: context)
                 RestExpirySeam.install(engine: engine, context: context)
                 Self.initializeCloudKitSchemaIfRequested()
@@ -336,8 +336,13 @@ struct WorkoutsApp: App {
         /// first template (if none runs), then starts a 5-minute rest, so the Live Activity can be shown without any UI.
         /// `-sampleElapsedSeconds N` backdates the workout's start; `-sampleNoRest` skips the rest.
         /// `-sampleSetRestSeconds N` makes every exercise of the started workout rest N seconds after a checked set.
+        /// `-sampleBlocks N -sampleSets M` pads the started workout to N exercises of M sets each (a long logging screen to scroll).
         @MainActor
-        private static func startSampleWorkoutIfRequested(engine: ActiveWorkoutEngine, context: ModelContext) throws {
+        private static func startSampleWorkoutIfRequested(
+            engine: ActiveWorkoutEngine,
+            context: ModelContext,
+            store: ExerciseStore
+        ) throws {
             let arguments = ProcessInfo.processInfo.arguments
             let starts = arguments.contains("-startSampleWorkout")
             // `-sampleWorkouts <n>`: seeds n finished workouts spread over ~2 years (performance runs, PLAN 6.4).
@@ -365,6 +370,18 @@ struct WorkoutsApp: App {
             if elapsed > 0, let workout = engine.workout {
                 workout.startedAt = .now.addingTimeInterval(-TimeInterval(elapsed))
                 try context.save()
+            }
+            // `-sampleBlocks N -sampleSets M`: grows the workout through the engine's own add-exercise and add-set calls.
+            let blocks = UserDefaults.standard.integer(forKey: "sampleBlocks")
+            let setsPerBlock = UserDefaults.standard.integer(forKey: "sampleSets")
+            if blocks > 0, setsPerBlock > 0, let workout = engine.workout {
+                let present = Set((workout.exercises ?? []).map(\.exerciseID))
+                let extra = store.all().filter { !present.contains($0.id) && !$0.isTimed }
+                    .prefix(max(0, blocks - present.count))
+                _ = try engine.addExercises(Array(extra))
+                for row in engine.workout?.exercises ?? [] {
+                    while (row.sets ?? []).count < setsPerBlock { try engine.addSet(to: row) }
+                }
             }
             // `-sampleSetRestSeconds N` gives every exercise an N-second rest after a checked set (Update Rest Timer's
             // path), so the inline rest row's exit at 0:00 can be proven in seconds.

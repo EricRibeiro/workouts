@@ -13,6 +13,22 @@ final class TimedExerciseUITests: XCTestCase {
         )
     }
 
+    /// The Time cells (the only timed exercise on screen is the added Plank); a block is no longer one container, so its
+    /// cells cannot be scoped to it.
+    private func durationFields(in app: XCUIApplication) -> XCUIElementQuery {
+        app.textFields.matching(
+            NSPredicate(
+                format: "identifier BEGINSWITH 'setrow.' AND identifier ENDSWITH '.reps' AND label == 'Duration'"
+            )
+        )
+    }
+
+    /// Weight cells below the block header `section` (the added Plank is the last block, so everything below is its own).
+    private func weightFieldCount(below section: XCUIElement, in app: XCUIApplication) -> Int {
+        let bottom = section.frame.maxY
+        return fields(in: app, ending: ".weight").allElementsBoundByIndex.filter { $0.frame.minY >= bottom }.count
+    }
+
     /// Opens the picker from `addButton`, searches "Plank", ticks the row named exactly "Plank" and adds it.
     @MainActor
     private func addPlank(_ app: XCUIApplication, from addButton: XCUIElement) {
@@ -97,11 +113,11 @@ final class TimedExerciseUITests: XCTestCase {
         addPlank(app, from: app.buttons["cover.addExercise"].firstMatch)
 
         let plank = section(named: "Plank", in: app)
-        let reps = fields(in: plank, ending: ".reps")
+        let reps = durationFields(in: app)
         XCTAssertTrue(reps.firstMatch.waitForExistence(timeout: 5), "Plank has no Time cell")
         XCTAssertGreaterThan(reps.count, 0)
         XCTAssertEqual(reps.firstMatch.label, "Duration", "Plank's cell is not a duration cell")
-        XCTAssertEqual(fields(in: plank, ending: ".weight").count, 0, "Plank rows show a weight cell")
+        XCTAssertEqual(weightFieldCount(below: plank, in: app), 0, "Plank rows show a weight cell")
 
         // Digits fill from the right: 45 reads 0:45 once committed (seconds only).
         let time = reps.firstMatch
@@ -115,7 +131,9 @@ final class TimedExerciseUITests: XCTestCase {
         XCTAssertTrue(waitUntil { (time.value as? String) == "0:45" })
 
         // A second set: 130 is 1 minute 30 seconds, 190 normalises to 2:30.
-        let addSet = plank.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'settable.addset.'")).firstMatch
+        let addSet = app.buttons[
+            plank.identifier.replacingOccurrences(of: "settable.section.", with: "settable.addset.")
+        ].firstMatch
         XCTAssertTrue(addSet.waitForExistence(timeout: 5), "Plank has no Add set button")
         addSet.tap()
         XCTAssertTrue(waitUntil { reps.count >= 2 }, "the second Plank set did not appear")
@@ -156,10 +174,10 @@ final class TimedExerciseUITests: XCTestCase {
 
         let plank = section(named: "Plank", in: app)
         XCTAssertTrue(
-            fields(in: plank, ending: ".reps").firstMatch.waitForExistence(timeout: 5),
+            durationFields(in: app).firstMatch.waitForExistence(timeout: 5),
             "Plank has no Time cell"
         )
-        XCTAssertEqual(fields(in: plank, ending: ".weight").count, 0, "Plank rows show a weight cell")
+        XCTAssertEqual(weightFieldCount(below: plank, in: app), 0, "Plank rows show a weight cell")
 
         // Saved and reopened, the block is still timed (the draft is rebuilt from the stored sets).
         app.buttons["templateEditor.save"].tap()
@@ -177,9 +195,9 @@ final class TimedExerciseUITests: XCTestCase {
         XCTAssertTrue(any["screen.templateEditor"].waitForExistence(timeout: 10), "Edit did not push the editor")
         let reopened = section(named: "Plank", in: app)
         XCTAssertTrue(
-            fields(in: reopened, ending: ".reps").firstMatch.waitForExistence(timeout: 5),
+            durationFields(in: app).firstMatch.waitForExistence(timeout: 5),
             "the reopened Plank block has no Time cell"
         )
-        XCTAssertEqual(fields(in: reopened, ending: ".weight").count, 0, "the reopened Plank block shows a weight cell")
+        XCTAssertEqual(weightFieldCount(below: reopened, in: app), 0, "the reopened Plank block shows a weight cell")
     }
 }

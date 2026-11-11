@@ -185,43 +185,19 @@ struct WorkoutDetailView: View {
     // MARK: Content
 
     private func content(_ detail: WorkoutDetail) -> some View {
-        ScrollView {
-            // Read from the model here, not from `detail`: Health data lands after the workout was saved and does
-            // not touch `updatedAt`, so the stats and the chart appear (and go) as the model changes.
-            let health = workout?.healthSummary
-            if horizontalSizeClass == .regular {
-                // Two columns that keep off the fold (`FoldColumns`): the header and chart on the left, then the
-                // exercise blocks in order, split where the two columns come out closest in height.
-                let split = Self.splitIndex(
-                    blocks: detail.exercises,
-                    leadingWeight: Self.headerWeight + (hasChart(health) ? Self.chartWeight : 0)
-                )
-                FoldColumns {
-                    VStack(alignment: .leading, spacing: 16) {
-                        headerAndChart(detail, health: health)
-                        ForEach(detail.exercises.prefix(split)) { block in
-                            ExerciseBlockView(block: block)
-                        }
-                        emptyNote(detail)
-                    }
-                    VStack(alignment: .leading, spacing: 16) {
-                        ForEach(detail.exercises.dropFirst(split)) { block in
-                            ExerciseBlockView(block: block)
-                        }
-                    }
+        // Read from the model here, not from `detail`: Health data lands after the workout was saved and does
+        // not touch `updatedAt`, so the stats and the chart appear (and go) as the model changes.
+        let health = workout?.healthSummary
+        return FoldPages(margin: 16, spacing: 16) {
+            VStack(alignment: .leading, spacing: 16) {
+                headerAndChart(detail, health: health)
+            }
+        } trailing: {
+            VStack(alignment: .leading, spacing: 16) {
+                ForEach(detail.exercises) { block in
+                    ExerciseBlockView(block: block)
                 }
-                .padding(.horizontal)
-                .padding(.bottom)
-            } else {
-                VStack(alignment: .leading, spacing: 16) {
-                    headerAndChart(detail, health: health)
-                    ForEach(detail.exercises) { block in
-                        ExerciseBlockView(block: block)
-                    }
-                    emptyNote(detail)
-                }
-                .padding(.horizontal)
-                .padding(.bottom)
+                emptyNote(detail)
             }
         }
         .accessibilityElement(children: .contain)
@@ -252,35 +228,6 @@ struct WorkoutDetailView: View {
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
-    }
-
-    private func hasChart(_ health: HealthWorkoutSummary?) -> Bool {
-        workout != nil && health.map { HeartRateChart.canShow(series: $0.heartRateSeries) } == true
-    }
-
-    // MARK: Two-column split
-
-    /// Rough heights in set-row units, only to balance the columns (the real heights are not known before layout).
-    static let headerWeight = 5
-    static let chartWeight = 7
-
-    /// How many leading blocks go in the left column (under the header and chart, `leadingWeight`): the count that makes
-    /// the two columns' estimated heights closest. Blocks keep their order, so the right column continues the left.
-    static func splitIndex(blocks: [WorkoutDetail.ExerciseBlock], leadingWeight: Int) -> Int {
-        let weights = blocks.map { 3 + $0.sets.count + $0.prLines.count + ($0.note.isEmpty ? 0 : 1) }
-        let total = leadingWeight + weights.reduce(0, +)
-        var left = leadingWeight
-        var best = 0
-        var bestGap = abs(total - 2 * left)
-        for (index, weight) in weights.enumerated() {
-            left += weight
-            let gap = abs(total - 2 * left)
-            if gap < bestGap {
-                best = index + 1
-                bestGap = gap
-            }
-        }
-        return best
     }
 
     private func delete() {
@@ -760,6 +707,9 @@ struct SaveTemplateSheet: View {
 #if DEBUG
     /// The detail of the newest sample workout, for the gallery (`-preview WorkoutDetail`) and the previews.
     struct WorkoutDetailDemo: View {
+        /// Stores the full Health fixture on the workout before the detail appears (`-preview WorkoutDetailHealth`).
+        var withHealth = false
+
         @Query(
             filter: Workout.finishedPredicate,
             sort: \Workout.startedAt,
@@ -769,15 +719,31 @@ struct SaveTemplateSheet: View {
 
         var body: some View {
             NavigationStack {
-                if let first = finished.first {
+                if let first = finished.first, !withHealth || first.healthWorkoutID != nil {
                     WorkoutDetailView(workoutID: first.id)
                         .task(id: first.id) { await enrich(first) }
+                } else if let first = finished.first {
+                    ProgressView().tint(.secondary)
+                        .onAppear { Self.applyFullFixture(to: first) }
                 } else {
                     ProgressView().tint(.secondary)
                 }
             }
             .environment(settings)
             .accessibilityIdentifier("screen.workoutDetail")
+        }
+
+        /// Writes the full fixture's summary onto the workout the way enrichment stores it (offsets re-based to the
+        /// workout's start), with no source query and no wait, so the preview is deterministic.
+        static func applyFullFixture(to workout: Workout) {
+            let end = workout.finishedAt ?? workout.startedAt
+            let source = HealthFixture.full.source(around: workout.startedAt, end: end)
+            guard var summary = source.summaries.values.first else { return }
+            let shift = summary.start.timeIntervalSince(workout.startedAt)
+            summary.heartRateSeries = summary.heartRateSeries.map {
+                HeartRatePoint(offset: $0.offset + shift, bpm: $0.bpm)
+            }
+            workout.applyHealth(summary, checkedAt: .now)
         }
 
         /// With `-healthFixture <name>` (as in `-preview WorkoutDetail -healthFixture full`) the sample workout is
@@ -789,7 +755,7 @@ struct SaveTemplateSheet: View {
                 await enrichFromRealStore(workout)
                 return
             }
-            guard let fixture = HealthFixture.requested() else { return }
+            guard !withHealth, let fixture = HealthFixture.requested() else { return }
             let summary = try? await HealthEnrichment(source: fixture.anyWorkoutSource)
                 .enrich(workoutStart: workout.startedAt, workoutEnd: workout.finishedAt ?? workout.startedAt)
             workout.applyHealth(summary, checkedAt: .now)

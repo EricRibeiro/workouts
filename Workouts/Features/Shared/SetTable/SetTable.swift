@@ -12,7 +12,8 @@ import WorkoutsKit
 /// keyboard focus.
 ///
 /// Layout (`active-workout.md` section 2): one block per exercise, each a header (superset marker, name, rest caption,
-/// note), a column header, the set rows and a trailing **Add Set** row, in a `LazyVStack`. A set row deletes by swipe
+/// note), a column header, the set rows and a trailing **Add Set** row. The `LazyVStack` holds those as separate elements (the
+/// header with its column header, each set row, the inline rest row, Add Set), not one element per block. A set row deletes by swipe
 /// (`swipeActionsContainer()`); a block reorders through the owner's Reorder Exercises… sheet (the header menu entry) or
 /// the header's VoiceOver "Move up" / "Move down" actions. Touch and hold on a header (not the note, the set rows or Add Set)
 /// opens the same menu as its "…" button, which stays as the visible route. On wide layouts the content keeps a readable
@@ -53,9 +54,9 @@ struct SetTable: View {
         let rest = source.rest?.animatingSkip
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 24) {
-                    ForEach(sections) { section in
-                        block(section, supersetNumber: numbers[section.id], order: order, rest: rest)
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    ForEach(Item.items(for: sections, rest: rest), id: \.self) { item in
+                        element(item, sections: sections, supersetNumbers: numbers, order: order, rest: rest)
                     }
                 }
                 .padding(.horizontal, 8)
@@ -101,65 +102,133 @@ struct SetTable: View {
         .accessibilityIdentifier("settable")
     }
 
-    // MARK: Block
+    // MARK: Elements
 
-    private func block(
-        _ section: SetTableSection,
-        supersetNumber: Int?,
+    /// One lazy element of the stack: a block is not one element but its header (with the column header), each set row, the
+    /// inline rest row and Add Set, so scrolling builds one row at a time rather than a whole exercise.
+    private enum Item: Hashable {
+        case header(UUID)
+        case row(UUID)
+        case rest(UUID)
+        case addSet(UUID)
+
+        static func items(for sections: [SetTableSection], rest: SetTableRest?) -> [Item] {
+            var items: [Item] = []
+            for section in sections {
+                items.append(.header(section.id))
+                for row in section.rows {
+                    items.append(.row(row.id))
+                    if rest?.setID == row.id { items.append(.rest(row.id)) }
+                }
+                items.append(.addSet(section.id))
+            }
+            return items
+        }
+    }
+
+    /// Where a block's element sits in the superset bar, which every element draws its own segment of so the segments join.
+    private enum BarPosition { case top, middle, bottom }
+
+    private func element(
+        _ item: Item,
+        sections: [SetTableSection],
+        supersetNumbers: [UUID: Int],
         order: [UUID],
         rest: SetTableRest?
     ) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            let checkable = section.rows.filter(\.showsCheck)
-            let progress = SetProgress(checked: checkable.map(\.isChecked))
-            let nextID = progress.nextIndex.map { checkable[$0].id }
-            header(section, supersetNumber: supersetNumber, order: order)
-            // At accessibility sizes a row with a Previous line stacks (the cells carry captions instead); one without it
-            // (template and past editors) stays on one line, so the header still applies.
-            if let first = section.rows.first, !dynamicTypeSize.isAccessibilitySize || !first.showsPrevious {
-                columnHeader(for: first)
-            }
-            ForEach(section.rows) { row in
-                SetRow(
-                    model: row,
-                    isNext: row.id == nextID,
-                    focus: $focus,
-                    focusedColumn: focus?.setID == row.id ? focus?.column : nil,
-                    onCycleKind: { source.cycleKind(of: row.id) },
-                    onApplyPrevious: { source.applyPrevious(to: row.id) },
-                    onCommitWeight: { source.commitWeight($0, for: row.id) },
-                    onCommitReps: { source.commitReps($0, for: row.id) },
-                    onToggleCheck: { toggleCheck(row) },
-                    onDelete: { deleteSet(row.id) }
-                )
-                .padding(.vertical, 2)
-                .id(row.id)
-                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                    Button(role: .destructive) {
-                        deleteSet(row.id)
-                    } label: {
-                        Label("Delete", systemImage: "trash")
+        let located = Self.locate(item, in: sections)
+        return Group {
+            if let located {
+                let section = located.section
+                let supersetNumber = supersetNumbers[section.id]
+                switch item {
+                case .header:
+                    barred(header(section, supersetNumber: supersetNumber, order: order), supersetNumber, .top)
+                        .padding(.top, located.sectionIndex == 0 ? 0 : 24)
+                        .accessibilityElement(children: .contain)
+                        .accessibilityIdentifier("settable.section.\(section.id.uuidString)")
+                case .row:
+                    if let row = located.row {
+                        barred(setRow(row, in: section), supersetNumber, .middle)
                     }
-                    .accessibilityIdentifier("setrow.\(row.id.uuidString).delete")
-                }
-                if let rest, rest.setID == row.id {
-                    RestTimerRow(rest: rest)
-                        .transition(.opacity.combined(with: .move(edge: .top)))
+                case .rest:
+                    if let rest {
+                        barred(
+                            RestTimerRow(rest: rest).transition(.opacity.combined(with: .move(edge: .top))),
+                            supersetNumber,
+                            .middle
+                        )
+                    }
+                case .addSet:
+                    barred(addSetRow(section), supersetNumber, .bottom)
                 }
             }
-            addSetRow(section)
         }
-        .padding(.leading, supersetNumber == nil ? 0 : 12)
-        .overlay(alignment: .leading) {
-            if let supersetNumber {
-                Capsule()
+    }
+
+    private static func locate(_ item: Item, in sections: [SetTableSection])
+        -> (section: SetTableSection, sectionIndex: Int, row: SetRowModel?)?
+    {
+        switch item {
+        case .header(let id), .addSet(let id):
+            guard let index = sections.firstIndex(where: { $0.id == id }) else { return nil }
+            return (sections[index], index, nil)
+        case .row(let id), .rest(let id):
+            guard let index = sections.firstIndex(where: { $0.rows.contains { $0.id == id } }) else { return nil }
+            return (sections[index], index, sections[index].rows.first { $0.id == id })
+        }
+    }
+
+    /// The element inside its block's superset indent, with its segment of the bar (rounded at the block's ends only).
+    @ViewBuilder
+    private func barred(_ content: some View, _ supersetNumber: Int?, _ position: BarPosition) -> some View {
+        if let supersetNumber {
+            let radius = Metrics.supersetBarWidth / 2
+            content
+                .padding(.leading, 12)
+                .overlay(alignment: .leading) {
+                    UnevenRoundedRectangle(
+                        topLeadingRadius: position == .top ? radius : 0,
+                        bottomLeadingRadius: position == .bottom ? radius : 0,
+                        bottomTrailingRadius: position == .bottom ? radius : 0,
+                        topTrailingRadius: position == .top ? radius : 0,
+                        style: .continuous
+                    )
                     .fill(Self.supersetColor(supersetNumber))
                     .frame(width: Metrics.supersetBarWidth)
                     .accessibilityHidden(true)
-            }
+                }
+        } else {
+            content
         }
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("settable.section.\(section.id.uuidString)")
+    }
+
+    private func setRow(_ row: SetRowModel, in section: SetTableSection) -> some View {
+        let checkable = section.rows.filter(\.showsCheck)
+        let progress = SetProgress(checked: checkable.map(\.isChecked))
+        let nextID = progress.nextIndex.map { checkable[$0].id }
+        return SetRow(
+            model: row,
+            isNext: row.id == nextID,
+            focus: $focus,
+            focusedColumn: focus?.setID == row.id ? focus?.column : nil,
+            onCycleKind: { source.cycleKind(of: row.id) },
+            onApplyPrevious: { source.applyPrevious(to: row.id) },
+            onCommitWeight: { source.commitWeight($0, for: row.id) },
+            onCommitReps: { source.commitReps($0, for: row.id) },
+            onToggleCheck: { toggleCheck(row) },
+            onDelete: { deleteSet(row.id) }
+        )
+        .padding(.vertical, 2)
+        .id(row.id)
+        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+            Button(role: .destructive) {
+                deleteSet(row.id)
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+            .accessibilityIdentifier("setrow.\(row.id.uuidString).delete")
+        }
     }
 
     /// The exercise name. In the active workout it is one line with a tail ellipsis (the full name is in the info sheet; two lines at
@@ -182,9 +251,16 @@ struct SetTable: View {
     }
 
     private func header(_ section: SetTableSection, supersetNumber: Int?, order: [UUID]) -> some View {
-        headerText(section, supersetNumber: supersetNumber, order: order)
-            .padding(.horizontal, 8)
-            .padding(.bottom, 8)
+        VStack(alignment: .leading, spacing: 0) {
+            headerText(section, supersetNumber: supersetNumber, order: order)
+                .padding(.horizontal, 8)
+                .padding(.bottom, 8)
+            // At accessibility sizes a row with a Previous line stacks (the cells carry captions instead); one without it
+            // (template and past editors) stays on one line, so the header still applies.
+            if let first = section.rows.first, !dynamicTypeSize.isAccessibilitySize || !first.showsPrevious {
+                columnHeader(for: first)
+            }
+        }
     }
 
     private func headerText(_ section: SetTableSection, supersetNumber: Int?, order: [UUID])

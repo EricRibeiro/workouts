@@ -92,5 +92,19 @@ extension SnapshotTests {
                 "the loading and loaded frames are identical: the detail load was not held"
             )
         }
+
+        /// The loaded screen of a workout carrying the full Health fixture: the Health tiles, the heart-rate chart and
+        /// its zone bar. The fixture is stored on the shared sample workout for the render only.
+        @Test
+        func loadedWithHealth() async throws {
+            let environment = try SnapshotFixtures.requireEnvironment()
+            let finished = try environment.container.mainContext.fetch(Workout.allFinished)
+            let newest = try #require(finished.max { $0.startedAt < $1.startedAt })
+            WorkoutDetailDemo.applyFullFixture(to: newest)
+            defer { newest.clearHealth() }
+
+            let loaded = try await render(workoutID: newest.id, environment: environment, held: false)
+            Snapshot.assert(png: loaded.atSettle, named: "loadedWithHealth", variant: Self.variant, excludingTop: 80)
+        }
     }
 }

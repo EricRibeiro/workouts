@@ -35,9 +35,6 @@ struct ExercisesView: View {
     @State private var isCreating = false
     @State private var naturalMatch: NaturalSearchMatch?
     @Namespace private var zoomNamespace
-    /// How far the detail's content starts after its column's leading edge so it clears a vertical fold: the fold's trailing
-    /// edge in the detail column's own coordinate space, 0 when no division reaches into the column.
-    @State private var foldInset: CGFloat = 0
 
     var body: some View {
         // Regular width: the list column is permanent beside the detail, never behind a toggle (JC52). `.all` keeps it
@@ -51,16 +48,9 @@ struct ExercisesView: View {
                 // matches the minimum); there is no max, so the system can still size the columns to the fold when half-open.
                 .navigationSplitViewColumnWidth(min: 320, ideal: 320)
         } detail: {
-            // The detail's own content starts after a vertical fold; the strip between the list's edge and the fold stays empty.
+            // The detail crosses the fold on the open Duo on purpose (JC133): widening the list to the fold makes the system
+            // overlay it, and insetting the detail past the fold costs a third of its width.
             detail
-                .padding(.leading, foldInset)
-                .onGeometryChange(for: CGFloat.self) { proxy in
-                    let divisions = proxy.reservedRegions(kind: .division, options: .includeInactive).map(\.frame)
-                    guard let fold = divisions.first(where: { $0.width < $0.height }) else { return 0 }
-                    return fold.maxX > 0 && fold.minX < proxy.size.width ? fold.maxX : 0
-                } action: {
-                    foldInset = $0
-                }
         }
         .navigationSplitViewStyle(.balanced)
         .accessibilityIdentifier("screen.exercises")

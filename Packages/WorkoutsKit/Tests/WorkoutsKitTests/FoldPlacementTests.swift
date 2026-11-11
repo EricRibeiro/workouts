@@ -110,6 +110,76 @@ import Testing
         #expect(p.kind == .bench)
     }
 
+    @Test func inactiveVerticalHingeSplitsSideBySideOnIt() {
+        // Open-wide Duo: an 863-wide container (bar strip excluded) whose hinge sits off its centre.
+        let hinge = CGRect(x: 455, y: 0, width: 41, height: 669)
+        let p = FoldPlacement.placement(
+            size: CGSize(width: 863, height: 669),
+            divisions: [],
+            inactiveDivisions: [hinge],
+            axes: both
+        )
+        #expect(p == Placement(kind: .sideBySide, lead: 455, gap: 41))
+    }
+
+    @Test func activeVerticalDivisionStillWinsOverAnInactiveOne() {
+        let p = FoldPlacement.placement(
+            size: CGSize(width: 800, height: 600),
+            divisions: [bookFold],
+            inactiveDivisions: [CGRect(x: 100, y: 0, width: 10, height: 600)],
+            axes: both
+        )
+        #expect(p == Placement(kind: .sideBySide, lead: 390, gap: 20))
+    }
+
+    @Test func inactiveHorizontalHingeStacksOnIt() {
+        let hinge = CGRect(x: 0, y: 440, width: 669, height: 41)
+        let p = FoldPlacement.placement(
+            size: CGSize(width: 669, height: 863),
+            divisions: [],
+            inactiveDivisions: [hinge],
+            axes: both
+        )
+        #expect(p == Placement(kind: .stacked, lead: 440, gap: 41))
+    }
+
+    @Test func activeHorizontalDivisionIsStillBenchWithAnInactiveOneAround() {
+        let p = FoldPlacement.placement(
+            size: CGSize(width: 800, height: 600),
+            divisions: [laptopFold],
+            inactiveDivisions: [CGRect(x: 390, y: 0, width: 20, height: 600)],
+            axes: both
+        )
+        #expect(p == Placement(kind: .bench, lead: 290, gap: 20))
+    }
+
+    @Test func inactiveDivisionsRespectTheAxes() {
+        let size = CGSize(width: 800, height: 600)
+        let vertical = [CGRect(x: 390, y: 0, width: 20, height: 600)]
+        let horizontal = [CGRect(x: 0, y: 290, width: 800, height: 20)]
+        let verticalOnly = FoldPlacement.placement(
+            size: size,
+            divisions: [],
+            inactiveDivisions: vertical,
+            axes: [.vertical]
+        )
+        #expect(verticalOnly == Placement(kind: .stacked, lead: 300, gap: 0))
+        let horizontalOnly = FoldPlacement.placement(
+            size: size,
+            divisions: [],
+            inactiveDivisions: horizontal,
+            axes: [.horizontal]
+        )
+        #expect(horizontalOnly == Placement(kind: .sideBySide, lead: 400, gap: 0))
+    }
+
+    @Test func inactiveDivisionOutsideTheContainerIsIgnored() {
+        let size = CGSize(width: 800, height: 600)
+        let outside = [CGRect(x: 800, y: 0, width: 20, height: 600), CGRect(x: 0, y: 600, width: 800, height: 20)]
+        let p = FoldPlacement.placement(size: size, divisions: [], inactiveDivisions: outside, axes: both)
+        #expect(p == Placement(kind: .sideBySide, lead: 400, gap: 0))
+    }
+
     @Test func aSquareDivisionIsNeitherShape() {
         let odd = CGRect(x: 100, y: 100, width: 20, height: 20)
         let p = FoldPlacement.placement(size: CGSize(width: 800, height: 600), divisions: [odd], axes: both)
@@ -442,5 +512,46 @@ import Testing
         #expect(FoldPlacement.foldColumns(width: 800, minimum: 160, spacing: 12, division: 0...20) == nil)
         // A half too narrow for one column at the minimum.
         #expect(FoldPlacement.foldColumns(width: 800, minimum: 500, spacing: 12, division: 400...400) == nil)
+    }
+
+    // MARK: Two pages on the hinge
+
+    @Test func pagesFillEachSideOfAnOffCentreHinge() {
+        // Open-wide Duo: 951 pt wide, hinge 455-496, the trailing strip's 88 pt already outside the container.
+        let pages = FoldPlacement.pageFrames(total: 951, division: 455...496, margin: 17)
+        let expected = FoldPlacement.PageFrames(
+            leading: .init(x: 17, width: 438),
+            trailing: .init(x: 496, width: 438)
+        )
+        #expect(pages == expected)
+        let narrow = FoldPlacement.pageFrames(total: 851, division: 455...496, margin: 0)
+        #expect(narrow?.leading == .init(x: 0, width: 455))
+        #expect(narrow?.trailing == .init(x: 496, width: 355))
+    }
+
+    @Test func pagesMirrorWhenTheHingeSitsRightOfCentre() {
+        let pages = FoldPlacement.pageFrames(total: 851, division: 396...437, margin: 0)
+        #expect(pages?.leading == .init(x: 0, width: 396))
+        #expect(pages?.trailing == .init(x: 437, width: 414))
+        #expect(pages?.leading.maxX == 396)
+    }
+
+    @Test func pagesTouchTheDivisionAndOnlyTheOuterEdgesGetTheMargin() throws {
+        let pages = try #require(FoldPlacement.pageFrames(total: 800, division: 390...410, margin: 16))
+        #expect(pages.leading.x == 16)
+        #expect(pages.leading.maxX == 390)
+        #expect(pages.trailing.x == 410)
+        #expect(pages.trailing.maxX == 784)
+    }
+
+    @Test func pagesAreNilWithoutADivision() {
+        #expect(FoldPlacement.pageFrames(total: 800, division: nil, margin: 16) == nil)
+    }
+
+    @Test func pagesAreNilWhenTheHingeIsAtAnEdgeOrLeavesASliver() {
+        #expect(FoldPlacement.pageFrames(total: 800, division: 0...20, margin: 0) == nil)
+        #expect(FoldPlacement.pageFrames(total: 800, division: 780...800, margin: 0) == nil)
+        #expect(FoldPlacement.pageFrames(total: 800, division: 30...50, margin: 0) == nil)
+        #expect(FoldPlacement.pageFrames(total: 800, division: 380...420, margin: 380) == nil)
     }
 }

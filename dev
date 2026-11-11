@@ -15,7 +15,7 @@ HEALTH_STAMP=".build/health-test.stamp"    # commit and time of the last HealthK
 # What the real-Health pass vouches for: a change to any of these since the stamped commit needs a new pass before an upload.
 HEALTH_PATHS=(Workouts/Features/Health Packages/WorkoutsKit/Sources/WorkoutsKit/Health Workouts/Workouts.entitlements WorkoutsUITests/HealthKitIntegrationUITests.swift)
 HEALTH_SIM="iPhone Duo Health"             # a clone outside the pool that keeps its Health authorization between runs
-UI_EXPECTED_SKIPS="${DEV_UI_EXPECTED_SKIPS:-7}" # an unfiltered ui-test skips PerfDriver 3, HealthKitIntegration 1, TreeDump 1, OpenPose 2
+UI_EXPECTED_SKIPS="${DEV_UI_EXPECTED_SKIPS:-15}" # an unfiltered ui-test skips PerfDriver 3, HealthKitIntegration 1, TreeDump 1, OpenPose 3, Evidence 7
 # A stalled UI test fails (with a spindump) after this many seconds instead of silently eating a shard; DEV_UI_TEST_ALLOWANCE overrides.
 ui_timeout_args() { echo -test-timeouts-enabled YES -default-test-execution-time-allowance "${DEV_UI_TEST_ALLOWANCE:-240}"; }
 UI_PROGRESS=".build/ui-test.progress"   # one line per shard while ./dev ui-test runs, then a final "done:" line (./dev ui-status)
@@ -379,7 +379,7 @@ skip_check() { # skip_check <skipped> <expected>: an unfiltered run that skips m
   local got="${1:-}" want="$2"
   [[ "$want" =~ ^[0-9]+$ ]] || { echo "dev: DEV_UI_EXPECTED_SKIPS=$want is not a number" >&2; return 1; }
   [[ "$got" == "$want" ]] && return 0
-  echo "FAILED: ui-test passed but skipped ${got:-an unknown number of} tests, expected $want (PerfDriver 3, HealthKitIntegration 1, TreeDump 1, OpenPose 2; DEV_UI_EXPECTED_SKIPS overrides); not writing $UI_STAMP" >&2
+  echo "FAILED: ui-test passed but skipped ${got:-an unknown number of} tests, expected $want (PerfDriver 3, HealthKitIntegration 1, TreeDump 1, OpenPose 3, Evidence 7; DEV_UI_EXPECTED_SKIPS overrides); not writing $UI_STAMP" >&2
   return 1
 }
 health_stamp_write() { # health_stamp_write <file> <skipped> <commit> <when>: only a run that skipped nothing counts
@@ -1934,7 +1934,7 @@ sims [--prune]     create the missing simulator clones (iPhone Duo 2..$DEV_SIM_P
                    or DEV_SIM_UDID=<udid> overrides)
 build              build the app for this checkout's simulator
 test [filter]      run WorkoutsTests (filter = suite or suite/test); prints totals, fails if none ran; an unfiltered pass writes .build/test.stamp (commit, clean, when), which `coverage` prints
-ui-test [filter]   run WorkoutsUITests (an unfiltered pass is sharded over DEV_UI_SHARDS pool sims and stamps HEAD, with its flaky tests, for the testflight --upload gate); prints totals, fails if none ran. An unfiltered run that does not skip exactly 7 tests (DEV_UI_EXPECTED_SKIPS) writes no stamp
+ui-test [filter]   run WorkoutsUITests (an unfiltered pass is sharded over DEV_UI_SHARDS pool sims and stamps HEAD, with its flaky tests, for the testflight --upload gate); prints totals, fails if none ran. An unfiltered run that does not skip exactly 15 tests (DEV_UI_EXPECTED_SKIPS) writes no stamp
                    and fails. A test running longer than DEV_UI_TEST_ALLOWANCE seconds (default 240) fails with a spindump (xcodebuild -test-timeouts-enabled). Filter HealthKitIntegrationUITests opts in to the real-Health test: it runs on the 'iPhone Duo Health' clone
                    (create it: xcrun simctl clone "iPhone Duo" "iPhone Duo Health"; DEV_SIM / DEV_SIM_UDID override), keeps its bundle as
                    latest-health.xcresult, and a pass with nothing skipped writes .build/health-test.stamp (commit, when)
