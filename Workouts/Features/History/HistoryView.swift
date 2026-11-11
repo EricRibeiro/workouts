@@ -221,6 +221,7 @@ struct HistoryView: View {
                                     // 28 pt over the content before it (none above the first month when the dashboard is hidden).
                                     .padding(.top, showsDashboard || section.id != sections.first?.id ? 28 : 0)
                                     .accessibilityAddTraits(.isHeader)
+                                    .accessibilityIdentifier("history.month.\(section.title)")
                                 EvenColumnGrid(minimum: 280) {
                                     ForEach(section.entries) { entry in
                                         card(entry, activeKcal: activeKcal[entry.id], avgBpm: heartRates[entry.id])

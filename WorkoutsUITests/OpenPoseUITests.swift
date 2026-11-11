@@ -112,6 +112,61 @@ final class OpenPoseUITests: XCTestCase {
         XCTAssertEqual(historyRight, workoutRight, accuracy: 2, "right-most card edges differ")
     }
 
+    /// The month title is part of its month's list row at regular width: scrolled to the second month, the first title is gone
+    /// from the top and no title overlaps a card.
+    @MainActor
+    func testOpenWideHistoryMonthTitleScrollsAway() throws {
+        let app = XCUIApplication.launchedPreview("History", waitingFor: "screen.history")
+        let window = app.windows.firstMatch.frame
+        let titles = app.staticTexts.matching(NSPredicate(format: "identifier BEGINSWITH 'history.month.'"))
+        XCTAssertTrue(titles.element(boundBy: 0).waitForExistence(timeout: 10), "no month title")
+        let firstID = titles.element(boundBy: 0).identifier
+        let second = app.staticTexts.matching(
+            NSPredicate(format: "identifier BEGINSWITH 'history.month.' AND identifier != %@", firstID)
+        )
+        .firstMatch
+        var swipes = 0
+        while swipes < 6, !(second.exists && second.frame.minY < window.midY && second.frame.minY > window.minY) {
+            app.windows.firstMatch.swipeUp()
+            swipes += 1
+        }
+        _ = second.waitUntilFrameSettles()
+        XCTAssertTrue(
+            second.exists && second.frame.minY < window.midY,
+            "second month never reached the upper half (\(swipes) swipes)"
+        )
+
+        let first = app.staticTexts[firstID]
+        XCTAssertTrue(
+            !first.exists || !first.isHittable || first.frame.maxY <= window.minY || first.frame.minY < window.minY,
+            "first month title \(firstID) is still on screen at \(first.frame)"
+        )
+        let listTop = app.collectionViews.firstMatch.frame.minY
+        let cards = app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier BEGINSWITH 'history.row.'")
+        )
+        .allElementsBoundByIndex.map(\.frame).filter { window.intersects($0) && $0.width > 0 }
+        for title in titles.allElementsBoundByIndex where title.exists && title.isHittable {
+            let f = title.frame
+            XCTAssertFalse(
+                abs(f.minY - listTop) < 4 && cards.contains { $0.maxY <= f.minY },
+                "title \(title.identifier) \(f) is pinned to the top of the list (\(listTop)) with cards above it"
+            )
+            for card in cards {
+                XCTAssertFalse(
+                    f.intersects(card.insetBy(dx: 1, dy: 1)),
+                    "title \(title.identifier) \(f) overlaps card \(card)"
+                )
+            }
+        }
+        let shots = ([XCUIScreen.main] + XCUIScreen.screens).map { $0.screenshot() }
+        let shot = shots.max { $0.pngRepresentation.count < $1.pngRepresentation.count } ?? app.screenshot()
+        let attachment = XCTAttachment(screenshot: shot)
+        attachment.name = "history-scrolled"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
     /// One audit pass of the open logging cover, with `AccessibilityAuditUITests`' known-issue filter.
     @MainActor
     func testOpenWideLoggingAudit() throws {
