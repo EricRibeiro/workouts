@@ -415,4 +415,36 @@ import Testing
         #expect(FoldPlacement.equalPageFrames(total: 640, margin: 16, spacing: 16, minimumPage: 300) == nil)
         #expect(FoldPlacement.equalPageFrames(total: 650, margin: 16, spacing: 16, minimumPage: 300) != nil)
     }
+
+    // MARK: Balanced column heights
+
+    @Test func equalColumnHeightsBothTakeThatHeight() {
+        let heights = FoldPlacement.balancedColumnHeights(left: 500, right: 500, tolerance: 32)
+        #expect(heights.left == 500 && heights.right == 500)
+    }
+
+    @Test func columnsSixteenApartBothTakeTheTallerHeight() {
+        let heights = FoldPlacement.balancedColumnHeights(left: 515, right: 499, tolerance: 32)
+        #expect(heights.left == 515 && heights.right == 515)
+    }
+
+    @Test func columnsExactlyTheToleranceApartAreBalanced() {
+        let heights = FoldPlacement.balancedColumnHeights(left: 500, right: 532, tolerance: 32)
+        #expect(heights.left == 532 && heights.right == 532)
+    }
+
+    @Test func columnsBeyondTheToleranceKeepTheirNaturalHeights() {
+        let heights = FoldPlacement.balancedColumnHeights(left: 500, right: 533, tolerance: 32)
+        #expect(heights.left == nil && heights.right == nil)
+    }
+
+    @Test func theTallerColumnMayBeEitherSide() {
+        let leftTaller = FoldPlacement.balancedColumnHeights(left: 520, right: 500, tolerance: 32)
+        let rightTaller = FoldPlacement.balancedColumnHeights(left: 500, right: 520, tolerance: 32)
+        #expect(leftTaller.left == 520 && leftTaller.right == 520)
+        #expect(rightTaller.left == 520 && rightTaller.right == 520)
+        let farLeft = FoldPlacement.balancedColumnHeights(left: 600, right: 500, tolerance: 32)
+        let farRight = FoldPlacement.balancedColumnHeights(left: 500, right: 600, tolerance: 32)
+        #expect(farLeft.left == nil && farRight.right == nil)
+    }
 }

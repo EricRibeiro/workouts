@@ -202,6 +202,9 @@ past 140; workers crawled for an hour or stalled, and audit tests fail with `-90
   `./dev kit`, docs, read-only reviews); start simulator workers after `done:` appears in `.build/ui-test.progress`.
 - At most two simulator-using workers at once, each on its own pool simulator (`DEV_SIM=`), and never beside the full run.
 - Order a batch so kit and docs work goes first and simulator proofs come last, instead of starting everything at once.
+- A simulator boot is the heaviest minute (two workers booting and building at once took the load average to 160 on
+  2026-11-11). When the pool is shut down, start the second simulator worker a couple of minutes after the first, and do
+  not shut down a clone you will need again within the hour: the idle sweep does it after 30 minutes anyway.
 - Shut down simulators you booted outside the pool's idle sweep when you are done with them (`xcrun simctl shutdown <udid>`
   for that one device, e.g. `iPhone Duo Health` after the Health gate or a clone used for Fitness captures); check with
   `./dev sims` and `uptime` before dispatching.

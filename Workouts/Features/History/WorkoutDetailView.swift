@@ -188,17 +188,14 @@ struct WorkoutDetailView: View {
         // Read from the model here, not from `detail`: Health data lands after the workout was saved and does
         // not touch `updatedAt`, so the stats and the chart appear (and go) as the model changes.
         let health = workout?.healthSummary
-        return FoldPages(margin: Metrics.contentMargin, spacing: 16) {
+        return FoldPages(margin: Metrics.contentMargin, spacing: 16, items: detail.exercises) {
             VStack(alignment: .leading, spacing: 16) {
                 headerAndChart(detail, health: health)
             }
-        } trailing: {
-            VStack(alignment: .leading, spacing: 16) {
-                ForEach(detail.exercises) { block in
-                    ExerciseBlockView(block: block)
-                }
-                emptyNote(detail)
-            }
+        } row: { block in
+            ExerciseBlockView(block: block)
+        } footer: {
+            emptyNote(detail)
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("history.detail")

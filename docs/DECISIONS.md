@@ -273,7 +273,9 @@ Eric deferred the technical choices to Claude. These close every item in `docs/p
   time as now, so a Monday is not compared with whole weeks (shown only with history; the two metrics stack at accessibility
   sizes). The Fitness lines stay below. The accessibility sentence ends "usually … by now". At regular width every card
   takes its natural height in top-aligned columns (Recent PRs lists five rows, three at compact); only cards sharing a
-  grid row stretch to it.
+  grid row stretch to it. One exception removes a near miss: when the two dashboard columns end within 32 pt (scaled) of
+  each other, both take the taller height and the last card of the shorter column stretches to the common bottom
+  (`FoldPlacement.balancedColumnHeights`); further apart, they stay natural, so a short card never carries a blank band.
 - **Finish** is `flag.checkered` (prominent, lime): the checkmark belongs to sets.
 - **Proportions** (design review, 2026-11-11):
   1. Solid lime is one action per surface: a disc of at most 28 pt on a card. The only larger solid lime is a sheet's

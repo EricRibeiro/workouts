@@ -10,8 +10,23 @@ import WorkoutsKit
 /// continuous 20 pt corners (`Metrics.cardCornerRadius`). `WeeklyGoalChart` wears the same container.
 extension View {
     func dashboardCardStyle() -> some View {
-        padding(Metrics.cardPadding)
-            .frame(maxWidth: .infinity, alignment: .leading)
+        modifier(DashboardCardStyle())
+    }
+}
+
+extension EnvironmentValues {
+    /// The card grows to the height it is proposed (content pinned to the top) instead of keeping its natural height; set on
+    /// the last card of a column that `FoldColumns` balances.
+    @Entry var dashboardCardGrows = false
+}
+
+private struct DashboardCardStyle: ViewModifier {
+    @Environment(\.dashboardCardGrows) private var grows
+
+    func body(content: Content) -> some View {
+        content
+            .padding(Metrics.cardPadding)
+            .frame(maxWidth: .infinity, maxHeight: grows ? .infinity : nil, alignment: .topLeading)
             .cardBackground()
     }
 }
@@ -371,38 +386,47 @@ struct DashboardColumns<Chart: View>: View {
             calendar: calendar,
             now: now
         )
-        FoldColumns {
+        FoldColumns(balancesNearMiss: true) {
+            // Only the last card of a column takes the extra height; the cards above keep their natural height (without
+            // `fixedSize` the stack would squeeze a wrapping name to one line to feed the growing card).
             VStack(spacing: Metrics.dashboardSpacing) {
-                cards.thisWeek
-                chart
+                cards.thisWeek.fixedSize(horizontal: false, vertical: true)
+                chart.environment(\.dashboardCardGrows, true)
             }
             VStack(spacing: Metrics.dashboardSpacing) {
-                cards.recents()
                 if let last = HistoryDashboard.lastWorkout(entries: entries) {
-                    cards.lastWorkout(last)
+                    cards.recents().fixedSize(horizontal: false, vertical: true)
+                    cards.lastWorkout(last).environment(\.dashboardCardGrows, true)
+                } else {
+                    cards.recents().environment(\.dashboardCardGrows, true)
                 }
             }
         }
     }
 }
 
-/// Two equal columns that keep off the vertical fold when the Duo is half-folded: both take the narrower half's width and the
-/// gutter around the fold absorbs the rest (at least 12 pt); flat open or without a fold the gutter is the normal 12 pt. Takes exactly two child
-/// views. Shared by the History dashboard and the workout detail.
+/// Two columns that keep off the vertical fold when the Duo is half-folded: each side of an active fold fills its own side
+/// up to the fold (`FoldPlacement.columnWidths`, so the widths differ when the fold is off centre); flat open or without a
+/// fold the columns are equal around a 12 pt gutter. Takes exactly two child views, top-aligned at their natural heights.
+/// With `balancesNearMiss`, columns whose heights differ by no more than a small tolerance end on one line: the shorter one
+/// is proposed the taller height, and a card that sets `dashboardCardGrows` stretches to it.
 struct FoldColumns<Left: View, Right: View>: View {
     let left: Left
     let right: Right
+    let balancesNearMiss: Bool
+    @ScaledMetric private var balanceTolerance = 32
 
     /// The fold's horizontal extent in this view's own coordinate space, nil unless an active vertical division lies inside it.
     /// Flat open the hinge is inactive and the layout ignores it: equal columns, cards crossing the hinge, as Apple's Fitness does.
     @State private var division: ClosedRange<CGFloat>?
 
-    init(@ViewBuilder content: () -> TupleView<(Left, Right)>) {
+    init(balancesNearMiss: Bool = false, @ViewBuilder content: () -> TupleView<(Left, Right)>) {
+        self.balancesNearMiss = balancesNearMiss
         (left, right) = content().value
     }
 
     var body: some View {
-        TwoColumnLayout(division: division) {
+        TwoColumnLayout(division: division, balanceTolerance: balancesNearMiss ? balanceTolerance : nil) {
             left
             right
         }
@@ -417,15 +441,23 @@ struct FoldColumns<Left: View, Right: View>: View {
     }
 }
 
-/// Two columns of equal width, top-aligned, each at its natural height. Without a division they split the width around a
-/// 12 pt gutter; with one, each is as wide as the narrower side of it and the gutter between them contains it.
+/// Two top-aligned columns, each at its natural height. Without a division they split the width around a 12 pt gutter;
+/// with one, each fills its side of it and the gutter between them is the division. With a `balanceTolerance`, columns
+/// whose natural heights differ by no more than it are both proposed the taller height.
 private struct TwoColumnLayout: Layout {
     var division: ClosedRange<CGFloat>?
+    var balanceTolerance: CGFloat?
     var spacing: CGFloat = 12
 
     /// Left width, gutter width, right width for a total width.
     private func split(_ total: CGFloat) -> (left: CGFloat, gap: CGFloat, right: CGFloat) {
         FoldPlacement.columnWidths(total: total, division: division, spacing: spacing)
+    }
+
+    /// The height each column is proposed (nil: natural) given the natural sizes.
+    private func proposedHeights(_ left: CGSize, _ right: CGSize) -> (left: CGFloat?, right: CGFloat?) {
+        guard let balanceTolerance else { return (nil, nil) }
+        return FoldPlacement.balancedColumnHeights(left: left.height, right: right.height, tolerance: balanceTolerance)
     }
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
@@ -436,21 +468,27 @@ private struct TwoColumnLayout: Layout {
         let widths = split(total)
         let left = subviews[0].sizeThatFits(ProposedViewSize(width: widths.left, height: nil))
         let right = subviews[1].sizeThatFits(ProposedViewSize(width: widths.right, height: nil))
-        return CGSize(width: total, height: max(left.height, right.height))
+        let heights = proposedHeights(left, right)
+        return CGSize(width: total, height: max(heights.left ?? left.height, heights.right ?? right.height))
     }
 
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
         guard subviews.count == 2 else { return }
         let widths = split(bounds.width)
+        let natural = (
+            left: subviews[0].sizeThatFits(ProposedViewSize(width: widths.left, height: nil)),
+            right: subviews[1].sizeThatFits(ProposedViewSize(width: widths.right, height: nil))
+        )
+        let heights = proposedHeights(natural.left, natural.right)
         subviews[0].place(
             at: bounds.origin,
             anchor: .topLeading,
-            proposal: ProposedViewSize(width: widths.left, height: nil)
+            proposal: ProposedViewSize(width: widths.left, height: heights.left)
         )
         subviews[1].place(
             at: CGPoint(x: bounds.minX + widths.left + widths.gap, y: bounds.minY),
             anchor: .topLeading,
-            proposal: ProposedViewSize(width: widths.right, height: nil)
+            proposal: ProposedViewSize(width: widths.right, height: heights.right)
         )
     }
 }

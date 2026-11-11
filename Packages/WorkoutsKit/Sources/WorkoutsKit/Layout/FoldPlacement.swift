@@ -167,6 +167,19 @@ public nonisolated enum FoldPlacement {
         return (column, spacing, column)
     }
 
+    /// The height each of two top-aligned columns is proposed so a near miss does not read as a mistake: when their natural
+    /// heights differ by no more than `tolerance`, both are proposed the taller one (the shorter column stretches its last
+    /// card to the common bottom); otherwise both are nil, the natural heights, and nothing stretches.
+    public static func balancedColumnHeights(
+        left: CGFloat,
+        right: CGFloat,
+        tolerance: CGFloat
+    ) -> (left: CGFloat?, right: CGFloat?) {
+        guard abs(left - right) <= tolerance else { return (nil, nil) }
+        let taller = max(left, right)
+        return (taller, taller)
+    }
+
     // MARK: Two pages on the hinge
 
     /// A page's horizontal extent inside its container: x from the container's leading edge.
