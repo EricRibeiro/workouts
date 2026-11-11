@@ -7,9 +7,10 @@ import SwiftUI
 import WorkoutsKit
 
 /// A `LazyVGrid` whose column count comes from its own width, never from a size class or a device check: as many columns
-/// as fit at the Dynamic-Type-scaled `minimum`, forced even from two up so the gutter falls on the fold and no card
-/// straddles it (`docs/port/duo-layout.md`, Grids). When the fold lies inside the grid (the bar strip shifts the grid off
-/// the display's centre) the middle gutter is the fold itself (`FoldPlacement.foldColumns`). One column when not even two fit (large accessibility sizes).
+/// as fit at the Dynamic-Type-scaled `minimum`, forced even from two up. When the Duo is half-folded and the fold lies
+/// inside the grid (the bar strip shifts the grid off the display's centre) the middle gutter is the fold itself, so no
+/// card straddles it (`FoldPlacement.foldColumns`); flat open the hinge is ignored
+/// (`docs/port/duo-layout.md`, Grids). One column when not even two fit (large accessibility sizes).
 /// Shared by the History dashboard and the Workout tab's template grid.
 struct EvenColumnGrid<Content: View>: View {
     var spacing: CGFloat = Metrics.dashboardSpacing
@@ -17,8 +18,8 @@ struct EvenColumnGrid<Content: View>: View {
 
     @ScaledMetric private var minimum: CGFloat
     @State private var width: CGFloat = 0
-    /// The fold's horizontal extent in this grid's own coordinate space, nil unless a vertical division lies inside it.
-    /// Inactive regions count, so the gutter already sits on the hinge when the Duo is open flat.
+    /// The fold's horizontal extent in this grid's own coordinate space, nil unless an active vertical division lies inside it.
+    /// Flat open the hinge is inactive and the grid ignores it: equal columns, cards crossing the hinge, as Apple's Fitness does.
     @State private var division: ClosedRange<CGFloat>?
 
     /// `minimum` is the narrowest a column may be at the default text size; it scales with Dynamic Type.
@@ -45,7 +46,7 @@ struct EvenColumnGrid<Content: View>: View {
         }
         .onGeometryChange(for: ClosedRange<CGFloat>?.self) { proxy in
             FoldPlacement.columnGap(
-                divisions: proxy.reservedRegions(kind: .division, options: .includeInactive).map(\.frame),
+                divisions: proxy.reservedRegions(kind: .division).filter(\.isActive).map(\.frame),
                 width: proxy.size.width
             )
         } action: {

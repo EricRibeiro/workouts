@@ -17,8 +17,8 @@ struct FoldFlow<Content: View>: View {
     @ViewBuilder let content: Content
 
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-    /// The fold's horizontal extent in this view's own coordinate space, nil unless a vertical division lies inside it.
-    /// Inactive regions count, so the gutter already sits on the hinge when the Duo is open flat.
+    /// The fold's horizontal extent in this view's own coordinate space, nil unless an active vertical division lies inside it.
+    /// Flat open the hinge is inactive and the layout ignores it: equal columns, cards crossing the hinge, as Apple's Fitness does.
     @State private var division: ClosedRange<CGFloat>?
 
     var body: some View {
@@ -27,7 +27,7 @@ struct FoldFlow<Content: View>: View {
         }
         .onGeometryChange(for: ClosedRange<CGFloat>?.self) { proxy in
             FoldPlacement.columnGap(
-                divisions: proxy.reservedRegions(kind: .division, options: .includeInactive).map(\.frame),
+                divisions: proxy.reservedRegions(kind: .division).filter(\.isActive).map(\.frame),
                 width: proxy.size.width
             )
         } action: {

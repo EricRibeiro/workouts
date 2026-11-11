@@ -223,6 +223,22 @@ public nonisolated enum FoldPlacement {
         return PageFrames(leading: leading, trailing: trailing)
     }
 
+    /// The frames of two equal pages in a container `total` wide, ignoring any hinge: `margin` on the outer edges and `spacing`
+    /// between the pages. Nil when either page would be narrower than `minimumPage`; the caller then stacks the pages.
+    public static func equalPageFrames(
+        total: CGFloat,
+        margin: CGFloat,
+        spacing: CGFloat,
+        minimumPage: CGFloat = 44
+    ) -> PageFrames? {
+        let width = (total - 2 * margin - spacing) / 2
+        guard width >= minimumPage else { return nil }
+        return PageFrames(
+            leading: PageFrame(x: margin, width: width),
+            trailing: PageFrame(x: margin + width + spacing, width: width)
+        )
+    }
+
     // MARK: Sections in columns
 
     /// Where one section goes: its frame inside the container (x from the container's leading edge, y from its top).

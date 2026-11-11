@@ -554,4 +554,16 @@ import Testing
         #expect(FoldPlacement.pageFrames(total: 800, division: 30...50, margin: 0) == nil)
         #expect(FoldPlacement.pageFrames(total: 800, division: 380...420, margin: 380) == nil)
     }
+
+    @Test func equalPagesShareTheWidthAroundTheSpacing() throws {
+        let pages = try #require(FoldPlacement.equalPageFrames(total: 855, margin: 16, spacing: 16))
+        #expect(pages.leading == .init(x: 16, width: 403.5))
+        #expect(pages.trailing == .init(x: 435.5, width: 403.5))
+        #expect(pages.trailing.maxX == 839)
+    }
+
+    @Test func equalPagesAreNilWhenAPageWouldBeTooNarrow() {
+        #expect(FoldPlacement.equalPageFrames(total: 640, margin: 16, spacing: 16, minimumPage: 300) == nil)
+        #expect(FoldPlacement.equalPageFrames(total: 650, margin: 16, spacing: 16, minimumPage: 300) != nil)
+    }
 }

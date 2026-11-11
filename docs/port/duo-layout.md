@@ -58,9 +58,11 @@ status bar, toolbar items, tab bar. Rules that follow:
 - Sheets on the inner display: horizontal bars for centered/leading placement, vertical for
   trailing; choose with `presentationPlacement(_:)`. Sheets, popovers, alerts and menus move off
   the fold automatically.
-- Grids: prefer an **even number of columns** so nothing straddles the fold; keep outer margins
-  and widen the gap around the hinge (Apple's Fitness example); when the bar strip makes the halves unequal, every column takes the narrower half's width and the wider half's surplus goes into that gap (the same rule for the card grids and for the dashboard's and workout detail's two columns). Our template grid
-  derives an even column count from its own width (`DECISIONS.md`), not from the size class.
+- Grids: prefer an **even number of columns**. Apple's guidance is to keep outer margins and widen the gap around the hinge;
+  Apple's own Fitness app does not do this when the Duo is flat (`docs/fitness-reference/open/`: equal columns across the
+  full width, cards crossing the hinge). This app follows Fitness: the hinge is ignored when flat and respected only when the
+  Duo is half-folded (an active division), where the middle gutter widens to the fold (`DECISIONS.md`, "The hinge"). Our grid
+  derives an even column count from its own width, not from the size class.
 - New windows can only be created on the inner display; not something this app needs.
 
 ## The fold: reserved regions and arrangement views (iOS 27.1)
@@ -69,7 +71,8 @@ status bar, toolbar items, tab bar. Rules that follow:
   returns `.occlusion` (cameras) and `.division` (the fold) regions with `frame`, `margins`,
   `isActive`. The division is active only when partially open; `frame.width < frame.height`
   means a vertical fold (book, content side by side), the opposite means laptop (stacked).
-  Pass `.includeInactive` to reserve the space so layouts don't jump when it activates.
+  Apple suggests `.includeInactive` to reserve the space so layouts don't jump when it activates; this app reads active
+  divisions only (`DECISIONS.md`, "The hinge").
 - "Keep each view entirely on one side of the division." Lists and scroll views don't split
   themselves; a row that crosses the fold is on us.
 - `ArrangementView(primary:secondary:)`: splits horizontally when wider than tall, vertically when
