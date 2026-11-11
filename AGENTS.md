@@ -54,9 +54,16 @@ SNAPSHOT_RECORD=1 ./dev test SnapshotTests   re-record the visual references (Wo
                         up to DEV_UI_SHARDS (3) free pool sims (build-for-testing once; one combined totals line; shard bundles/logs under
                         .build/results/ui-test-shards/ and .build/logs/; 1 = single sim; fewer when sims are scarce or the load average
                         is high). A test that fails and passes alone on one retry is reported as flaky (`.build/ui-flaky.log`, stamp
-                        `flaky=`); flaky twice in a row fails. DEV_UI_RETRY=0 = strict. A filtered run uses one sim
+                        `flaky=`); flaky twice in a row fails. DEV_UI_RETRY=0 = strict. A filtered run uses one sim.
+                        A test whose first attempt crashed the app fails the run even when its retry passes.
+                        A full run holds a machine-wide marker: while it runs, every other simulator command refuses (exit 75), and it refuses to
+                        start while another process holds a pool sim (DEV_ALLOW_BESIDE_FULL_RUN=1 overrides both). Outside a full run a simulator
+                        command (build included) refuses when DEV_MAX_BUSY_SIMS (2) other pool sims are held or were used in the last
+                        DEV_BUSY_WINDOW_SEC (120) seconds (0 = off), and warns when the load average is above twice the CPU count.
+                        `check` waits for a gate instead (DEV_GATE_WAIT_SEC, 1800 for check, 0 elsewhere)
 DEV_POSE=open-wide ./dev ui-test OpenPoseUITests   a filtered ui-test with the Duo posed first (closed-portrait|closed-landscape|open-wide|open-tall,
-                        verified); closed-portrait restored when the lock is released, also on failure; the runner sees DUO_POSE. Opt-in, before a phase's TestFlight
+                        verified); closed-portrait restored when the lock is released, also on failure; the runner sees DUO_POSE. Opt-in, before a phase's TestFlight.
+                        closed-landscape needs the app in front first (`./dev run`, then the posed test): the closed Home screen does not rotate
 ./dev ui-status         progress of a running ui-test (`.build/ui-test.progress`: a line per shard, `FAILED Suite/test` as it happens, `done: <totals>`); idle: last stamp + last run's final line
 ./dev ui-flaky [--since <days>]  per-test summary of `.build/ui-flaky.log` (tests that failed, then passed on retry): count, last date and commit, last failure text; read-only
 ./dev selftest         the stamp, gate, skipped-count, ui-flaky and DEV_SIM_KEEP parsing on fixture files in a temp dir; no simulator or xcodebuild, ~2s; not part of check
@@ -187,6 +194,29 @@ A task for a worker is one unit: one model type + its tests, one view + its prev
 loop above. Keep whole-suite runs (`./dev check`), screenshots across poses, and commits for the
 orchestrator after review. Workers do not commit. A brief names the Apple skill the worker must load when the task
 touches a view, layout, iOS 27 API or intent.
+
+**Keep the machine usable: one heavy thing at a time.** A booted simulator is about 260 processes, and a build plus a UI
+test per worker multiplies fast (2026-11-11: a full `./dev ui-test` beside four simulator workers drove the load average
+past 140; workers crawled for an hour or stalled, and audit tests fail with `-902` under that load).
+- A full `./dev ui-test` runs alone. While it runs, dispatch only work that needs no simulator (kit changes with
+  `./dev kit`, docs, read-only reviews); start simulator workers after `done:` appears in `.build/ui-test.progress`.
+- At most two simulator-using workers at once, each on its own pool simulator (`DEV_SIM=`), and never beside the full run.
+- Order a batch so kit and docs work goes first and simulator proofs come last, instead of starting everything at once.
+- Shut down simulators you booted outside the pool's idle sweep when you are done with them (`xcrun simctl shutdown <udid>`
+  for that one device, e.g. `iPhone Duo Health` after the Health gate or a clone used for Fitness captures); check with
+  `./dev sims` and `uptime` before dispatching.
+- A worker is stopped after about 30 tool calls: size a brief for that (one change, named files, batched commands) and tell
+  the worker to report before it runs out.
+- `dev` enforces the first two rules: a simulator command beside a full run, a full run beside a busy pool simulator, and a
+  third busy simulator (held, or used in the last two minutes) all exit 75 with a line naming who holds what. An exit 75
+  means wait, not retry or override; the overrides (`DEV_ALLOW_BESIDE_FULL_RUN=1`, `DEV_MAX_BUSY_SIMS`) are for a
+  deliberate exception Eric knows about. `./dev check` waits for the gate by itself, so a commit never needs an override.
+- A "flaky" line in a full run is a claim to check, not a pass: read the first failure in `./dev ui-flaky`. An app crash on
+  the first attempt fails the run by itself; a timeout or an audit failure that recurs on the same test is a defect too.
+
+**Record process failures in `docs/incidents/`** (one file per incident, `YYYY-MM-DD-slug.md`, format in its README): a rule
+that existed and was not followed, a skipped check, damage to the machine or to a build that reached Eric. Write it in the
+same session, with the numbers, the cause, why the safeguard did not hold and what now carries the rule.
 
 ## Skills
 

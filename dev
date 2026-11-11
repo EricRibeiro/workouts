@@ -15,7 +15,7 @@ HEALTH_STAMP=".build/health-test.stamp"    # commit and time of the last HealthK
 # What the real-Health pass vouches for: a change to any of these since the stamped commit needs a new pass before an upload.
 HEALTH_PATHS=(Workouts/Features/Health Packages/WorkoutsKit/Sources/WorkoutsKit/Health Workouts/Workouts.entitlements WorkoutsUITests/HealthKitIntegrationUITests.swift)
 HEALTH_SIM="iPhone Duo Health"             # a clone outside the pool that keeps its Health authorization between runs
-UI_EXPECTED_SKIPS="${DEV_UI_EXPECTED_SKIPS:-15}" # an unfiltered ui-test skips PerfDriver 3, HealthKitIntegration 1, TreeDump 1, OpenPose 3, Evidence 7
+UI_EXPECTED_SKIPS="${DEV_UI_EXPECTED_SKIPS:-16}" # an unfiltered ui-test skips PerfDriver 3, HealthKitIntegration 1, TreeDump 1, OpenPose 4, Evidence 7
 # A stalled UI test fails (with a spindump) after this many seconds instead of silently eating a shard; DEV_UI_TEST_ALLOWANCE overrides.
 ui_timeout_args() { echo -test-timeouts-enabled YES -default-test-execution-time-allowance "${DEV_UI_TEST_ALLOWANCE:-240}"; }
 UI_PROGRESS=".build/ui-test.progress"   # one line per shard while ./dev ui-test runs, then a final "done:" line (./dev ui-status)
@@ -89,6 +89,228 @@ sim_lock_holder() { # live holder pid of a simulator's lock, else "-"
 sim_lock_free() { # free = no lock directory, or its owner is dead
   [[ ! -d "$(sim_lock_path "$1")" ]] && return 0
   [[ "$(sim_lock_holder "$1")" == "-" ]] && [[ -n "$(cat "$(sim_lock_path "$1")/pid" 2>/dev/null || true)" ]]
+}
+
+# A machine-wide marker while an unfiltered `./dev ui-test` runs (three shards on pool sims for ~25 min): every other simulator
+# command refuses with exit 75 until it ends, because worker builds and simulators beside it overload the machine (see
+# docs/incidents/2026-11-11-machine-overload.md). mkdir is the atomic claim; the directory holds checkout, started (epoch),
+# shards (a pgrep pattern for the run's shard xcodebuilds) and, written last, pid. Live = the shard processes exist (even when
+# the claiming pid is gone: a killed shell must not open the gates under running shards), or the claiming pid is alive and the
+# marker is younger than DEV_FULL_RUN_MAX_MIN (default 90, 0 = no limit; guards against pid reuse after SIGKILL or power loss).
+# Anything else is stale and the next command that looks removes it (full_run_reclaim). DEV_ALLOW_BESIDE_FULL_RUN=1 overrides.
+FULL_RUN_DIR="$CACHE_DIR/workouts-dev-full-ui.lock"
+pid_alive() { kill -0 "$1" 2>/dev/null; }                                    # selftest stubs these three
+pid_parent() { ps -o ppid= -p "$1" 2>/dev/null | tr -d ' ' || true; }
+procs_match() { pgrep -f -- "$1" >/dev/null 2>&1; }                          # any process whose command line matches the pattern
+pid_is_self_or_ancestor() { # pid_is_self_or_ancestor <pid>: this shell or one of its ancestors
+  local p=$$ n=0
+  while [[ -n "$p" && "$p" != 0 && "$p" != 1 ]] && ((n++ < 64)); do
+    [[ "$p" == "$1" ]] && return 0
+    p=$(pid_parent "$p")
+  done
+  return 1
+}
+full_run_shards_alive() { # full_run_shards_alive <dir>: the marker's shard processes still exist
+  local pat; pat=$(cat "$1/shards" 2>/dev/null || true)
+  if [[ -n "$pat" ]] && procs_match "$pat"; then return 0; fi
+  return 1
+}
+full_run_expired() { # full_run_expired <dir> <now>: started more than DEV_FULL_RUN_MAX_MIN minutes ago
+  local max="${DEV_FULL_RUN_MAX_MIN:-90}" started
+  [[ "$max" =~ ^[0-9]+$ ]] || max=90
+  ((max > 0)) || return 1
+  started=$(cat "$1/started" 2>/dev/null || true)
+  [[ "$started" =~ ^[0-9]+$ ]] || return 1
+  (($2 - started > max * 60))
+}
+full_run_judge() { # full_run_judge <dir> <now>: "none", "stale" or "live<TAB>pid<TAB>checkout<TAB>started"; changes nothing
+  [[ -d "$1" ]] || { echo none; return 0; }
+  local pid; pid=$(cat "$1/pid" 2>/dev/null || true)
+  if [[ -z "$pid" ]]; then # being claimed right now (mkdir done, pid not yet written), unless it has sat that way
+    if (($2 - $(stat -f %m "$1" 2>/dev/null || echo 0) < 10)); then printf 'live\t-\t?\t%s\n' "$2"; else echo stale; fi
+    return 0
+  fi
+  if full_run_shards_alive "$1" || { pid_alive "$pid" && ! full_run_expired "$1" "$2"; }; then
+    printf 'live\t%s\t%s\t%s\n' "$pid" "$(cat "$1/checkout" 2>/dev/null || echo '?')" "$(cat "$1/started" 2>/dev/null || echo "$2")"
+  else
+    echo stale
+  fi
+}
+# Remove a stale marker. A plain `rm -rf` races: a command that judged the old marker stale could delete the one a new full
+# run has created since. Same technique as sim_reclaim: mv is atomic, so one command wins the directory, judges what it
+# actually moved and puts it back when that is live (the judgement needs the shards pattern, so sim_reclaim does not fit).
+full_run_reclaim() { # full_run_reclaim <dir> <now>
+  local dead="$1.dead.$$"
+  mv "$1" "$dead" 2>/dev/null || return 0
+  if [[ "$(full_run_judge "$dead" "$2")" == live* ]] && [[ ! -e "$1" ]]; then mv -n "$dead" "$1" 2>/dev/null || true; fi
+  rm -rf "$dead"
+}
+full_run_state() { # full_run_state <dir> <now>: "none", or "live<TAB>pid<TAB>checkout<TAB>started"; clears a stale marker
+  local j; j=$(full_run_judge "$1" "$2")
+  if [[ "$j" == stale ]]; then
+    full_run_reclaim "$1" "$2"
+    j=$(full_run_judge "$1" "$2") # a live marker put back, or a new claim, beats "none"
+    [[ "$j" == live* ]] || j=none
+  fi
+  echo "$j"
+}
+full_run_verdict() { # full_run_verdict <dir> <now>: succeeds silently, or prints why not and returns 75
+  [[ -z "${DEV_ALLOW_BESIDE_FULL_RUN:-}" ]] || return 0
+  local st pid checkout started
+  st=$(full_run_state "$1" "$2")
+  [[ "$st" == live* ]] || return 0
+  IFS=$'\t' read -r _ pid checkout started <<<"$st"
+  pid_is_self_or_ancestor "$pid" && return 0
+  [[ "$started" =~ ^[0-9]+$ ]] || started=$2
+  echo "dev: a full ./dev ui-test is running (pid $pid, $checkout, $((($2 - started) / 60)) min so far): simulator commands wait until it finishes. ./dev ui-status shows its progress; DEV_ALLOW_BESIDE_FULL_RUN=1 overrides."
+  return 75
+}
+full_run_gate() { full_run_verdict "$FULL_RUN_DIR" "$(date +%s)" >&2 || exit $?; } # for a command that uses a simulator
+full_run_claim() { # full_run_claim <dir> <now> <checkout> [shard-pattern]: the unfiltered ui-test takes the marker; 75 when another full run holds it
+  if ! mkdir "$1" 2>/dev/null; then
+    full_run_state "$1" "$2" >/dev/null # a stale marker goes away here
+    mkdir "$1" 2>/dev/null || { full_run_verdict "$1" "$2" >&2 || return $?; return 0; } # held by an ancestor, or overridden: run without it
+  fi
+  echo "$3" >"$1/checkout"; echo "$2" >"$1/started"; echo "${4:-}" >"$1/shards"
+  echo $$ >"$1/pid" # last: a marker with a pid is complete
+}
+full_run_release() { # only the process that claimed it removes it (sim_release, the lock's EXIT trap, calls this too)
+  if [[ "$(cat "$FULL_RUN_DIR/pid" 2>/dev/null || true)" == "$$" ]]; then rm -rf "${FULL_RUN_DIR:?}"; fi
+  return 0
+}
+full_run_kill_shards() { # this shell's full run: stop the shard xcodebuilds named in its marker (no-op for anyone else's marker)
+  [[ "$(cat "$FULL_RUN_DIR/pid" 2>/dev/null || true)" == "$$" ]] || return 0
+  local pat; pat=$(cat "$FULL_RUN_DIR/shards" 2>/dev/null || true)
+  [[ -z "$pat" ]] || pkill -TERM -f -- "$pat" 2>/dev/null || true
+  return 0
+}
+full_run_line() { # full_run_line <dir> <now>: one line about a live full run (who, since when), nothing when there is none
+  local st pid checkout started
+  st=$(full_run_state "$1" "$2")
+  [[ "$st" == live* ]] || return 0
+  IFS=$'\t' read -r _ pid checkout started <<<"$st"
+  [[ "$started" =~ ^[0-9]+$ ]] || started=$2
+  echo "full ui-test running: pid $pid, $checkout, since $(date -r "$started" +%H:%M) ($((($2 - started) / 60)) min)"
+}
+
+# Busy simulators: pool simulators whose lock is held by a live process other than this one (or an ancestor, whose locks
+# are ours too), and, for the cap, ones used within the last DEV_BUSY_WINDOW_SEC (default 120) seconds. A lock lasts one
+# command, so counting holders alone let five workers interleaving short commands each see fewer than two busy. Lines are
+# "<name><TAB><pid>" for a holder and "<name><TAB>ago:<seconds>" for a recent use. An unfiltered ui-test must start alone
+# (holders only); any other simulator command refuses when DEV_MAX_BUSY_SIMS (default 2, 0 = off) are already busy. A full
+# run's own shards are held by its own pid: not counted.
+sim_busy_lines() { # every pool simulator held by a live process
+  local name udid holder
+  while IFS= read -r name; do
+    udid=$(sim_udid_by_name "$name"); [[ -n "$udid" ]] || continue
+    holder=$(sim_lock_holder "$udid"); [[ "$holder" != "-" ]] || continue
+    printf '%s\t%s\n' "$name" "$holder"
+  done < <(sim_pool_names)
+}
+# The last user's pid goes into the stamp file (its mtime is the time), so a simulator an ancestor just used is not "recent".
+sim_stamp() { echo $$ >"$(sim_stamp_path "$1")" 2>/dev/null || true; } # sim_stamp <udid>: used just now, by this shell
+sim_recent_rows() { # one "<name><TAB><udid><TAB><seconds since last use><TAB><last user pid|->" per pool simulator that has a stamp or lock
+  local name udid f m newest now; now=$(date +%s)
+  while IFS= read -r name; do
+    udid=$(sim_udid_by_name "$name"); [[ -n "$udid" ]] || continue
+    newest=0
+    for f in "$(sim_lock_path "$udid")" "$(sim_stamp_path "$udid")"; do
+      m=$(stat -f %m "$f" 2>/dev/null || echo 0); ((m > newest)) && newest=$m
+    done
+    ((newest > 0)) || continue
+    printf '%s\t%s\t%s\t%s\n' "$name" "$udid" "$((now - newest))" "$(cat "$(sim_stamp_path "$udid")" 2>/dev/null | head -n1 | grep -E '^[0-9]+$' || echo -)"
+  done < <(sim_pool_names)
+}
+sim_recent_lines() { # sim_recent_lines <window-sec> <own-udid> <rows>: "<name><TAB>ago:<sec>" for each row used within the window by someone else
+  local window="$1" own="$2" name udid age pid
+  [[ "$window" =~ ^[0-9]+$ ]] || window=120
+  while IFS=$'\t' read -r name udid age pid; do
+    [[ -n "$name" && "$udid" != "$own" && "$age" =~ ^[0-9]+$ ]] || continue
+    ((age < window)) || continue
+    [[ "$pid" =~ ^[0-9]+$ ]] && pid_is_self_or_ancestor "$pid" && continue
+    printf '%s\tago:%s\n' "$name" "$age"
+  done <<<"$3"
+}
+sim_cap_lines() { # held now, plus used recently (a simulator held now is listed once, as held; this command's own is left out)
+  { sim_busy_lines; sim_recent_lines "${DEV_BUSY_WINDOW_SEC:-120}" "$SIM_UDID" "$(sim_recent_rows)"; } | awk -F'\t' '!seen[$1]++'
+}
+sim_busy_others() { # sim_busy_others <lines>: drops the ones held by this shell or an ancestor
+  local name pid
+  while IFS=$'\t' read -r name pid; do
+    [[ -n "$name" ]] || continue
+    [[ "$pid" == ago:* ]] || ! pid_is_self_or_ancestor "$pid" || continue
+    printf '%s\t%s\n' "$name" "$pid"
+  done <<<"$1"
+}
+sim_busy_names() { # sim_busy_names <lines>: "iPhone Duo (pid 12), iPhone Duo 3 (used 40s ago)"
+  awk -F'\t' '{ d = ($2 ~ /^ago:/) ? "used " substr($2, 5) "s ago" : "pid " $2; printf "%s%s (%s)", (NR > 1 ? ", " : ""), $1, d }' <<<"$1"
+}
+busy_sims_verdict() { # busy_sims_verdict <max> <lines>: succeeds silently, or prints why not and returns 75
+  local max="$1" others n
+  [[ "$max" =~ ^[0-9]+$ ]] || max=2
+  ((max > 0)) || return 0
+  others=$(sim_busy_others "$2")
+  n=$(grep -c . <<<"$others" || true)
+  ((n >= max)) || return 0
+  local win="${DEV_BUSY_WINDOW_SEC:-120}"
+  [[ "$win" =~ ^[0-9]+$ ]] || win=120
+  if ((win % 60 == 0)); then win="$((win / 60)) min"; else win="${win}s"; fi
+  echo "dev: $n simulators are busy or used in the last $win: $(sim_busy_names "$others"). At most $max at once, or the machine overloads (docs/incidents/2026-11-11-machine-overload.md): wait for one to finish. DEV_MAX_BUSY_SIMS=0 turns this off; DEV_BUSY_WINDOW_SEC (120) sets the window."
+  return 75
+}
+full_run_alone_verdict() { # full_run_alone_verdict <lines>: a full run starts with no other simulator busy
+  [[ -z "${DEV_ALLOW_BESIDE_FULL_RUN:-}" ]] || return 0
+  local others; others=$(sim_busy_others "$1")
+  [[ -n "$others" ]] || return 0
+  echo "dev: a full ./dev ui-test needs the machine to itself (three shards for ~25 min), but these simulators are busy: $(sim_busy_names "$others"). Wait for them to finish; DEV_ALLOW_BESIDE_FULL_RUN=1 overrides."
+  return 75
+}
+
+# Waiting for a gate. By default a gate refuses (exit 75) so a worker fails fast; `check` instead waits for it, because its
+# first steps need no simulator and a commit should not be lost to a 25-minute full run. DEV_GATE_WAIT_SEC (default 1800 for
+# check, 0 for every other command; an explicit value applies to any gated command) is the budget, DEV_GATE_POLL_SEC (20) the
+# interval. GATE_WAITED is the seconds spent so far in this process, so a second wait (the recheck after the lock) shares it.
+GATE_WAITED=0
+GATE_ANNOUNCED=0
+gate_sleep() { sleep "$1"; } # a function so the selftest can stub it
+gate_wait_limit() { # gate_wait_limit <default-sec>: the budget in seconds
+  local v="${DEV_GATE_WAIT_SEC-$1}"
+  [[ "$v" =~ ^[0-9]+$ ]] || v="$1"
+  echo "$v"
+}
+gate_step() { # gate_step <label> <limit-sec> <why>: one waiting step, or print why and return 75 when the budget is spent
+  local label="$1" limit="$2" why="$3" step="${DEV_GATE_POLL_SEC:-20}" left
+  [[ "$step" =~ ^[1-9][0-9]*$ ]] || step=20
+  left=$((limit - GATE_WAITED))
+  if ((left <= 0)); then
+    ((limit == 0)) || why="$why (waited ${GATE_WAITED}s; DEV_GATE_WAIT_SEC=$limit)"
+    echo "$why" >&2
+    return 75
+  fi
+  if ((GATE_ANNOUNCED == 0)); then
+    echo "dev: $label waits for a gate (up to ${limit}s, DEV_GATE_WAIT_SEC; looks again every ${step}s): $why" >&2
+    GATE_ANNOUNCED=1
+  fi
+  ((step <= left)) || step=$left
+  gate_sleep "$step"
+  GATE_WAITED=$((GATE_WAITED + step))
+}
+gate_wait() { # gate_wait <label> <limit-sec> <probe...>: runs the probe (prints why and returns 75 when refused) until it passes
+  local label="$1" limit="$2" why rc
+  shift 2
+  while :; do
+    rc=0; why=$("$@") || rc=$?
+    if ((rc == 0)); then
+      if ((GATE_ANNOUNCED)); then echo "dev: gate cleared after ${GATE_WAITED}s: $label continues" >&2; GATE_ANNOUNCED=0; fi
+      return 0
+    fi
+    gate_step "$label" "$limit" "$why" || return $?
+  done
+}
+sim_gate_probe() { # sim_gate_probe <capped 0|1>: the gates a simulator command is under: a full run, then the busy cap
+  full_run_verdict "$FULL_RUN_DIR" "$(date +%s)" || return $?
+  (($1)) || return 0
+  busy_sims_verdict "${DEV_MAX_BUSY_SIMS:-2}" "$(sim_cap_lines)"
 }
 
 # Best effort: does another checkout's .build/dev-sim-udid name this simulator? Looks at the main checkout and every
@@ -318,6 +540,12 @@ test_summary() { # test_summary <name> <only> <bundle>
   [[ "$name" != ui-test ]] || { UI_SKIPPED=$(summary_skipped "$json"); ui_progress_done "$line"; }
 }
 
+# build takes no lock, so it only checks the cap, then stamps its simulator used so parallel builds count each other.
+sim_build_cap() {
+  sim_resolve
+  gate_wait build "$(gate_wait_limit 0)" sim_gate_probe 1 || exit $?
+  sim_stamp "$SIM_UDID"
+}
 cmd_build() { sim_resolve; run_logged build xcb build; }
 cmd_test() {
   # Snapshot tests (WorkoutsTests/Snapshot) record their references when the runner sees SNAPSHOT_RECORD; xcodebuild only
@@ -341,6 +569,10 @@ cmd_ui_test() {
   is_health_filter "${1:-}" && export TEST_RUNNER_HEALTH_INTEGRATION=1
   local rc=0
   UI_SKIPPED=""
+  if [[ -z "${1:-}" ]]; then
+    full_run_alone_verdict "$(sim_busy_lines)" >&2 || return $?
+    full_run_claim "$FULL_RUN_DIR" "$(date +%s)" "$PWD" "$(ui_shards_pattern)" || return $?
+  fi
   ui_progress_begin
   if [[ -z "${1:-}" ]] && ((${DEV_UI_SHARDS:-3} > 1)); then
     # Not `ui_test_sharded || rc=$?`: that would disable errexit inside it (see sim_guarded).
@@ -379,7 +611,7 @@ skip_check() { # skip_check <skipped> <expected>: an unfiltered run that skips m
   local got="${1:-}" want="$2"
   [[ "$want" =~ ^[0-9]+$ ]] || { echo "dev: DEV_UI_EXPECTED_SKIPS=$want is not a number" >&2; return 1; }
   [[ "$got" == "$want" ]] && return 0
-  echo "FAILED: ui-test passed but skipped ${got:-an unknown number of} tests, expected $want (PerfDriver 3, HealthKitIntegration 1, TreeDump 1, OpenPose 3, Evidence 7; DEV_UI_EXPECTED_SKIPS overrides); not writing $UI_STAMP" >&2
+  echo "FAILED: ui-test passed but skipped ${got:-an unknown number of} tests, expected $want (PerfDriver 3, HealthKitIntegration 1, TreeDump 1, OpenPose 4, Evidence 7; DEV_UI_EXPECTED_SKIPS overrides); not writing $UI_STAMP" >&2
   return 1
 }
 health_stamp_write() { # health_stamp_write <file> <skipped> <commit> <when>: only a run that skipped nothing counts
@@ -524,10 +756,11 @@ ui_suites() { # ui_suites <xctestrun>: the UI test classes the built bundle cont
   echo "$suites"
 }
 ui_fmt_secs() { if (($1 >= 60)); then printf '%dm%02ds' $(($1 / 60)) $(($1 % 60)); else printf '%ds' "$1"; fi; }
-ui_load_high() { # prints "<load> <cpus>" and succeeds when the 1-minute load average is above four times the CPU count
+load_over() { # load_over <factor>: prints "<load> <cpus>" and succeeds when the 1-minute load average is above factor x the CPU count
   local load cpus; load=$(sysctl -n vm.loadavg | awk '{ print $2 }'); cpus=$(sysctl -n hw.ncpu)
-  awk -v l="$load" -v c="$cpus" 'BEGIN { exit !(l > 4 * c) }' && echo "$load $cpus"
+  awk -v l="$load" -v c="$cpus" -v f="$1" 'BEGIN { exit !(l > f * c) }' && echo "$load $cpus"
 }
+ui_load_high() { load_over 4; } # the sharded run drops to one shard above this
 ui_balance() { # ui_balance <shards> <suite...>: "<shard> <suite>" lines; a suite without history counts as the mean of the known
   local n="$1" s; shift
   for s in "$@"; do
@@ -576,6 +809,9 @@ flaky_secs() { # flaky_secs <tests-json> <id>: the test's duration in whole seco
 flaky_tsv_line() { # flaky_tsv_line <id> <secs> <text>: exactly three tab-separated fields; tabs and newlines in a field become spaces
   local id="${1//[$'\t\n']/ }" secs="${2//[$'\t\n']/ }" text="${3//[$'\t\n']/ }"
   printf '%s\t%s\t%s\n' "$id" "${secs:--}" "${text:--}"
+}
+retry_verdict() { # retry_verdict <first failure text>: crash when the app crashed on the first attempt (never flaky, even if the retry passed), else flaky
+  if grep -qi 'crashed' <<<"$1"; then echo crash; else echo flaky; fi
 }
 # Re-run a shard's failed tests once, on the same simulator. Succeeds only when exactly those tests ran again and all of
 # them passed; a failure that cannot be named test by test, or a test that was already flaky in the previous full run, is
@@ -642,12 +878,13 @@ ui_record_durations() { # per-suite seconds of this passing run into UI_DURATION
   if [[ -f "$UI_DURATIONS" ]]; then awk -F'\t' 'NR == FNR { seen[$1] = 1; next } !($1 in seen)' "$tmp" "$UI_DURATIONS" >>"$tmp"; fi
   mkdir -p .build; sort "$tmp" >"$UI_DURATIONS"; rm -f "$tmp"
 }
+ui_shards_pattern() { echo "xcodebuild test-without-building.*$PWD/$UI_SHARDS_DIR/"; } # also stored in the full-run marker
 # Interrupt or exit: stop this checkout's shard xcodebuilds (matched by their absolute result path) and give the borrowed
 # simulators back. Idempotent.
 ui_cleanup() {
   local udid
   ((${#UI_PIDS[@]} == 0)) || kill "${UI_PIDS[@]}" 2>/dev/null || true
-  pkill -f "xcodebuild test-without-building.*$PWD/$UI_SHARDS_DIR/" 2>/dev/null || true
+  pkill -f "$(ui_shards_pattern)" 2>/dev/null || true
   UI_PIDS=()
   if ((${#UI_SIMS[@]} > 1)); then
     for udid in "${UI_SIMS[@]:1}"; do sim_drop "$udid"; done
@@ -658,7 +895,7 @@ ui_cleanup() {
 ui_test_sharded() {
   local want="${DEV_UI_SHARDS:-3}" suites=() s xr n i plan udid t0=$SECONDS load
   if [[ -z "${DEV_UI_IGNORE_LOAD:-}" ]] && load=$(ui_load_high); then
-    echo "dev: ui-test: load average ${load% *} is above 2 x ${load#* } CPUs; running 1 shard" >&2
+    echo "dev: ui-test: load average ${load% *} is above 4 x ${load#* } CPUs; running 1 shard" >&2
     return 3
   fi
   mkdir -p "$RESULTS"
@@ -708,6 +945,12 @@ ui_test_sharded() {
       local fsim fsecs ftext
       fsim=$(sim_name_by_udid "${sims[i - 1]}"); fsim="${fsim// /_}"
       while IFS=$'\t' read -r id fsecs ftext; do
+        if [[ "$(retry_verdict "$ftext")" == crash ]]; then
+          local crashrep; crashrep=$(ls -t "$HOME"/Library/Logs/DiagnosticReports/Workouts-*.ips 2>/dev/null | head -1 || true)
+          failed=1
+          echo "FAILED $id: the app crashed on the first attempt (passed on retry); see ${crashrep:-$log}" >&2
+          continue
+        fi
         flaky+=("$id")
         printf '%s %s %s %s %s %s\n' "$(date -u +%FT%TZ)" "$(git rev-parse --short HEAD)" "$id" "${fsim:--}" "${fsecs:--}" "${ftext:--}" >>"$UI_FLAKY_LOG"
         echo "dev: warning: flaky under load, failed then passed on retry: $id" >&2
@@ -789,6 +1032,7 @@ cmd_ui_flaky() {
 
 cmd_ui_status() {
   local pid=""
+  full_run_line "$FULL_RUN_DIR" "$(date +%s)"
   pid=$(cat "$UI_PROGRESS_DIR/pid" 2>/dev/null || true)
   if [[ -s "$UI_PROGRESS" && -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
     cat "$UI_PROGRESS"
@@ -1049,7 +1293,7 @@ sim_lock() { # sim_lock <lock-dir>
 }
 # Releasing a lock stamps the simulator as used just now (<lock>.lock -> <lock>.last-used); the idle reaper reads the stamp.
 sim_stamp_path() { local lock; lock=$(sim_lock_path "$1"); echo "${lock%.lock}.last-used"; } # sim_stamp_path <udid>
-sim_release() { [[ -z "$SIM_LOCK" ]] || { ui_pose_restore; touch "${SIM_LOCK%.lock}.last-used" 2>/dev/null || true; rm -rf "$SIM_LOCK"; }; }
+sim_release() { full_run_release; [[ -z "$SIM_LOCK" ]] || { ui_pose_restore; [[ -n "${SIM_NO_STAMP:-}" ]] || echo $$ >"${SIM_LOCK%.lock}.last-used" 2>/dev/null || true; rm -rf "$SIM_LOCK"; }; }
 sim_unlock() { sim_release; trap - EXIT; }
 
 # Pool housekeeping. These take a simulator's lock without waiting (sim_grab fails when anyone holds it, so a run in
@@ -1074,7 +1318,7 @@ sim_grab() { # sim_grab <udid>
 }
 sim_drop() { # sim_drop <udid>
   [[ "$1" == "$SIM_UDID" && -n "$SIM_LOCK" ]] && return 0
-  touch "$(sim_stamp_path "$1")" 2>/dev/null || true
+  echo $$ >"$(sim_stamp_path "$1")" 2>/dev/null || true
   rm -rf "$(sim_lock_path "$1")"
 }
 sim_is_clone() { # a pool member other than the original (the only simulators dev may erase on its own)
@@ -1171,18 +1415,61 @@ for name in sorted(os.listdir(root)):
     print(("fatal " if fatal else "warn ") + name + " " + (udid.group(1).upper() if udid else "-") + " " + proc)
 PY
 }
+SIM_SIG=""; SIM_RC=0
+sim_wait_child() { # sim_wait_child <pid>: wait for the guarded command's subshell; sets SIM_RC
+  local c="$1" i
+  while :; do
+    wait "$c"; SIM_RC=$?
+    kill -0 "$c" 2>/dev/null || break # it exited; otherwise `wait` was cut short by a trapped signal
+    [[ -n "$SIM_SIG" ]] || continue
+    kill -TERM "$c" 2>/dev/null || true # its own traps (ui_cleanup) stop the shards; give them time, then force
+    for ((i = 0; i < 40; i++)); do kill -0 "$c" 2>/dev/null || break; sleep 0.5; done
+    if kill -0 "$c" 2>/dev/null; then pkill -TERM -P "$c" 2>/dev/null || true; full_run_kill_shards; sleep 3; kill -KILL "$c" 2>/dev/null || true; fi
+    wait "$c" 2>/dev/null || true
+    break
+  done
+  if [[ -n "$SIM_SIG" ]]; then # stopped from outside: leave nothing of the run behind, and no crash verdict
+    full_run_kill_shards
+    case "$SIM_SIG" in INT) SIM_RC=130 ;; HUP) SIM_RC=129 ;; *) SIM_RC=143 ;; esac
+    exit "$SIM_RC" # the EXIT trap (sim_release) drops the marker and the simulator lock
+  fi
+}
 sim_guarded() { # sim_guarded <cmd> [args...]
   local rc=0 crashes held
   sim_resolve
-  sim_lock "$(sim_lock_path "$SIM_UDID")"
+  # An unfiltered ui-test (a full run) checks that it starts alone in cmd_ui_test; every other command stays under the busy cap.
+  local capped=1 label="${1#cmd_}" wait_sec why
+  [[ "$1" == cmd_ui_test && -z "${2:-}" ]] && capped=0
+  # check waits for the gates (its lint, kit and duo-test steps already ran before it got here); the rest refuse unless DEV_GATE_WAIT_SEC is set.
+  if [[ "$1" == cmd_check_sim ]]; then label=check; wait_sec=$(gate_wait_limit 1800); else wait_sec=$(gate_wait_limit 0); fi
+  local load
+  while :; do
+    gate_wait "$label" "$wait_sec" sim_gate_probe "$capped" || exit $?
+    if load=$(load_over 2); then echo "dev: warning: load average ${load% *} is above 2 x ${load#* } CPUs: the machine is busy; expect slow builds and flaky UI tests" >&2; fi
+    sim_lock "$(sim_lock_path "$SIM_UDID")"
+    # The check above ran before the lock, so simultaneous starts all passed it: count again now that this command holds its
+    # simulator (others' locks are visible), and give the lock back without stamping it used (a refusal is not use).
+    ((capped)) || break
+    rc=0; why=$(busy_sims_verdict "${DEV_MAX_BUSY_SIMS:-2}" "$(sim_cap_lines)") || rc=$?
+    ((rc)) || break
+    SIM_NO_STAMP=1; sim_unlock; SIM_NO_STAMP=""
+    gate_step "$label" "$wait_sec" "$why" || exit $?
+  done
   SIM_HELD_FILE=$(mktemp); echo "$SIM_UDID" >"$SIM_HELD_FILE"
   local since; since=$(date +%s)
   # Not `"$@" || rc=$?`: bash disables `set -e` inside anything run in a `||` context, so check kept going past a
   # failed step and printed "check: ok" (2026-11-03). A subshell with errexit re-enabled stops at the first failure.
   set +e
-  (set -e; "$@")
-  rc=$?
+  # The command runs in a background subshell this shell `wait`s on: a foreground subshell would defer a TERM or HUP trap
+  # until it ended, so `kill <pid>` could not reach it. sim_wait_child passes the signal on and stops the shards.
+  SIM_SIG=""
+  trap 'SIM_SIG=TERM' TERM; trap 'SIM_SIG=INT' INT; trap 'SIM_SIG=HUP' HUP
+  (set -e; "$@") <&0 &
+  sim_wait_child $!
+  rc=$SIM_RC
+  trap - TERM INT HUP
   set -e
+  full_run_release
   crashes=$(sim_crashes "$since")
   # Fail only for crashes on the simulators this command held. Everything else (other simulators, which other agents
   # are running right now, and daemons like assetsd or intelligencetasksd that crash on their own) is a warning.
@@ -1353,6 +1640,7 @@ cmd_sims() { # create any missing pool clone, then list the pool; --prune also r
     printf '%-14s %-36s %-9s %-5s %s\n' "$name" "$udid" "$(sim_state_by_udid "$udid")" "$(sim_lock_holder "$udid")" \
       "$([[ "$udid" == "$mine" ]] && echo yes || echo -)"
   done < <(sim_pool_names)
+  full_run_line "$FULL_RUN_DIR" "$(date +%s)"
 }
 
 # Signed App Store Connect export (TestFlight). Needs the App Store Connect API key in 1Password (read with `op`, which
@@ -1751,6 +2039,12 @@ cmd_selftest() {
   st_eq "flaky_tsv_line collapses tabs and newlines in the text to spaces" $'S/a()\t42\thas a tab and a newline' "$tsv"
   st_eq "flaky_tsv_line fills empty fields with -" $'S/a()\t-\t-' "$(flaky_tsv_line "S/a()" "" "")"
 
+  st_eq "retry_verdict: a crash text fails the run" crash "$(retry_verdict 'Failed to launch: com.ericribeiro.Workouts crashed')"
+  st_eq "retry_verdict: a lowercase or embedded crash is a crash" crash "$(retry_verdict 'The app Workouts Crashed unexpectedly')"
+  st_eq "retry_verdict: an execution time allowance stays flaky" flaky "$(retry_verdict 'Test exceeded execution time allowance')"
+  st_eq "retry_verdict: an audit failure stays flaky" flaky "$(retry_verdict 'Accessibility audit found 1 issue: Element has no label')"
+  st_eq "retry_verdict: the '-' of a missing text stays flaky" flaky "$(retry_verdict -)"
+
   # Health gate: a fake repo whose Health files change, and the stamp pointing at earlier and later commits.
   local kit_health=Packages/WorkoutsKit/Sources/WorkoutsKit/Health
   mkdir -p "$ST_DIR/repo/Workouts/Features/Health" "$ST_DIR/repo/$kit_health" "$ST_DIR/repo/WorkoutsUITests" "$ST_DIR/repo/Other"
@@ -1886,14 +2180,148 @@ CKDB
   st_run ui_pose_init_rc open-tall OpenPoseUITests; st_out_has "ui_pose_init sets UI_POSE" "UI_POSE=open-tall"
   st_run ui_pose_init_rc open-tall ""; st_rc "ui_pose_init dies unfiltered" 1
 
+  # Full-run marker: no marker, stale, live other, own, ancestor, override, claim and release. pid_alive/pid_parent are stubbed
+  # (alive: 555 and this shell; ancestors of this shell: 800, then 700).
+  ST_ALIVE=" 555 $$ 800 700 "
+  pid_alive() { [[ "$ST_ALIVE" == *" $1 "* ]]; }
+  pid_parent() { case "$1" in "$$") echo 800 ;; 800) echo 700 ;; *) echo 1 ;; esac; }
+  local fr="$ST_DIR/full-ui.lock" now; now=$(date +%s)
+  unset DEV_ALLOW_BESIDE_FULL_RUN
+  FULL_RUN_DIR="$fr"
+  st_marker() { rm -rf "$fr"; mkdir "$fr"; [[ -z "${1:-}" ]] || { echo "$1" >"$fr/pid"; echo "/some/checkout" >"$fr/checkout"; echo "$2" >"$fr/started"; }; } # st_marker [pid started]
+  rm -rf "$fr"
+  st_run full_run_verdict "$fr" "$now"; st_rc "full_run_verdict with no marker" 0; st_eq "full_run_verdict with no marker is silent" "" "$ST_OUT"
+  st_marker 999 "$now"
+  st_run full_run_verdict "$fr" "$now"; st_rc "full_run_verdict with a stale marker" 0
+  [[ ! -d "$fr" ]]; st_ok "a stale marker is cleared" $?
+  st_marker 555 $((now - 720))
+  st_run full_run_verdict "$fr" "$now"; st_rc "full_run_verdict with a live marker held by another pid" 75
+  st_out_has "full_run_verdict names the pid" "pid 555"; st_out_has "full_run_verdict names the checkout" "/some/checkout"
+  st_out_has "full_run_verdict says how long" "12 min so far"; st_out_has "full_run_verdict names the override" "DEV_ALLOW_BESIDE_FULL_RUN=1"
+  DEV_ALLOW_BESIDE_FULL_RUN=1 st_run full_run_verdict "$fr" "$now"; st_rc "full_run_verdict with the override" 0
+  st_marker "$$" "$now"
+  st_run full_run_verdict "$fr" "$now"; st_rc "full_run_verdict with this pid's own marker" 0
+  st_marker 800 "$now"
+  st_run full_run_verdict "$fr" "$now"; st_rc "full_run_verdict with an ancestor's marker" 0
+  st_marker 555 "$now"; st_run full_run_gate; st_rc "full_run_gate exits 75 on a live other marker" 75
+  rm -rf "$fr"; st_run full_run_gate; st_rc "full_run_gate with no marker" 0
+  st_marker "" ""; st_run full_run_verdict "$fr" "$now"; st_rc "full_run_verdict while a claim is in progress" 75
+  touch -t 202001010000 "$fr"; st_run full_run_verdict "$fr" "$now"; st_rc "full_run_verdict with an abandoned claim" 0
+  rm -rf "$fr"
+  st_run full_run_claim "$fr" "$now" "/my/checkout"; st_rc "full_run_claim on a free marker" 0
+  st_eq "full_run_claim writes pid" "$$" "$(cat "$fr/pid")"; st_eq "full_run_claim writes checkout" "/my/checkout" "$(cat "$fr/checkout")"
+  st_eq "full_run_claim writes started" "$now" "$(cat "$fr/started")"
+  st_run full_run_release; [[ ! -d "$fr" ]]; st_ok "full_run_release removes this pid's marker" $?
+  st_marker 555 "$now"
+  st_run full_run_claim "$fr" "$now" "/my/checkout"; st_rc "full_run_claim beside another full run" 75
+  st_eq "full_run_claim leaves the other marker" 555 "$(cat "$fr/pid")"
+  st_run full_run_release; st_eq "full_run_release leaves another pid's marker" 555 "$(cat "$fr/pid")"
+  # Liveness beyond the pid: shard processes (procs_match stubbed), the age limit, and the move-aside reclaim.
+  ST_PROCS=""; procs_match() { [[ -n "$ST_PROCS" && "$1" == "$ST_PROCS" ]]; }
+  st_marker 999 "$now"; echo "shard-pattern" >"$fr/shards"
+  st_run full_run_verdict "$fr" "$now"; st_rc "full_run_verdict with a stale marker and no shard processes" 0
+  st_marker 999 "$now"; echo "shard-pattern" >"$fr/shards"; ST_PROCS="shard-pattern"
+  st_run full_run_verdict "$fr" "$now"; st_rc "full_run_verdict with a dead pid but live shard processes" 75
+  st_out_has "full_run_verdict names the dead pid" "pid 999"
+  st_run full_run_state "$fr" "$now"; st_out_has "full_run_state keeps a marker with live shard processes" "live"; [[ -d "$fr" ]]; st_ok "a marker with live shard processes is not removed" $?
+  st_marker 999 $((now - 7200)); echo "shard-pattern" >"$fr/shards"
+  st_run full_run_verdict "$fr" "$now"; st_rc "full_run_verdict with an expired marker and live shard processes" 75
+  ST_PROCS=""
+  st_marker 555 $((now - 5400 - 60)); echo "shard-pattern" >"$fr/shards"
+  st_run full_run_verdict "$fr" "$now"; st_rc "full_run_verdict with an expired marker and an unrelated live pid" 0
+  [[ ! -d "$fr" ]]; st_ok "an expired marker is cleared" $?
+  st_marker 555 $((now - 5400 + 60)); st_run full_run_verdict "$fr" "$now"; st_rc "full_run_verdict with a marker inside the age limit" 75
+  st_marker 555 $((now - 7200)); DEV_FULL_RUN_MAX_MIN=0 st_run full_run_verdict "$fr" "$now"; st_rc "full_run_verdict with the age limit off" 75
+  st_marker 555 $((now - 7200)); DEV_FULL_RUN_MAX_MIN=180 st_run full_run_verdict "$fr" "$now"; st_rc "full_run_verdict with a raised age limit" 75
+  # The reclaim race: a command judged the old marker stale, but a new claim replaced it before the move-aside.
+  st_marker 555 "$now"; st_run full_run_reclaim "$fr" "$now"
+  [[ "$(cat "$fr/pid" 2>/dev/null)" == 555 ]]; st_ok "full_run_reclaim puts back a live marker" $?
+  [[ -z "$(ls -d "$fr".dead.* 2>/dev/null)" ]]; st_ok "full_run_reclaim leaves no dead directory" $?
+  st_marker 999 "$now"; st_run full_run_reclaim "$fr" "$now"; [[ ! -d "$fr" ]]; st_ok "full_run_reclaim removes a stale marker" $?
+  st_marker 555 "$now"; echo "shard-pattern" >"$fr/shards"
+  st_run full_run_kill_shards; st_rc "full_run_kill_shards leaves another pid's marker alone" 0
+  st_marker "$$" "$now"; echo "" >"$fr/shards"; st_run full_run_kill_shards; st_rc "full_run_kill_shards with no pattern" 0
+  st_marker 999 "$now"
+  st_run full_run_claim "$fr" "$now" "/my/checkout" "pat"; st_rc "full_run_claim over a stale marker" 0; st_eq "full_run_claim over a stale marker takes it" "$$" "$(cat "$fr/pid")"
+  st_eq "full_run_claim writes the shard pattern" "pat" "$(cat "$fr/shards")"
+  rm -rf "$fr"
+
+  # Busy simulators: pid_alive/pid_parent are still stubbed (alive 555, this shell, ancestors 800 and 700).
+  local one=$'iPhone Duo\t555' two=$'iPhone Duo\t555\niPhone Duo 2\t556' own=$'iPhone Duo\t'"$$"$'\niPhone Duo 2\t'"$$"$'\niPhone Duo 3\t'"$$"
+  st_run busy_sims_verdict 2 ""; st_rc "busy_sims_verdict with none busy" 0; st_eq "busy_sims_verdict with none busy is silent" "" "$ST_OUT"
+  st_run busy_sims_verdict 2 "$one"; st_rc "busy_sims_verdict with 1 busy" 0
+  st_run busy_sims_verdict 2 "$two"; st_rc "busy_sims_verdict with 2 busy" 75
+  st_out_has "busy_sims_verdict names the first" "iPhone Duo (pid 555)"; st_out_has "busy_sims_verdict names the second" "iPhone Duo 2 (pid 556)"
+  st_out_has "busy_sims_verdict names the override" "DEV_MAX_BUSY_SIMS=0"
+  st_run busy_sims_verdict 0 "$two"; st_rc "busy_sims_verdict with the cap off" 0
+  st_run busy_sims_verdict 1 "$one"; st_rc "busy_sims_verdict with a cap of 1 and 1 busy" 75
+  st_run busy_sims_verdict abc "$two"; st_rc "busy_sims_verdict with a bad cap falls back to 2" 75
+  st_run busy_sims_verdict 2 "$own"; st_rc "busy_sims_verdict ignores this run's own shards" 0
+  st_run busy_sims_verdict 2 "$own"$'\n'"$one"; st_rc "busy_sims_verdict counts only the other holder" 0
+  st_run busy_sims_verdict 2 $'iPhone Duo\t800\niPhone Duo 2\t700'; st_rc "busy_sims_verdict ignores an ancestor's locks" 0
+  unset DEV_ALLOW_BESIDE_FULL_RUN
+  st_run full_run_alone_verdict ""; st_rc "full_run_alone_verdict with none busy" 0
+  st_run full_run_alone_verdict "$own"; st_rc "full_run_alone_verdict with only its own locks" 0
+  st_run full_run_alone_verdict "$one"; st_rc "full_run_alone_verdict with 1 busy" 75
+  st_out_has "full_run_alone_verdict names the simulator" "iPhone Duo (pid 555)"; st_out_has "full_run_alone_verdict names the override" "DEV_ALLOW_BESIDE_FULL_RUN=1"
+  DEV_ALLOW_BESIDE_FULL_RUN=1 st_run full_run_alone_verdict "$one"; st_rc "full_run_alone_verdict with the override" 0
+  # Recent use: rows are "<name><TAB><udid><TAB><seconds since use><TAB><last user pid>"; the window is 120 s unless overridden.
+  local rows=$'iPhone Duo\tU1\t30\t555\niPhone Duo 2\tU2\t300\t555\niPhone Duo 3\tU3\t10\t'"$$"$'\niPhone Duo 4\tU4\t20\t800\niPhone Duo 5\tU5\t5\t-'
+  st_run sim_recent_lines 120 U9 "$rows"
+  st_out_has "sim_recent_lines counts a simulator used 30 s ago" "iPhone Duo"$'\t'"ago:30"
+  [[ "$ST_OUT" != *"iPhone Duo 2"* ]]; st_ok "sim_recent_lines skips one used 300 s ago" $?
+  [[ "$ST_OUT" != *"iPhone Duo 3"* && "$ST_OUT" != *"iPhone Duo 4"* ]]; st_ok "sim_recent_lines skips ones this shell or an ancestor used" $?
+  st_out_has "sim_recent_lines counts one with an unknown last user" "iPhone Duo 5"$'\t'"ago:5"
+  st_run sim_recent_lines 120 U1 "$rows"; [[ "$ST_OUT" != *"ago:30"* ]]; st_ok "sim_recent_lines never counts this command's own simulator" $?
+  st_run sim_recent_lines 20 U9 "$rows"; [[ "$ST_OUT" != *"ago:30"* ]]; st_ok "sim_recent_lines honours a shorter window" $?
+  st_run sim_recent_lines abc U9 "$rows"; st_out_has "sim_recent_lines with a bad window falls back to 120" "ago:30"
+  local ago=$'iPhone Duo\tago:30\niPhone Duo 2\tago:60'
+  st_run busy_sims_verdict 2 "$ago"; st_rc "busy_sims_verdict with 2 recently used" 75
+  st_out_has "busy_sims_verdict says used recently" "iPhone Duo (used 30s ago)"; st_out_has "busy_sims_verdict names the window" "in the last 2 min"
+  st_run busy_sims_verdict 2 "$one"$'\niPhone Duo 2\tago:60'; st_rc "busy_sims_verdict counts a holder and a recent use together" 75
+  st_run busy_sims_verdict 2 $'iPhone Duo\tago:30'; st_rc "busy_sims_verdict with 1 recently used" 0
+  DEV_BUSY_WINDOW_SEC=90 st_run busy_sims_verdict 2 "$ago"; st_out_has "busy_sims_verdict names a window that is not whole minutes" "in the last 90s"
+  st_marker 555 "$now"; st_run full_run_line "$fr" "$((now + 720))"
+  st_out_has "full_run_line names the pid" "pid 555"; st_out_has "full_run_line names the checkout" "/some/checkout"; st_out_has "full_run_line says how long" "(12 min)"
+  rm -rf "$fr"; st_run full_run_line "$fr" "$now"; st_eq "full_run_line with no marker is silent" "" "$ST_OUT"
+
+  # Gate waiting: probe stubs keep their state in files (a probe runs in a command substitution); gate_sleep is stubbed.
+  gate_sleep() { echo "$1" >>"$ST_DIR/gate-sleeps"; }
+  st_probe_clears_2nd() { local n; n=$(cat "$ST_DIR/gate-n" 2>/dev/null || echo 0); echo $((n + 1)) >"$ST_DIR/gate-n"; ((n >= 1)) || { echo "dev: simulators busy: iPhone Duo (pid 555)"; return 75; }; }
+  st_probe_never() { echo "dev: simulators busy: iPhone Duo (pid 555)"; return 75; }
+  st_gate_reset() { rm -f "$ST_DIR/gate-n" "$ST_DIR/gate-sleeps"; }
+  st_gate_sleeps() { if [[ -f "$ST_DIR/gate-sleeps" ]]; then grep -c . "$ST_DIR/gate-sleeps"; else echo 0; fi; }
+  st_gate_reset; st_run gate_wait check 60 st_probe_clears_2nd; st_rc "gate_wait proceeds when the gate clears on the second look" 0
+  st_out_has "gate_wait says what it waits for" "check waits for a gate (up to 60s"; st_out_has "gate_wait names the holder" "iPhone Duo (pid 555)"
+  st_out_has "gate_wait says when it proceeds" "gate cleared after 20s: check continues"; st_eq "gate_wait slept once" 1 "$(st_gate_sleeps)"
+  st_gate_reset; st_run gate_wait check 60 st_probe_never; st_rc "gate_wait gives up with 75 when the gate never clears" 75
+  st_out_has "gate_wait gives up with the reason" "iPhone Duo (pid 555)"; st_out_has "gate_wait gives up saying how long it waited" "waited 60s"
+  st_eq "gate_wait slept 3 x 20s" 3 "$(st_gate_sleeps)"; st_out_lacks "gate_wait never says it cleared" "gate cleared"
+  st_gate_reset; st_run gate_wait check 0 st_probe_never; st_rc "gate_wait with a wait of 0 refuses at once" 75
+  st_eq "gate_wait with a wait of 0 never sleeps" 0 "$(st_gate_sleeps)"; st_out_lacks "gate_wait with a wait of 0 prints no waiting line" "waits for a gate"
+  st_out_has "gate_wait with a wait of 0 prints the usual message" "dev: simulators busy"; st_out_lacks "gate_wait with a wait of 0 adds no waited note" "waited"
+  st_gate_reset; st_run gate_wait build 30 st_probe_never; st_rc "gate_wait with a budget below two steps" 75
+  st_eq "gate_wait's last step is the remainder" $'20\n10' "$(cat "$ST_DIR/gate-sleeps")"
+  st_gate_reset; st_run gate_wait check 60 true; st_rc "gate_wait with an open gate" 0; st_eq "gate_wait with an open gate is silent" "" "$ST_OUT"
+  st_eq "gate_wait_limit default" 1800 "$(unset DEV_GATE_WAIT_SEC; gate_wait_limit 1800)"; st_eq "gate_wait_limit default 0" 0 "$(unset DEV_GATE_WAIT_SEC; gate_wait_limit 0)"
+  st_eq "gate_wait_limit honours an explicit value" 45 "$(DEV_GATE_WAIT_SEC=45 gate_wait_limit 0)"; st_eq "gate_wait_limit honours an explicit 0 over a default" 0 "$(DEV_GATE_WAIT_SEC=0 gate_wait_limit 1800)"
+  st_eq "gate_wait_limit with a bad value falls back" 1800 "$(DEV_GATE_WAIT_SEC=abc gate_wait_limit 1800)"
+  st_gate_reset; DEV_GATE_POLL_SEC=5 st_run gate_wait check 10 st_probe_never; st_eq "gate_wait honours DEV_GATE_POLL_SEC" 2 "$(st_gate_sleeps)"
+  unset -f gate_sleep
+
   echo "selftest: $ST_PASS passed, $ST_FAIL failed"
   ((ST_FAIL == 0))
 }
 
+# lint, kit and duo-test need no simulator, so they run first and ungated; only build and the app tests go through
+# sim_guarded, where check waits (DEV_GATE_WAIT_SEC, default 1800) instead of refusing.
 cmd_check() {
   cmd_lint || return
   cmd_kit || return
   cmd_duo_test || return
+  sim_guarded cmd_check_sim
+}
+cmd_check_sim() {
   cmd_build || return
   cmd_test || return
   # The PreToolUse hook that gates `git commit` compares this stamp's mtime against changed files.
@@ -1933,8 +2361,14 @@ sims [--prune]     create the missing simulator clones (iPhone Duo 2..$DEV_SIM_P
                    (simulator commands use this checkout's own simulator, kept in .build/dev-sim-udid; DEV_SIM=<name>
                    or DEV_SIM_UDID=<udid> overrides)
 build              build the app for this checkout's simulator
+                   (every command that uses a simulator, build included, exits 75 while an unfiltered ui-test runs: it keeps a marker in ~/Library/Caches/workouts-dev-full-ui.lock
+                   with its pid, checkout and start time, cleared when it ends (a TERM/HUP/INT to the dev shell stops the shards first) or when its pid is dead and no shard process is left; a marker older than DEV_FULL_RUN_MAX_MIN (90, 0 = off) with no shard process is stale whatever its pid; DEV_ALLOW_BESIDE_FULL_RUN=1 overrides. kit, lint, format, duo-test, selftest, sims, ui-status, ui-flaky, testflight and help are never gated;
+                   an unfiltered ui-test also refuses to start while any pool simulator is held by another live process, DEV_ALLOW_BESIDE_FULL_RUN=1 overrides)
+                   (outside a full run, a simulator command, build included, exits 75 when DEV_MAX_BUSY_SIMS (default 2; 0 = off) other pool simulators are held by live processes or were used in the last DEV_BUSY_WINDOW_SEC (default 120) seconds (a command's own simulator and ones its ancestors used do not count), checked again once the lock is taken, and prints a warning
+                   when the 1-minute load average is above twice the CPU count; sims and ui-status show a running full run's pid, checkout and start time)
+                   (DEV_GATE_WAIT_SEC: how long a gated command waits, looking again every DEV_GATE_POLL_SEC (20) seconds, before it exits 75; default 1800 for check, whose lint, kit and duo-test steps run first and never wait, 0 (refuse at once) for every other command; an explicit value applies to any gated command)
 test [filter]      run WorkoutsTests (filter = suite or suite/test); prints totals, fails if none ran; an unfiltered pass writes .build/test.stamp (commit, clean, when), which `coverage` prints
-ui-test [filter]   run WorkoutsUITests (an unfiltered pass is sharded over DEV_UI_SHARDS pool sims and stamps HEAD, with its flaky tests, for the testflight --upload gate); prints totals, fails if none ran. An unfiltered run that does not skip exactly 15 tests (DEV_UI_EXPECTED_SKIPS) writes no stamp
+ui-test [filter]   run WorkoutsUITests (an unfiltered pass is sharded over DEV_UI_SHARDS pool sims and stamps HEAD, with its flaky tests, for the testflight --upload gate); prints totals, fails if none ran. A test whose first attempt crashed the app fails the run even when its retry passes (not flaky; no stamp). An unfiltered run that does not skip exactly 16 tests (DEV_UI_EXPECTED_SKIPS) writes no stamp
                    and fails. A test running longer than DEV_UI_TEST_ALLOWANCE seconds (default 240) fails with a spindump (xcodebuild -test-timeouts-enabled). Filter HealthKitIntegrationUITests opts in to the real-Health test: it runs on the 'iPhone Duo Health' clone
                    (create it: xcrun simctl clone "iPhone Duo" "iPhone Duo Health"; DEV_SIM / DEV_SIM_UDID override), keeps its bundle as
                    latest-health.xcresult, and a pass with nothing skipped writes .build/health-test.stamp (commit, when)
@@ -1994,7 +2428,7 @@ USAGE
 sub="${1:-help}"
 [[ $# -gt 0 ]] && shift
 case "$sub" in
-  build) cmd_build ;;
+  build) sim_build_cap; cmd_build ;;
   test) sim_guarded cmd_test "$@" ;;
   ui-test) ui_test_select_sim "$@"; ui_pose_init "$@"; sim_guarded cmd_ui_test "$@" ;;
   selftest) cmd_selftest ;;
@@ -2024,7 +2458,7 @@ case "$sub" in
   media-upload) cmd_media_upload "$@" ;;
   ck-schema) cmd_ck_schema "$@" ;;
   clean) cmd_clean ;;
-  check) sim_guarded cmd_check ;;
+  check) cmd_check ;;
   help | -h | --help) cmd_help ;;
   *) cmd_help >&2; die "unknown command: $sub" ;;
 esac
