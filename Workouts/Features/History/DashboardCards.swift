@@ -24,6 +24,8 @@ struct DashboardCard<Content: View>: View {
     /// The summary has not arrived: the content is drawn as placeholder blocks and the sentence says so, instead of
     /// presenting an empty result as fact.
     var isLoading = false
+    /// Fills the height of its grid row (content pinned to the top); false takes the natural height.
+    var fillsRow = false
     let label: String
     let identifier: String
     @ViewBuilder let content: Content
@@ -47,8 +49,7 @@ struct DashboardCard<Content: View>: View {
             content
                 .redacted(reason: isLoading ? .placeholder : [])
         }
-        // Cards in one grid row share the tallest card's height; content stays pinned to the top.
-        .frame(maxHeight: .infinity, alignment: .top)
+        .frame(maxHeight: fillsRow ? CGFloat.infinity : nil, alignment: .top)
         .dashboardCardStyle()
         .cardContentShape()
         .accessibilityElement(children: .ignore)
@@ -58,17 +59,18 @@ struct DashboardCard<Content: View>: View {
     }
 }
 
-/// The hero's headline: the done count as the big tinted figure, then "of 3 workouts" on the same baseline.
+/// The hero's headline: the done count as the big tinted figure (gray at zero), then "of 3 workouts" on the same baseline.
 private struct WeekHeadline: View {
-    let done: Int
-    let goal: Int
+    let count: String
+    let goalText: String
+    let isDone: Bool
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
-            MetricText("\(done)", style: .largeTitle)
-                .foregroundStyle(.tint)
+            MetricText(count, style: .largeTitle)
+                .foregroundStyle(isDone ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
                 .lineLimit(1)
-            Text("of \(goal) \(goal == 1 ? "workout" : "workouts")")
+            Text(goalText)
                 .font(.title3)
                 .foregroundStyle(.secondary)
         }
@@ -95,13 +97,13 @@ private struct GoalSegments: View {
     }
 }
 
-/// Volume and Time of the week in two columns, each over its four-week average when there is one; stacked at
+/// Volume and Time of the week in two columns, each over what is usual by now when there is a figure; stacked at
 /// accessibility text sizes.
 private struct WeekMetrics: View {
     let volume: String
     let duration: String
-    let averageVolume: String?
-    let averageDuration: String?
+    let usualVolume: String?
+    let usualDuration: String?
     @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
@@ -110,20 +112,20 @@ private struct WeekMetrics: View {
             ? AnyLayout(VStackLayout(alignment: .leading, spacing: 12))
             : AnyLayout(HStackLayout(alignment: .top, spacing: 12))
         layout {
-            metric("Volume", value: volume, average: averageVolume)
-            metric("Time", value: duration, average: averageDuration)
+            metric("Volume", value: volume, usual: usualVolume)
+            metric("Time", value: duration, usual: usualDuration)
         }
     }
 
-    private func metric(_ title: String, value: String, average: String?) -> some View {
+    private func metric(_ title: String, value: String, usual: String?) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(title)
                 .font(.caption)
                 .foregroundStyle(.secondary)
             MetricText(value, style: .title2)
                 .foregroundStyle(.primary)
-            if let average {
-                Text("avg \(average)")
+            if let usual {
+                Text("usually \(usual)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -143,7 +145,7 @@ struct DashboardSection: View {
     /// False until the history summary has arrived (This Week and Recent PRs are placeholders until then).
     var isLoaded = true
     /// Which cards to draw: the compact History page puts the weekly chart between the hero and the rest.
-    var part = DashboardCards.Part.all
+    let part: DashboardCards.Part
     let openWorkout: (UUID) -> Void
 
     @AppStorage(SettingsKey.weeklyGoal.rawValue) private var storedGoal = SettingsStore.weeklyGoalDefault
@@ -162,9 +164,9 @@ struct DashboardSection: View {
     }
 }
 
-/// This Week, Recent PRs and Last Workout in even columns: the grid is as wide as the list, so the closed Duo shows
-/// one column and the open wide display two or three. Nothing is sized in points but the column minimum, which scales
-/// with Dynamic Type.
+/// The compact History page's cards: the This Week hero, and Recent PRs with Last Workout in even columns (the grid is as
+/// wide as the list, so a wide closed layout may show two). Nothing is sized in points but the column minimum, which
+/// scales with Dynamic Type. `DashboardColumns` composes the same cards for regular width.
 struct DashboardCards: View {
     let entries: [HistoryEntry]
     let recentPRs: [RecentPR]
@@ -175,18 +177,22 @@ struct DashboardCards: View {
     var weekAverageBpm: Double?
     /// False until the history summary has arrived: This Week and Recent PRs are drawn as placeholders.
     var isLoaded = true
-    var part = Part.all
+    var part = Part.rest
+    /// The records the regular-width layout lists, and so the most the history summary must carry.
+    static let regularRecentPRLimit = 5
+    /// How many Recent PRs the card lists.
+    var recentPRLimit = 3
     let openWorkout: (UUID) -> Void
     var calendar: Calendar = .current
     var now: Date = .now
 
-    /// The cards a `DashboardCards` draws: the This Week hero, the others, or all three in one grid.
+    /// The cards a `DashboardCards` draws: the This Week hero, or the others.
     enum Part {
-        case all, hero, rest
+        case hero, rest
     }
 
-    /// The columns come from `EvenColumnGrid`: an even count from two up, so no card straddles the fold. The hero alone is
-    /// one full-width card.
+    /// The columns come from `EvenColumnGrid`: an even count from two up, so no card straddles the fold; the cards of a
+    /// grid row share its height. The hero alone is one full-width card.
     @ViewBuilder
     var body: some View {
         switch part {
@@ -194,13 +200,7 @@ struct DashboardCards: View {
             thisWeek
         case .rest:
             EvenColumnGrid(minimum: 250) {
-                recents
-                lastWorkoutCard
-            }
-        case .all:
-            EvenColumnGrid(minimum: 250) {
-                thisWeek
-                recents
+                recents(fillsRow: true)
                 lastWorkoutCard
             }
         }
@@ -209,27 +209,15 @@ struct DashboardCards: View {
     @ViewBuilder
     private var lastWorkoutCard: some View {
         if let last = HistoryDashboard.lastWorkout(entries: entries) {
-            lastWorkout(last)
+            lastWorkout(last, fillsRow: true)
         }
     }
 
-    /// The hero card: the week's workouts against the goal, then its volume and time over the four-week average.
+    /// The hero card: the week's workouts against the goal, then its volume and time over what is usual by now.
     var thisWeek: some View {
         let week = HistoryDashboard.thisWeek(entries: entries, calendar: calendar, now: now)
-        // The current week and the four before it, so the baseline has its window.
-        let totals = HistoryDashboard.weeklyTotals(entries: entries, weeks: 5, calendar: calendar, now: now)
-        let baseline = HistoryDashboard.baseline(totals: totals)
-        let duration = week.workouts == 0 ? "0min" : HistoryList.durationText(seconds: week.durationSeconds)
-        let volume = HistoryList.volumeText(week.volume, unit: week.unit)
-        let averageVolume = baseline.map { HistoryList.volumeText($0.volume.rounded(), unit: week.unit) }
-        let averageDuration = baseline.map { HistoryList.durationText(seconds: $0.durationSeconds) }
-        let detail = Self.weekDetail(week: week, duration: duration, volume: volume)
-        let detailLabel = detail.map { ", \($0.replacingOccurrences(of: " · ", with: ", "))" } ?? ""
-        let baselineLabel =
-            baseline.map {
-                ", 4-week average \(HistoryList.volumeText($0.volume.rounded(), unit: week.unit)), "
-                    + FitnessFormat.spokenDuration(seconds: TimeInterval($0.durationSeconds))
-            } ?? ""
+        let toDate = HistoryDashboard.toDateBaseline(entries: entries, calendar: calendar, now: now)
+        let text = HistoryDashboard.heroText(week: week, goal: goal, toDate: toDate)
         let calories = weekActiveKcal.map(FitnessFormat.kcalText)
         let calorieLabel = weekActiveKcal.map { ", \(FitnessFormat.wholeNumber($0)) active calories" } ?? ""
         let heartRate = weekAverageBpm.map(HistoryDashboard.heartRateText)
@@ -237,18 +225,17 @@ struct DashboardCards: View {
         return DashboardCard(
             title: "This Week",
             isLoading: !isLoaded,
-            label:
-                "This week, \(week.workouts) of \(goal) \(goal == 1 ? "workout" : "workouts")\(detailLabel)\(baselineLabel)\(calorieLabel)\(heartRateLabel)",
+            label: text.spoken + calorieLabel + heartRateLabel,
             identifier: "history.card.thisWeek"
         ) {
             VStack(alignment: .leading, spacing: 12) {
-                WeekHeadline(done: week.workouts, goal: goal)
+                WeekHeadline(count: text.countText, goalText: text.goalText, isDone: week.workouts > 0)
                 GoalSegments(done: isLoaded ? week.workouts : 0, goal: goal)
                 WeekMetrics(
-                    volume: volume,
-                    duration: duration,
-                    averageVolume: averageVolume,
-                    averageDuration: averageDuration
+                    volume: text.volumeText,
+                    duration: text.durationText,
+                    usualVolume: text.usualVolumeText,
+                    usualDuration: text.usualDurationText
                 )
             }
             if let calories {
@@ -266,20 +253,16 @@ struct DashboardCards: View {
         }
     }
 
-    /// `duration · volume`; nothing for a week with no workouts, and the duration alone when nothing was lifted.
-    private static func weekDetail(week: ThisWeekSummary, duration: String, volume: String) -> String? {
-        guard week.workouts > 0 else { return nil }
-        return week.volume > 0 ? "\(duration) · \(volume)" : duration
-    }
-
-    var recents: some View {
+    func recents(fillsRow: Bool = false) -> some View {
+        let shown = Array(recentPRs.prefix(recentPRLimit))
         let sentence =
-            recentPRs.isEmpty
+            shown.isEmpty
             ? "Recent PRs, none yet"
-            : "Recent PRs, " + recentPRs.map(\.sentence).joined(separator: "; ")
+            : "Recent PRs, " + shown.map(\.sentence).joined(separator: "; ")
         return DashboardCard(
             title: "Recent PRs",
             isLoading: !isLoaded,
+            fillsRow: fillsRow,
             label: sentence,
             identifier: "history.card.recentPRs"
         ) {
@@ -288,13 +271,13 @@ struct DashboardCards: View {
                 ForEach(0..<2, id: \.self) { _ in
                     prRow(name: "Exercise name", text: "000 lb × 00")
                 }
-            } else if recentPRs.isEmpty {
+            } else if shown.isEmpty {
                 Text("No records yet")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             } else {
                 VStack(alignment: .leading, spacing: 8) {
-                    ForEach(recentPRs) { pr in
+                    ForEach(shown) { pr in
                         prRow(name: pr.exerciseName, text: pr.text)
                     }
                 }
@@ -317,7 +300,7 @@ struct DashboardCards: View {
         }
     }
 
-    func lastWorkout(_ entry: HistoryEntry) -> some View {
+    func lastWorkout(_ entry: HistoryEntry, fillsRow: Bool = false) -> some View {
         let date = HistoryList.dateText(entry.startedAt, now: now, calendar: calendar)
         let detail =
             "\(HistoryList.durationText(seconds: entry.durationSeconds)) · \(HistoryList.volumeText(entry.volume, unit: entry.unit))"
@@ -327,6 +310,7 @@ struct DashboardCards: View {
             DashboardCard(
                 title: "Last Workout",
                 opens: true,
+                fillsRow: fillsRow,
                 label: "Last workout, \(entry.name), \(date), \(detail)",
                 identifier: "history.card.lastWorkout"
             ) {
@@ -348,16 +332,14 @@ struct DashboardCards: View {
 
 /// The regular-width dashboard: the weekly chart and the three cards in exactly two columns, so nothing is wider than half
 /// the display and nothing crosses the fold. Left: the This Week hero, then the chart. Right: Recent PRs, then Last
-/// Workout. The hero and the chart are the tall cards, so the columns come out near-equal in height, and each column's
-/// last card stretches so the bottoms line up.
+/// Workout. Every card takes its natural height and the columns are top-aligned, so a short card never carries a blank
+/// band; Recent PRs lists up to five records here.
 ///
 /// Half-open in book pose (an active, vertical division region inside this view) the left column ends at the division and
 /// the right one starts after it, so the gutter is the fold itself; otherwise the gutter is the normal 12 pt. The same
 /// views are laid out either way (a custom `Layout` changes only the widths), so folding does not rebuild the cards or the
 /// chart. The horizontal fold (laptop pose) is not treated specially: the content scrolls through it.
-struct DashboardColumns: View {
-    /// Start dates of the finished workouts (the chart).
-    let starts: [Date]
+struct DashboardColumns<Chart: View>: View {
     let entries: [HistoryEntry]
     let recentPRs: [RecentPR]
     /// Active calories this week from Apple Fitness; nil hides the figure.
@@ -366,6 +348,10 @@ struct DashboardColumns: View {
     var weekAverageBpm: Double?
     /// False until the history summary has arrived (This Week and Recent PRs are placeholders until then).
     var isLoaded = true
+    var calendar: Calendar = .current
+    var now: Date = .now
+    /// The weekly chart, under the hero.
+    @ViewBuilder let chart: Chart
     let openWorkout: (UUID) -> Void
 
     @AppStorage(SettingsKey.weeklyGoal.rawValue) private var storedGoal = SettingsStore.weeklyGoalDefault
@@ -378,15 +364,18 @@ struct DashboardColumns: View {
             weekActiveKcal: weekActiveKcal,
             weekAverageBpm: weekAverageBpm,
             isLoaded: isLoaded,
-            openWorkout: openWorkout
+            recentPRLimit: DashboardCards.regularRecentPRLimit,
+            openWorkout: openWorkout,
+            calendar: calendar,
+            now: now
         )
         FoldColumns {
             VStack(spacing: Metrics.dashboardSpacing) {
                 cards.thisWeek
-                WeeklyGoalSection(starts: starts, entries: entries)
+                chart
             }
             VStack(spacing: Metrics.dashboardSpacing) {
-                cards.recents
+                cards.recents()
                 if let last = HistoryDashboard.lastWorkout(entries: entries) {
                     cards.lastWorkout(last)
                 }
@@ -426,9 +415,8 @@ struct FoldColumns<Left: View, Right: View>: View {
     }
 }
 
-/// Two columns of equal width and height. Without a division they split the width around a 12 pt gutter; with one, each is
-/// as wide as the narrower side of it and the gutter between them contains it. Both children are proposed the full row height so a
-/// column's flexible last card can stretch to the other column's bottom.
+/// Two columns of equal width, top-aligned, each at its natural height. Without a division they split the width around a
+/// 12 pt gutter; with one, each is as wide as the narrower side of it and the gutter between them contains it.
 private struct TwoColumnLayout: Layout {
     var division: ClosedRange<CGFloat>?
     var spacing: CGFloat = 12
@@ -455,12 +443,12 @@ private struct TwoColumnLayout: Layout {
         subviews[0].place(
             at: bounds.origin,
             anchor: .topLeading,
-            proposal: ProposedViewSize(width: widths.left, height: bounds.height)
+            proposal: ProposedViewSize(width: widths.left, height: nil)
         )
         subviews[1].place(
             at: CGPoint(x: bounds.minX + widths.left + widths.gap, y: bounds.minY),
             anchor: .topLeading,
-            proposal: ProposedViewSize(width: widths.right, height: bounds.height)
+            proposal: ProposedViewSize(width: widths.right, height: nil)
         )
     }
 }

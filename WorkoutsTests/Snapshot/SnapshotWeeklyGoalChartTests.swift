@@ -6,7 +6,7 @@ import WorkoutsKit
 
 extension SnapshotTests {
     /// The History tab's weekly chart: workouts per week (bars below and at the goal, an empty week, the goal line) and
-    /// volume per week with its 4-week average line.
+    /// volume per week (bars above and below their 4-week average, weeks without one) with the average line and unit.
     @MainActor
     struct WeeklyGoalChartSnapshots {
         private static let counts: [WeekCount] = {

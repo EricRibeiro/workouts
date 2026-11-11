@@ -432,4 +432,14 @@ struct HistoryListWebExportTests {
         }
         print("per-session prsInSession (old way) plus comparison: \(oldElapsed)")
     }
+
+    @Test func everyVolumeAxisTickPrintsDistinctly() {
+        var highest = 0.5
+        while highest < 2e9 {
+            let ticks = HistoryDashboard.volumeAxis(totals: [], averages: [highest]).ticks
+            let labels = ticks.map(HistoryList.compactVolumeText)
+            #expect(Set(labels).count == labels.count, "\(labels) for \(highest)")
+            highest *= 1.07
+        }
+    }
 }

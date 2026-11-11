@@ -124,7 +124,9 @@ struct HistoryView: View {
             : try? await WorkoutStatsReader.loadHistorySummary(
                 in: context.container,
                 weightTypes: store.weightTypes,
-                options: options
+                options: options,
+                // The most any layout lists; the compact cards slice it down.
+                limit: DashboardCards.regularRecentPRLimit
             )
         guard !Task.isCancelled else { return }
         defer { hasLoadedSummary = true }
@@ -179,12 +181,12 @@ struct HistoryView: View {
                         if horizontalSizeClass == .regular {
                             // One row, two columns, the gutter on the fold when half open (`DashboardColumns`).
                             DashboardColumns(
-                                starts: finished.map(\.startedAt),
                                 entries: entries,
                                 recentPRs: recentPRs,
                                 weekActiveKcal: weekKcal,
                                 weekAverageBpm: weekBpm,
-                                isLoaded: hasLoadedSummary
+                                isLoaded: hasLoadedSummary,
+                                chart: { WeeklyGoalSection(starts: finished.map(\.startedAt), entries: entries) }
                             ) { path.append(.workout($0)) }
                             .listRowSeparator(.hidden)
                             .listRowBackground(Color.clear)

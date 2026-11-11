@@ -5,8 +5,8 @@ import WorkoutsKit
 @testable import Workouts
 
 extension SnapshotTests {
-    /// The History dashboard cards (This Week, Recent PRs, Last Workout): one column at phone width, two at inner-display
-    /// width, and the empty state of a new install.
+    /// The History dashboard as it ships: the compact page (hero, then Recent PRs and Last Workout) at phone width, the
+    /// regular two-column `DashboardColumns` at inner-display width, and the empty and loading states of a new install.
     @MainActor
     struct DashboardCardsSnapshots {
         private static func entry(
@@ -33,7 +33,7 @@ extension SnapshotTests {
         }
 
         /// Newest first, as the History list passes them. The fixed `now` is Sunday 1 November, so three are this week and the
-        /// older ones fill the four weeks before it (the averages).
+        /// older ones fill the four weeks before it (the "usually" lines).
         private static let entries = [
             entry("Pull Day", day: 31, minutes: 62, volume: 9_450),
             entry("Push Day", day: 29, minutes: 55, volume: 8_120.5),
@@ -63,36 +63,73 @@ extension SnapshotTests {
                 text: "100 kg × 5",
                 recordCount: 1
             ),
+            pr("00000000-0000-0000-0000-00000000A003", "Overhead Press", .heaviest, "60 kg × 5"),
+            pr("00000000-0000-0000-0000-00000000A004", "Deadlift", .e1rm, "e1RM 180 kg"),
+            pr("00000000-0000-0000-0000-00000000A005", "Pull-Up", .repsAtWeight, "BW × 12"),
         ]
 
-        private func cards(populated: Bool = true, loaded: Bool = true) -> some View {
-            DashboardCards(
-                entries: populated ? Self.entries : [],
-                recentPRs: populated ? Self.recentPRs : [],
-                goal: 4,
-                weekActiveKcal: populated ? 1_240 : nil,
-                weekAverageBpm: populated ? 118 : nil,
-                isLoaded: loaded,
-                openWorkout: { _ in },
-                calendar: SnapshotFixtures.calendar,
-                now: SnapshotFixtures.now
+        private static func pr(_ id: String, _ name: String, _ kind: RecordKind, _ text: String) -> RecentPR {
+            RecentPR(
+                workoutID: UUID(uuidString: id) ?? UUID(),
+                exerciseID: UUID(),
+                exerciseName: name,
+                date: SnapshotFixtures.now,
+                kind: kind,
+                text: text,
+                recordCount: 1
             )
+        }
+
+        /// The compact History page: the hero, then the rest (the weekly chart between them has its own snapshots).
+        private func compact(populated: Bool = true, loaded: Bool = true) -> some View {
+            func part(_ part: DashboardCards.Part) -> DashboardCards {
+                DashboardCards(
+                    entries: populated ? Self.entries : [],
+                    recentPRs: populated ? Self.recentPRs : [],
+                    goal: 4,
+                    weekActiveKcal: populated ? 1_240 : nil,
+                    weekAverageBpm: populated ? 118 : nil,
+                    isLoaded: loaded,
+                    part: part,
+                    openWorkout: { _ in },
+                    calendar: SnapshotFixtures.calendar,
+                    now: SnapshotFixtures.now
+                )
+            }
+            return VStack(spacing: Metrics.dashboardSpacing) {
+                part(.hero)
+                part(.rest)
+            }
             .padding(.horizontal, 16)
         }
 
         @Test(arguments: SnapshotVariant.all)
         func phone(variant: SnapshotVariant) {
-            Snapshot.assert(cards(), named: "phone", variant: variant)
+            Snapshot.assert(compact(), named: "phone", variant: variant, engine: .hostedFitting)
         }
 
-        /// Two columns at inner-display width, default text size only (at accessibility sizes the column minimum scales up
-        /// and the grid is one column again, which `phone` covers). The grid measures its width in a state update, which
-        /// `ImageRenderer` lays out for but does not re-fit the height to, and a hosted window cannot be wider than the
-        /// scene; so the height is pinned (the cards are about 400 pt tall).
+        /// The regular layout: hero over the chart on the left, Recent PRs (five rows) over Last Workout on the right, every
+        /// card at its natural height. The chart is a stand-in of fixed height (`WeeklyGoalSection` reads the clock; the
+        /// chart has its own snapshots). Default text size only: at accessibility sizes the layout is the compact page's.
         @Test(arguments: SnapshotVariant.all.filter { $0.dynamicTypeSize == .large })
         func wide(variant: SnapshotVariant) {
+            let columns = DashboardColumns(
+                entries: Self.entries,
+                recentPRs: Self.recentPRs,
+                weekActiveKcal: 1_240,
+                weekAverageBpm: 118,
+                calendar: SnapshotFixtures.calendar,
+                now: SnapshotFixtures.now,
+                chart: {
+                    Text("Weekly chart")
+                        .foregroundStyle(.secondary)
+                        .frame(height: 220)
+                        .dashboardCardStyle()
+                },
+                openWorkout: { _ in }
+            )
             Snapshot.assert(
-                cards().environment(\.horizontalSizeClass, .regular).frame(height: 400, alignment: .top),
+                columns.padding(.horizontal, 16),
                 named: "wide",
                 variant: variant,
                 width: 800
@@ -101,14 +138,19 @@ extension SnapshotTests {
 
         @Test(arguments: SnapshotVariant.all)
         func empty(variant: SnapshotVariant) {
-            Snapshot.assert(cards(populated: false), named: "empty", variant: variant)
+            Snapshot.assert(compact(populated: false), named: "empty", variant: variant, engine: .hostedFitting)
         }
 
         /// The first frame, before the history summary lands: This Week and Recent PRs are placeholder blocks, not "0 / 4"
         /// and "No records yet".
         @Test(arguments: SnapshotVariant.all)
         func loading(variant: SnapshotVariant) {
-            Snapshot.assert(cards(populated: false, loaded: false), named: "dashboardLoading", variant: variant)
+            Snapshot.assert(
+                compact(populated: false, loaded: false),
+                named: "dashboardLoading",
+                variant: variant,
+                engine: .hostedFitting
+            )
         }
     }
 }

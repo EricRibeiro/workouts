@@ -32,16 +32,72 @@ public nonisolated struct WeekTotal: Hashable, Sendable {
     }
 }
 
-/// The mean week before the current one: what "this week" is compared against.
-public nonisolated struct WeekBaseline: Hashable, Sendable {
+/// The mean of the same stretch of the weeks before this one: what a week in progress is compared against.
+public nonisolated struct WeekToDate: Hashable, Sendable {
     public var volume: Double
     public var durationSeconds: Int
     public var workouts: Double
+    /// How many earlier weeks the means cover, 1 up to the window.
+    public var weeks: Int
 
-    public init(volume: Double, durationSeconds: Int, workouts: Double) {
+    public init(volume: Double, durationSeconds: Int, workouts: Double, weeks: Int) {
         self.volume = volume
         self.durationSeconds = durationSeconds
         self.workouts = workouts
+        self.weeks = weeks
+    }
+}
+
+/// The weekly volume chart's y axis: `top` is `step` times the number of steps, and `ticks` run from 0 to `top`.
+public nonisolated struct VolumeAxis: Hashable, Sendable {
+    public var top: Double
+    public var step: Double
+    public var ticks: [Double]
+
+    public init(top: Double, step: Double, ticks: [Double]) {
+        self.top = top
+        self.step = step
+        self.ticks = ticks
+    }
+
+    /// Every `every`-th tick counted down from the top, oldest (lowest) first, so the top is always kept.
+    public func thinned(every: Int) -> [Double] {
+        guard every > 1 else { return ticks }
+        return stride(from: ticks.count - 1, through: 0, by: -every).reversed().map { ticks[$0] }
+    }
+}
+
+/// What the "This Week" hero card prints and speaks.
+public nonisolated struct ThisWeekText: Hashable, Sendable {
+    /// `1`: the workouts done this week.
+    public var countText: String
+    /// `of 3 workouts`, `of 1 workout`.
+    public var goalText: String
+    public var volumeText: String
+    /// `0min` for an empty week.
+    public var durationText: String
+    /// The to-date volume mean in the same format; nil without a baseline or when it is zero.
+    public var usualVolumeText: String?
+    public var usualDurationText: String?
+    /// The VoiceOver sentence, without any Fitness tail.
+    public var spoken: String
+
+    public init(
+        countText: String,
+        goalText: String,
+        volumeText: String,
+        durationText: String,
+        usualVolumeText: String?,
+        usualDurationText: String?,
+        spoken: String
+    ) {
+        self.countText = countText
+        self.goalText = goalText
+        self.volumeText = volumeText
+        self.durationText = durationText
+        self.usualVolumeText = usualVolumeText
+        self.usualDurationText = usualDurationText
+        self.spoken = spoken
     }
 }
 
@@ -167,47 +223,72 @@ public nonisolated enum HistoryDashboard {
         }
     }
 
-    /// The mean week among the `window` weeks before the last of `totals` (the current week); nil when fewer than
-    /// `window` weeks precede it or when those weeks hold no workouts.
-    public static func baseline(totals: [WeekTotal], window: Int = 4) -> WeekBaseline? {
-        guard window > 0, totals.count > window else { return nil }
-        let previous = totals[(totals.count - 1 - window)..<(totals.count - 1)]
-        let workouts = previous.reduce(0) { $0 + $1.workouts }
-        guard workouts > 0 else { return nil }
-        let count = Double(window)
-        let seconds = Double(previous.reduce(0) { $0 + $1.durationSeconds })
-        return WeekBaseline(
-            volume: previous.reduce(0) { $0 + $1.volume } / count,
-            durationSeconds: Int((seconds / count).rounded()),
-            workouts: Double(workouts) / count
+    /// The mean of the same stretch of each of the up-to-`window` Monday-first weeks before the current one: the entries
+    /// that started between that week's Monday and the same weekday and time of day as `now` has in the current week, so
+    /// a Monday morning is compared with earlier Monday mornings and not with whole weeks. Only weeks from the week of the
+    /// first-ever workout on count (a week skipped inside that range counts as zero). Nil in the first week of use, when
+    /// no earlier week exists, and for a `window` of 0 or less. Volume is rounded like ``ThisWeekSummary/volume``.
+    public static func toDateBaseline(
+        entries: [HistoryEntry],
+        calendar: Calendar,
+        now: Date,
+        window: Int = 4
+    ) -> WeekToDate? {
+        let calendar = mondayFirst(calendar)
+        guard window > 0, let first = entries.map(\.startedAt).min(),
+            let firstWeek = calendar.dateInterval(of: .weekOfYear, for: first)?.start,
+            let currentWeek = calendar.dateInterval(of: .weekOfYear, for: now)?.start
+        else { return nil }
+        // Whole days then the wall-clock time of day, so a 23-hour or 25-hour DST day still lands on the same clock time.
+        let days = calendar.dateComponents([.day], from: currentWeek, to: calendar.startOfDay(for: now)).day ?? 0
+        let time = calendar.dateComponents([.hour, .minute, .second], from: now)
+        var sums = (workouts: 0, seconds: 0, kg: 0.0)
+        var weeks = 0
+        for back in 1...window {
+            guard let start = calendar.date(byAdding: .weekOfYear, value: -back, to: currentWeek), start >= firstWeek,
+                let next = calendar.date(byAdding: .weekOfYear, value: 1, to: start),
+                let day = calendar.date(byAdding: .day, value: days, to: start),
+                let reached = calendar.date(
+                    bySettingHour: time.hour ?? 0,
+                    minute: time.minute ?? 0,
+                    second: time.second ?? 0,
+                    of: day
+                )
+            else { break }
+            let end = min(reached, next)
+            weeks += 1
+            for entry in entries where entry.startedAt >= start && entry.startedAt <= end {
+                sums.workouts += 1
+                sums.seconds += entry.durationSeconds
+                sums.kg += entry.volumeKg
+            }
+        }
+        guard weeks > 0 else { return nil }
+        let count = Double(weeks)
+        return WeekToDate(
+            volume: displayedVolume(kg: sums.kg / count, displayUnit: entries.first?.unit ?? .kg),
+            durationSeconds: Int((Double(sums.seconds) / count).rounded()),
+            workouts: Double(sums.workouts) / count,
+            weeks: weeks
         )
     }
 
-    /// The top of the volume chart's y axis: 3 to 5 equal steps of 1, 2, 2.5 or 5 times a power of ten, the combination
-    /// whose top is the smallest value that reaches the busiest week (a tie goes to the count nearest 4); 1 when every
-    /// week is zero.
-    public static func volumeAxisTop(totals: [WeekTotal]) -> Double {
-        volumeAxis(totals: totals).top
-    }
-
-    /// The distance between the volume chart's gridlines: `volumeAxisTop` divided into 3 to 5 equal steps; 1 when every
-    /// week is zero.
-    public static func volumeAxisStep(totals: [WeekTotal]) -> Double {
-        volumeAxis(totals: totals).step
-    }
-
-    private static func volumeAxis(totals: [WeekTotal]) -> (top: Double, step: Double) {
-        let busiest = totals.map(\.volume).max() ?? 0
-        guard busiest > 0, busiest.isFinite else { return (1, 1) }
-        let magnitude = pow(10, floor(log10(busiest)))
+    /// The weekly volume chart's axis: 3 to 5 equal steps of 1, 2, 2.5 or 5 times a power of ten whose top is the smallest
+    /// that reaches the highest bar or average (a tie goes to the step count nearest 4), so there are always 4 to 6 ticks.
+    /// A step is never below 1 and 2.5 times a power of ten only appears from a step of 25 up, so every tick prints
+    /// distinctly through ``HistoryList/compactVolumeText(_:)``. All-zero data gives top 1 and ticks `[0, 1]`.
+    public static func volumeAxis(totals: [WeekTotal], averages: [Double?]) -> VolumeAxis {
+        let highest = (totals.map(\.volume) + averages.compactMap { $0 }).filter(\.isFinite).max() ?? 0
+        guard highest > 0 else { return VolumeAxis(top: 1, step: 1, ticks: [0, 1]) }
+        let magnitude = floor(log10(highest))
         var best: (top: Double, step: Double, count: Int)?
-        // Steps from a tenth of the busiest week's magnitude to ten times it cover every 3 to 5 step axis that can reach it.
-        for exponent in -1...1 {
+        for exponent in Int(magnitude) - 1...Int(magnitude) + 1 {
             for base in [1.0, 2, 2.5, 5] {
-                let step = base * magnitude * pow(10, Double(exponent))
+                let step = base * pow(10, Double(exponent))
+                guard step >= 1, base != 2.5 || step >= 10 else { continue }
                 for count in 3...5 {
                     let top = step * Double(count)
-                    guard top >= busiest * (1 - 1e-9) else { continue }
+                    guard top >= highest * (1 - 1e-9) else { continue }
                     let tolerance = top * 1e-9
                     if let current = best {
                         if top > current.top + tolerance { continue }
@@ -218,8 +299,48 @@ public nonisolated enum HistoryDashboard {
                 }
             }
         }
-        guard let best else { return (1, 1) }
-        return (best.top, best.step)
+        guard let best else { return VolumeAxis(top: 1, step: 1, ticks: [0, 1]) }
+        return VolumeAxis(
+            top: best.top,
+            step: best.step,
+            ticks: (0...best.count).map { Double($0) * best.step }
+        )
+    }
+
+    /// The hero card's text: the count against the goal, the week's volume and time, what is usual by now, and the
+    /// VoiceOver sentence (the Fitness calories and heart rate are left for the view to append).
+    public static func heroText(week: ThisWeekSummary, goal: Int, toDate: WeekToDate?) -> ThisWeekText {
+        let workouts = goal == 1 ? "workout" : "workouts"
+        let volume = HistoryList.volumeText(week.volume, unit: week.unit)
+        let duration = week.workouts == 0 ? "0min" : HistoryList.durationText(seconds: week.durationSeconds)
+        let usualVolume = toDate.flatMap { $0.volume > 0 ? HistoryList.volumeText($0.volume, unit: week.unit) : nil }
+        let usualDuration = toDate.flatMap {
+            $0.durationSeconds > 0 ? HistoryList.durationText(seconds: $0.durationSeconds) : nil
+        }
+
+        var spoken = "This week, \(week.workouts) of \(goal) \(workouts)"
+        if week.workouts > 0 {
+            spoken += ", " + FitnessFormat.spokenDuration(seconds: TimeInterval(week.durationSeconds))
+            if week.volume > 0 { spoken += ", " + volume }
+        }
+        if let toDate {
+            var usual: [String] = []
+            if let usualVolume { usual.append(usualVolume) }
+            if toDate.durationSeconds > 0 {
+                let minutes = (toDate.durationSeconds + 30) / 60 * 60
+                usual.append(FitnessFormat.spokenDuration(seconds: TimeInterval(max(minutes, 60))))
+            }
+            if !usual.isEmpty { spoken += ", usually " + usual.joined(separator: " and ") + " by now" }
+        }
+        return ThisWeekText(
+            countText: "\(week.workouts)",
+            goalText: "of \(goal) \(workouts)",
+            volumeText: volume,
+            durationText: duration,
+            usualVolumeText: usualVolume,
+            usualDurationText: usualDuration,
+            spoken: spoken
+        )
     }
 
     /// Active calories (from Apple Fitness) summed over the finished `workouts` started in the Monday-first week containing

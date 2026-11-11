@@ -338,57 +338,231 @@ import Testing
         #expect(HistoryDashboard.trailingAverages([], window: 2).isEmpty)
     }
 
-    @Test func baselineIsTheMeanOfTheWeeksBeforeTheCurrentOne() throws {
-        let totals = [
-            total(9, volume: 9999), total(2, volume: 1000, seconds: 3600), total(3, volume: 2000, seconds: 7200),
-            total(0), total(3, volume: 3000, seconds: 3600), total(1, volume: 1, seconds: 60),
-        ]
-        let baseline = try #require(HistoryDashboard.baseline(totals: totals, window: 4))
-        #expect(baseline.volume == 1500)
-        #expect(baseline.durationSeconds == 3600)
-        #expect(baseline.workouts == 2)
-    }
-
-    @Test func baselineIsNilWithTooFewWeeksOrNoWorkouts() {
-        #expect(HistoryDashboard.baseline(totals: []) == nil)
-        #expect(HistoryDashboard.baseline(totals: [total(1), total(1), total(1), total(1)]) == nil)
-        #expect(
-            HistoryDashboard.baseline(totals: [total(0), total(0), total(0), total(0), total(5, volume: 100)]) == nil
-        )
-        #expect(HistoryDashboard.baseline(totals: [total(1), total(1)], window: 0) == nil)
-        #expect(HistoryDashboard.baseline(totals: [total(1), total(1), total(1), total(1), total(1)]) != nil)
-    }
-
-    @Test func volumeAxisIsThreeToFiveEqualNiceSteps() {
-        func axis(_ volumes: [Double]) -> (top: Double, step: Double) {
-            let totals = volumes.map { total(1, volume: $0) }
-            return (HistoryDashboard.volumeAxisTop(totals: totals), HistoryDashboard.volumeAxisStep(totals: totals))
-        }
-        #expect(axis([]) == (1, 1))
-        #expect(axis([0, 0]) == (1, 1))
-        // 4 x 250 and 5 x 200 tie on 1,000: the count nearest 4 wins.
-        #expect(axis([850, 120]) == (1_000, 250))
-        #expect(axis([1_001]) == (1_250, 250))
-        #expect(axis([22_318, 5]) == (25_000, 5_000))
-        #expect(axis([25_100]) == (30_000, 10_000))
-        #expect(axis([100_000]) == (100_000, 25_000))
-        #expect(axis([3_100]) == (4_000, 1_000))
-        #expect(axis([5_000.5]) == (6_000, 2_000))
-    }
-
-    @Test func volumeAxisNeverFallsShortOfTheBusiestWeekAndKeepsItsStepCount() {
-        for busiest in stride(from: 1.0, through: 400_000, by: 733.7) {
-            let totals = [total(1, volume: busiest)]
-            let top = HistoryDashboard.volumeAxisTop(totals: totals)
-            let step = HistoryDashboard.volumeAxisStep(totals: totals)
-            let count = (top / step).rounded()
-            #expect(top >= busiest)
-            #expect(abs(top / step - count) < 1e-9 && (3...5).contains(Int(count)))
-        }
-    }
-
     @Test func heartRateTextRoundsToWholeBpm() {
         #expect(HistoryDashboard.heartRateText(127.6) == "128 bpm")
         #expect(HistoryDashboard.heartRateSpoken(126) == "126 beats per minute average")
+    }
+
+    // MARK: To-date baseline
+
+    /// Weeks start Mon Oct 12, Oct 19, Oct 26, Nov 2 (and the current one, Nov 9).
+    private var toDateEntries: [HistoryEntry] {
+        [
+            entry("First", at: date(2026, 10, 12, 7), minutes: 30, volume: 400),
+            entry("Monday evening", at: date(2026, 10, 19, 20), minutes: 60, volume: 800),
+            entry("Saturday", at: date(2026, 10, 31, 10), minutes: 90, volume: 1200),
+            entry("Wednesday", at: date(2026, 11, 4, 12), minutes: 60, volume: 1600),
+        ]
+    }
+
+    @Test func toDateBaselineOnAMondayMorningCountsOnlyTheEarlyHoursOfEachWeek() throws {
+        let baseline = try #require(
+            HistoryDashboard.toDateBaseline(entries: toDateEntries, calendar: Self.toronto, now: date(2026, 11, 9, 8))
+        )
+        #expect(baseline.weeks == 4)
+        #expect(baseline.volume == 100)
+        #expect(baseline.durationSeconds == 450)
+        #expect(baseline.workouts == 0.25)
+    }
+
+    @Test func toDateBaselineOnAFridayEveningCountsThroughThatTimeAndNoLater() throws {
+        let baseline = try #require(
+            HistoryDashboard.toDateBaseline(entries: toDateEntries, calendar: Self.toronto, now: date(2026, 11, 13, 20))
+        )
+        // The Saturday workout is after the Friday cutoff and stays out.
+        #expect(baseline.weeks == 4)
+        #expect(baseline.volume == 700)
+        #expect(baseline.durationSeconds == 2250)
+        #expect(baseline.workouts == 0.75)
+    }
+
+    @Test func toDateBaselineLeavesOutALaterWorkoutOnTheSameWeekday() throws {
+        let entries = [
+            entry("Earlier", at: date(2026, 10, 28, 9), volume: 300),
+            entry("Later", at: date(2026, 10, 28, 15), volume: 9000),
+        ]
+        let baseline = try #require(
+            HistoryDashboard.toDateBaseline(entries: entries, calendar: Self.toronto, now: date(2026, 11, 4, 12))
+        )
+        #expect(baseline.weeks == 1)
+        #expect(baseline.volume == 300)
+        #expect(baseline.workouts == 1)
+    }
+
+    @Test func toDateBaselineIsNilInTheFirstWeekOfUseAndForNoWindow() {
+        let thisWeek = [entry("Now", at: date(2026, 11, 9, 7))]
+        #expect(
+            HistoryDashboard.toDateBaseline(entries: thisWeek, calendar: Self.toronto, now: date(2026, 11, 11)) == nil
+        )
+        #expect(HistoryDashboard.toDateBaseline(entries: [], calendar: Self.toronto, now: date(2026, 11, 11)) == nil)
+        #expect(
+            HistoryDashboard.toDateBaseline(
+                entries: toDateEntries,
+                calendar: Self.toronto,
+                now: date(2026, 11, 11),
+                window: 0
+            ) == nil
+        )
+    }
+
+    @Test func toDateBaselineWithOnePriorWeekIsNotDividedByFour() throws {
+        let entries = [entry("Last week", at: date(2026, 11, 2, 10), minutes: 40, volume: 600)]
+        let baseline = try #require(
+            HistoryDashboard.toDateBaseline(entries: entries, calendar: Self.toronto, now: date(2026, 11, 11, 12))
+        )
+        #expect(baseline.weeks == 1)
+        #expect(baseline.volume == 600)
+        #expect(baseline.durationSeconds == 2400)
+        #expect(baseline.workouts == 1)
+    }
+
+    @Test func toDateBaselineCountsASkippedWeekAsZero() throws {
+        let entries = [
+            entry("Oct 19 week", at: date(2026, 10, 20, 12), volume: 400),
+            entry("Nov 2 week", at: date(2026, 11, 3, 12), volume: 800),
+        ]
+        let baseline = try #require(
+            HistoryDashboard.toDateBaseline(entries: entries, calendar: Self.toronto, now: date(2026, 11, 11, 12))
+        )
+        // Weeks of Nov 2, Oct 26 (nothing) and Oct 19; the week before the first workout is not counted.
+        #expect(baseline.weeks == 3)
+        #expect(baseline.volume == 400)
+        #expect(baseline.workouts == 2.0 / 3.0)
+    }
+
+    @Test func toDateBaselineKeepsTheClockTimeAcrossADSTWeek() throws {
+        // Clocks went back on Sun Nov 1, a 25-hour day: 23:00 on that Sunday is the same clock time as now.
+        let entries = [
+            entry("Monday", at: date(2026, 10, 26, 8), volume: 1000),
+            entry("Sunday before", at: date(2026, 11, 1, 22, 30), volume: 500),
+            entry("Sunday after", at: date(2026, 11, 1, 23, 30), volume: 7000),
+        ]
+        let baseline = try #require(
+            HistoryDashboard.toDateBaseline(entries: entries, calendar: Self.toronto, now: date(2026, 11, 8, 23))
+        )
+        #expect(baseline.weeks == 1)
+        #expect(baseline.volume == 1500)
+        #expect(baseline.workouts == 2)
+    }
+
+    @Test func toDateBaselineCutsWeeksInTheCalendarsTimeZone() throws {
+        // 19:00 to 21:00 Monday in Los Angeles is already Tuesday in UTC.
+        func la(_ day: Int, _ hour: Int) -> Date { zonedDate(2026, 11, day, hour, 0, zone: "America/Los_Angeles") }
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "America/Los_Angeles") ?? .gmt
+        let entries = [entry("In", at: la(2, 19), volume: 1000), entry("Out", at: la(2, 21), volume: 5000)]
+        let baseline = try #require(
+            HistoryDashboard.toDateBaseline(entries: entries, calendar: calendar, now: la(9, 20))
+        )
+        #expect(baseline.weeks == 1)
+        #expect(baseline.volume == 1000)
+        #expect(baseline.workouts == 1)
+    }
+
+    // MARK: Volume axis
+
+    private func axis(_ volumes: [Double], averages: [Double?] = []) -> VolumeAxis {
+        HistoryDashboard.volumeAxis(totals: volumes.map { total(1, volume: $0) }, averages: averages)
+    }
+
+    @Test func volumeAxisReachesAnAverageAboveEveryBar() {
+        let axis = axis([850, 120], averages: [nil, 2_400])
+        #expect(axis.top == 2_500)
+        #expect(axis.step == 500)
+        #expect(axis.ticks == [0, 500, 1_000, 1_500, 2_000, 2_500])
+    }
+
+    @Test func volumeAxisKeepsFourToSixTicksAfterEightEmptyWeeks() {
+        let volumes: [Double] = [3_000, 5_000, 4_000, 4_500] + Array(repeating: 0, count: 8)
+        let averages = HistoryDashboard.trailingAverages(volumes, window: 4)
+        let axis = axis(volumes, averages: averages)
+        #expect(axis.top >= 5_000)
+        #expect((4...6).contains(axis.ticks.count))
+        #expect(axis.ticks.first == 0)
+        #expect(axis.ticks.last == axis.top)
+    }
+
+    @Test func volumeAxisForTinyAndAwkwardVolumes() {
+        #expect(axis([3]).ticks == [0, 1, 2, 3])
+        #expect(axis([0.5]).ticks == [0, 1, 2, 3])
+        #expect(axis([1_001]).ticks == [0, 250, 500, 750, 1_000, 1_250])
+        #expect(axis([22_318, 5]).ticks == [0, 5_000, 10_000, 15_000, 20_000, 25_000])
+        let empty = axis([0, 0])
+        #expect(empty.top == 1 && empty.step == 1 && empty.ticks == [0, 1])
+        #expect(axis([]).ticks == [0, 1])
+    }
+
+    @Test func volumeAxisHasFourToSixTicksAboveTheDataWithStepsOfAtLeastOne() {
+        var highest = 0.5
+        while highest < 2e9 {
+            let result = axis([highest / 2], averages: [highest])
+            #expect(result.top >= highest)
+            #expect((4...6).contains(result.ticks.count))
+            #expect(result.step >= 1)
+            #expect(result.ticks.first == 0 && result.ticks.last == result.top)
+            highest *= 1.07
+        }
+    }
+
+    @Test func volumeAxisThinnedKeepsTheTopAndCountsDownFromIt() {
+        let result = axis([22_318])
+        #expect(result.thinned(every: 2) == [5_000, 15_000, 25_000])
+        #expect(result.thinned(every: 1) == result.ticks)
+        #expect(axis([3]).thinned(every: 2) == [1, 3])
+        #expect(axis([0]).thinned(every: 2) == [1])
+    }
+
+    // MARK: Hero text
+
+    private let heroWeek = ThisWeekSummary(workouts: 1, durationSeconds: 2_400, volume: 22_318, unit: .lb)
+
+    @Test func heroTextReadsTheWeekAgainstWhatIsUsualByNow() {
+        let usual = WeekToDate(volume: 18_400, durationSeconds: 2_100, workouts: 1, weeks: 4)
+        let text = HistoryDashboard.heroText(week: heroWeek, goal: 3, toDate: usual)
+        #expect(text.countText == "1")
+        #expect(text.goalText == "of 3 workouts")
+        #expect(text.volumeText == "22,318 lb")
+        #expect(text.durationText == "40min")
+        #expect(text.usualVolumeText == "18,400 lb")
+        #expect(text.usualDurationText == "35min")
+        #expect(
+            text.spoken
+                == "This week, 1 of 3 workouts, 40 minutes, 22,318 lb, usually 18,400 lb and 35 minutes by now"
+        )
+    }
+
+    @Test func heroTextUsesTheSingularForAGoalOfOne() {
+        let text = HistoryDashboard.heroText(week: heroWeek, goal: 1, toDate: nil)
+        #expect(text.goalText == "of 1 workout")
+        #expect(text.spoken.hasPrefix("This week, 1 of 1 workout, 40 minutes"))
+    }
+
+    @Test func heroTextForAnEmptyWeekShowsZeroes() {
+        let empty = ThisWeekSummary(workouts: 0, durationSeconds: 0, volume: 0, unit: .lb)
+        let text = HistoryDashboard.heroText(week: empty, goal: 3, toDate: nil)
+        #expect(text.countText == "0")
+        #expect(text.volumeText == "0 lb")
+        #expect(text.durationText == "0min")
+        #expect(text.spoken == "This week, 0 of 3 workouts")
+    }
+
+    @Test func heroTextWithoutABaselineHasNoUsualFigures() {
+        let text = HistoryDashboard.heroText(week: heroWeek, goal: 3, toDate: nil)
+        #expect(text.usualVolumeText == nil)
+        #expect(text.usualDurationText == nil)
+        #expect(text.spoken == "This week, 1 of 3 workouts, 40 minutes, 22,318 lb")
+    }
+
+    @Test func heroTextDropsAZeroBaselineFigure() {
+        let noVolume = WeekToDate(volume: 0, durationSeconds: 2_100, workouts: 1, weeks: 2)
+        let first = HistoryDashboard.heroText(week: heroWeek, goal: 3, toDate: noVolume)
+        #expect(first.usualVolumeText == nil)
+        #expect(first.usualDurationText == "35min")
+        #expect(first.spoken.hasSuffix("22,318 lb, usually 35 minutes by now"))
+
+        let zero = WeekToDate(volume: 0, durationSeconds: 0, workouts: 0, weeks: 2)
+        let second = HistoryDashboard.heroText(week: heroWeek, goal: 3, toDate: zero)
+        #expect(second.usualVolumeText == nil && second.usualDurationText == nil)
+        #expect(second.spoken == "This week, 1 of 3 workouts, 40 minutes, 22,318 lb")
     }
 }

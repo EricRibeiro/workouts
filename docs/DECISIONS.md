@@ -196,7 +196,7 @@ Eric deferred the technical choices to Claude. These close every item in `docs/p
     card's play disc, Start Workout, Finish, New Template, the summary's check). Nothing else is a lime fill.
   - *Lime text or stroke*: the one value that matters on a surface (a History row's volume, the dashboard's "1 / 3", chart
     bars at the goal), the next set's ring, the rest row's bar and controls, a done set's check.
-  - *Dark olive* `#1B2A0A` (`Color.okRow`): the row behind a done set. A week under the goal is the accent at 0.35 alpha
+  - *Dark olive* `#1B2A0A` (`Color.okRow`): the row behind a done set. A week under the goal is white at 0.22 alpha, a neutral gray
     (`Color.chartBelowGoal`).
   - *Gold* (`Color.record`): personal records only, always with `trophy.fill`. Set-kind and superset colours are unchanged
     and stay distinct from lime.
@@ -233,9 +233,12 @@ Eric deferred the technical choices to Claude. These close every item in `docs/p
 - **History dashboard order and the hero** (Eric, 2026-11-10). The page opens with the This Week hero, then the weekly chart,
   then Recent PRs and Last Workout; at regular width the left column is hero then chart, the right Recent PRs then Last
   Workout. The hero is the done count as the big lime figure beside "of 3 workouts", one equal-width capsule per goal
-  workout under it (lime done, `.fill.tertiary` the rest, decorative), then Volume and Time as white `MetricText` over a
-  "avg" line, the mean of the four weeks before this one (shown only with history; the two metrics stack at accessibility
-  sizes). The Fitness lines stay below. The accessibility sentence appends the four-week averages.
+  workout under it (lime done, `.fill.tertiary` the rest, decorative; the count is `.secondary` at zero), then Volume and
+  Time as white `MetricText` over a "usually …" line: the mean of the previous weeks (up to four) up to the same weekday and
+  time as now, so a Monday is not compared with whole weeks (shown only with history; the two metrics stack at accessibility
+  sizes). The Fitness lines stay below. The accessibility sentence ends "usually … by now". At regular width every card
+  takes its natural height in top-aligned columns (Recent PRs lists five rows, three at compact); only cards sharing a
+  grid row stretch to it.
 - **Finish** is `flag.checkered` (prominent, lime): the checkmark belongs to sets.
 
 ## Pushed-screen chrome (2026-11-07)

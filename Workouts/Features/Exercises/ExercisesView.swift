@@ -70,10 +70,20 @@ struct ExercisesView: View {
         Color(horizontalSizeClass == .regular ? .secondarySystemBackground : .systemBackground)
     }
 
-    /// A custom row background replaces the system's selection highlight, so the selected row at regular width draws its own
-    /// one step lighter than the column.
-    private func rowFill(selected: Bool) -> Color {
-        selected && horizontalSizeClass == .regular ? Color(.tertiarySystemBackground) : listFill
+    /// A custom row background replaces the system's selection highlight, so the selected row at regular width draws its own:
+    /// an inset rounded fill, like a sidebar's selection.
+    @ViewBuilder
+    private func rowBackground(selected: Bool) -> some View {
+        if selected && horizontalSizeClass == .regular {
+            ZStack {
+                listFill
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(.fill.secondary)
+                    .padding(.horizontal, 8)
+            }
+        } else {
+            listFill
+        }
     }
 
     private var list: some View {
@@ -98,7 +108,8 @@ struct ExercisesView: View {
                 let best = bestSets[info.id] ?? ""
                 ExerciseRow(info: info, subtitle: subtitle, trailing: best)
                     .tag(ExercisesRoute.exercise(info.id))
-                    .listRowBackground(rowFill(selected: selection == .exercise(info.id)))
+                    .listRowBackground(rowBackground(selected: selection == .exercise(info.id)))
+                    .accessibilityAddTraits(selection == .exercise(info.id) ? .isSelected : [])
                     .matchedTransitionSource(id: info.id, in: zoomNamespace)
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel(

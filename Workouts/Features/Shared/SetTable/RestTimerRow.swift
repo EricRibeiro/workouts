@@ -37,12 +37,14 @@ struct RestTimerRow: View {
                 isShown = false
                 return
             }
-            isShown = true
+            if !isShown { withAnimation(animation) { isShown = true } }
             try? await Task.sleep(for: .seconds(wait))
             guard !Task.isCancelled else { return }
-            withAnimation(reduceMotion ? .easeOut(duration: 0.2) : .snappy) { isShown = false }
+            withAnimation(animation) { isShown = false }
         }
     }
+
+    private var animation: Animation { reduceMotion ? .easeOut(duration: 0.2) : .snappy }
 
     private var row: some View {
         TimelineView(.periodic(from: .now, by: 1)) { context in

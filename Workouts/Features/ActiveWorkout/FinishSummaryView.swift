@@ -60,7 +60,8 @@ struct FinishSummaryView: View {
                         "PRs",
                         "\(summary.prCount)",
                         spoken: Self.counted(summary.prCount, "PR"),
-                        tint: summary.prCount > 0 ? Color.record : Color.primary
+                        tint: summary.prCount > 0 ? Color.record : Color.primary,
+                        trophy: summary.prCount > 0
                     )
                     .accessibilityIdentifier("summary.prs")
                 }
@@ -126,10 +127,23 @@ struct FinishSummaryView: View {
     }
 
     /// One stat row: a white metric, or `tint` for the PR count.
-    private func stat(_ title: String, _ value: String, spoken: String, tint: Color = .primary) -> some View {
+    private func stat(
+        _ title: String,
+        _ value: String,
+        spoken: String,
+        tint: Color = .primary,
+        trophy: Bool = false
+    ) -> some View {
         LabeledContent {
-            MetricText(value, style: .title2)
-                .foregroundStyle(tint)
+            HStack(spacing: 6) {
+                if trophy {
+                    Image(systemName: "trophy.fill")
+                        .font(.body)
+                        .accessibilityHidden(true)
+                }
+                MetricText(value, style: .title2)
+            }
+            .foregroundStyle(tint)
         } label: {
             Text(title)
         }

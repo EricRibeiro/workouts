@@ -16,7 +16,7 @@ import WorkoutsKit
 //   Color.danger          destructive text and icons
 //   Color.onAccent        black label on a filled lime accent shape
 //   Color.record          personal-record trophy: system yellow
-//   Color.chartBelowGoal  weekly-goal chart bar for a week under the goal: the lime accent at 0.35 alpha
+//   Color.chartBelowGoal  weekly-goal chart bar for a week under the goal: white at 0.22 alpha (a neutral gray)
 //   Color.warmup          warm-up set kind
 //   Color.setKindDrop     drop set kind
 //   Color.setKindFailure  failure set kind

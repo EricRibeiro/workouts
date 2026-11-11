@@ -10,10 +10,17 @@ import WorkoutsKit
 /// What the History chart card plots: the workout count per week against the goal, or the weekly volume against its
 /// 4-week average.
 enum WeeklyChartMode: String, CaseIterable, Identifiable {
-    case workouts = "Workouts"
-    case volume = "Volume"
+    case workouts
+    case volume
 
     var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .workouts: "Workouts"
+        case .volume: "Volume"
+        }
+    }
 }
 
 /// The History list's first row (task 5.2): the weekly chart as a card. Reads the goal from Settings and cuts the weeks
@@ -45,8 +52,8 @@ struct WeeklyGoalSection: View {
 }
 
 /// The last 8 Monday-first weeks as a card with a Workouts / Volume switch. Workouts: a bar per week (lime once it
-/// reaches the goal, gray before), the count above each non-empty bar, and a dashed goal line. Volume: a lime bar per
-/// week and the 4-week trailing average as a line. Presentational: the caller supplies the data.
+/// reaches the goal, gray before), the count above each non-empty bar, and a dashed goal line. Volume: a bar per week
+/// (lime at or above its 4-week average or when it has none yet, gray below) and the average as a line. Presentational: the caller supplies the data.
 struct WeeklyGoalChart: View {
     @Binding var mode: WeeklyChartMode
     let counts: [WeekCount]
@@ -70,7 +77,7 @@ struct WeeklyGoalChart: View {
                 case .workouts: workoutsChart
                 case .volume:
                     volumeChart
-                    if hasAverage { legend }
+                    legend
                 }
             }
             .accessibilityElement(children: .ignore)
@@ -96,7 +103,7 @@ struct WeeklyGoalChart: View {
     private var modePicker: some View {
         Picker("Chart", selection: $mode) {
             ForEach(WeeklyChartMode.allCases) { mode in
-                Text(mode.rawValue).tag(mode)
+                Text(mode.title).tag(mode)
             }
         }
         .pickerStyle(.segmented)
@@ -145,30 +152,18 @@ struct WeeklyGoalChart: View {
 
     private var hasAverage: Bool { averages.contains { $0 != nil } }
 
-    /// The y axis: gridlines on every step of `HistoryDashboard.volumeAxisStep`; when a 4-week average rises above the
-    /// busiest bar's axis, it grows by whole steps so the gridlines stay on the steps.
-    private var volumeAxis: (top: Double, step: Double) {
-        let step = HistoryDashboard.volumeAxisStep(totals: volume)
-        let top = HistoryDashboard.volumeAxisTop(totals: volume)
-        let highest = averages.compactMap { $0 }.max() ?? 0
-        guard highest > top else { return (top, step) }
-        return ((highest / step - 1e-9).rounded(.up) * step, step)
-    }
-
     private var volumeChart: some View {
-        let (top, step) = volumeAxis
+        let axis = HistoryDashboard.volumeAxis(totals: volume, averages: averages)
         let xLabels = labelledWeeks
         // Every second gridline at accessibility sizes, where the labels would squeeze the plot.
-        let ticks = Array(
-            stride(from: 0, through: top + step * 1e-6, by: typeSize.isAccessibilitySize ? step * 2 : step)
-        )
+        let ticks = typeSize.isAccessibilitySize ? axis.thinned(every: 2) : axis.ticks
         return Chart {
             ForEach(volume, id: \.weekStart) { week in
                 BarMark(
                     x: .value("Week of", weekLabel(week.weekStart, calendar: calendar)),
                     y: .value("Volume", week.volume)
                 )
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(isBelowAverage(week) ? Color.chartBelowGoal : Color.accentColor)
                 .cornerRadius(4)
             }
             ForEach(Array(volume.enumerated()), id: \.element.weekStart) { index, week in
@@ -183,7 +178,7 @@ struct WeeklyGoalChart: View {
                 }
             }
         }
-        .chartYScale(domain: 0...top)
+        .chartYScale(domain: 0...axis.top)
         .chartYAxis {
             AxisMarks(values: ticks) { value in
                 AxisGridLine()
@@ -198,16 +193,29 @@ struct WeeklyGoalChart: View {
         .frame(height: plotHeight)
     }
 
+    /// True when the week has a 4-week average and its volume is under it.
+    private func isBelowAverage(_ week: WeekTotal) -> Bool {
+        guard let index = volume.firstIndex(where: { $0.weekStart == week.weekStart }), index < averages.count,
+            let average = averages[index]
+        else { return false }
+        return week.volume < average
+    }
+
+    /// The line's swatch and name, then the unit the axis is in; just the unit when no week has an average yet.
     private var legend: some View {
         HStack(spacing: 6) {
-            Capsule()
-                .fill(Color.primary.opacity(0.8))
-                .frame(width: swatchWidth, height: 2)
-                .accessibilityHidden(true)
-            Text("4-week average")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            if hasAverage {
+                Capsule()
+                    .fill(Color.primary.opacity(0.8))
+                    .frame(width: swatchWidth, height: 2)
+                    .accessibilityHidden(true)
+                Text("4-week average, \(unit.rawValue)")
+            } else {
+                Text(unit.rawValue)
+            }
         }
+        .font(.caption)
+        .foregroundStyle(.secondary)
     }
 
     // MARK: Shared

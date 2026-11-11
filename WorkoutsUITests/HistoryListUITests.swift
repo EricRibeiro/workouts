@@ -236,4 +236,29 @@ final class HistoryListUITests: XCTestCase {
         XCTAssertTrue(firstRow(app, timeout: 5).exists, "Retry did not bring the rows back")
         XCTAssertTrue(any["history.loadFailed"].waitUntilGone(timeout: 5), "the error stayed after a good load")
     }
+
+    /// The weekly chart's mode picker swaps the chart and its spoken summary between Workouts and Volume.
+    @MainActor
+    func testWeeklyChartModeSwitchesBetweenWorkoutsAndVolume() throws {
+        let app = launch()
+        let chart = app.descendants(matching: .any)["history.weeklyChart"]
+        XCTAssertTrue(chart.waitForExistence(timeout: 10), "no weekly chart")
+        XCTAssertTrue(chart.label.hasPrefix("Workouts per week"), chart.label)
+
+        let picker = app.descendants(matching: .any)["history.weeklyChart.mode"]
+        XCTAssertTrue(picker.waitForExistence(timeout: 5), "no chart mode picker")
+        picker.buttons["Volume"].tap()
+        expectation(
+            for: NSPredicate(format: "label BEGINSWITH 'Volume per week'"),
+            evaluatedWith: chart
+        )
+        waitForExpectations(timeout: 5)
+
+        picker.buttons["Workouts"].tap()
+        expectation(
+            for: NSPredicate(format: "label BEGINSWITH 'Workouts per week'"),
+            evaluatedWith: chart
+        )
+        waitForExpectations(timeout: 5)
+    }
 }
