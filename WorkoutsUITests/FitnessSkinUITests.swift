@@ -104,4 +104,48 @@ final class FitnessSkinUITests: XCTestCase {
         skip.tap()
         XCTAssertTrue(row.waitForNonExistence(timeout: 5), "the inline rest row stayed after Skip")
     }
+
+    @MainActor
+    func testInlineRestRowLeavesWhenTheRestEnds() throws {
+        let app = XCUIApplication.launchedInActiveWorkout(["-sampleSetRestSeconds", "4"])
+        let check = firstCheck(app)
+        XCTAssertTrue(check.waitForExistence(timeout: 10))
+        check.tap()
+
+        let row = app.anyControl("rest.row")
+        XCTAssertTrue(row.waitForExistence(timeout: 5), "checking a set did not show the inline rest row")
+        XCTAssertTrue(row.waitForNonExistence(timeout: 10), "the inline rest row stayed past the end of the rest")
+        XCTAssertEqual(check.value as? String, "Done", "the set must stay checked after its rest ends")
+    }
+
+    @MainActor
+    func testInlineRestRowStaysAfterPlus30UntilSkipped() throws {
+        let app = XCUIApplication.launchedInActiveWorkout(["-sampleSetRestSeconds", "4"])
+        let check = firstCheck(app)
+        XCTAssertTrue(check.waitForExistence(timeout: 10))
+        check.tap()
+
+        let row = app.anyControl("rest.row")
+        XCTAssertTrue(row.waitForExistence(timeout: 5), "checking a set did not show the inline rest row")
+        let countdown = app.anyControl("rest.row.countdown")
+        XCTAssertTrue(countdown.waitForExistence(timeout: 5))
+        let plus30 = app.buttons["rest.row.plus30"].firstMatch
+        XCTAssertTrue(plus30.exists)
+        plus30.tap()
+        expectation(
+            for: NSPredicate { _, _ in (self.seconds(from: countdown.value as? String) ?? 0) >= 25 },
+            evaluatedWith: nil
+        )
+        waitForExpectations(timeout: 5)
+
+        XCTAssertFalse(
+            row.waitForNonExistence(timeout: 6),
+            "the inline rest row left at the original end although +30 s moved it"
+        )
+
+        let skip = app.buttons["rest.row.skip"].firstMatch
+        XCTAssertTrue(skip.exists)
+        skip.tap()
+        XCTAssertTrue(row.waitForNonExistence(timeout: 5), "the inline rest row stayed after Skip")
+    }
 }

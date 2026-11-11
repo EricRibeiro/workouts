@@ -335,6 +335,7 @@ struct WorkoutsApp: App {
         /// `-startSampleWorkout`: seeds the sample data when the store has no templates, then starts a workout from the
         /// first template (if none runs), then starts a 5-minute rest, so the Live Activity can be shown without any UI.
         /// `-sampleElapsedSeconds N` backdates the workout's start; `-sampleNoRest` skips the rest.
+        /// `-sampleSetRestSeconds N` makes every exercise of the started workout rest N seconds after a checked set.
         @MainActor
         private static func startSampleWorkoutIfRequested(engine: ActiveWorkoutEngine, context: ModelContext) throws {
             let arguments = ProcessInfo.processInfo.arguments
@@ -364,6 +365,12 @@ struct WorkoutsApp: App {
             if elapsed > 0, let workout = engine.workout {
                 workout.startedAt = .now.addingTimeInterval(-TimeInterval(elapsed))
                 try context.save()
+            }
+            // `-sampleSetRestSeconds N` gives every exercise an N-second rest after a checked set (Update Rest Timer's
+            // path), so the inline rest row's exit at 0:00 can be proven in seconds.
+            let setRest = UserDefaults.standard.integer(forKey: "sampleSetRestSeconds")
+            if setRest > 0, let rows = engine.workout?.exercises {
+                for row in rows { try engine.setRest(setRest, for: row) }
             }
             // `-sampleNoRest` leaves the workout without a rest (the Island's elapsed-time state).
             guard !arguments.contains("-sampleNoRest") else { return }
