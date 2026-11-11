@@ -82,7 +82,7 @@ final class HealthEnrichmentService {
 
     var isAvailable: Bool { source != nil }
 
-    /// Available and opted in. History offers pull-to-refresh only while this holds.
+    /// Available and opted in. History offers its refresh button only while this holds.
     var isActive: Bool { source != nil && settings.healthEnrichmentEnabled }
 
     /// One lookup pass over the recent finished workouts, saved when it changed anything. A call while a pass runs does not
@@ -98,15 +98,15 @@ final class HealthEnrichmentService {
     /// The app came to the foreground: the routine refresh, then the backfill, in one serialised round. Backfill only
     /// touches workouts never checked, so once everything is stamped this costs one `fetchCount`. It does not revisit
     /// workouts an earlier denied pass stamped unmatched: HealthKit hides a read denial as "no data", so those need
-    /// `requestAuthorization` (opt-in) or `refreshNow` (pull to refresh on History), which clear the stamps first.
+    /// `requestAuthorization` (opt-in) or `refreshNow` (the History refresh button), which clear the stamps first.
     func appBecameActive(context: ModelContext) async {
         await request(context: context, recheckAfter: Self.defaultRecheck, backfill: true)
     }
 
-    /// Pull-to-refresh on History, the explicit "check again": it first clears the unmatched stamps (as an opt-in does;
+    /// The History toolbar button, the explicit "check again": it first clears the unmatched stamps (as an opt-in does;
     /// matches are kept), so access granted later in the Health app reaches workouts older than the routine window that
-    /// a denied pass had stamped. Then the routine pass with no re-check throttle, then the backfill, and returns only when that has finished, so the system refresh
-    /// spinner stays up for the whole pass. If a refresh is already running it asks for another round and joins the
+    /// a denied pass had stamped. Then the routine pass with no re-check throttle, then the backfill, and returns only when that has finished, so the button
+    /// stays disabled for the whole pass. If a refresh is already running it asks for another round and joins the
     /// running loop instead of starting a second one. A no-op while Health is unavailable or not opted in.
     func refreshNow(context: ModelContext) async {
         guard isActive else { return }

@@ -48,6 +48,7 @@ struct HistoryView: View {
     /// The workout whose delete just failed, and why; the alert's Retry deletes it again.
     @State private var deleteFailure: DeleteFailure?
     @State private var isCalendarPresented = false
+    @State private var isRefreshingFitness = false
     @State private var pendingOpen: UUID?
     @State private var templateSource: Workout?
     @State private var savedTemplates = 0
@@ -68,6 +69,30 @@ struct HistoryView: View {
                         Button("Calendar", systemImage: "calendar") { isCalendarPresented = true }
                             .accessibilityLabel("Calendar")
                             .accessibilityIdentifier("history.calendar")
+                    }
+                    // Its own glass group: pulling the list down opens search, so the Fitness lookup lives here, while Fitness is on.
+                    if let health, health.isActive {
+                        ToolbarSpacer(.fixed, placement: .primaryAction)
+                        ToolbarItem(placement: .primaryAction) {
+                            Button {
+                                isRefreshingFitness = true
+                                Task {
+                                    await health.refreshNow(context: context)
+                                    isRefreshingFitness = false
+                                }
+                            } label: {
+                                Label {
+                                    Text("Refresh Apple Fitness")
+                                } icon: {
+                                    Image(systemName: "arrow.clockwise.heart")
+                                        .symbolEffect(.pulse, isActive: isRefreshingFitness)
+                                }
+                            }
+                            .disabled(isRefreshingFitness)
+                            .accessibilityLabel("Refresh Apple Fitness")
+                            .accessibilityIdentifier("history.fitnessRefresh")
+                        }
+                        .visibilityPriority(.low)
                     }
                 }
                 .sheet(isPresented: $isCalendarPresented, onDismiss: openPending) {
@@ -248,7 +273,7 @@ struct HistoryView: View {
             .listStyle(.plain)
             // The month titles carry their own 28 pt above at regular width.
             .listSectionSpacing(horizontalSizeClass == .regular ? .custom(0) : .default)
-            .fitnessRefresh(health, context: context)
+            .pullToSearch(isPresented: $isSearchPresented)
             .overlay {
                 if sections.isEmpty && !entries.isEmpty {
                     if !isSearching {
@@ -619,27 +644,3 @@ private struct Inputs: Hashable {
             .dynamicTypeSize(.accessibility3)
     }
 #endif
-
-/// Pull to refresh on the History list forces an Apple Fitness lookup now, past the 15-minute throttle. With Health off or
-/// unavailable there is nothing to refresh, so no refresh control is attached and the list does not pull at all. (SwiftUI
-/// has no way to switch `refreshable` off in place, since `EnvironmentValues.refresh` is read-only, so toggling Health
-/// rebuilds the list once, which only happens from the Settings sheet.)
-private struct FitnessRefresh: ViewModifier {
-    let health: HealthEnrichmentService?
-    let context: ModelContext
-
-    @ViewBuilder
-    func body(content: Content) -> some View {
-        if let health, health.isActive {
-            content.refreshable { await health.refreshNow(context: context) }
-        } else {
-            content
-        }
-    }
-}
-
-extension View {
-    fileprivate func fitnessRefresh(_ health: HealthEnrichmentService?, context: ModelContext) -> some View {
-        modifier(FitnessRefresh(health: health, context: context))
-    }
-}

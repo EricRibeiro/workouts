@@ -1,15 +1,11 @@
 import XCTest
 
-/// Pull to refresh on History forces an Apple Fitness lookup now. With Fitness opted in (`-healthEnrichmentEnabled YES`,
-/// the Settings toggle) and the `-healthFixture full` source standing in for HealthKit, dragging the list down enriches the
-/// sample workouts: History gains active calories ("N active calories" on the week card and the rows), which nothing else does here (the gallery never
-/// runs the launch or foreground lookup). With Fitness off the list has no refresh control, so the same drag changes
-/// nothing. No Health store is touched.
-///
-/// The system spinner is visible to XCUITest (an element labelled "Refreshing content" in the navigation bar, not an
-/// activity indicator), but it cannot be asserted live: `press(forDuration:thenDragTo:)` does not return until the app is
-/// idle, and the spinning control keeps it busy until the refresh ends, so a refresh that finishes inside the call is over
-/// by the time the call returns. The test therefore asserts the refresh's effect, and that the spinner is gone afterwards.
+/// History's Apple Fitness lookup is a toolbar button ("Refresh Apple Fitness", only while Fitness is on); pulling the list
+/// down opens search instead. With Fitness opted in (`-healthEnrichmentEnabled YES`, the Settings toggle) and the
+/// `-healthFixture full` source standing in for HealthKit, tapping the button enriches the sample workouts: History gains
+/// active calories ("N active calories" on the week card and the rows), which nothing else does here (the gallery never
+/// runs the launch or foreground lookup). With Fitness off the button does not exist. The same pull-down drag presents the
+/// search field and starts no refresh. No Health store is touched.
 final class HistoryRefreshUITests: XCTestCase {
     override func setUpWithError() throws {
         continueAfterFailure = false
@@ -22,9 +18,9 @@ final class HistoryRefreshUITests: XCTestCase {
         app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS 'active calories'"))
     }
 
-    /// Presses near the top of the list and drags down, the way a finger pulls the list to refresh.
+    /// Presses near the top of the list and drags down, the way a finger pulls the list past its top.
     @MainActor
-    private func pullToRefresh(_ app: XCUIApplication) {
+    private func pullDown(_ app: XCUIApplication) {
         let list = app.collectionViews.firstMatch
         XCTAssertTrue(list.waitForExistence(timeout: 10), "no History list")
         let start = list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.15))
@@ -33,35 +29,44 @@ final class HistoryRefreshUITests: XCTestCase {
     }
 
     @MainActor
-    func testPullingDownLooksUpFitnessWhileItIsOn() throws {
+    func testRefreshButtonLooksUpFitnessWhileItIsOn() throws {
         let app = XCUIApplication.launchedPreview(
             "History",
             extraArguments: ["-healthFixture", "full", "-healthEnrichmentEnabled", "YES"],
             waitingFor: "screen.history"
         )
         XCTAssertEqual(calorieElements(app).count, 0, "calories before any lookup ran")
-        pullToRefresh(app)
+        let button = app.buttons["history.fitnessRefresh"]
+        XCTAssertTrue(button.waitForExistence(timeout: 10), "no Refresh Apple Fitness button")
+        button.tap()
         let row = calorieElements(app).firstMatch
         for _ in 0..<6 where !row.waitForExistence(timeout: 2) { app.swipeUp() }
-        XCTAssertTrue(row.exists, "pulling the list down did not look up Apple Fitness")
-        XCTAssertTrue(
-            app.otherElements["Refreshing content"].waitForNonExistence(timeout: 15),
-            "the refresh spinner never went away"
-        )
+        XCTAssertTrue(row.exists, "the refresh button did not look up Apple Fitness")
     }
 
     @MainActor
-    func testPullingDownDoesNothingWhileFitnessIsOff() throws {
+    func testNoRefreshButtonWhileFitnessIsOff() throws {
         let app = XCUIApplication.launchedPreview(
             "History",
             extraArguments: ["-healthFixture", "full"],
             waitingFor: "screen.history"
         )
-        pullToRefresh(app)
-        app.otherElements["Refreshing content"].assertStaysAbsent(for: 1.5, "a refresh spinner with Apple Fitness off")
-        // Same search as the opted-in test, so a miss here means the lookup did not run, not that it was not looked for.
-        let row = calorieElements(app).firstMatch
-        for _ in 0..<6 where !row.waitForExistence(timeout: 2) { app.swipeUp() }
-        XCTAssertFalse(row.exists, "a lookup ran with Apple Fitness off")
+        app.buttons["history.fitnessRefresh"].assertStaysAbsent(for: 1.5, "a refresh button with Apple Fitness off")
+    }
+
+    @MainActor
+    func testPullingDownOpensSearch() throws {
+        let app = XCUIApplication.launchedPreview(
+            "History",
+            extraArguments: ["-healthFixture", "full", "-healthEnrichmentEnabled", "YES"],
+            waitingFor: "screen.history"
+        )
+        pullDown(app)
+        XCTAssertTrue(
+            app.keyboards.firstMatch.waitForExistence(timeout: 5),
+            "pulling the list down did not open search"
+        )
+        XCTAssertTrue(app.searchFields.firstMatch.exists, "no search field after the pull")
+        app.otherElements["Refreshing content"].assertStaysAbsent(for: 1.5, "a refresh spinner after the pull")
     }
 }
