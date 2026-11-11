@@ -14,3 +14,35 @@ public nonisolated enum PullToSearch {
         -(contentOffsetY + topInset) >= threshold
     }
 }
+
+/// Opens search after the finger lifts from a pulled-past list, once the scroll view has come back to rest.
+public nonisolated struct PullToSearchTrigger: Sendable, Equatable {
+    public enum Phase: Sendable { case interacting, settling, idle }
+
+    private var phase: Phase = .idle
+    private var isPulled = false
+    private var isArmed = false
+
+    public init() {}
+
+    /// The latest answer of `PullToSearch.isPulledPast`.
+    public mutating func pulledPast(_ value: Bool) {
+        isPulled = value
+    }
+
+    /// Feeds a scroll phase change; true when search should open now.
+    public mutating func phaseChanged(to newPhase: Phase) -> Bool {
+        let previous = phase
+        phase = newPhase
+        if newPhase == .interacting {
+            isArmed = false
+            return false
+        }
+        if previous == .interacting && isPulled { isArmed = true }
+        if newPhase == .idle && isArmed {
+            isArmed = false
+            return true
+        }
+        return false
+    }
+}

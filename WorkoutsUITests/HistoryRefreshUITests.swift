@@ -4,7 +4,7 @@ import XCTest
 /// down opens search instead. With Fitness opted in (`-healthEnrichmentEnabled YES`, the Settings toggle) and the
 /// `-healthFixture full` source standing in for HealthKit, tapping the button enriches the sample workouts: History gains
 /// active calories ("N active calories" on the week card and the rows), which nothing else does here (the gallery never
-/// runs the launch or foreground lookup). With Fitness off the button does not exist. The same pull-down drag presents the
+/// runs the launch or foreground lookup). With Fitness off the button does not exist. The same pull-down drag (pulled down and released) presents the
 /// search field and starts no refresh. No Health store is touched.
 final class HistoryRefreshUITests: XCTestCase {
     override func setUpWithError() throws {

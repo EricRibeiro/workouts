@@ -33,3 +33,81 @@ import Testing
         #expect(!PullToSearch.isPulledPast(contentOffsetY: -19, topInset: 0, threshold: 20))
     }
 }
+
+@Suite struct PullToSearchTriggerTests {
+    @Test func releasedWhilePulledOpensOnceAtRest() {
+        var trigger = PullToSearchTrigger()
+        let fired1 = trigger.phaseChanged(to: .interacting)
+        #expect(!fired1)
+        trigger.pulledPast(true)
+        let fired2 = trigger.phaseChanged(to: .settling)
+        #expect(!fired2)
+        let fired3 = trigger.phaseChanged(to: .idle)
+        #expect(fired3)
+    }
+
+    @Test func nothingOpensWhileDraggedPast() {
+        var trigger = PullToSearchTrigger()
+        _ = trigger.phaseChanged(to: .interacting)
+        trigger.pulledPast(true)
+        let fired4 = trigger.phaseChanged(to: .interacting)
+        #expect(!fired4)
+    }
+
+    @Test func interactingStraightToIdleWhilePulledFiresInOneCall() {
+        var trigger = PullToSearchTrigger()
+        _ = trigger.phaseChanged(to: .interacting)
+        trigger.pulledPast(true)
+        let fired5 = trigger.phaseChanged(to: .idle)
+        #expect(fired5)
+    }
+
+    @Test func draggedBackAboveThresholdBeforeLiftingDoesNotArm() {
+        var trigger = PullToSearchTrigger()
+        _ = trigger.phaseChanged(to: .interacting)
+        trigger.pulledPast(true)
+        trigger.pulledPast(false)
+        let fired6 = trigger.phaseChanged(to: .settling)
+        #expect(!fired6)
+        let fired7 = trigger.phaseChanged(to: .idle)
+        #expect(!fired7)
+    }
+
+    @Test func newTouchCancelsPendingOpen() {
+        var trigger = PullToSearchTrigger()
+        _ = trigger.phaseChanged(to: .interacting)
+        trigger.pulledPast(true)
+        _ = trigger.phaseChanged(to: .settling)
+        let fired8 = trigger.phaseChanged(to: .interacting)
+        #expect(!fired8)
+        trigger.pulledPast(false)
+        let fired9 = trigger.phaseChanged(to: .settling)
+        #expect(!fired9)
+        let fired10 = trigger.phaseChanged(to: .idle)
+        #expect(!fired10)
+    }
+
+    @Test func flingThatOverscrollsOnlyWhileSettlingNeverFires() {
+        var trigger = PullToSearchTrigger()
+        _ = trigger.phaseChanged(to: .interacting)
+        _ = trigger.phaseChanged(to: .settling)
+        trigger.pulledPast(true)
+        trigger.pulledPast(false)
+        let fired11 = trigger.phaseChanged(to: .idle)
+        #expect(!fired11)
+        trigger.pulledPast(true)
+        let fired12 = trigger.phaseChanged(to: .idle)
+        #expect(!fired12)
+    }
+
+    @Test func firesOnlyOnce() {
+        var trigger = PullToSearchTrigger()
+        _ = trigger.phaseChanged(to: .interacting)
+        trigger.pulledPast(true)
+        _ = trigger.phaseChanged(to: .settling)
+        let fired13 = trigger.phaseChanged(to: .idle)
+        #expect(fired13)
+        let fired14 = trigger.phaseChanged(to: .idle)
+        #expect(!fired14)
+    }
+}

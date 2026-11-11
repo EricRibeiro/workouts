@@ -9,7 +9,7 @@ import WorkoutsKit
 
 /// The Exercises tab (task 4.1a): a `NavigationSplitView` with the exercise list in the sidebar column and the exercise
 /// detail in the detail column (`ExerciseDetailView`, 4.2). Compact width pushes the detail; regular width always shows
-/// the list beside the detail (JC52), with "Select an Exercise" until a row is chosen. Search is `.searchable` only, over name and aliases, and a pull down on the list at its top opens it. Two `Menu` pills (body part, category) lead the list; the
+/// the list beside the detail (JC52), with "Select an Exercise" until a row is chosen. Search is `.searchable` only, over name and aliases, and a pull down (and release) on the list at its top opens it once the list is at rest. Two `Menu` pills (body part, category) lead the list; the
 /// toolbar has New Exercise (the custom exercise form) and a Show Retired toggle.
 struct ExercisesView: View {
     @Environment(ExerciseStore.self) private var store

@@ -59,7 +59,7 @@ final class ExerciseListUITests: XCTestCase {
         XCTAssertTrue(any["screen.exerciseDetail"].waitForExistence(timeout: 5), "tapping a row did not open a detail")
     }
 
-    /// Dragging the list down at its top, finger still down, opens search and brings up the keyboard.
+    /// Dragging the list down at its top and releasing opens search (once the list is at rest) and brings up the keyboard.
     @MainActor
     func testPullDownOpensSearch() throws {
         let app = XCUIApplication.launchedPreview("Exercises", waitingFor: "screen.exercises")
