@@ -39,7 +39,7 @@ import Testing
         )
         let summary = TemplateCardSummary.make(for: template, finishedWorkouts: [], maxLines: 4, now: now)
         #expect(summary.exerciseCount == 6)
-        #expect(summary.lines.map(\.text) == ["3 × A", "4 × B", "2 × C", "1 × D"])
+        #expect(summary.lines.map(\.text) == ["A", "B", "C", "D"])
         #expect(summary.lines.map(\.supersetGroup) == [nil, 1, 1, nil])
         #expect(summary.overflowText == "+ 2 more")
         #expect(summary.countText == "6 exercises")

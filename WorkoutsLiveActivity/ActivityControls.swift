@@ -31,6 +31,7 @@ struct ActivityControls: View {
                 ActivityControlLabel(title: "Done", symbol: "checkmark")
             }
             .buttonStyle(.borderedProminent)
+            .foregroundStyle(ActivityStyle.onAccent)
             .accessibilityLabel("Done set")
             .disabled(isDoneDisabled)
         }
@@ -80,7 +81,11 @@ struct IslandControls: View {
                 .accessibilityLabel("Add 30 seconds of rest")
             } else {
                 Button(intent: DoneSetIntent(setID: state.current?.setID ?? UUID())) {
-                    IslandCircleLabel(symbol: "checkmark", fill: ActivityStyle.accent)
+                    IslandCircleLabel(
+                        symbol: "checkmark",
+                        fill: ActivityStyle.accent,
+                        symbolColor: ActivityStyle.onAccent
+                    )
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Done set")
@@ -92,15 +97,16 @@ struct IslandControls: View {
     private static let gray = Color(white: 0.22)
 }
 
-/// A filled circle with a centred white symbol.
+/// A filled circle with a centred symbol, white unless the fill is the accent (then `onAccent`).
 struct IslandCircleLabel: View {
     let symbol: String
     let fill: Color
+    var symbolColor: Color = .white
 
     var body: some View {
         Image(systemName: symbol)
             .font(.title3.weight(.semibold))
-            .foregroundStyle(.white)
+            .foregroundStyle(symbolColor)
             .frame(width: 48, height: 48)
             .background(fill, in: Circle())
             .contentShape(Circle())

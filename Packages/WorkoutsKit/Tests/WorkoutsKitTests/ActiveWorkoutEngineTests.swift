@@ -639,10 +639,10 @@ import Testing
         #expect(engine.previous(for: sets(squat)[0])?.reps == 5)
 
         let curl = try engine.addExercise(try rig.info(LibraryFixture.curl))
-        curl.unit = .kg
+        try engine.setUnit(.kg, for: curl)
         #expect(engine.previous(for: sets(curl)[0])?.weight == 45.5)
         // Same unit: untouched, no rounding.
-        curl.unit = .lb
+        try engine.setUnit(.lb, for: curl)
         #expect(engine.previous(for: sets(curl)[0])?.weight == 100)
     }
 

@@ -350,6 +350,8 @@ struct DetailHeader: View {
         let title: String
         let value: String
         var unit: String?
+        /// A rating word set beside the value in plain secondary text ("Hard"), not as a unit.
+        var rating: String?
         var symbol: String?
         var tint: Color = .primary
         var hierarchical = false
@@ -427,7 +429,7 @@ struct DetailHeader: View {
             Stat(
                 title: effort.isEstimated ? "Est. Effort" : "Effort",
                 value: "\(FitnessFormat.wholeScore(effort.score))",
-                unit: effort.word,
+                rating: effort.word,
                 symbol: "gauge.with.dots.needle.67percent",
                 tint: .purple,
                 hierarchical: true
@@ -484,8 +486,16 @@ struct DetailHeader: View {
                         .font(.subheadline)
                         .foregroundStyle(stat.tint)
                 }
-                MetricText(stat.unit.map { "\(stat.value) \($0)" } ?? stat.value, style: .title2)
-                    .foregroundStyle(stat.tintsValue ? stat.tint : Color.primary)
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    MetricText(stat.unit.map { "\(stat.value) \($0)" } ?? stat.value, style: .title2)
+                        .foregroundStyle(stat.tintsValue ? stat.tint : Color.primary)
+                    if let rating = stat.rating {
+                        Text(rating)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .accessibilityElement(children: .combine)
             }
         }
     }

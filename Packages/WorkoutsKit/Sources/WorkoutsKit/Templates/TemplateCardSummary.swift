@@ -1,9 +1,9 @@
 import Foundation
 
-/// What a template card shows (`workout.md` sections 2 and 3): the exercise count, the first few `N × Name` lines with
+/// What a template card shows (`workout.md` sections 2 and 3): the exercise count, the first few exercise names with
 /// their superset group, and when the template was last performed. Pure over the models; the views only lay it out.
 public struct TemplateCardSummary: Sendable, Equatable {
-    /// One exercise line, e.g. `3 × Bench Press`.
+    /// One exercise line: the exercise's name alone (the template preview shows the sets).
     public struct Line: Sendable, Equatable, Identifiable {
         public let id: UUID
         public let text: String
@@ -87,7 +87,7 @@ public struct TemplateCardSummary: Sendable, Equatable {
         let lines = shown.map { exercise in
             Line(
                 id: exercise.id,
-                text: "\(exercise.sets?.count ?? 0) × \(exercise.exerciseName)",
+                text: exercise.exerciseName,
                 supersetGroup: exercise.supersetGroup.flatMap { (groupSizes[$0] ?? 0) >= 2 ? $0 : nil }
             )
         }

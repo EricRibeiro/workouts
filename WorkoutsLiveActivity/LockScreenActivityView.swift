@@ -4,7 +4,7 @@ import WorkoutsKit
 
 /// The Lock Screen / StandBy banner, as plain rows so nothing competes for width: the exercise name and set line, the
 /// timer row (the caption and time; "Rest over" in the ok colour once it ends), the workout's set progress (the
-/// banner's one linear bar), then the controls.
+/// banner's one linear bar), then the controls. It pins the dark colour scheme (see ``ActivityStyle``).
 struct LockScreenActivityView: View {
     let state: WorkoutActivityState
     let restOver: Bool
@@ -41,6 +41,7 @@ struct LockScreenActivityView: View {
             ActivityControls(state: state, restOver: restOver)
         }
         .padding(16)
+        .environment(\.colorScheme, .dark)
     }
 
     @ViewBuilder private var timerRow: some View {

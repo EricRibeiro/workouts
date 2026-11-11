@@ -47,7 +47,7 @@ struct TemplateGrid: View {
 }
 
 /// One template as a card on the History dashboard's surface: the name (headline) with the lime play button centred
-/// on its first line, the first exercises one per line (superset bar, "+ N more"), then a footer pinned to the bottom:
+/// on its first line, the first exercises one name per line, without a set count so a narrow card keeps more of each name (superset bar, "+ N more"), then a footer pinned to the bottom:
 /// when the template was last performed in the primary colour (nothing for one never performed; "No exercises" in
 /// secondary for an empty one). The exercise count lives in the VoiceOver label. The surface is a button that opens the preview; the
 /// play button is its own button, floated over the card, that starts the workout. At accessibility sizes the play

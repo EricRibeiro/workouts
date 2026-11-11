@@ -65,7 +65,7 @@ final class BlockActionState {
         SetTableBlockActions(
             note: { [self] id in note = BlockID(id: id) },
             addWarmups: { [self] id in
-                if !host.addWarmups(id) { isWarmupAlertShown = true }
+                if !withAnimation(.snappy, { host.addWarmups(id) }) { isWarmupAlertShown = true }
             },
             updateRest: { [self] id in rest = BlockID(id: id) },
             remove: { [self] id in removeBlockID = id },
@@ -117,8 +117,10 @@ private struct BlockActionSheets: ViewModifier {
                     .presentationPlacement(.center)
             }
             .sheet(item: $state.replace) { target in
-                ExercisePickerView(title: "Replace Exercise") { host.replace(target.id, $0) }
-                    .presentationPlacement(.center)
+                ExercisePickerView(title: "Replace Exercise") { info in
+                    withAnimation(.snappy) { host.replace(target.id, info) }
+                }
+                .presentationPlacement(.center)
             }
             .sheet(item: $state.superset) { target in
                 supersetSheet(for: target.id)
@@ -139,7 +141,7 @@ private struct BlockActionSheets: ViewModifier {
                 )
             ) {
                 Button("Remove Exercise", role: .destructive) {
-                    if let id = state.removeBlockID { host.remove(id) }
+                    if let id = state.removeBlockID { withAnimation(.snappy) { host.remove(id) } }
                     state.removeBlockID = nil
                     state.destructiveCount += 1
                 }
@@ -172,8 +174,8 @@ private struct BlockActionSheets: ViewModifier {
                 currentID: id,
                 initialMembers: members,
                 isInSuperset: block.supersetGroup != nil,
-                onSave: { picked in host.makeSuperset(id, picked) },
-                onRemove: { host.removeFromSuperset(id) }
+                onSave: { picked in withAnimation(.snappy) { host.makeSuperset(id, picked) } },
+                onRemove: { withAnimation(.snappy) { host.removeFromSuperset(id) } }
             )
         }
     }

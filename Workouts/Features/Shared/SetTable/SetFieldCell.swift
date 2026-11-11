@@ -20,6 +20,9 @@ struct SetFieldCell: View {
     var isNext = false
     let field: SetRowField
     var focus: FocusState<SetRowField?>.Binding
+    /// Whether this cell has focus, given by the row: the cell never reads the shared `FocusState` value, so a focus move
+    /// re-renders only the two cells it concerns.
+    let isFocused: Bool
     let label: String
     let hint: String
     let identifier: String
@@ -44,8 +47,6 @@ struct SetFieldCell: View {
         let reshape: (String) -> String
         let focusText: (String) -> String
     }
-
-    private var isFocused: Bool { focus.wrappedValue == field }
 
     private var fill: AnyShapeStyle {
         if isFocused { return AnyShapeStyle(Color.accentColor.opacity(0.2)) }

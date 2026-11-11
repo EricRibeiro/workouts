@@ -58,9 +58,11 @@ Eric deferred the technical choices to Claude. These close every item in `docs/p
   are in their specs. Row and card actions are `contextMenu` + `swipeActions` only, except the template card's play button ("Visual language");
   only content blocks inside the set table may keep `ellipsis.circle`. Task screens set `toolbarVerticalCompressionBehavior(.prefersToolbarItems)` and order items
   Close → prominent → state (ring) → actions, since the bottom overflows first: nothing below the ring may be needed mid-set.
-- Exercises uses `NavigationSplitView(columnVisibility: .all)` with `.balanced` and no column-width modifiers: on regular width the
-  list is a **permanent** pane beside the detail (never behind a toggle; JC52); the system keeps columns off the fold (compact
-  -> push); the empty detail is a `ContentUnavailableView` ("Select an Exercise"). History and Workout are single columns in both
+- Exercises uses `NavigationSplitView(columnVisibility: .all)` with `.balanced`: on regular width the
+  list is a **permanent** pane beside the detail (never behind a toggle; JC52), with a large inline title like the Workout tab. The
+  list column ends on the fold: beside a vertical division (`reservedRegions(kind: .division, options: .includeInactive)` through
+  `FoldPlacement.columnGap`) its width is the division's leading edge and the detail is inset by the division's width, so it starts
+  after the hinge; otherwise the system width with a 320 pt minimum (compact -> push); the empty detail is a `ContentUnavailableView` ("Select an Exercise"). History and Workout are single columns in both
   widths. The Workout tab is a **card grid** (collapsible folders) with an even column count from the grid's own width via
   `onGeometryChange`, `max(2, 2 * floor(width / (2 * minCard)))`, so no card straddles the fold; with `.includeInactive`
   reserved regions the hinge gap widens. Card tap: compact -> medium-detent preview sheet (a Maps/Flighty-style panel, fine at
@@ -137,6 +139,9 @@ Eric deferred the technical choices to Claude. These close every item in `docs/p
   on start, update on every check/skip/adjust, `end(dismissalPolicy: .immediate)` on Finish/Discard. Suspended (no push server) it
   cannot flip to "rest over": 0:00 is the only in-Island signal, the notification the alarm. `WorkoutActivityAttributes:
   ActivityAttributes` wraps the state and lives in `Shared/`, a synced folder in both the app and the extension target.
+  Colours (`ActivityStyle`, spelled out because the extension has no asset catalog): the app's lime `#C4F861`, black on a lime
+  fill. The Live Activity is dark in every appearance, like the app: the Island is black and the Lock Screen banner pins a
+  near-black card (`activityBackgroundTint`) and the dark colour scheme, so it looks the same on a light and a dark Lock Screen.
 - **Haptics** via `.sensoryFeedback`: check `.impact(weight: .light)`, rest end `.success`, PR `.levelChange`, destructive
   confirm `.warning`, minimise/restore `.selection`.
 - **Liquid Glass**: system bars and controls; no hand-placed `.glassEffect()` (nothing floats over content);
@@ -190,8 +195,9 @@ Eric deferred the technical choices to Claude. These close every item in `docs/p
 
 - **Dark-only** (Eric, 2026-11-10). `INFOPLIST_KEY_UIUserInterfaceStyle = Dark` on the app target; there is no Appearance
   setting, no `preferredColorScheme` and no light variant of a colour, snapshot or UI test (variants: `large-dark`,
-  `ax3-dark`). The system still draws its own surfaces: the Lock Screen Live Activity follows the phone's appearance, so the
-  extension keeps adaptive colours (`ActivityStyle`) and never reads the app's single-valued colour sets.
+  `ax3-dark`; the Live Activity banner's light snapshots prove it stays dark). The system draws the Lock Screen Live Activity in the phone's appearance, so the
+  extension spells out the lime itself (`ActivityStyle`) and never reads the app's colour sets; its Lock Screen banner pins a
+  dark card and the dark colour scheme, so it stays dark under a light device appearance.
   `./dev ui-env appearance` changes the simulator, not the app.
 - **Colour roles.** One accent, lime `#C4F861` (`AccentColor`, `.tint`, `Color.ok`), on black and system fills.
   - *Lime fill, black content* (`Color.onAccent`): the actions that start or end a session and the completion mark (the
@@ -205,7 +211,9 @@ Eric deferred the technical choices to Claude. These close every item in `docs/p
   - Everything else is `.primary` / `.secondary` on `.fill.*` styles; card titles are plain `.headline`, untinted, no glyph.
   - Metrics are set Fitness-style by `MetricText` (kit `MetricPieces`): rounded medium digits, the unit in small caps glued
     to the number, in the value's colour. The Finish summary's stats are white metrics, and its PR count is gold when the
-    workout set a record. On a wide sheet (the open Duo) the five stats are a row of tiles, caption over metric, and the
+    workout set a record. On a wide sheet (500 pt or more, below accessibility text sizes) the stats are one card of
+    equal-width tiles (caption title over the metric; five across, 3 + 2 when they do not fit) and the content is a
+    centred column about 560 pt wide; narrower sheets and accessibility sizes keep the label-and-value rows. On a wide sheet (the open Duo) the five stats are a row of tiles, caption over metric, and the
     sheet's content keeps a readable width, centred; the compact sheet and accessibility sizes keep labelled rows.
 - **Set-row states** (active workout; `SetRow`, `SetProgress.nextIndex` over the rows that show a check):
   - *Done*: olive row, values as plain text (no field fill), a quiet lime disc (`ok` at 0.18) with a lime check.
@@ -233,7 +241,8 @@ Eric deferred the technical choices to Claude. These close every item in `docs/p
   card button (a button cannot nest in a button), labelled "Start <name>" (`template.<uuid>.start`), disabled for a template
   with no exercises. The card's footer is the recency alone ("Yesterday", `.footnote`, `.primary`; none for a template never
   performed, "No exercises" in `.secondary` for an empty one); the exercise count is in its VoiceOver label. The play disc is
-  the only visible action on a card; the others stay in the `contextMenu`. Tapping the card still
+  the only visible action on a card; the others stay in the `contextMenu`. A card lists up to three exercise names, one per line, without a set count (the "4 × "
+  prefix cost four characters of a 170 pt card; the preview shows the sets). Tapping the card still
   opens the preview. A mis-tap costs a Discard, never data.
 - **History dashboard order and the hero** (Eric, 2026-11-10). The page opens with the This Week hero, then the weekly chart,
   then Recent PRs and Last Workout; at regular width the left column is hero then chart, the right Recent PRs then Last

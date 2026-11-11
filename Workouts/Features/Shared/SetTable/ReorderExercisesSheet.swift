@@ -24,7 +24,9 @@ struct ReorderExercisesSheet: View {
                     .accessibilityElement(children: .combine)
                     .accessibilityIdentifier("reorder.row.\(section.id.uuidString)")
                 }
-                .onMove(perform: onMove)
+                .onMove { offsets, destination in
+                    withAnimation(.snappy) { onMove(offsets, destination) }
+                }
             }
             .environment(\.editMode, .constant(.active))
             .navigationTitle("Reorder Exercises")

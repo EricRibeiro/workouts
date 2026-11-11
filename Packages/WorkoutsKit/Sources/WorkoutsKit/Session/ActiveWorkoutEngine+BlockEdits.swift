@@ -39,6 +39,7 @@ extension ActiveWorkoutEngine {
             row.barWeight = convertedWeight(bar, from: row.unit, to: unit)
         }
         row.unit = unit
+        invalidateLookups()
         try commit(workout, row)
     }
 

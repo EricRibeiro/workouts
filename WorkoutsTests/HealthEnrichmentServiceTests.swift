@@ -482,3 +482,16 @@ struct HealthEnrichmentServiceTests {
         #expect(setup.workout.healthCheckedAt == nil)
     }
 }
+
+@Suite struct HealthFixtureTests {
+    @Test func fullFixtureStatisticsMatchItsSeries() throws {
+        let start = Date(timeIntervalSince1970: 1_800_000_000)
+        let source = HealthFixture.full.source(around: start, end: start.addingTimeInterval(45 * 60))
+        let summary = try #require(source.summaries.values.first)
+        let series = HeartRateSeries.clippedToStart(summary.heartRateSeries)
+        let average = try #require(HeartRateSeries.plottedAverage(of: series, storedAverage: nil))
+        let maximum = try #require(HeartRateSeries.plottedMaximum(of: series, storedMaximum: nil))
+        #expect(average.rounded() == summary.avgHeartRate)
+        #expect(maximum == summary.maxHeartRate)
+    }
+}

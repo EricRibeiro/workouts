@@ -50,7 +50,6 @@ struct RestTimerRow: View {
         TimelineView(.periodic(from: .now, by: 1)) { context in
             let now = context.date
             let remaining = max(0, rest.endsAt.timeIntervalSince(now))
-            let fraction = rest.total > 0 ? min(1, remaining / Double(rest.total)) : 0
             HStack(spacing: 8) {
                 Image(systemName: "timer")
                     .foregroundStyle(.secondary)
@@ -65,17 +64,8 @@ struct RestTimerRow: View {
                 if dynamicTypeSize.isAccessibilitySize {
                     Spacer(minLength: 0)
                 } else {
-                    Capsule()
-                        .fill(.fill.quaternary)
-                        .frame(height: barHeight)
-                        .overlay(alignment: .leading) {
-                            GeometryReader { proxy in
-                                Capsule()
-                                    .fill(.tint)
-                                    .frame(width: proxy.size.width * fraction)
-                            }
-                        }
-                        .animation(.linear(duration: 1), value: fraction)
+                    RestDrainBar(endsAt: rest.endsAt, total: rest.total, height: barHeight)
+                        .id(rest.endsAt)
                         .accessibilityHidden(true)
                 }
                 Button(action: rest.add30) {
@@ -102,5 +92,36 @@ struct RestTimerRow: View {
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("rest.row")
         .padding(.vertical, 2)
+    }
+}
+
+/// The lime capsule draining over the rest's remaining time: one linear animation started when the bar appears, so no per-second
+/// state change drives it. The row keys it by `endsAt`, so +30 s makes a fresh bar that starts from the new fraction.
+private struct RestDrainBar: View {
+    let endsAt: Date
+    let total: Int
+    let height: CGFloat
+    @State private var fraction: Double
+
+    init(endsAt: Date, total: Int, height: CGFloat) {
+        self.endsAt = endsAt
+        self.total = total
+        self.height = height
+        let remaining = max(0, endsAt.timeIntervalSinceNow)
+        _fraction = State(initialValue: total > 0 ? min(1, remaining / Double(total)) : 0)
+    }
+
+    var body: some View {
+        Capsule()
+            .fill(.fill.quaternary)
+            .frame(height: height)
+            .overlay {
+                Capsule()
+                    .fill(.tint)
+                    .scaleEffect(x: fraction, anchor: .leading)
+            }
+            .onAppear {
+                withAnimation(.linear(duration: max(0, endsAt.timeIntervalSinceNow))) { fraction = 0 }
+            }
     }
 }

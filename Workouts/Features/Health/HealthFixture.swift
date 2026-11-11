@@ -52,6 +52,12 @@
             }
         }
 
+        /// The series is shaped so its time-weighted mean rounds to `averageHeartRate` and its peak is `maximumHeartRate`:
+        /// the header tiles and the chart caption read the same numbers (the caption drops the lead-in before our workout
+        /// started, so its average can sit a bpm off).
+        fileprivate static let averageHeartRate = 118.0
+        fileprivate static let maximumHeartRate = 161.0
+
         private static func fullSource(around start: Date, end: Date) -> FakeHealthSource {
             // Fitness is started a little before and stopped a little after ours, like the real thing.
             let fitnessStart = start.addingTimeInterval(-fitnessLeadIn)
@@ -68,12 +74,12 @@
             let series = (0..<count).map { index -> HeartRatePoint in
                 let progress = Double(index) / Double(count - 1)
                 // Warm-up ramp, work/rest waves, a peak near the end, then a short cool-down.
-                let ramp = 45 + 50 * min(1, progress * 4)
+                let ramp = 70 + 50 * min(1, progress * 4)
                 let waves = 18 * sin(progress * 6 * .pi)
-                let peak = 25 * max(0, 1 - abs(progress - 0.85) * 10)
+                let peak = 56 * max(0, 1 - abs(progress - 0.85) * 10)
                 let cooldown = progress > 0.92 ? -(progress - 0.92) * 300 : 0
                 let bpm = (ramp + waves + peak + cooldown).rounded()
-                return HeartRatePoint(offset: progress * duration, bpm: min(max(bpm, 62), 161))
+                return HeartRatePoint(offset: progress * duration, bpm: min(max(bpm, 62), maximumHeartRate))
             }
             let summary = HealthWorkoutSummary(
                 healthWorkoutID: candidate.id,
@@ -81,8 +87,8 @@
                 end: fitnessEnd,
                 activeEnergyKcal: 310,
                 totalEnergyKcal: 420,
-                avgHeartRate: 118,
-                maxHeartRate: 161,
+                avgHeartRate: averageHeartRate,
+                maxHeartRate: maximumHeartRate,
                 heartRateSeries: series,
                 effort: HealthEffort(score: 8, isEstimated: false),
                 zones: [
@@ -99,9 +105,9 @@
                     statistics: [
                         "HKQuantityTypeIdentifierActiveEnergyBurned": HealthStatistic(sum: 310, unit: "kcal"),
                         "HKQuantityTypeIdentifierHeartRate": HealthStatistic(
-                            average: 118,
-                            minimum: 62,
-                            maximum: 161,
+                            average: averageHeartRate,
+                            minimum: 70,
+                            maximum: maximumHeartRate,
                             mostRecent: 96,
                             unit: "count/min"
                         ),

@@ -234,7 +234,7 @@ struct WorkoutView: View {
                         }
                     }
                 }
-                .padding(.horizontal)
+                .padding(.horizontal, Metrics.contentMargin)
             }
             .accessibilityIdentifier("workout.list")
             .task(

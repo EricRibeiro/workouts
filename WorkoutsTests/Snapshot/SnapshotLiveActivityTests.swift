@@ -9,8 +9,9 @@ extension SnapshotTests {
     /// The Live Activity views (compiled into the test bundle from `WorkoutsLiveActivity/`): the expanded Island row,
     /// the compact and minimal presentations, the closed Duo's narrow compact stack and the Lock Screen banner. The
     /// Island is always black, so the Island cases render in dark mode only, on a black shape sized like the system's
-    /// region, over a lighter backdrop so the shape shows. The system draws the Lock Screen banner in the device's
-    /// appearance even though the app is dark-only, so the banner is compared in dark and in light.
+    /// region, over a lighter backdrop so the shape shows. The Lock Screen banner is dark in every device appearance (a dark
+    /// card and the dark colour scheme pinned by the view), so it is compared in dark and under a light appearance, where
+    /// it must stay dark.
     ///
     /// States are built from the real clock, half a second inside the second the timers should show (elapsed 1520.5 s, rest
     /// 74.5 s left), so the system-drawn timers (read once, at render) never flip to a neighbouring second.
@@ -19,7 +20,7 @@ extension SnapshotTests {
         private static let dark = SnapshotVariant(name: "dark", colorScheme: .dark, dynamicTypeSize: .large)
         private static let light = SnapshotVariant(name: "large-light", colorScheme: .light, dynamicTypeSize: .large)
 
-        /// The Lock Screen banner's variants: the standard large dark one (`SnapshotVariant.all`) and light.
+        /// The Lock Screen banner's variants: the standard large dark one (`SnapshotVariant.all`) and a light appearance.
         private static let lockScreenVariants: [SnapshotVariant] =
             SnapshotVariant.all.filter { $0.dynamicTypeSize == .large } + [light]
 

@@ -38,6 +38,16 @@ public final class ActiveWorkoutEngine {
     @ObservationIgnored var pendingEdits: [UUID: PendingValues] = [:]
     /// Workout exercises (by id) already decided to be timed; see ``isTimed(_:)``.
     @ObservationIgnored var timedExercises: Set<UUID> = []
+    /// Per-set results of ``previous(for:)`` and ``plan(for:)`` and per-row "Previous or plan has a duration" answers,
+    /// filled on first read so a table build does not redo the sorts for every set. They read only the workout's
+    /// structure (exercise and set order, kinds, ids, unit), ``previousCache`` and the template, never typed values or
+    /// checks, so only structural edits clear them (``invalidateLookups()``); the plan entries also carry the
+    /// template's `updatedAt`, which a template edit stamps.
+    @ObservationIgnored var previousLookups: [UUID: LookupResult<PreviousSet>] = [:]
+    @ObservationIgnored var planLookups: [UUID: PlanLookup] = [:]
+    @ObservationIgnored var derivedTimedLookups: [UUID: Bool] = [:]
+    /// Test seam: called each time a Previous or plan lookup is computed instead of served from the cache.
+    @ObservationIgnored var lookupProbe: ((LookupKind) -> Void)?
 
     /// Creates the engine and resumes the in-progress workout, if the store has one (relaunch).
     public init(
@@ -62,8 +72,7 @@ public final class ActiveWorkoutEngine {
     @discardableResult
     public func resume() throws -> Workout? {
         settleExtraInProgress()
-        previousCache = [:]
-        previousLoaded = []
+        resetPrevious()
         let running = try fetchInProgress()
         if let running {
             try loadPrevious(for: Set(sortedExercises(of: running).map(\.exerciseID)))
@@ -90,8 +99,7 @@ public final class ActiveWorkoutEngine {
     /// Rebuilds the Previous values from the store, as ``resume()`` does, without touching the running workout. The
     /// app calls it when CloudKit merged remote changes in, so a workout finished on another device shows up as Previous.
     public func reloadPrevious() throws {
-        previousCache = [:]
-        previousLoaded = []
+        resetPrevious()
         if let running = liveWorkout {
             try loadPrevious(for: Set(sortedExercises(of: running).map(\.exerciseID)))
         }
@@ -235,6 +243,7 @@ public final class ActiveWorkoutEngine {
     public func setKind(_ set: WorkoutSet, to kind: SetKind) throws {
         let (workout, row) = try owner(of: set)
         set.kind = kind
+        invalidateLookups()
         try commit(workout, row)
     }
 
@@ -276,6 +285,14 @@ public final class ActiveWorkoutEngine {
     /// an extra row added this time still gets a hint.
     /// Values are loaded at start, resume and when an exercise is added or replaced.
     public func previous(for set: WorkoutSet) -> PreviousSet? {
+        if let cached = previousLookups[set.id] { return cached.value }
+        lookupProbe?(.previous)
+        let value = computePrevious(for: set)
+        previousLookups[set.id] = LookupResult(value: value)
+        return value
+    }
+
+    private func computePrevious(for set: WorkoutSet) -> PreviousSet? {
         guard let row = set.workoutExercise, let entries = previousCache[row.exerciseID] else { return nil }
         var nth = 0
         if let workout = row.workout {
@@ -325,6 +342,15 @@ public final class ActiveWorkoutEngine {
     /// a template with the same exercise twice plans each row separately. The weight is in the row's current unit
     /// (converted and rounded to 0.5 from the template row's unit when they differ, as for Previous).
     public func plan(for set: WorkoutSet) -> SetPlan? {
+        let stamp = set.workoutExercise?.workout?.template?.updatedAt
+        if let cached = planLookups[set.id], cached.templateStamp == stamp { return cached.result.value }
+        lookupProbe?(.plan)
+        let value = computePlan(for: set)
+        planLookups[set.id] = PlanLookup(templateStamp: stamp, result: LookupResult(value: value))
+        return value
+    }
+
+    private func computePlan(for set: WorkoutSet) -> SetPlan? {
         guard let row = set.workoutExercise, let workout = row.workout, let template = workout.template
         else { return nil }
         let sameExercise: (WorkoutExercise) -> Bool = { $0.exerciseID == row.exerciseID }
@@ -354,12 +380,36 @@ public final class ActiveWorkoutEngine {
     public func isTimed(_ row: WorkoutExercise) -> Bool {
         if timedExercises.contains(row.id) { return true }
         if timedByDefault(row.exerciseID) { return true }
-        let timed = sortedSets(of: row).contains {
-            $0.durationSeconds != nil || previous(for: $0)?.durationSeconds != nil
-                || plan(for: $0)?.durationSeconds != nil
-        }
+        // A typed or filled duration is read live (cheap); what Previous and the plan say is cached per row.
+        let timed =
+            (row.sets ?? []).contains { $0.durationSeconds != nil }
+            || (derivedTimedLookups[row.id] ?? computeDerivedTimed(row))
         if timed { timedExercises.insert(row.id) }
         return timed
+    }
+
+    private func computeDerivedTimed(_ row: WorkoutExercise) -> Bool {
+        let timed = sortedSets(of: row).contains {
+            previous(for: $0)?.durationSeconds != nil || plan(for: $0)?.durationSeconds != nil
+        }
+        derivedTimedLookups[row.id] = timed
+        return timed
+    }
+
+    /// Drops the cached Previous, plan and timed lookups. Called by every edit that can change which set takes which
+    /// Previous or plan value (a set or exercise added, removed, replaced, reordered or regrouped, a set's kind, a row's
+    /// unit), by every reload of the Previous values, and after a rollback.
+    func invalidateLookups() {
+        previousLookups.removeAll()
+        planLookups.removeAll()
+        derivedTimedLookups.removeAll()
+    }
+
+    /// Clears the loaded Previous values together with the lookups derived from them.
+    func resetPrevious() {
+        previousCache = [:]
+        previousLoaded = []
+        invalidateLookups()
     }
 
     // MARK: - Exercises
@@ -542,8 +592,7 @@ public final class ActiveWorkoutEngine {
         }
         // The workout is saved as finished: the engine lets go of it even if building the summary throws below.
         self.workout = nil
-        previousCache = [:]
-        previousLoaded = []
+        resetPrevious()
         return try makeSummary(
             workout: workout,
             kept: kept,
@@ -567,7 +616,6 @@ public final class ActiveWorkoutEngine {
             self.workout = workout
             throw error
         }
-        previousCache = [:]
-        previousLoaded = []
+        resetPrevious()
     }
 }

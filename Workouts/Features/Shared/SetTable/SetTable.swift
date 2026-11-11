@@ -50,11 +50,12 @@ struct SetTable: View {
         let sections = source.sections
         let numbers = SetTableSection.supersetNumbers(for: sections)
         let order = sections.map(\.id)
+        let rest = source.rest?.animatingSkip
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 24) {
                     ForEach(sections) { section in
-                        block(section, supersetNumber: numbers[section.id], order: order)
+                        block(section, supersetNumber: numbers[section.id], order: order, rest: rest)
                     }
                 }
                 .padding(.horizontal, 8)
@@ -83,8 +84,8 @@ struct SetTable: View {
         .swipeActionsContainer()
         // The table leaving the screen (cover minimised) with a field still focused.
         .onDisappear { source.commitEdits() }
-        .animation(.snappy, value: sections.flatMap { $0.rows.map(\.id) })
-        .animation(.snappy, value: source.rest?.setID)
+        // A rest the table did not start (its timer ending, the Live Activity, the toolbar) still moves the inline row.
+        .animation(.snappy, value: rest?.setID)
         .setKeyboardToolbar(
             step: { direction in step(direction, in: sections) },
             // Only the active workout has a previous set to copy; the template and past editors get no Previous key.
@@ -92,7 +93,7 @@ struct SetTable: View {
                 ? { if let field = focus { source.applyPrevious(to: field.setID) } } : nil,
             next: { focusNext(in: sections) },
             done: { focus = nil },
-            rest: source.rest,
+            rest: rest,
             stepDescription: stepDescription(in: sections)
         )
         .setHaptics(checkedSetCount: source.mode == .active ? source.checkedSetCount : 0)
@@ -102,7 +103,12 @@ struct SetTable: View {
 
     // MARK: Block
 
-    private func block(_ section: SetTableSection, supersetNumber: Int?, order: [UUID]) -> some View {
+    private func block(
+        _ section: SetTableSection,
+        supersetNumber: Int?,
+        order: [UUID],
+        rest: SetTableRest?
+    ) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             let checkable = section.rows.filter(\.showsCheck)
             let progress = SetProgress(checked: checkable.map(\.isChecked))
@@ -118,24 +124,25 @@ struct SetTable: View {
                     model: row,
                     isNext: row.id == nextID,
                     focus: $focus,
+                    focusedColumn: focus?.setID == row.id ? focus?.column : nil,
                     onCycleKind: { source.cycleKind(of: row.id) },
                     onApplyPrevious: { source.applyPrevious(to: row.id) },
                     onCommitWeight: { source.commitWeight($0, for: row.id) },
                     onCommitReps: { source.commitReps($0, for: row.id) },
                     onToggleCheck: { toggleCheck(row) },
-                    onDelete: { source.deleteSet(row.id) }
+                    onDelete: { deleteSet(row.id) }
                 )
                 .padding(.vertical, 2)
                 .id(row.id)
                 .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                     Button(role: .destructive) {
-                        source.deleteSet(row.id)
+                        deleteSet(row.id)
                     } label: {
                         Label("Delete", systemImage: "trash")
                     }
                     .accessibilityIdentifier("setrow.\(row.id.uuidString).delete")
                 }
-                if let rest = source.rest, rest.setID == row.id {
+                if let rest, rest.setID == row.id {
                     RestTimerRow(rest: rest)
                         .transition(.opacity.combined(with: .move(edge: .top)))
                 }
@@ -353,7 +360,7 @@ struct SetTable: View {
 
     private func addSetRow(_ section: SetTableSection) -> some View {
         Button {
-            source.addSet(to: section.id)
+            withAnimation(.snappy) { source.addSet(to: section.id) }
         } label: {
             Label("Add Set", systemImage: "plus")
                 .font(.subheadline.weight(.semibold))
@@ -382,7 +389,11 @@ struct SetTable: View {
     /// Reorder Exercises… sheet uses (`SetTableLayout.moved` builds the new order).
     private func moveBlock(_ id: UUID, _ order: [UUID], by offset: Int) {
         guard let moved = SetTableLayout.moved(order, id: id, by: offset) else { return }
-        source.reorder(moved, moving: [id])
+        withAnimation(.snappy) { source.reorder(moved, moving: [id]) }
+    }
+
+    private func deleteSet(_ id: UUID) {
+        withAnimation(.snappy) { source.deleteSet(id) }
     }
 
     // MARK: Keyboard
@@ -431,7 +442,7 @@ struct SetTable: View {
     /// and the table are uncovered (PLAN 7.7). Only this in-app tap dismisses: the Live Activity intent runs outside the view.
     private func toggleCheck(_ row: SetRowModel) -> Bool {
         let wasChecked = row.isChecked
-        let accepted = source.toggleCheck(of: row.id)
+        let accepted = withAnimation(.snappy) { source.toggleCheck(of: row.id) }
         if accepted && !wasChecked { focus = nil }
         return accepted
     }
@@ -450,6 +461,19 @@ struct SetTable: View {
             after: field,
             in: rows.map(\.id),
             weightlessSetIDs: Set(rows.filter { !$0.showsWeight }.map(\.id))
+        )
+    }
+}
+
+extension SetTableRest {
+    /// The same rest with Skip animating the inline row away, wherever Skip is tapped.
+    fileprivate var animatingSkip: SetTableRest {
+        SetTableRest(
+            endsAt: endsAt,
+            total: total,
+            setID: setID,
+            skip: { [skip] in withAnimation(.snappy) { skip() } },
+            add30: add30
         )
     }
 }

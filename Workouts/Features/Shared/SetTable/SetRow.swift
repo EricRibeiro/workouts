@@ -18,6 +18,8 @@ struct SetRow: View {
     /// The first unchecked set of an exercise in the active workout: the one to do now (lit fields, accent check ring).
     var isNext = false
     var focus: FocusState<SetRowField?>.Binding
+    /// The cell of this row that has keyboard focus, passed by the table so only the row whose focus changed re-renders its cells.
+    var focusedColumn: SetKeyboard.Column?
     let onCycleKind: () -> Void
     let onApplyPrevious: () -> Void
     let onCommitWeight: (Double?) -> Void
@@ -210,6 +212,7 @@ struct SetRow: View {
             isNext: isNext,
             field: SetRowField(setID: model.id, column: .weight),
             focus: focus,
+            isFocused: focusedColumn == .weight,
             label: "Weight",
             hint: model.unit == .kg ? "Kilograms" : "Pounds",
             identifier: "setrow.\(model.id.uuidString).weight",
@@ -240,6 +243,7 @@ struct SetRow: View {
             isNext: isNext,
             field: SetRowField(setID: model.id, column: .reps),
             focus: focus,
+            isFocused: focusedColumn == .reps,
             label: isDuration ? "Duration" : "Reps",
             hint: isDuration ? "Minutes and seconds" : "",
             identifier: "setrow.\(model.id.uuidString).reps",

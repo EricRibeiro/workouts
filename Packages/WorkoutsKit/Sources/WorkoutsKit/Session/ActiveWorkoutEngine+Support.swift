@@ -14,6 +14,22 @@ struct PendingValues {
     var durationSeconds: Int?
 }
 
+/// A cached lookup that may legitimately be nil (a set with no Previous or plan), so "not looked up" stays distinct.
+struct LookupResult<Value> {
+    var value: Value?
+}
+
+/// A cached plan lookup and the template `updatedAt` it was computed against.
+struct PlanLookup {
+    var templateStamp: Date?
+    var result: LookupResult<SetPlan>
+}
+
+enum LookupKind {
+    case previous
+    case plan
+}
+
 // MARK: - Lookup and persistence
 
 extension ActiveWorkoutEngine {
@@ -126,6 +142,7 @@ extension ActiveWorkoutEngine {
     func rollbackKeepingEdits(in workout: Workout) {
         let pending = pendingEdits
         context.rollback()
+        invalidateLookups()
         pendingEdits = [:]
         for set in (workout.exercises ?? []).flatMap({ $0.sets ?? [] }) {
             guard let values = pending[set.id] else { continue }
@@ -141,6 +158,8 @@ extension ActiveWorkoutEngine {
     /// in-memory change is rolled back, so the context never keeps deleted rows or half-applied positions that a
     /// retry or the next read would walk.
     func commitRollingBack(_ workout: Workout, _ row: WorkoutExercise?) throws {
+        // Every caller has just changed the workout's structure, so the cached lookups no longer hold.
+        invalidateLookups()
         do {
             try commit(workout, row)
         } catch {
@@ -155,14 +174,14 @@ extension ActiveWorkoutEngine {
         let stamp = now()
         let workout = Workout(name: name, startedAt: stamp, createdAt: stamp, updatedAt: stamp)
         context.insert(workout)
-        previousCache = [:]
-        previousLoaded = []
+        resetPrevious()
         do {
             build(workout)
             try loadPrevious(for: Set(sortedExercises(of: workout).map(\.exerciseID)))
             try save()
         } catch {
             context.rollback()
+            invalidateLookups()
             throw error
         }
         self.workout = workout
@@ -306,6 +325,7 @@ extension ActiveWorkoutEngine {
             }
         }
         previousLoaded.formUnion(ids)
+        invalidateLookups()
     }
 }
 
