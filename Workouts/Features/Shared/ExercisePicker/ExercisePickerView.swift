@@ -34,6 +34,7 @@ struct ExercisePickerView: View {
     @State private var peeked: ExerciseInfo?
     @State private var isCreating = false
     @State private var naturalMatch: NaturalSearchMatch?
+    @FocusState private var isSearchFocused: Bool
 
     init(title: String = "Add Exercise", mode: ExercisePickerMode) {
         self.title = title
@@ -87,6 +88,7 @@ struct ExercisePickerView: View {
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $query, prompt: "Search exercises")
+            .searchFocused($isSearchFocused)
             .naturalLanguageSearch(text: query, match: $naturalMatch)
             .accessibilityIdentifier("picker.search")
             .toolbar {
@@ -129,6 +131,7 @@ struct ExercisePickerView: View {
                     .presentationPlacement(.center)
             }
         }
+        .dismissSearchKeyboardOnTap($isSearchFocused, whileEmpty: query)
         .accessibilityIdentifier("screen.exercisePicker")
     }
 

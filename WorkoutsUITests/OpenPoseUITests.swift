@@ -176,6 +176,15 @@ final class OpenPoseUITests: XCTestCase {
         app.assertSearchClosesAndStaysClosed()
     }
 
+    /// With the Duo open, a tap on History's content puts the search keyboard away and it stays away.
+    @MainActor
+    func testOpenWideHistoryTapPutsTheKeyboardAway() throws {
+        let app = XCUIApplication.launchedForTesting(["-sampleWorkouts", "40"])
+        app.selectTab("tab.history", label: "History")
+        XCTAssertTrue(app.descendants(matching: .any)["screen.history"].waitForExistence(timeout: 10))
+        app.assertTapOnHistoryContentPutsKeyboardAway()
+    }
+
     /// One audit pass of the open logging cover, with `AccessibilityAuditUITests`' known-issue filter.
     @MainActor
     func testOpenWideLoggingAudit() throws {

@@ -34,6 +34,7 @@ struct ExercisesView: View {
     @State private var showRetired = false
     @State private var isCreating = false
     @State private var naturalMatch: NaturalSearchMatch?
+    @FocusState private var isSearchFocused: Bool
     @Namespace private var zoomNamespace
 
     var body: some View {
@@ -53,6 +54,7 @@ struct ExercisesView: View {
             detail
         }
         .navigationSplitViewStyle(.balanced)
+        .dismissSearchKeyboardOnTap($isSearchFocused, whileEmpty: query)
         .accessibilityIdentifier("screen.exercises")
         // Deleting the selected custom exercise empties the selection, which also pops the pushed detail on compact width.
         .onChange(of: selectionExists) { _, exists in
@@ -164,6 +166,7 @@ struct ExercisesView: View {
             placement: .navigationBarDrawer(displayMode: .always),
             prompt: "Search exercises"
         )
+        .searchFocused($isSearchFocused)
         .naturalLanguageSearch(text: query, includeRetired: showRetired, match: $naturalMatch)
         .task(id: fingerprint) {
             await refreshBestSets()
