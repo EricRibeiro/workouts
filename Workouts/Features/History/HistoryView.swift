@@ -54,6 +54,7 @@ struct HistoryView: View {
     @State private var savedTemplates = 0
     /// The row whose past-workout editor is up (a full-screen cover).
     @State private var editing: PastEditorTarget?
+    @FocusState private var isSearchFocused: Bool
     @Namespace private var zoom
 
     var body: some View {
@@ -116,6 +117,7 @@ struct HistoryView: View {
                     placement: .navigationBarDrawer(displayMode: .always),
                     prompt: "Search workouts"
                 )
+                .searchFocused($isSearchFocused)
                 .onChange(of: isSearchPresented) { _, isPresented in
                     if !isPresented { scope = .all }
                 }
@@ -141,6 +143,7 @@ struct HistoryView: View {
         ) {
             await refreshSummary()
         }
+        .dismissSearchKeyboardOnTap($isSearchFocused, whileEmpty: query)
         .accessibilityIdentifier("screen.history")
     }
 
