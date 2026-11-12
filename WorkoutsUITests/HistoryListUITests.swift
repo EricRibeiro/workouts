@@ -206,8 +206,8 @@ final class HistoryListUITests: XCTestCase {
 
         // Cancelling the search must also drop the scope: the scope bar is gone with the search, so a PRs scope left
         // behind would filter the list (and hide the dashboard) with nothing on screen saying so.
-        // (The search field's dismiss button is labelled "close" on this OS; older ones say "Cancel".)
-        let cancel = app.buttons.matching(NSPredicate(format: "label IN {'close', 'Cancel'}")).firstMatch
+        // (The search field's dismiss button is labelled "Close" or "close" on this OS; older ones say "Cancel".)
+        let cancel = app.buttons.matching(NSPredicate(format: "label ==[c] 'close' OR label ==[c] 'cancel'")).firstMatch
         XCTAssertTrue(cancel.waitForExistence(timeout: 5), "no Cancel button\n\(app.debugDescription)")
         cancel.tap()
         XCTAssertTrue(

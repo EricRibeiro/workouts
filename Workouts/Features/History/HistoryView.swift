@@ -107,7 +107,15 @@ struct HistoryView: View {
                         .presentationPlacement(.center)
                 }
                 .sensoryFeedback(.success, trigger: savedTemplates)
-                .searchable(text: $query, isPresented: $isSearchPresented, prompt: "Search workouts")
+                // In the drawer, not the default placement: with the Duo open the default puts the field inline in the bar, and
+                // closing that with its x reopens search by itself (SwiftUI re-asserts a stale active state when the dismissal
+                // ends; JC137).
+                .searchable(
+                    text: $query,
+                    isPresented: $isSearchPresented,
+                    placement: .navigationBarDrawer(displayMode: .always),
+                    prompt: "Search workouts"
+                )
                 .onChange(of: isSearchPresented) { _, isPresented in
                     if !isPresented { scope = .all }
                 }

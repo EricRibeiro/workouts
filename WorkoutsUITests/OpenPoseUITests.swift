@@ -167,6 +167,15 @@ final class OpenPoseUITests: XCTestCase {
         add(attachment)
     }
 
+    /// With the Duo open, closing History's search with its x reopened it (JC137).
+    @MainActor
+    func testOpenWideHistorySearchClosesAndStaysClosed() throws {
+        let app = XCUIApplication.launchedForTesting(["-sampleWorkouts", "40"])
+        app.selectTab("tab.history", label: "History")
+        XCTAssertTrue(app.descendants(matching: .any)["screen.history"].waitForExistence(timeout: 10))
+        app.assertSearchClosesAndStaysClosed()
+    }
+
     /// One audit pass of the open logging cover, with `AccessibilityAuditUITests`' known-issue filter.
     @MainActor
     func testOpenWideLoggingAudit() throws {
