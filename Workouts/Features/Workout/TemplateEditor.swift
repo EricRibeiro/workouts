@@ -63,6 +63,8 @@ private struct TemplateEditorContent: View {
     @State private var isReordering = false
     @State private var isPickerPresented = false
     @State private var focusedSectionID: UUID?
+    @State private var keyboardDismissal = 0
+    @State private var isEditingSet = false
     /// The block menu's pending prompts (task 3.6).
     @State private var blockSheets = BlockActionState()
 
@@ -229,22 +231,28 @@ private struct TemplateEditorContent: View {
         return ArrangementView {
             VStack(spacing: 0) {
                 noteLine
-                SetTable(source: source, focusedSection: $focusedSectionID, blockActions: blockActions)
-                    .overlay {
-                        if sections.isEmpty {
-                            ContentUnavailableView(
-                                "No Exercises Yet",
-                                systemImage: "figure.strengthtraining.traditional",
-                                description: Text("Add one to start building the template.")
-                            )
-                            .accessibilityIdentifier("templateEditor.empty")
-                        }
+                SetTable(
+                    source: source,
+                    focusedSection: $focusedSectionID,
+                    blockActions: blockActions,
+                    keyboardDismissal: keyboardDismissal
+                )
+                .overlay {
+                    if sections.isEmpty {
+                        ContentUnavailableView(
+                            "No Exercises Yet",
+                            systemImage: "figure.strengthtraining.traditional",
+                            description: Text("Add one to start building the template.")
+                        )
+                        .accessibilityIdentifier("templateEditor.empty")
                     }
+                }
             }
         } secondary: {
             if showsPane {
                 let focused = focusedSection(in: sections)
                 ExercisePane(exerciseName: focused?.name, exerciseID: focused?.exerciseID)
+                    .dismissKeyboardOnTap { if isEditingSet { keyboardDismissal += 1 } }
             }
         }
         // The system split's placement in every pose but the half-open laptop one, where the table drops to the lower half
@@ -252,6 +260,7 @@ private struct TemplateEditorContent: View {
         .arrangementViewStyle(
             BenchArrangementStyle(axes: showsPane ? Axis.Set([.horizontal, .vertical]) : Axis.Set())
         )
+        .onPreferenceChange(SetTableEditingKey.self) { isEditingSet = $0 }
     }
 
     /// The template's note as a secondary line above the first block (as `TemplatePreview` shows it); tapping it opens the

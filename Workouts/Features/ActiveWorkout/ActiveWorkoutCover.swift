@@ -44,6 +44,7 @@ struct ActiveWorkoutCover: View {
     /// A set cell has keyboard focus (`SetTableEditingKey`): the number pad leaves the closed display's trailing strip about
     /// three items tall, so only Minimise and Finish stay; the rest timer lives in the keyboard accessory meanwhile.
     @State private var isEditingSet = false
+    @State private var keyboardDismissal = 0
 
     var body: some View {
         NavigationStack {
@@ -239,12 +240,14 @@ struct ActiveWorkoutCover: View {
                 onSelectExercise: horizontalSizeClass == .compact
                     ? { infoExercise = $0.exerciseID } : nil,
                 focusedSection: $focusedSectionID,
-                blockActions: blockActions
+                blockActions: blockActions,
+                keyboardDismissal: keyboardDismissal
             )
         } secondary: {
             if showsPane {
                 let focused = focusedSection(in: sections)
                 ExercisePane(exerciseName: focused?.name, exerciseID: focused?.exerciseID)
+                    .dismissKeyboardOnTap { if isEditingSet { keyboardDismissal += 1 } }
             }
         }
         // The system split's placement in every pose but the half-open laptop one, where the table drops to the lower half

@@ -212,4 +212,26 @@ final class OpenPoseUITests: XCTestCase {
         let context = AccessibilityAuditUITests.Context(behindModal: true, truncatesExerciseNames: true)
         try AccessibilityAuditUITests.audit(app, in: self, for: .all, context)
     }
+
+    /// At regular width a tap on the exercise pane beside the table puts the set keypad away.
+    @MainActor
+    func testOpenWideLoggingPaneTapPutsTheKeypadAway() throws {
+        let app = XCUIApplication.launchedInActiveWorkout()
+        let pane = app.descendants(matching: .any)["cover.exercisePane"]
+        XCTAssertTrue(pane.waitForExistence(timeout: 10))
+        let weight = app.textFields.matching(
+            NSPredicate(format: "identifier BEGINSWITH 'setrow.' AND identifier ENDSWITH '.weight'")
+        )
+        .firstMatch
+        XCTAssertTrue(weight.waitForExistence(timeout: 10))
+        weight.tap()
+        let keyboard = app.keyboards.firstMatch
+        XCTAssertTrue(keyboard.waitForExistence(timeout: 5))
+
+        // Above the keyboard, which covers the pane's lower half, and below the bar.
+        pane.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3)).tap()
+
+        XCTAssertTrue(keyboard.waitForNonExistence(timeout: 6), "the keypad stayed up after a tap on the pane")
+        keyboard.assertStaysAbsent(for: 3, "the keypad came back")
+    }
 }

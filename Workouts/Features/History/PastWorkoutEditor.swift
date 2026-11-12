@@ -58,6 +58,8 @@ private struct Editor: View {
     @State private var renameText = ""
     @State private var isReordering = false
     @State private var focusedSectionID: UUID?
+    @State private var keyboardDismissal = 0
+    @State private var isEditingSet = false
     @State private var blockSheets = BlockActionState()
     @FocusState private var isDurationFocused: Bool
 
@@ -293,12 +295,14 @@ private struct Editor: View {
             SetTable(
                 source: source,
                 focusedSection: $focusedSectionID,
-                blockActions: blockSheets.noteActions(reorder: { isReordering = true })
+                blockActions: blockSheets.noteActions(reorder: { isReordering = true }),
+                keyboardDismissal: keyboardDismissal
             )
         } secondary: {
             if showsPane {
                 let focused = focusedSection(in: sections)
                 ExercisePane(exerciseName: focused?.name, exerciseID: focused?.exerciseID)
+                    .dismissKeyboardOnTap { if isEditingSet { keyboardDismissal += 1 } }
             }
         }
         // The system split's placement in every pose but the half-open laptop one, where the table drops to the lower half
@@ -306,6 +310,7 @@ private struct Editor: View {
         .arrangementViewStyle(
             BenchArrangementStyle(axes: showsPane ? Axis.Set([.horizontal, .vertical]) : Axis.Set())
         )
+        .onPreferenceChange(SetTableEditingKey.self) { isEditingSet = $0 }
     }
 
     /// The block the pane shows: the last focused one while it still exists, else the first.

@@ -38,8 +38,12 @@ struct SetTable: View {
     var focusedSection: Binding<UUID?> = .constant(nil)
     /// The header's options menu (note, warm-ups, rest, reorder, remove); nil shows no menu.
     var blockActions: SetTableBlockActions? = nil
+    /// A host bumps this when a tap lands outside the table (the exercise pane beside it) to put the keypad away.
+    var keyboardDismissal: Int = 0
 
     @FocusState private var focus: SetRowField?
+    /// Bumped by the tap recognizer: a focus change made straight from its UIKit action is dropped, one made from here is not.
+    @State private var tapDismissal = 0
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(SettingsStore.self) private var settings: SettingsStore?
     private var defaultRestSeconds: Int { settings?.defaultRestSeconds ?? SettingsStore.defaultRestSecondsDefault }
@@ -65,6 +69,8 @@ struct SetTable: View {
                 .frame(maxWidth: .infinity)
             }
             .scrollDismissesKeyboard(.interactively)
+            .onChange(of: keyboardDismissal) { focus = nil }
+            .onChange(of: tapDismissal) { focus = nil }
             .onChange(of: focus) { previous, field in
                 // Focus left a cell (another cell, Next/Previous, Done, the keyboard hidden): the commit point for typing.
                 if previous != nil, previous != field { source.commitEdits() }
@@ -83,6 +89,8 @@ struct SetTable: View {
             }
         }
         .swipeActionsContainer()
+        // A tap anywhere on the table but a cell puts the keypad away; a control under the tap still acts.
+        .dismissKeyboardOnTap { tapDismissal += 1 }
         // The table leaving the screen (cover minimised) with a field still focused.
         .onDisappear { source.commitEdits() }
         // A rest the table did not start (its timer ending, the Live Activity, the toolbar) still moves the inline row.
