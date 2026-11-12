@@ -131,7 +131,7 @@ struct ExercisePickerView: View {
                     .presentationPlacement(.center)
             }
         }
-        .dismissSearchKeyboardOnTap($isSearchFocused, whileEmpty: query)
+        .dismissSearchKeyboardOnTap($isSearchFocused)
         .accessibilityIdentifier("screen.exercisePicker")
     }
 

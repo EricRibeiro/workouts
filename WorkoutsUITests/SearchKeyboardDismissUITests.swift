@@ -1,7 +1,7 @@
 import XCTest
 
-/// While a search field has the keyboard and nothing is typed, a tap on the screen's content puts the keyboard away; search
-/// stays active. With a query, a result opens on the first tap. Runs in the real tab shell (the `-preview` gallery places
+/// While a search field has the keyboard, a tap on the screen's content puts the keyboard away, typed text or not; search
+/// stays active. A result under the tap still opens on that same tap. Runs in the real tab shell (the `-preview` gallery places
 /// search differently).
 final class SearchKeyboardDismissUITests: XCTestCase {
     override func setUpWithError() throws {
@@ -16,7 +16,7 @@ final class SearchKeyboardDismissUITests: XCTestCase {
         app.assertTapOnHistoryContentPutsKeyboardAway()
     }
 
-    /// With a query typed, the tap belongs to the result: it opens on the first tap, keyboard up or not.
+    /// With a query typed, the tap that puts the keyboard away still opens the result under it.
     @MainActor
     func testHistoryRowStillOpensWithTheKeyboardUp() throws {
         let app = XCUIApplication.launchedForTesting(["-sampleWorkouts", "40"])
@@ -36,6 +36,25 @@ final class SearchKeyboardDismissUITests: XCTestCase {
             app.buttons["workoutDetail.edit"].waitForExistence(timeout: 8),
             "a result did not open on the first tap with the keyboard up"
         )
+    }
+
+    /// With a query typed, a tap on content still puts the keyboard away; the query and the search stay.
+    @MainActor
+    func testHistoryTapWithAQueryPutsTheKeyboardAway() throws {
+        let app = XCUIApplication.launchedForTesting(["-sampleWorkouts", "40"])
+        app.selectTab("tab.history", label: "History")
+        XCTAssertTrue(app.descendants(matching: .any)["screen.history"].waitForExistence(timeout: 10))
+        let field = app.searchFields.firstMatch
+        XCTAssertTrue(field.waitForExistence(timeout: 6), "no search field")
+        field.tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 6), "no keyboard after tapping search")
+        field.typeText("Pull")
+        let header = app.staticTexts.matching(NSPredicate(format: "label ENDSWITH ' 2026'")).firstMatch
+        XCTAssertTrue(header.waitForExistence(timeout: 6), "no month header to tap")
+        app.tapAndAssertKeyboardStaysAway(at: header.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)))
+        XCTAssertEqual(app.searchFields.firstMatch.value as? String, "Pull", "the query was lost")
+        XCTAssertTrue(app.descendants(matching: .any)["screen.history"].exists, "History is not showing")
+        XCTAssertFalse(app.buttons["workoutDetail.edit"].exists, "a detail was pushed")
     }
 
     @MainActor

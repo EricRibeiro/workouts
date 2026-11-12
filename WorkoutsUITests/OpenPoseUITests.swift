@@ -176,6 +176,25 @@ final class OpenPoseUITests: XCTestCase {
         app.assertSearchClosesAndStaysClosed()
     }
 
+    /// With the Duo open, the scope bar must not sit on the dashboard cards.
+    @MainActor
+    func testOpenWideHistoryScopeBarKeepsAGapOverTheCards() throws {
+        let app = XCUIApplication.launchedForTesting(["-sampleWorkouts", "40"])
+        app.selectTab("tab.history", label: "History")
+        XCTAssertTrue(app.descendants(matching: .any)["screen.history"].waitForExistence(timeout: 10))
+        let field = app.searchFields.firstMatch
+        XCTAssertTrue(field.waitForExistence(timeout: 10))
+        field.tap()
+        let scopeBar = app.descendants(matching: .any)["scopeBar"].firstMatch
+        XCTAssertTrue(scopeBar.waitForExistence(timeout: 10))
+        let card = app.descendants(matching: .any)["history.card.thisWeek"].firstMatch
+        XCTAssertTrue(card.waitForExistence(timeout: 10))
+        let fieldGap = scopeBar.frame.minY - field.frame.maxY
+        let cardGap = card.frame.minY - scopeBar.frame.maxY
+        XCTAssertGreaterThanOrEqual(cardGap, fieldGap - 2, "fieldGap \(fieldGap), cardGap \(cardGap)")
+        XCTAssertLessThanOrEqual(cardGap, fieldGap + 24, "fieldGap \(fieldGap), cardGap \(cardGap)")
+    }
+
     /// With the Duo open, a tap on History's content puts the search keyboard away and it stays away.
     @MainActor
     func testOpenWideHistoryTapPutsTheKeyboardAway() throws {

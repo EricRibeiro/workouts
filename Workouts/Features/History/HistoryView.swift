@@ -143,7 +143,7 @@ struct HistoryView: View {
         ) {
             await refreshSummary()
         }
-        .dismissSearchKeyboardOnTap($isSearchFocused, whileEmpty: query)
+        .dismissSearchKeyboardOnTap($isSearchFocused)
         .accessibilityIdentifier("screen.history")
     }
 
@@ -282,6 +282,13 @@ struct HistoryView: View {
                 }
             }
             .listStyle(.plain)
+            // At regular width the first row has no top inset, so keep the scope bar off it by the field-to-scope-bar gap.
+            .contentMargins(
+                .top,
+                horizontalSizeClass == .regular && isSearchPresented ? Self.scopeBarGap : 0,
+                for: .scrollContent
+            )
+            .animation(.default, value: isSearchPresented)
             // The month titles carry their own 28 pt above at regular width.
             .listSectionSpacing(horizontalSizeClass == .regular ? .custom(0) : .default)
             .overlay {
@@ -325,6 +332,9 @@ struct HistoryView: View {
             }
         }
     }
+
+    /// The system's gap between the search field and its scope bar, in points.
+    private static let scopeBarGap: CGFloat = 10
 
     /// Row insets of the regular-width dashboard and month grids: the Workout tab's margins on both sides.
     private var regularRowInsets: EdgeInsets {

@@ -54,7 +54,7 @@ struct ExercisesView: View {
             detail
         }
         .navigationSplitViewStyle(.balanced)
-        .dismissSearchKeyboardOnTap($isSearchFocused, whileEmpty: query)
+        .dismissSearchKeyboardOnTap($isSearchFocused)
         .accessibilityIdentifier("screen.exercises")
         // Deleting the selected custom exercise empties the selection, which also pops the pushed detail on compact width.
         .onChange(of: selectionExists) { _, exists in
