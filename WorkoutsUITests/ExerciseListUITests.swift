@@ -59,29 +59,6 @@ final class ExerciseListUITests: XCTestCase {
         XCTAssertTrue(any["screen.exerciseDetail"].waitForExistence(timeout: 5), "tapping a row did not open a detail")
     }
 
-    /// Dragging the list down at its top and releasing opens search (once the list is at rest) and brings up the keyboard.
-    @MainActor
-    func testPullDownOpensSearch() throws {
-        let app = XCUIApplication.launchedPreview("Exercises", waitingFor: "screen.exercises")
-        let rows = rows(app)
-        let row = rows.element(boundBy: 0)
-        XCTAssertTrue(row.waitForExistence(timeout: 10), "no exercise rows")
-        XCTAssertFalse(app.keyboards.firstMatch.exists, "keyboard was up before the pull")
-
-        let start = row.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
-        start.press(forDuration: 0.1, thenDragTo: start.withOffset(CGVector(dx: 0, dy: 260)))
-
-        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5), "pulling down did not open search")
-        app.keyboards.firstMatch.assertStaysPresent(for: 4, "search closed by itself after the pull")
-        let search = app.searchFields.firstMatch
-        XCTAssertTrue(search.exists)
-        search.typeText("bench\n")
-
-        let first = rows.element(boundBy: 0)
-        XCTAssertTrue(first.waitForExistence(timeout: 5))
-        XCTAssertTrue(first.label.localizedCaseInsensitiveContains("bench"), "first row was \(first.label)")
-    }
-
     /// By default every name is one line, cut at the tail, so rows next to each other match whether or not the name is long.
     @MainActor
     func testRowsHaveEqualHeightByDefault() throws {

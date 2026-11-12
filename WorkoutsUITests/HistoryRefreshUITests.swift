@@ -1,11 +1,10 @@
 import XCTest
 
 /// History's Apple Fitness lookup is a toolbar button ("Refresh Apple Fitness", only while Fitness is on); pulling the list
-/// down opens search instead. With Fitness opted in (`-healthEnrichmentEnabled YES`, the Settings toggle) and the
+/// down does nothing. With Fitness opted in (`-healthEnrichmentEnabled YES`, the Settings toggle) and the
 /// `-healthFixture full` source standing in for HealthKit, tapping the button enriches the sample workouts: History gains
 /// active calories ("N active calories" on the week card and the rows), which nothing else does here (the gallery never
-/// runs the launch or foreground lookup). With Fitness off the button does not exist. The same pull-down drag (pulled down and released) presents the
-/// search field and starts no refresh. No Health store is touched.
+/// runs the launch or foreground lookup). With Fitness off the button does not exist. No Health store is touched.
 final class HistoryRefreshUITests: XCTestCase {
     override func setUpWithError() throws {
         continueAfterFailure = false
@@ -55,19 +54,15 @@ final class HistoryRefreshUITests: XCTestCase {
     }
 
     @MainActor
-    func testPullingDownOpensSearch() throws {
+    func testPullingDownDoesNothing() throws {
         let app = XCUIApplication.launchedPreview(
             "History",
             extraArguments: ["-healthFixture", "full", "-healthEnrichmentEnabled", "YES"],
             waitingFor: "screen.history"
         )
         pullDown(app)
-        XCTAssertTrue(
-            app.keyboards.firstMatch.waitForExistence(timeout: 5),
-            "pulling the list down did not open search"
-        )
-        app.keyboards.firstMatch.assertStaysPresent(for: 4, "search closed by itself after the pull")
-        XCTAssertTrue(app.searchFields.firstMatch.exists, "no search field after the pull")
+        app.keyboards.firstMatch.assertStaysAbsent(for: 2, "pulling the list down opened search")
         app.otherElements["Refreshing content"].assertStaysAbsent(for: 1.5, "a refresh spinner after the pull")
+        XCTAssertEqual(calorieElements(app).count, 0, "the pull looked up Apple Fitness")
     }
 }

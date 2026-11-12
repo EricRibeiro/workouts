@@ -9,7 +9,7 @@ import WorkoutsKit
 
 /// The Exercises tab (task 4.1a): a `NavigationSplitView` with the exercise list in the sidebar column and the exercise
 /// detail in the detail column (`ExerciseDetailView`, 4.2). Compact width pushes the detail; regular width always shows
-/// the list beside the detail (JC52), with "Select an Exercise" until a row is chosen. Search is `.searchable` only, over name and aliases, and a pull down (and release) on the list at its top opens it once the list is at rest. Two `Menu` pills (body part, category) lead the list; the
+/// the list beside the detail (JC52), with "Select an Exercise" until a row is chosen. Search is `.searchable` only, over name and aliases. Two `Menu` pills (body part, category) lead the list; the
 /// toolbar has New Exercise (the custom exercise form) and a Show Retired toggle.
 struct ExercisesView: View {
     @Environment(ExerciseStore.self) private var store
@@ -27,7 +27,6 @@ struct ExercisesView: View {
     @AppStorage(SettingsKey.fullExerciseNames.rawValue) private var fullNames = SettingsStore
         .fullExerciseNamesDefault
     @State private var query = ""
-    @State private var isSearchPresented = false
     @State private var selection: ExercisesRoute?
     @State private var bestSets: [UUID: String] = [:]
     @State private var bodyPart: String?
@@ -127,7 +126,6 @@ struct ExercisesView: View {
             }
         }
         .listStyle(.plain)
-        .pullToSearch(isPresented: $isSearchPresented)
         // Beside the detail (regular width) the list column is a pane in the cards' fill; alone on the closed display it is the
         // screen, black like the other tabs. The split view fills its columns with the `.navigation` background (the sidebar
         // material by default); the `.navigationSplitView` placement only colours what sits behind them.
@@ -163,7 +161,6 @@ struct ExercisesView: View {
         }
         .searchable(
             text: $query,
-            isPresented: $isSearchPresented,
             placement: .navigationBarDrawer(displayMode: .always),
             prompt: "Search exercises"
         )

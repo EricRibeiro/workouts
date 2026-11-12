@@ -70,7 +70,7 @@ struct HistoryView: View {
                             .accessibilityLabel("Calendar")
                             .accessibilityIdentifier("history.calendar")
                     }
-                    // Its own glass group: pulling the list down opens search, so the Fitness lookup lives here, while Fitness is on.
+                    // Its own glass group: the Fitness lookup is a button, not a pull on the list; shown while Fitness is on.
                     if let health, health.isActive {
                         ToolbarSpacer(.fixed, placement: .primaryAction)
                         ToolbarItem(placement: .primaryAction) {
@@ -273,7 +273,6 @@ struct HistoryView: View {
             .listStyle(.plain)
             // The month titles carry their own 28 pt above at regular width.
             .listSectionSpacing(horizontalSizeClass == .regular ? .custom(0) : .default)
-            .pullToSearch(isPresented: $isSearchPresented)
             .overlay {
                 if sections.isEmpty && !entries.isEmpty {
                     if !isSearching {
