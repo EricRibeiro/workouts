@@ -15,7 +15,7 @@ feature spec extracted from the web app.
 | Deployment target | iOS 27.2 (Duo layout needs the 27.1+ SDK) |
 | Project | `Workouts.xcodeproj` — Xcode 27 **folder-based `project.xcproj`** format (JSON-like, no pbxproj) |
 | Scheme | `Workouts` |
-| Simulator | a pool: `iPhone Duo` (iOS 27.2) plus clones `iPhone Duo 2`…`5` (`./dev sims`; `DEV_SIM_POOL` sets the size); each checkout keeps its own (`DEV_SIM=<name>` / `DEV_SIM_UDID=` override) |
+| Simulator | simkit's pool of `iPhone Duo` simulators (iOS 27.2), shared with every other project by simkit's queue (`./dev sims` = `sim status`; `simkit.json` names the app, its own processes and the test targets) |
 | Bundle id | `com.ericribeiro.Workouts` |
 | Tests | Swift Testing (`import Testing`, `@Test`, `#expect`) everywhere; XCUITest only in `WorkoutsUITests` |
 | Formatter | `xcrun swift-format` (bundled), config in `.swift-format` |
@@ -44,58 +44,60 @@ Codable/Sendable state those types wrap and the logic behind them.
 
 ## The loop
 
+Every simulator verb of `./dev` calls simkit's `sim` CLI (`$SIMKIT_HOME/bin/sim`, default `~/Projects/simkit`); `./dev` dies with
+one line naming that path when it is missing, and passes simkit's exit code on unchanged. simkit owns the pool, the queue and
+leases, the crash guard, the Duo poses and the test jobs: its `AGENTS.md` ("The loop"), `docs/project-file.md` (`simkit.json`) and
+`docs/test-result.md` (`result.json`) are the manual, and the `simkit:simulator` skill covers touches and pictures. `simkit.json`
+holds what is Workouts': the scheme and bundle id, `own_processes` (a crash of one fails the run), and per test target the workers,
+retry, per-test allowance and expected skips of `WorkoutsUITests` and the Health suite's own simulator and environment.
+
 ```
 ./dev kit [filter]      swift test for WorkoutsKit        — ~1s; use this first and most
-./dev build             xcodebuild, iPhone Duo sim         — ~2s warm
-./dev test [filter]     unit tests on the simulator        — ~25s; filter = Suite or Suite/test()
+./dev build             xcodebuild for the simulator       — ~2s warm (leased)
+./dev test [filter]     unit tests on the simulator        — ~25s; filter = Suite or Suite/test(); a simkit job (`sim test WorkoutsTests`)
 SNAPSHOT_RECORD=1 ./dev test SnapshotTests   re-record the visual references (WorkoutsTests/__Snapshots__); fails once on purpose
 ./dev lint | format     swift-format lint --strict / format --in-place
-./dev ui-test [filter]  XCUITest flows on the simulator    — Suite/test(); the flow proof of record. No filter = the full suite, sharded across
-                        up to DEV_UI_SHARDS (3) free pool sims (build-for-testing once; one combined totals line; shard bundles/logs under
-                        .build/results/ui-test-shards/ and .build/logs/; 1 = single sim; fewer when sims are scarce or the load average
-                        is high). A test that fails and passes alone on one retry is reported as flaky (`.build/ui-flaky.log`, stamp
-                        `flaky=`); flaky twice in a row fails. DEV_UI_RETRY=0 = strict. A filtered run uses one sim.
-                        A test whose first attempt crashed the app fails the run even when its retry passes.
-                        A full run holds a machine-wide marker: while it runs, every other simulator command refuses (exit 75), and it refuses to
-                        start while another process holds a pool sim (DEV_ALLOW_BESIDE_FULL_RUN=1 overrides both). Outside a full run a simulator
-                        command (build included) refuses when DEV_MAX_BUSY_SIMS (2) other pool sims are held or were used in the last
-                        DEV_BUSY_WINDOW_SEC (120) seconds (0 = off), and warns when the load average is above twice the CPU count.
-                        `check` waits for a gate instead (DEV_GATE_WAIT_SEC, 1800 for check, 0 elsewhere)
+./dev ui-test [filter]  XCUITest flows on the simulator    — Suite/test(); the flow proof of record. No filter = the full suite, a simkit job over the workers,
+                        retry, allowance and expected skips that `simkit.json` sets for `WorkoutsUITests` (one combined totals line; the run's
+                        files under `.build/simkit/test/WorkoutsUITests/`; a filtered run goes to `filtered/` there and never replaces the full
+                        run's `result.json`). A test that fails and passes alone on retry is reported as flaky; a test whose first attempt
+                        crashed the app fails the run even when its retry passes. A filter starting `HealthKitIntegration` runs on the Health
+                        simulator with its environment and writes to `.build/simkit/test/WorkoutsUITests-health/` (`simkit.json` `suites`).
+                        The queue decides when it starts: exit 75 = wait (see "Keep the machine usable")
 DEV_POSE=open-wide ./dev ui-test OpenPoseUITests   a filtered ui-test with the Duo posed first (closed-portrait|closed-landscape|open-wide|open-tall,
-                        verified); closed-portrait restored when the lock is released, also on failure; the runner sees DUO_POSE. Opt-in, before a phase's TestFlight.
+                        verified); closed-portrait restored afterwards, also on failure; the runner sees DUO_POSE. Opt-in, before a phase's TestFlight.
                         closed-landscape needs the app in front first (`./dev run`, then the posed test): the closed Home screen does not rotate
-./dev ui-status         progress of a running ui-test (`.build/ui-test.progress`: a line per shard, `FAILED Suite/test` as it happens, `done: <totals>`); idle: last stamp + last run's final line
-./dev ui-flaky [--since <days>]  per-test summary of `.build/ui-flaky.log` (tests that failed, then passed on retry): count, last date and commit, last failure text; read-only
-./dev selftest         the stamp, gate, skipped-count, ui-flaky and DEV_SIM_KEEP parsing on fixture files in a temp dir; no simulator or xcodebuild, ~2s; not part of check
+./dev ui-status         progress of a running ui-test, or the last run's final line (`sim test status`)
+./dev ui-flaky [--since <days>]  per-test summary of the tests that failed, then passed on retry (`sim test flaky`): count, last date and commit, last failure text; read-only
 ./dev tree <Name>       accessibility tree (XCUIApplication.debugDescription) of the `-preview <Name>` screen via TreeDumpUITests (one sim, ~30s)
-./dev coverage [kind]   per-target app coverage of the last passing test (default) or ui-test run (bundle kept in .build/results/latest-*)
+./dev coverage [kind]   per-target app coverage of the last passing test (default) or ui-test run (`sim test coverage` on `.build/simkit/test/<target>`)
 ./dev kit-coverage      swift test with coverage; prints the WorkoutsKit line-coverage TOTAL
 ./dev thumb-crops       regenerate `Resources/Library/thumbs/thumb-crops.json` (per-exercise figure crop rectangle, `Tools/thumb-crops.swift`); deterministic, run by hand, commit the result
 ./dev run [-- args]     boot sim, install, launch the app; args go to the app (`-- -preview <Name>` = the gallery)
 ./dev screenshot [p]    PNG of the booted simulator (Duo has two displays; DEV_DISPLAY=primary|…)
-./dev shot <p> [-- args] run + settle + screenshot under one simulator lock: the parallel-safe screen proof
+./dev shot <p> [-- args] run + settle + screenshot as one simkit job: the parallel-safe screen proof
 ./dev shot --burst [CxMS] <p> [-- args]  launch and capture the lit panel from the first frame (default 15x100), tiled into one labelled PNG grid: a
-                        reviewer artifact for transitions, not a proof (no tap injection; Tools/duo has no tap primitive)
+                        reviewer artifact for transitions, not a proof (no touches; `sim tap` of the `simkit:simulator` skill sends them)
 ./dev fold <pose> [p]   Duo hinge closed|half-open|open, verified by hinge reads + lit panel; p = PNG of the lit panel
 ./dev fold --keyframes '<json>' [--record <mov>]  timed hinge motion [{"atMs":0,"angle":0},{"atMs":3000,"angle":180}] at 60 Hz, final pose verified;
                         --record = simctl io recordVideo around it (read-only on the display); finish with `./dev pose closed-portrait`
 ./dev orient <o> [p]    rotate portrait|landscape-left|landscape-right, verified by devicectl + lit panel; p as for fold
 ./dev pose <name> [p]   closed-portrait|closed-landscape|open-wide (951x669 pt)|open-tall (669x951 pt) = fold + orient, verified; p as for fold
-./dev poses <dir> [-- args]  run, then all four poses as settled PNGs <dir>/<name>.png under one simulator lock; always ends closed-portrait
-./dev ui-env [content_size <size>] [appearance light|dark] | reset   text size / appearance of THIS checkout's sim (no args = print; reset = large/light). The app is
+./dev poses <dir> [-- args]  run, then all four poses as settled PNGs <dir>/<name>.png as one simkit job; always ends closed-portrait
+./dev ui-env [content_size <size>] [appearance light|dark] | reset   text size / appearance of this session's simulator (no args = print; reset = large/light). The app is
                         always dark whatever the sim says; `appearance` only changes the system surfaces around it.
                         test, ui-test and tree reset it to large/light first: re-apply before `./dev shot`
-./dev home [p]          Home screen (the app keeps running); ./dev duo <verb> = duo pass-through (simkit's tool when installed, else Tools/duo; DEV_DUO_LOCAL=1 forces Tools/duo) (panels, hinge [--app = the app's own status, launch with `-- -logHinge`], settle, screenshot)
-./dev duo-test          swift test for Tools/duo (~1s; part of check)
-./dev check             lint → kit → duo-test → build → test; the pre-commit gate (~30s warm)
-./dev sims [--prune]    create missing simulator clones and list the pool (who holds which lock, which is yours); read-only otherwise.
-                        --prune also erases a clone whose PosterKit temp holds > DEV_SIM_POSTER_MAX (1000) entries and shuts down idle sims.
-                        Every sim command shuts down other pool clones that are idle > DEV_SIM_IDLE_MIN (30) min with no app running (never the original)
-                        The pool, lock, crash guard and Duo poses live in simkit's shared library ($SIMKIT_HOME/lib/sim.sh, default ~/Projects/simkit); `DEV_SIM_LOCAL=1` (or no library) uses the copy in `dev`
+./dev home [p]          Home screen (the app keeps running); ./dev duo <verb> = pass-through to `sim <verb>` (panels, hinge [--app = the app's own status, launch with `-- -logHinge`], settle, screenshot, fold, orient, pose, home)
+./dev probe [dir]       launch the app with `-uiTesting`, then answer `sim/probes.json` (screen probes: pixels, lines, poses) into <dir> (default .build/probe)
+./dev selftest          the upload gates on result.json fixtures, the swift test totals and ck-schema parsing; no simulator or xcodebuild, ~2s; not part of check
+./dev check             lint → kit → test; the pre-commit gate (~30s warm; `test` builds the app, so there is no separate build step)
+./dev sims              `sim status`: the slots, who holds which simulator, who waits, which are booted; read-only
+./dev release           end this session's simulator lease (simkit also drops it after ten minutes with no verb)
 ```
 
-Every test command prints one totals line on success (`kit: Test run with 100 tests …`, `test: 2 passed, …`) and
-**fails when the filter matched nothing**, so a misspelled suite can never pass. Silence means failure output
+Every test command prints its totals on success (`kit: Test run with 100 tests …`; simkit's `tests:`, `passed:`, `failed:`,
+`skipped:` lines and `result: <result.json>`) and **fails when the filter matched nothing** (or a filtered run skipped every
+test it ran), so a misspelled suite can never pass. Silence means failure output
 only; read it.
 
 Rules for the loop:
@@ -132,10 +134,11 @@ Rules for the loop:
   proof never depends on the MCP, and its `BuildProject`/`RunSomeTests` tools never count as the gate (Xcode's own
   DerivedData, no `.build/check.stamp`). Workers have the MCP tools too; `--lean` workers have none. Skill: `verify-ui`.
 - **Never toggle the simulator's displays** (`simctl io … screenConfig`, display power, device defaults): it crash-loops
-  SpringBoard and floods Eric's Mac with crash dialogs. `./dev` fails any simulator command during which SpringBoard
-  crashed; treat that as a stop and report (never `simctl shutdown all`: it kills other agents' simulators; a pool clone
-  with 2+ PosterBoard/SpringBoard/backboardd reports is shut down and erased by `dev` itself, the original never). Change Duo poses only with `./dev pose` / `poses` (or the low-level `fold` / `orient`; skill
-  `verify-ui`), and leave the sim closed and portrait (`./dev pose closed-portrait`).
+  SpringBoard and floods Eric's Mac with crash dialogs. simkit's crash guard fails any verb during which SpringBoard,
+  PosterBoard, backboardd or one of this app's own processes (`own_processes` in `simkit.json`) crashed; treat that as a stop and
+  report (never `simctl shutdown all`: it kills other agents' simulators, and never erase a simulator by hand). Change Duo poses only with
+  `./dev pose` / `poses` (or the low-level `fold` / `orient`; skills `verify-ui` and `simkit:simulator`), and leave the sim closed
+  and portrait (`./dev pose closed-portrait`, then `./dev release`).
 - **Do not change** the deployment target, supported platforms, signing, or add a remote package
   without being asked.
 
@@ -198,23 +201,28 @@ touches a view, layout, iOS 27 API or intent.
 
 **Keep the machine usable: one heavy thing at a time.** A booted simulator is about 260 processes, and a build plus a UI
 test per worker multiplies fast (2026-11-11: a full `./dev ui-test` beside four simulator workers drove the load average
-past 140; workers crawled for an hour or stalled, and audit tests fail with `-902` under that load).
-- A full `./dev ui-test` runs alone. While it runs, dispatch only work that needs no simulator (kit changes with
-  `./dev kit`, docs, read-only reviews); start simulator workers after `done:` appears in `.build/ui-test.progress`.
-- At most two simulator-using workers at once, each on its own pool simulator (`DEV_SIM=`), and never beside the full run.
+past 140; workers crawled for an hour or stalled, and audit tests fail with `-902` under that load). simkit's queue
+enforces the count (its `AGENTS.md`, "Rules" and "The loop"); what stays here is how to plan around it.
+- **Leases.** A simulator is used only under a lease. Every `./dev` call in a checkout shares one session lease (the session is
+  the git worktree root); the leased verbs (`build`, `run`, `pose`, `fold`, `orient`, `screenshot`, `home`, `duo`, `ui-env`, `probe`)
+  take it on first use, and simkit drops it after ten minutes with no verb. `./dev release` ends it at once: run it when
+  you are done with the simulator. `test`, `ui-test`, `tree`, `shot` and `poses` are whole jobs that use the session's lease
+  when one is held and otherwise take a lease of their own for the job. Workers do not pick a simulator.
+- **Exit 75 means wait**: no lease came within the wait. The `busy:`, `position:` and `holder:` lines say who is in the way.
+  Never retry it in a loop or override it. `./dev sims` (`sim status`) lists the slots, the leases and the queue; run it
+  and `uptime` before dispatching simulator workers.
+- A full `./dev ui-test` is the heaviest thing (`simkit.json` gives it three workers, so it holds three simulators) and runs
+  alone. While it runs, dispatch only work that needs no simulator (kit changes with `./dev kit`, docs, read-only reviews);
+  start simulator workers after `./dev ui-status` reports it finished.
+- At most two simulator-using workers at once, and never beside the full run.
 - Order a batch so kit and docs work goes first and simulator proofs come last, instead of starting everything at once.
 - A simulator boot is the heaviest minute (two workers booting and building at once took the load average to 160 on
-  2026-11-11). When the pool is shut down, start the second simulator worker a couple of minutes after the first, and do
-  not shut down a clone you will need again within the hour: the idle sweep does it after 30 minutes anyway.
-- Shut down simulators you booted outside the pool's idle sweep when you are done with them (`xcrun simctl shutdown <udid>`
-  for that one device, e.g. `iPhone Duo Health` after the Health gate or a clone used for Fitness captures); check with
-  `./dev sims` and `uptime` before dispatching.
+  2026-11-11). Start the second simulator worker a couple of minutes after the first; simkit spaces boots itself, and
+  a lease's end shuts its simulator down unless the next in the queue takes it over booted.
+- Shut down simulators you booted outside simkit's queue when you are done with them (`xcrun simctl shutdown <udid>`
+  for that one device, e.g. a clone used for Fitness captures); check with `./dev sims` and `uptime` before dispatching.
 - A worker is stopped after about 30 tool calls: size a brief for that (one change, named files, batched commands) and tell
   the worker to report before it runs out.
-- `dev` enforces the first two rules: a simulator command beside a full run, a full run beside a busy pool simulator, and a
-  third busy simulator (held, or used in the last two minutes) all exit 75 with a line naming who holds what. An exit 75
-  means wait, not retry or override; the overrides (`DEV_ALLOW_BESIDE_FULL_RUN=1`, `DEV_MAX_BUSY_SIMS`) are for a
-  deliberate exception Eric knows about. `./dev check` waits for the gate by itself, so a commit never needs an override.
 - A "flaky" line in a full run is a claim to check, not a pass: read the first failure in `./dev ui-flaky`. An app crash on
   the first attempt fails the run by itself; a timeout or an audit failure that recurs on the same test is a defect too.
 
@@ -242,15 +250,19 @@ same session, with the numbers, the cause, why the safeguard did not hold and wh
 
 After **every push to `main` that changes the app** (any fix, not only milestones; Eric, 2026-11-04: "we can update with
 far more frequency"), the orchestrator runs `./dev testflight --upload` in the background from the main checkout. The
-commit gate is unchanged: `./dev check` plus the UI suites the change touches; the full `./dev ui-test` (sharded over the pool, so wall time is roughly a third) still runs before
+commit gate is unchanged: `./dev check` plus the UI suites the change touches; the full `./dev ui-test` (a simkit job over
+the workers `simkit.json` sets, so wall time is roughly a third) still runs before
 a milestone (a PLAN task or a review's fix batch). Never from a worktree, never with uncommitted changes,
-never by workers. It takes no simulator lock (own DerivedData under `.build/testflight/`). Log each upload's build number
-and commit in `docs/testflight.md`. `--upload` is gated: it refuses unless a full unfiltered `./dev ui-test` passed on HEAD
-with a clean tree (`.build/ui-test.stamp`); `DEV_SKIP_UI_GATE=1` overrides with a warning. A failed upload is reported, not retried in a loop.
+never by workers. It takes no simulator lease (own DerivedData under `.build/testflight/`). Log each upload's build number
+and commit in `docs/testflight.md`. `--upload` is gated: it refuses unless the last full unfiltered `./dev ui-test` passed on HEAD
+with a clean tree, which it reads from `.build/simkit/test/WorkoutsUITests/result.json` (no filter, exit code 0, `commit` =
+HEAD, `clean` true; it prints the run's flaky list). `DEV_SKIP_UI_GATE=1` overrides with a warning. A failed upload is reported, not retried in a loop.
 **Upload sooner (Eric, 2026-11-07: "more frequent uploads so I can test the changes quicker"):** a fix needs only `./dev check` plus
 its touched UI suites green, then `DEV_SKIP_UI_GATE=1 ./dev testflight --upload` right away; do not hold an upload for a full
-run, and batch nothing just to save uploads. The full sharded run still gates milestones (a PLAN phase, a review round's batch)
+run, and batch nothing just to save uploads. The full run still gates milestones (a PLAN phase, a review round's batch)
 and runs in the background; the `docs/testflight.md` row says which gate it passed (`Gated (full …)` or `Touched suites: …`).
+The Health suite has its own gate: `.build/simkit/test/WorkoutsUITests-health/result.json` with exit code 0 and nothing
+skipped (`DEV_SKIP_HEALTH_GATE=1` overrides).
 
 ## Secrets
 

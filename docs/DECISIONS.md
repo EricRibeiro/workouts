@@ -170,14 +170,14 @@ Eric deferred the technical choices to Claude. These close every item in `docs/p
   schema, there is no fitness/exercise schema (WWDC26 lists messages, mail, photos), its third-party availability is still unclear,
   and App Intents here stay behind the Live Activity buttons. Revisit only if Apple ships a fitness schema.
 
-- **Duo poses are set by `Tools/duo` (private HID hinge event, verified by documented reads)** (Eric, 2026-11-05; formerly a
-  pinned third-party wrapper; `docs/plan-device-tool.md`). The simulator has no documented API to fold or rotate the Duo
-  (`devicectl device orientation set` is acknowledged and ignored), so `Tools/duo` (SwiftPM, no dependencies, Swift) sends the vendor
-  HID event Xcode's Device Hub sends, from a small helper compiled for the simulator and run with `simctl spawn`. The private pieces
-  are only that event and CoreMotion's `CMAngleManager` hinge read; every pose is then proved with documented reads
-  (`devicectl` orientation and display table, the lit panel) so an Xcode change fails loudly as "pose not reached" instead of
-  producing a wrong screenshot. Stateless, so `./dev`'s per-simulator lock is the only serialisation. The tool and the
-  Fold.m-derived parts carry the upstream MIT notice (`THIRD-PARTY-NOTICES.md`). `./dev check` runs its tests.
+- **Duo poses are set by simkit's pose code (private HID hinge event, verified by documented reads)** (Eric, 2026-11-05;
+  `docs/plan-device-tool.md`; the tool lives in `~/Projects/simkit`). The simulator has no documented API to fold or rotate the
+  Duo (`devicectl device orientation set` is acknowledged and ignored), so simkit sends the vendor HID event Xcode's Device Hub
+  sends, from a small helper compiled for the simulator and run with `simctl spawn`. The private pieces are only that event and
+  CoreMotion's `CMAngleManager` hinge read; every pose is then proved with documented reads (`devicectl` orientation and display
+  table, the lit panel) so an Xcode change fails loudly as "pose not reached" instead of producing a wrong screenshot. simkit's
+  lease and per-simulator turn are the serialisation, and its `THIRD-PARTY-NOTICES.md` carries the upstream MIT notice of the
+  Fold.m-derived parts. `./dev pose`, `fold`, `orient` and `poses` call it.
 
 ## Duo rules (distilled in `docs/port/duo-layout.md`, also `AGENTS.md`): size classes and the system's bars, never breakpoints or fixed widths.
 

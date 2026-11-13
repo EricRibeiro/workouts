@@ -1,5 +1,8 @@
 # Plan: our own Duo device tool (replacing `agent-device`)
 
+> The tool this plan describes lives in simkit now (`~/Projects/simkit`, its `Sources/`), where it is maintained and where `./dev`
+> reaches it through `sim`. This file stays as the plan of record: the findings and decisions below are what that tool was built on.
+
 Status: Phase A implemented in `Tools/duo` (2026-11-05) and wired into `./dev` (Phase B, B.4 is the orchestrator's commit). Original proposal: read-only investigation of `agent-device@0.21.36` (Callstack, MIT) plus what Xcode 27.2 /
 iOS 27.2 offer natively. Nothing in the repo changed besides this file. Source read from `npm pack` into the session
 scratchpad (`agent-device-src/package/…` paths below refer to that extraction; the same files are on GitHub at
