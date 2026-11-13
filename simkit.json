@@ -1,0 +1,21 @@
+{
+  "project": "workouts",
+  "native": {
+    "scheme": "Workouts",
+    "app": "com.ericribeiro.Workouts",
+    "container": "Workouts.xcodeproj",
+    "own_processes": ["Workouts", "WorkoutsLiveActivity"],
+    "tests": {
+      "WorkoutsTests": {
+        "retry": 0
+      },
+      "WorkoutsUITests": {
+        "workers": 3,
+        "allowance_sec": 240,
+        "retry": 1,
+        "expected_skips": 21,
+        "piece_timeout_sec": 1200
+      }
+    }
+  }
+}
