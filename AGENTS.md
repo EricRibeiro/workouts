@@ -85,7 +85,7 @@ DEV_POSE=open-wide ./dev ui-test OpenPoseUITests   a filtered ui-test with the D
 ./dev ui-env [content_size <size>] [appearance light|dark] | reset   text size / appearance of THIS checkout's sim (no args = print; reset = large/light). The app is
                         always dark whatever the sim says; `appearance` only changes the system surfaces around it.
                         test, ui-test and tree reset it to large/light first: re-apply before `./dev shot`
-./dev home [p]          Home screen (the app keeps running); ./dev duo <verb> = Tools/duo pass-through (panels, hinge [--app = the app's own status, launch with `-- -logHinge`], settle, screenshot)
+./dev home [p]          Home screen (the app keeps running); ./dev duo <verb> = duo pass-through (simkit's tool when installed, else Tools/duo; DEV_DUO_LOCAL=1 forces Tools/duo) (panels, hinge [--app = the app's own status, launch with `-- -logHinge`], settle, screenshot)
 ./dev duo-test          swift test for Tools/duo (~1s; part of check)
 ./dev check             lint → kit → duo-test → build → test; the pre-commit gate (~30s warm)
 ./dev sims [--prune]    create missing simulator clones and list the pool (who holds which lock, which is yours); read-only otherwise.

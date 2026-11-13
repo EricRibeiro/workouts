@@ -23,7 +23,20 @@ UI_PROGRESS_DIR=".build/ui-test.progress.d" # per-shard state behind it, plus pi
 KIT="Packages/WorkoutsKit"
 LINT_PATHS=(Workouts WorkoutsLiveActivity Shared WorkoutsTests WorkoutsUITests Packages Tools/duo)
 DUO_SPM=".build/duo/spm"
-DUO_BIN="$DUO_SPM/release/duo"
+# simkit's duo tool when it is installed (decided once, here, so the EXIT trap in ui_pose_restore sees the same DUO_BIN);
+# DEV_DUO_LOCAL=1 or a missing simkit keeps Tools/duo.
+SIMKIT_HOME="${SIMKIT_HOME:-$HOME/Projects/simkit}"
+duo_use_simkit() { [[ "${3:-}" != 1 && -x "$1/bin/sim" && -f "$1/duo/Package.swift" ]] && echo 1 || echo 0; } # <simkit home> _ <DEV_DUO_LOCAL>: 1 when simkit's tool is used
+duo_needs_subsystem() { # <simkit 0|1> <duo args...>: 0 when `hinge --app` still lacks the --subsystem simkit's tool requires
+  local simkit="$1" a hinge=0 app=0; shift
+  [[ "$simkit" == 1 ]] || return 1
+  for a in "$@"; do
+    case "$a" in hinge) hinge=1 ;; --app) app=1 ;; --subsystem | --subsystem=*) return 1 ;; esac
+  done
+  ((hinge && app))
+}
+DUO_SIMKIT=$(duo_use_simkit "$SIMKIT_HOME" "" "${DEV_DUO_LOCAL:-}")
+if [[ "$DUO_SIMKIT" == 1 ]]; then DUO_BIN="$SIMKIT_HOME/.build/duo/spm/release/duo"; else DUO_BIN="$DUO_SPM/release/duo"; fi
 NOISE='IDERunDestination|IDESchemeActionDeviceRecord|IDETestOperationsObserverDebug'
 MAX_LINES=80
 
@@ -1540,6 +1553,10 @@ sim_guarded() { # sim_guarded <cmd> [args...]
 # See docs/plan-device-tool.md. SwiftPM keeps its own scratch-path lock, so concurrent builds are safe.
 sim_require_booted() { [[ "$(xcrun simctl list devices booted)" == *"$SIM_UDID"* ]] || die "$SIM_NAME is not booted; ./dev run first"; }
 duo_bin() { # build Tools/duo in release mode unless the binary is newer than every source file under it
+  if [[ "$DUO_SIMKIT" == 1 ]]; then # simkit builds its own tool (and says why on failure)
+    "$SIMKIT_HOME/bin/sim" duo-bin >/dev/null || die "simkit's duo tool failed to build (DEV_DUO_LOCAL=1 uses Tools/duo instead)"
+    return 0
+  fi
   if [[ -x "$DUO_BIN" ]] && [[ -z "$(find Tools/duo -name .build -prune -o -type f -newer "$DUO_BIN" -print -quit)" ]]; then
     return 0
   fi
@@ -1620,6 +1637,7 @@ cmd_duo() { # pass-through to the tool; adds --udid for the verbs that act on a 
       ((has_udid == 0)) || die "pass the simulator as DEV_SIM_UDID=<udid> ./dev duo ..., not --udid (the lock and crash guard follow DEV_SIM/DEV_SIM_UDID)"
       sim_require_booted; args+=(--udid "$SIM_UDID") ;;
   esac
+  if duo_needs_subsystem "$DUO_SIMKIT" "$@"; then args+=(--subsystem "$BUNDLE_ID"); fi
   "$DUO_BIN" ${args[@]+"${args[@]}"}
 }
 cmd_duo_test() { # Tools/duo's own tests (host-only, sub-second); quiet on success with one totals line
@@ -2036,6 +2054,26 @@ cmd_selftest() {
   UI_FLAKY_LOG="$p" st_run cmd_ui_flaky --since x; st_rc "ui-flaky --since x" 1
   : >"$ST_DIR/empty.log"
   UI_FLAKY_LOG="$ST_DIR/empty.log" st_run cmd_ui_flaky; st_out_has "ui-flaky empty log" "no flaky tests logged"
+
+  # duo tool choice: simkit's when installed and not opted out; --subsystem only for `hinge --app` with simkit's tool.
+  p="$ST_DIR/simkit"; mkdir -p "$p/bin" "$p/duo"
+  st_eq "duo_use_simkit without bin/sim" 0 "$(duo_use_simkit "$p" "" "")"
+  : >"$p/bin/sim"; : >"$p/duo/Package.swift"
+  st_eq "duo_use_simkit with a non-executable bin/sim" 0 "$(duo_use_simkit "$p" "" "")"
+  chmod +x "$p/bin/sim"
+  st_eq "duo_use_simkit installed" 1 "$(duo_use_simkit "$p" "" "")"
+  st_eq "duo_use_simkit DEV_DUO_LOCAL=1" 0 "$(duo_use_simkit "$p" "" 1)"
+  st_eq "duo_use_simkit DEV_DUO_LOCAL=0" 1 "$(duo_use_simkit "$p" "" 0)"
+  rm "$p/duo/Package.swift"
+  st_eq "duo_use_simkit without duo/Package.swift" 0 "$(duo_use_simkit "$p" "" "")"
+  st_eq "duo_use_simkit missing home" 0 "$(duo_use_simkit "$ST_DIR/none" "" "")"
+  st_run duo_needs_subsystem 1 hinge --app; st_rc "duo_needs_subsystem hinge --app" 0
+  st_run duo_needs_subsystem 1 hinge --app --udid X; st_rc "duo_needs_subsystem hinge --app --udid" 0
+  st_run duo_needs_subsystem 0 hinge --app; st_rc "duo_needs_subsystem with Tools/duo" 1
+  st_run duo_needs_subsystem 1 hinge; st_rc "duo_needs_subsystem plain hinge" 1
+  st_run duo_needs_subsystem 1 panels --app; st_rc "duo_needs_subsystem other verb" 1
+  st_run duo_needs_subsystem 1 hinge --app --subsystem x.y; st_rc "duo_needs_subsystem already given" 1
+  st_run duo_needs_subsystem 1 hinge --app --subsystem=x.y; st_rc "duo_needs_subsystem already given with =" 1
 
   # Stamps: key lookup, the Health stamp written only by a run that skipped nothing, the unit-test coverage line.
   p="$ST_DIR/stamp"
@@ -2464,8 +2502,8 @@ pose <name> [png]  Duo layout in one verified step: closed-portrait|closed-lands
                    the png is a settled capture (two identical consecutive captures, 10 s timeout)
 poses <dir> [-- args]  run (install + launch with args) then all four poses as settled PNGs <dir>/closed-portrait.png … open-tall.png,
                    under one simulator lock with the status bar pinned; always ends closed-portrait, also after a failure midway
-duo <verb> [args]  Tools/duo pass-through (panels, hinge, settle [--timeout s], screenshot [--display lit|outer|inner] [--settle | --burst [CxMS]], fold <degrees>, guest-build,
-                   --help); adds --udid for this checkout's simulator when the verb needs one; built into .build/duo/spm
+duo <verb> [args]  duo pass-through (simkit's tool from $SIMKIT_HOME, default ~/Projects/simkit, when it is installed; DEV_DUO_LOCAL=1 uses Tools/duo; `hinge --app` gets --subsystem) (panels, hinge, settle [--timeout s], screenshot [--display lit|outer|inner] [--settle | --burst [CxMS]], fold <degrees>, guest-build,
+                   --help); adds --udid for this checkout's simulator when the verb needs one; Tools/duo is built into .build/duo/spm
 duo-test           swift test for Tools/duo (host-only, ~1s); also part of check
 testflight [--upload]  signed App Store archive + export to .build/testflight/export (no upload unless --upload;
                    --upload refuses unless a full ./dev ui-test passed on HEAD with a clean tree, DEV_SKIP_UI_GATE=1 skips, and unless
