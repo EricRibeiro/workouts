@@ -14,7 +14,14 @@
         "allowance_sec": 240,
         "retry": 1,
         "expected_skips": 21,
-        "piece_timeout_sec": 1200
+        "piece_timeout_sec": 1200,
+        "suites": {
+          "HealthKitIntegrationUITests": {
+            "simulator": "iPhone Duo Health",
+            "environment": { "HEALTH_INTEGRATION": "1" },
+            "expected_skips": 0
+          }
+        }
       }
     }
   }

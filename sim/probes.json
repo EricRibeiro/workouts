@@ -1,0 +1,30 @@
+{
+  "name": "Workouts on the closed Duo: what the screen shows, read from pixels",
+  "questions": [
+    {
+      "id": "workout-tab-background",
+      "question": "Is the Workout tab's background, between the large title and the empty state, flat black (the app is dark-only)?",
+      "in": "screen",
+      "pose": "closed-portrait",
+      "steps": [
+        {
+          "wait": 1000
+        },
+        {
+          "pixels": {
+            "background": {
+              "box": [
+                20,
+                90,
+                300,
+                120
+              ],
+              "read": "colors"
+            }
+          }
+        }
+      ],
+      "expect": "{\"background\":{\"distinct\":1,\"rows\":1,\"top\":[{\"color\":\"#000000\",\"share\":1.0}]}}"
+    }
+  ]
+}
