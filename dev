@@ -1,420 +1,34 @@
 #!/usr/bin/env bash
 # Single entry point for building, testing, and running Workouts. Quiet on success, focused on failure.
+# Every simulator verb runs through simkit's `sim` CLI (see "sim_lease" and the verbs below); the rest is plain bash.
 set -euo pipefail
 
 cd "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-SCHEME="Workouts"
 BUNDLE_ID="com.ericribeiro.Workouts"
-DERIVED=".build/DerivedData"
-RESULTS=".build/results"
 LOGS=".build/logs"
-UI_STAMP=".build/ui-test.stamp"
-TEST_STAMP=".build/test.stamp"             # commit, clean tree?, time of the last passing unfiltered ./dev test (./dev coverage prints it)
-HEALTH_STAMP=".build/health-test.stamp"    # commit and time of the last HealthKitIntegrationUITests pass with nothing skipped (the testflight --upload gate)
-# What the real-Health pass vouches for: a change to any of these since the stamped commit needs a new pass before an upload.
+UI_RESULT=".build/simkit/test/WorkoutsUITests/result.json"           # the full ui-test's result, read by the testflight --upload gate
+HEALTH_RESULT=".build/simkit/test/WorkoutsUITests-health/result.json" # the real-Health run's result, read by the Health gate
+# What the real-Health pass vouches for: a change to any of these since that run's commit needs a new pass before an upload.
 HEALTH_PATHS=(Workouts/Features/Health Packages/WorkoutsKit/Sources/WorkoutsKit/Health Workouts/Workouts.entitlements WorkoutsUITests/HealthKitIntegrationUITests.swift)
-HEALTH_SIM="iPhone Duo Health"             # a clone outside the pool that keeps its Health authorization between runs
-UI_EXPECTED_SKIPS="${DEV_UI_EXPECTED_SKIPS:-21}" # an unfiltered ui-test skips PerfDriver 3, HealthKitIntegration 1, TreeDump 1, OpenPose 9, Evidence 7
-# A stalled UI test fails (with a spindump) after this many seconds instead of silently eating a shard; DEV_UI_TEST_ALLOWANCE overrides.
-ui_timeout_args() { echo -test-timeouts-enabled YES -default-test-execution-time-allowance "${DEV_UI_TEST_ALLOWANCE:-240}"; }
-UI_PROGRESS=".build/ui-test.progress"   # one line per shard while ./dev ui-test runs, then a final "done:" line (./dev ui-status)
-UI_PROGRESS_DIR=".build/ui-test.progress.d" # per-shard state behind it, plus pid (the writer, for ui-status) and failed (append-only)
 KIT="Packages/WorkoutsKit"
-LINT_PATHS=(Workouts WorkoutsLiveActivity Shared WorkoutsTests WorkoutsUITests Packages Tools/duo)
-DUO_SPM=".build/duo/spm"
+LINT_PATHS=(Workouts WorkoutsLiveActivity Shared WorkoutsTests WorkoutsUITests Packages)
 NOISE='IDERunDestination|IDESchemeActionDeviceRecord|IDETestOperationsObserverDebug'
 MAX_LINES=80
+SIM="${SIMKIT_HOME:-$HOME/Projects/simkit}/bin/sim"
 
 die() { echo "dev: $*" >&2; exit 1; }
 
-# The simulator code (pool, lock, crash guard, Duo poses) comes from simkit's shared library when it is installed; the copy in
-# this file is the fallback (DEV_SIM_LOCAL=1 or no library at $SIMKIT_HOME/lib/sim.sh) and is deleted in a later step.
-SIMKIT_HOME="${SIMKIT_HOME:-$HOME/Projects/simkit}"
-duo_use_simkit() { [[ "${3:-}" != 1 && -x "$1/bin/sim" && -f "$1/duo/Package.swift" ]] && echo 1 || echo 0; } # <simkit home> _ <DEV_DUO_LOCAL>: 1 when simkit's tool is used
-duo_needs_subsystem() { # <simkit 0|1> <duo args...>: 0 when `hinge --app` still lacks the --subsystem simkit's tool requires
-  local simkit="$1" a hinge=0 app=0; shift
-  [[ "$simkit" == 1 ]] || return 1
-  for a in "$@"; do
-    case "$a" in hinge) hinge=1 ;; --app) app=1 ;; --subsystem | --subsystem=*) return 1 ;; esac
-  done
-  ((hinge && app))
+# simkit passes its exit code on unchanged (75 = the queue says wait; never retried here).
+sim() {
+  [[ -x "$SIM" ]] || die "simkit's sim is not at $SIM (SIMKIT_HOME names the simkit checkout)"
+  "$SIM" "$@"
 }
-if [[ "${DEV_SIM_LOCAL:-}" != 1 && -r "$SIMKIT_HOME/lib/sim.sh" ]]; then
-  SIM_TOOL=dev SIM_CMD=./dev SIM_BOOT_HINT="./dev run first" SIM_APP_ID="$BUNDLE_ID" SIM_FATAL_APPS="Workouts WorkoutsLiveActivity"
-  # shellcheck source=/dev/null
-  source "$SIMKIT_HOME/lib/sim.sh"
-  sim_release_hook() { ui_pose_restore; }
-  SIM_SHARED=1
-else
-  SIM_SHARED=0
-fi
-# The fallback uses simkit's duo tool when only the library is missing, decided once here so the EXIT trap in ui_pose_restore
-# sees the same DUO_BIN; DEV_DUO_LOCAL=1 or no simkit keeps Tools/duo.
-if [[ "$SIM_SHARED" != 1 ]]; then
-DUO_SIMKIT=$(duo_use_simkit "$SIMKIT_HOME" "" "${DEV_DUO_LOCAL:-}")
-if [[ "$DUO_SIMKIT" == 1 ]]; then DUO_BIN="$SIMKIT_HOME/.build/duo/spm/release/duo"; else DUO_BIN="$DUO_SPM/release/duo"; fi
-fi
-
-if [[ "$SIM_SHARED" != 1 ]]; then
-# Simulator pool. The original "iPhone Duo" plus clones "iPhone Duo 2".."iPhone Duo $DEV_SIM_POOL" (made by `./dev sims`),
-# so parallel agents each get their own simulator instead of queueing on one. Every simulator has its own lock; a checkout
-# remembers its simulator in .build/dev-sim-udid, so run -> screenshot -> fold hit one device and its fold pose sticks.
-# DEV_SIM (name) or DEV_SIM_UDID override the assignment. Every simctl/xcodebuild call targets $SIM_UDID, never `booted`.
-SIM_ORIGINAL="iPhone Duo"
-SIM_POOL="${DEV_SIM_POOL:-5}"
-CACHE_DIR="$HOME/Library/Caches"
-SIM_CLAIM=".build/dev-sim-udid"
-SIM_CLAIM_MAX_AGE_MIN=1440 # another checkout's claim counts for a day after it last used the simulator
-SIM_IDLE_MIN="${DEV_SIM_IDLE_MIN:-30}"       # a booted pool simulator nobody has used for this long is shut down (0 = never)
-SIM_POSTER_MAX="${DEV_SIM_POSTER_MAX:-1000}" # `./dev sims` erases a clone with more PosterKit temp entries than this
-SIM_TABLE=""               # tab-separated name, udid, state of every available simulator
-SIM_UDID=""
-SIM_NAME=""
-COLD_BOOT=0
-
-sim_table_load() { SIM_TABLE=$(xcrun simctl list devices available -j | jq -r '.devices[][] | [.name, .udid, .state] | @tsv'); }
-# The lookups read SIM_TABLE, so load it in the main shell first (sim_resolve and cmd_sims do).
-sim_udid_by_name() { awk -F'\t' -v n="$1" '$1 == n { print $2; exit }' <<<"$SIM_TABLE"; }
-sim_name_by_udid() { awk -F'\t' -v u="$1" '$2 == u { print $1; exit }' <<<"$SIM_TABLE"; }
-sim_state_by_udid() { awk -F'\t' -v u="$1" '$2 == u { print $3; exit }' <<<"$SIM_TABLE"; }
-sim_pool_names() {
-  local i
-  for ((i = 1; i <= SIM_POOL; i++)); do
-    if ((i == 1)); then echo "$SIM_ORIGINAL"; else echo "$SIM_ORIGINAL $i"; fi
-  done
+# The session lease (the git worktree) for a verb that works on the simulator over several calls; idempotent.
+sim_lease() {
+  [[ -x "$SIM" ]] || die "simkit's sim is not at $SIM (SIMKIT_HOME names the simkit checkout)"
+  "$SIM" lease acquire >/dev/null || exit $?
 }
-
-# Simulators dev never erases on its own (sim_heal, sims --prune): ones that must keep state, e.g. one signed into the test
-# iCloud account (iPhone Duo 2) or one whose Health authorization is granted (iPhone Duo Health). DEV_SIM_KEEP, comma-separated names.
-sim_keep_list() { printf '%s' "${DEV_SIM_KEEP-iPhone Duo 2,iPhone Duo Health}"; }
-keep_match() { # keep_match <name> <comma-separated list>: exact name, blanks around the commas ignored
-  local item name="$1" IFS=,
-  for item in $2; do
-    item="${item#"${item%%[![:space:]]*}"}"; item="${item%"${item##*[![:space:]]}"}"
-    [[ -n "$item" && "$item" == "$name" ]] && return 0
-  done
-  return 1
-}
-sim_kept() { # sim_kept <udid>: its name is in DEV_SIM_KEEP; prints the warning and succeeds
-  local name; name=$(sim_name_by_udid "$1")
-  keep_match "$name" "$(sim_keep_list)" || return 1
-  echo "dev: $name is in DEV_SIM_KEEP; not erasing it" >&2
-}
-
-# The original keeps the pre-pool lock path, so an older `dev` in another checkout still excludes correctly.
-sim_lock_path() { # sim_lock_path <udid>
-  if [[ -n "$1" && "$1" == "$(sim_udid_by_name "$SIM_ORIGINAL")" ]]; then
-    echo "$CACHE_DIR/workouts-dev-sim.lock"
-  else
-    echo "$CACHE_DIR/workouts-dev-sim.$1.lock"
-  fi
-}
-sim_lock_holder() { # live holder pid of a simulator's lock, else "-"
-  local owner; owner=$(cat "$(sim_lock_path "$1")/pid" 2>/dev/null || true)
-  if [[ -n "$owner" ]] && kill -0 "$owner" 2>/dev/null; then echo "$owner"; else echo "-"; fi
-}
-sim_lock_free() { # free = no lock directory, or its owner is dead
-  [[ ! -d "$(sim_lock_path "$1")" ]] && return 0
-  [[ "$(sim_lock_holder "$1")" == "-" ]] && [[ -n "$(cat "$(sim_lock_path "$1")/pid" 2>/dev/null || true)" ]]
-}
-
-# A machine-wide marker while an unfiltered `./dev ui-test` runs (three shards on pool sims for ~25 min): every other simulator
-# command refuses with exit 75 until it ends, because worker builds and simulators beside it overload the machine (see
-# docs/incidents/2026-11-11-machine-overload.md). mkdir is the atomic claim; the directory holds checkout, started (epoch),
-# shards (a pgrep pattern for the run's shard xcodebuilds) and, written last, pid. Live = the shard processes exist (even when
-# the claiming pid is gone: a killed shell must not open the gates under running shards), or the claiming pid is alive and the
-# marker is younger than DEV_FULL_RUN_MAX_MIN (default 90, 0 = no limit; guards against pid reuse after SIGKILL or power loss).
-# Anything else is stale and the next command that looks removes it (full_run_reclaim). DEV_ALLOW_BESIDE_FULL_RUN=1 overrides.
-FULL_RUN_DIR="$CACHE_DIR/workouts-dev-full-ui.lock"
-pid_alive() { kill -0 "$1" 2>/dev/null; }                                    # selftest stubs these three
-pid_parent() { ps -o ppid= -p "$1" 2>/dev/null | tr -d ' ' || true; }
-procs_match() { pgrep -f -- "$1" >/dev/null 2>&1; }                          # any process whose command line matches the pattern
-pid_is_self_or_ancestor() { # pid_is_self_or_ancestor <pid>: this shell or one of its ancestors
-  local p=$$ n=0
-  while [[ -n "$p" && "$p" != 0 && "$p" != 1 ]] && ((n++ < 64)); do
-    [[ "$p" == "$1" ]] && return 0
-    p=$(pid_parent "$p")
-  done
-  return 1
-}
-full_run_shards_alive() { # full_run_shards_alive <dir>: the marker's shard processes still exist
-  local pat; pat=$(cat "$1/shards" 2>/dev/null || true)
-  if [[ -n "$pat" ]] && procs_match "$pat"; then return 0; fi
-  return 1
-}
-full_run_expired() { # full_run_expired <dir> <now>: started more than DEV_FULL_RUN_MAX_MIN minutes ago
-  local max="${DEV_FULL_RUN_MAX_MIN:-90}" started
-  [[ "$max" =~ ^[0-9]+$ ]] || max=90
-  ((max > 0)) || return 1
-  started=$(cat "$1/started" 2>/dev/null || true)
-  [[ "$started" =~ ^[0-9]+$ ]] || return 1
-  (($2 - started > max * 60))
-}
-full_run_judge() { # full_run_judge <dir> <now>: "none", "stale" or "live<TAB>pid<TAB>checkout<TAB>started"; changes nothing
-  [[ -d "$1" ]] || { echo none; return 0; }
-  local pid; pid=$(cat "$1/pid" 2>/dev/null || true)
-  if [[ -z "$pid" ]]; then # being claimed right now (mkdir done, pid not yet written), unless it has sat that way
-    if (($2 - $(stat -f %m "$1" 2>/dev/null || echo 0) < 10)); then printf 'live\t-\t?\t%s\n' "$2"; else echo stale; fi
-    return 0
-  fi
-  if full_run_shards_alive "$1" || { pid_alive "$pid" && ! full_run_expired "$1" "$2"; }; then
-    printf 'live\t%s\t%s\t%s\n' "$pid" "$(cat "$1/checkout" 2>/dev/null || echo '?')" "$(cat "$1/started" 2>/dev/null || echo "$2")"
-  else
-    echo stale
-  fi
-}
-# Remove a stale marker. A plain `rm -rf` races: a command that judged the old marker stale could delete the one a new full
-# run has created since. Same technique as sim_reclaim: mv is atomic, so one command wins the directory, judges what it
-# actually moved and puts it back when that is live (the judgement needs the shards pattern, so sim_reclaim does not fit).
-full_run_reclaim() { # full_run_reclaim <dir> <now>
-  local dead="$1.dead.$$"
-  mv "$1" "$dead" 2>/dev/null || return 0
-  if [[ "$(full_run_judge "$dead" "$2")" == live* ]] && [[ ! -e "$1" ]]; then mv -n "$dead" "$1" 2>/dev/null || true; fi
-  rm -rf "$dead"
-}
-full_run_state() { # full_run_state <dir> <now>: "none", or "live<TAB>pid<TAB>checkout<TAB>started"; clears a stale marker
-  local j; j=$(full_run_judge "$1" "$2")
-  if [[ "$j" == stale ]]; then
-    full_run_reclaim "$1" "$2"
-    j=$(full_run_judge "$1" "$2") # a live marker put back, or a new claim, beats "none"
-    [[ "$j" == live* ]] || j=none
-  fi
-  echo "$j"
-}
-full_run_verdict() { # full_run_verdict <dir> <now>: succeeds silently, or prints why not and returns 75
-  [[ -z "${DEV_ALLOW_BESIDE_FULL_RUN:-}" ]] || return 0
-  local st pid checkout started
-  st=$(full_run_state "$1" "$2")
-  [[ "$st" == live* ]] || return 0
-  IFS=$'\t' read -r _ pid checkout started <<<"$st"
-  pid_is_self_or_ancestor "$pid" && return 0
-  [[ "$started" =~ ^[0-9]+$ ]] || started=$2
-  echo "dev: a full ./dev ui-test is running (pid $pid, $checkout, $((($2 - started) / 60)) min so far): simulator commands wait until it finishes. ./dev ui-status shows its progress; DEV_ALLOW_BESIDE_FULL_RUN=1 overrides."
-  return 75
-}
-full_run_gate() { full_run_verdict "$FULL_RUN_DIR" "$(date +%s)" >&2 || exit $?; } # for a command that uses a simulator
-full_run_claim() { # full_run_claim <dir> <now> <checkout> [shard-pattern]: the unfiltered ui-test takes the marker; 75 when another full run holds it
-  if ! mkdir "$1" 2>/dev/null; then
-    full_run_state "$1" "$2" >/dev/null # a stale marker goes away here
-    mkdir "$1" 2>/dev/null || { full_run_verdict "$1" "$2" >&2 || return $?; return 0; } # held by an ancestor, or overridden: run without it
-  fi
-  echo "$3" >"$1/checkout"; echo "$2" >"$1/started"; echo "${4:-}" >"$1/shards"
-  echo $$ >"$1/pid" # last: a marker with a pid is complete
-}
-full_run_release() { # only the process that claimed it removes it (sim_release, the lock's EXIT trap, calls this too)
-  if [[ "$(cat "$FULL_RUN_DIR/pid" 2>/dev/null || true)" == "$$" ]]; then rm -rf "${FULL_RUN_DIR:?}"; fi
-  return 0
-}
-full_run_kill_shards() { # this shell's full run: stop the shard xcodebuilds named in its marker (no-op for anyone else's marker)
-  [[ "$(cat "$FULL_RUN_DIR/pid" 2>/dev/null || true)" == "$$" ]] || return 0
-  local pat; pat=$(cat "$FULL_RUN_DIR/shards" 2>/dev/null || true)
-  [[ -z "$pat" ]] || pkill -TERM -f -- "$pat" 2>/dev/null || true
-  return 0
-}
-full_run_line() { # full_run_line <dir> <now>: one line about a live full run (who, since when), nothing when there is none
-  local st pid checkout started
-  st=$(full_run_state "$1" "$2")
-  [[ "$st" == live* ]] || return 0
-  IFS=$'\t' read -r _ pid checkout started <<<"$st"
-  [[ "$started" =~ ^[0-9]+$ ]] || started=$2
-  echo "full ui-test running: pid $pid, $checkout, since $(date -r "$started" +%H:%M) ($((($2 - started) / 60)) min)"
-}
-
-# Busy simulators: pool simulators whose lock is held by a live process other than this one (or an ancestor, whose locks
-# are ours too), and, for the cap, ones used within the last DEV_BUSY_WINDOW_SEC (default 120) seconds. A lock lasts one
-# command, so counting holders alone let five workers interleaving short commands each see fewer than two busy. Lines are
-# "<name><TAB><pid>" for a holder and "<name><TAB>ago:<seconds>" for a recent use. An unfiltered ui-test must start alone
-# (holders only); any other simulator command refuses when DEV_MAX_BUSY_SIMS (default 2, 0 = off) are already busy. A full
-# run's own shards are held by its own pid: not counted.
-sim_busy_lines() { # every pool simulator held by a live process
-  local name udid holder
-  while IFS= read -r name; do
-    udid=$(sim_udid_by_name "$name"); [[ -n "$udid" ]] || continue
-    holder=$(sim_lock_holder "$udid"); [[ "$holder" != "-" ]] || continue
-    printf '%s\t%s\n' "$name" "$holder"
-  done < <(sim_pool_names)
-}
-# The last user's pid goes into the stamp file (its mtime is the time), so a simulator an ancestor just used is not "recent".
-# A stamp written by pool housekeeping (idle sweep, heal/erase) holds the word "sweep" instead of a pid: the idle reaper still
-# reads its time, but it never counts toward the busy cap (a simulator dev itself just turned off is not in use).
-sim_stamp() { # sim_stamp <udid> [sweep]: used just now, by this shell (or by housekeeping); never writes for an empty udid
-  local path; [[ -n "$1" ]] || return 0
-  path=$(sim_stamp_path "$1") || return 0
-  echo "${2:-$$}" >"$path" 2>/dev/null || true
-}
-sim_recent_rows() { # one "<name><TAB><udid><TAB><seconds since last use><TAB><last user pid|sweep|->" per pool simulator that has a stamp or lock
-  local name udid f m newest now; now=$(date +%s)
-  while IFS= read -r name; do
-    udid=$(sim_udid_by_name "$name"); [[ -n "$udid" ]] || continue
-    newest=0
-    for f in "$(sim_lock_path "$udid")" "$(sim_stamp_path "$udid")"; do
-      m=$(stat -f %m "$f" 2>/dev/null || echo 0); ((m > newest)) && newest=$m
-    done
-    ((newest > 0)) || continue
-    printf '%s\t%s\t%s\t%s\n' "$name" "$udid" "$((now - newest))" "$(cat "$(sim_stamp_path "$udid")" 2>/dev/null | head -n1 | grep -E '^([0-9]+|sweep)$' || echo -)"
-  done < <(sim_pool_names)
-}
-sim_recent_lines() { # sim_recent_lines <window-sec> <own-udid> <rows>: "<name><TAB>ago:<sec>" for each row used within the window by someone else
-  local window="$1" own="$2" name udid age pid
-  [[ "$window" =~ ^[0-9]+$ ]] || window=120
-  while IFS=$'\t' read -r name udid age pid; do
-    [[ -n "$name" && "$udid" != "$own" && "$age" =~ ^[0-9]+$ ]] || continue
-    ((age < window)) || continue
-    [[ "$pid" != sweep ]] || continue # housekeeping, not use
-    [[ "$pid" =~ ^[0-9]+$ ]] && pid_is_self_or_ancestor "$pid" && continue
-    printf '%s\tago:%s\n' "$name" "$age"
-  done <<<"$3"
-}
-sim_cap_lines() { # held now, plus used recently (a simulator held now is listed once, as held; this command's own is left out)
-  { sim_busy_lines; sim_recent_lines "${DEV_BUSY_WINDOW_SEC:-120}" "$SIM_UDID" "$(sim_recent_rows)"; } | awk -F'\t' '!seen[$1]++'
-}
-sim_busy_others() { # sim_busy_others <lines>: drops the ones held by this shell or an ancestor
-  local name pid
-  while IFS=$'\t' read -r name pid; do
-    [[ -n "$name" ]] || continue
-    [[ "$pid" == ago:* ]] || ! pid_is_self_or_ancestor "$pid" || continue
-    printf '%s\t%s\n' "$name" "$pid"
-  done <<<"$1"
-}
-sim_busy_names() { # sim_busy_names <lines>: "iPhone Duo (pid 12), iPhone Duo 3 (used 40s ago)"
-  awk -F'\t' '{ d = ($2 ~ /^ago:/) ? "used " substr($2, 5) "s ago" : "pid " $2; printf "%s%s (%s)", (NR > 1 ? ", " : ""), $1, d }' <<<"$1"
-}
-busy_sims_verdict() { # busy_sims_verdict <max> <lines>: succeeds silently, or prints why not and returns 75
-  local max="$1" others n
-  [[ "$max" =~ ^[0-9]+$ ]] || max=2
-  ((max > 0)) || return 0
-  others=$(sim_busy_others "$2")
-  n=$(grep -c . <<<"$others" || true)
-  ((n >= max)) || return 0
-  local win="${DEV_BUSY_WINDOW_SEC:-120}"
-  [[ "$win" =~ ^[0-9]+$ ]] || win=120
-  if ((win % 60 == 0)); then win="$((win / 60)) min"; else win="${win}s"; fi
-  echo "dev: $n simulators are busy or used in the last $win: $(sim_busy_names "$others"). At most $max at once, or the machine overloads (docs/incidents/2026-11-11-machine-overload.md): wait for one to finish. DEV_MAX_BUSY_SIMS=0 turns this off; DEV_BUSY_WINDOW_SEC (120) sets the window."
-  return 75
-}
-full_run_alone_verdict() { # full_run_alone_verdict <lines>: a full run starts with no other simulator busy
-  [[ -z "${DEV_ALLOW_BESIDE_FULL_RUN:-}" ]] || return 0
-  local others; others=$(sim_busy_others "$1")
-  [[ -n "$others" ]] || return 0
-  echo "dev: a full ./dev ui-test needs the machine to itself (three shards for ~25 min), but these simulators are busy: $(sim_busy_names "$others"). Wait for them to finish; DEV_ALLOW_BESIDE_FULL_RUN=1 overrides."
-  return 75
-}
-
-# Waiting for a gate. By default a gate refuses (exit 75) so a worker fails fast; `check` instead waits for it, because its
-# first steps need no simulator and a commit should not be lost to a 25-minute full run. DEV_GATE_WAIT_SEC (default 1800 for
-# check, 0 for every other command; an explicit value applies to any gated command) is the budget, DEV_GATE_POLL_SEC (20) the
-# interval. GATE_WAITED is the seconds spent so far in this process, so a second wait (the recheck after the lock) shares it.
-GATE_WAITED=0
-GATE_ANNOUNCED=0
-gate_sleep() { sleep "$1"; } # a function so the selftest can stub it
-gate_wait_limit() { # gate_wait_limit <default-sec>: the budget in seconds
-  local v="${DEV_GATE_WAIT_SEC-$1}"
-  [[ "$v" =~ ^[0-9]+$ ]] || v="$1"
-  echo "$v"
-}
-gate_step() { # gate_step <label> <limit-sec> <why>: one waiting step, or print why and return 75 when the budget is spent
-  local label="$1" limit="$2" why="$3" step="${DEV_GATE_POLL_SEC:-20}" left
-  [[ "$step" =~ ^[1-9][0-9]*$ ]] || step=20
-  left=$((limit - GATE_WAITED))
-  if ((left <= 0)); then
-    ((limit == 0)) || why="$why (waited ${GATE_WAITED}s; DEV_GATE_WAIT_SEC=$limit)"
-    echo "$why" >&2
-    return 75
-  fi
-  if ((GATE_ANNOUNCED == 0)); then
-    echo "dev: $label waits for a gate (up to ${limit}s, DEV_GATE_WAIT_SEC; looks again every ${step}s): $why" >&2
-    GATE_ANNOUNCED=1
-  fi
-  ((step <= left)) || step=$left
-  gate_sleep "$step"
-  GATE_WAITED=$((GATE_WAITED + step))
-}
-gate_wait() { # gate_wait <label> <limit-sec> <probe...>: runs the probe (prints why and returns 75 when refused) until it passes
-  local label="$1" limit="$2" why rc
-  shift 2
-  while :; do
-    rc=0; why=$("$@") || rc=$?
-    if ((rc == 0)); then
-      if ((GATE_ANNOUNCED)); then echo "dev: gate cleared after ${GATE_WAITED}s: $label continues" >&2; GATE_ANNOUNCED=0; fi
-      return 0
-    fi
-    gate_step "$label" "$limit" "$why" || return $?
-  done
-}
-sim_gate_probe() { # sim_gate_probe <capped 0|1>: the gates a simulator command is under: a full run, then the busy cap
-  full_run_verdict "$FULL_RUN_DIR" "$(date +%s)" || return $?
-  (($1)) || return 0
-  busy_sims_verdict "${DEV_MAX_BUSY_SIMS:-2}" "$(sim_cap_lines)"
-}
-
-# Best effort: does another checkout's .build/dev-sim-udid name this simulator? Looks at the main checkout and every
-# .claude/worktrees/* checkout, and ignores claims not refreshed within SIM_CLAIM_MAX_AGE_MIN so finished worktrees free up.
-sim_claim_files() { # every existing claim file: the main checkout's and each worktree's
-  local common main f
-  common=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || return 0
-  main=$(dirname "$common")
-  for f in "$main/$SIM_CLAIM" "$main"/.claude/worktrees/*/"$SIM_CLAIM"; do
-    [[ -f "$f" ]] && echo "$f"
-  done
-}
-sim_claimed() { # sim_claimed <udid>
-  local f
-  while IFS= read -r f; do
-    [[ "$f" -ef "$SIM_CLAIM" ]] && continue
-    [[ -n "$(find "$f" -mmin "-$SIM_CLAIM_MAX_AGE_MIN" 2>/dev/null)" ]] || continue
-    [[ "$(cat "$f" 2>/dev/null || true)" == "$1" ]] && return 0
-  done < <(sim_claim_files)
-  return 1
-}
-
-sim_pick() { # first pool member that is lock-free and unclaimed; else a lock-free one; else the original
-  local name udid
-  while IFS= read -r name; do
-    udid=$(sim_udid_by_name "$name"); [[ -n "$udid" ]] || continue
-    if sim_lock_free "$udid" && ! sim_claimed "$udid"; then echo "$udid"; return; fi
-  done < <(sim_pool_names)
-  while IFS= read -r name; do
-    udid=$(sim_udid_by_name "$name"); [[ -n "$udid" ]] || continue
-    if sim_lock_free "$udid"; then echo "$udid"; return; fi
-  done < <(sim_pool_names)
-  sim_udid_by_name "$SIM_ORIGINAL"
-}
-
-# Sets SIM_UDID and SIM_NAME once per process and says which simulator on one stderr line. Call it in the main shell
-# (not inside $(...) or a pipeline) before anything that needs the simulator.
-sim_resolve() {
-  [[ -z "$SIM_UDID" ]] || return 0
-  sim_table_load
-  local remembered mutex="$CACHE_DIR/workouts-dev-sim-pick.lock" n=0
-  if [[ -n "${DEV_SIM_UDID:-}" ]]; then
-    SIM_UDID="$DEV_SIM_UDID"
-    SIM_NAME=$(sim_name_by_udid "$SIM_UDID"); [[ -n "$SIM_NAME" ]] || die "DEV_SIM_UDID $SIM_UDID is not an available simulator"
-  elif [[ -n "${DEV_SIM:-}" ]]; then
-    SIM_NAME="$DEV_SIM"
-    SIM_UDID=$(sim_udid_by_name "$SIM_NAME"); [[ -n "$SIM_UDID" ]] || die "no available simulator named '$SIM_NAME'"
-  else
-    remembered=$(cat "$SIM_CLAIM" 2>/dev/null || true)
-    if [[ -n "$remembered" && -n "$(sim_name_by_udid "$remembered")" ]]; then
-      SIM_UDID="$remembered"
-    else
-      # Two checkouts picking at once must not both take the same free simulator: serialize the pick (it takes ~1s).
-      until mkdir "$mutex" 2>/dev/null; do
-        [[ -z "$(find "$mutex" -maxdepth 0 -mmin +1 2>/dev/null)" ]] || rm -rf "$mutex"
-        sleep 0.2; n=$((n + 1)); ((n < 100)) || break
-      done
-      SIM_UDID=$(sim_pick)
-      [[ -n "$SIM_UDID" ]] || { rm -rf "$mutex"; die "no '$SIM_ORIGINAL' simulator found"; }
-      mkdir -p "$(dirname "$SIM_CLAIM")"; echo "$SIM_UDID" >"$SIM_CLAIM"
-      rm -rf "$mutex"
-    fi
-    SIM_NAME=$(sim_name_by_udid "$SIM_UDID")
-    touch "$SIM_CLAIM" 2>/dev/null || { mkdir -p "$(dirname "$SIM_CLAIM")"; echo "$SIM_UDID" >"$SIM_CLAIM"; }
-  fi
-  echo "dev: simulator $SIM_NAME ($SIM_UDID)" >&2
-  sim_reap_idle
-}
-fi
 
 # Print at most MAX_LINES of stdin, noting truncation.
 cap() {
@@ -430,19 +44,13 @@ run_logged() {
   mkdir -p "$LOGS"
   find "$LOGS" -name '*.log' -mmin +240 -delete 2>/dev/null || true
   LAST_LOG="$log"
-  # Give errexit back the way we found it. An unconditional `set -e` here switched it on for a caller that had turned it
-  # off on purpose (cmd_ui_test around ui_test_sharded), so that function's `return 3` killed the script with status 3
-  # instead of reaching the single-simulator fallback.
+  # Give errexit back the way we found it: an unconditional `set -e` here would switch it on for a caller that had turned it off.
   [[ $- != *e* ]] || errexit=1
   set +e
-  # RUN_LOGGED_TAP (a function name) sits between the command and the filter: it reads the raw stream, may record progress,
-  # and passes on what the log should keep. Unset (everything but the ui-test runs), the pipeline is what it always was.
-  local tap=cat
-  [[ -z "${RUN_LOGGED_TAP:-}" ]] || tap="$RUN_LOGGED_TAP"
   if command -v xcbeautify >/dev/null 2>&1; then
-    "$@" 2>&1 | "$tap" | xcbeautify --quiet >"$log"
+    "$@" 2>&1 | xcbeautify --quiet >"$log"
   else
-    "$@" 2>&1 | "$tap" | { grep -Ev "$NOISE" || true; } >"$log"
+    "$@" 2>&1 | { grep -Ev "$NOISE" || true; } >"$log"
   fi
   rc=${PIPESTATUS[0]}
   if ((errexit)); then set -e; fi
@@ -463,675 +71,27 @@ excerpt() {
   fi
 }
 
-xcb() { # xcb <action> [extra xcodebuild args...]; XCB_VERBOSE (set by run_tests for ui-test) drops -quiet so per-test lines reach the tap
-  local action="$1"; shift
-  local quiet=(-quiet)
-  [[ -z "${XCB_VERBOSE:-}" ]] || quiet=()
-  xcodebuild "$action" -scheme "$SCHEME" -destination "platform=iOS Simulator,id=$SIM_UDID" \
-    -derivedDataPath "$DERIVED" ${quiet[@]+"${quiet[@]}"} "$@"
+# Pure decisions behind the upload gates; they take their inputs as arguments so ./dev selftest runs them on fixtures.
+ui_gate_verdict() { # ui_gate_verdict <result.json> <head>: succeeds (printing the flaky tests, or none) for a full run that passed on <head> with a clean tree; else prints why not and returns 1
+  local f="$1" head="$2" filter exit_code commit clean short
+  [[ -f "$f" ]] || { echo "no result at $f"; return 1; }
+  jq -e . "$f" >/dev/null 2>&1 || { echo "unreadable result at $f"; return 1; }
+  filter=$(jq -r '.filter // empty' "$f"); exit_code=$(jq -r '.exit_code // empty' "$f")
+  commit=$(jq -r '.commit // empty' "$f"); clean=$(jq -r '.clean // empty' "$f")
+  [[ -z "$filter" ]] || { echo "the last run was filtered to $filter"; return 1; }
+  [[ "$exit_code" == 0 ]] || { echo "the last run failed (exit code ${exit_code:-unknown})"; return 1; }
+  short="${commit:0:7}"
+  [[ "$commit" == "$head" ]] || { echo "the last run was on commit ${short:-none}"; return 1; }
+  [[ "$clean" == true ]] || { echo "the last run had a dirty tree"; return 1; }
+  jq -r '(.flaky // []) | if length == 0 then "none" else join(", ") end' "$f"
 }
-
-# Reduce an xcresult bundle to its failing tests.
-report_failures() {
-  local bundle="$1"
-  [[ -d "$bundle" ]] || return 0
-  local json
-  json=$(xcrun xcresulttool get test-results summary --path "$bundle" --compact 2>/dev/null) || return 0
-  if command -v jq >/dev/null 2>&1; then
-    # No failures listed means the build died before any test ran; the log excerpt already said why.
-    [[ "$(jq '(.testFailures // []) | length' <<<"$json")" != 0 ]] || return 0
-    {
-      echo "Failing tests ($bundle):"
-      jq -r '(.testFailures // [])[] |
-        "  - \(.testIdentifierString // .testName // "?")\n      \(.failureText // "(no message)")"' <<<"$json"
-      jq -r '"Totals: \(.passedTests // 0) passed, \(.failedTests // 0) failed, \(.skippedTests // 0) skipped"' <<<"$json"
-    } | cap >&2
-  else
-    echo "$json" | cap >&2
-  fi
-}
-
-if [[ "$SIM_SHARED" != 1 ]]; then
-# A pool simulator keeps whatever text size and appearance an earlier session left it at (an accessibility size once
-# failed UI tests that pass at Large). Reset both before a test run; `simctl ui` needs a booted device, so boot it headless
-# first. Not display toggles: these are the same settings as Settings > Display & Brightness / Display Size.
-sim_bootstatus() { # sim_bootstatus <udid> [seconds]: wait for boot, but give up after DEV_BOOT_TIMEOUT (default 120) s
-  # `simctl bootstatus -b` has no time limit of its own; a stuck boot would hang here while the caller holds the lock.
-  local limit="${2:-${DEV_BOOT_TIMEOUT:-120}}" pid i=0
-  # A non-numeric value would abort under set -u inside the arithmetic below, while the caller holds the sim lock.
-  [[ $limit =~ ^[0-9]+$ ]] || { echo "dev: warning: DEV_BOOT_TIMEOUT=$limit is not a number; using 120" >&2; limit=120; }
-  xcrun simctl bootstatus "$1" -b >/dev/null 2>&1 &
-  pid=$!
-  while kill -0 "$pid" 2>/dev/null; do
-    if ((i >= limit * 5)); then
-      echo "dev: warning: simulator $1 not booted after ${limit}s; continuing" >&2
-      kill "$pid" 2>/dev/null || true
-      break
-    fi
-    sleep 0.2
-    i=$((i + 1))
-  done
-  wait "$pid" 2>/dev/null || true
-}
-
-sim_reset_ui() { # sim_reset_ui <udid>
-  xcrun simctl boot "$1" >/dev/null 2>&1 || true
-  sim_bootstatus "$1"
-  xcrun simctl ui "$1" content_size large >/dev/null 2>&1 || true
-  xcrun simctl ui "$1" appearance light >/dev/null 2>&1 || true
-}
-
-# Snapshot tests and UI tests assume the Duo closed and portrait; an earlier `./dev pose open-wide` leaves it open (2026-11-11:
-# 30 snapshot diffs in untouched screens). Reads the pose cheaply (hinge + lit panel) and restores closed-portrait when it differs.
-pose_describe() { # pose_describe <hinge line> <panels table>: the pose name (closed-portrait|closed-landscape|open-wide|open-tall|half-open) or unknown
-  local lit rot=""
-  lit=$(grep ' lit ' <<<"$2" | head -n 1) || true
-  [[ "$lit" =~ rot([0-9]+)[[:space:]]*$ ]] && rot="${BASH_REMATCH[1]}"
-  case "$1" in
-    *"pose: half-open"*) echo half-open ;;
-    *"pose: closed"*) case "$rot" in 0) echo closed-portrait ;; 90 | 270) echo closed-landscape ;; *) echo unknown ;; esac ;;
-    *"pose: open"*) case "$rot" in 90 | 270) echo open-wide ;; 0 | 180) echo open-tall ;; *) echo unknown ;; esac ;;
-    *) echo unknown ;;
-  esac
-}
-pose_verdict() { [[ "${1:-}" == closed-portrait ]] && echo ok || echo restore; } # pose_verdict <pose_describe output>: ok or restore
-sim_pose_guard() { # sim_pose_guard <label> <udid>: the simulator must be booted
-  local hinge panels now
-  duo_bin
-  hinge=$("$DUO_BIN" hinge --udid "$2" 2>/dev/null) || hinge=""
-  panels=$("$DUO_BIN" panels --udid "$2" 2>/dev/null) || panels=""
-  now=$(pose_describe "$hinge" "$panels")
-  [[ "$(pose_verdict "$now")" == ok ]] && return 0
-  echo "dev: $1: the simulator was left ${now/unknown/in an unknown pose}; restoring closed-portrait (snapshots and UI tests need it)" >&2
-  "$DUO_BIN" pose closed-portrait --udid "$2" >/dev/null || die "$1: restoring closed-portrait failed (see the duo message above); run ./dev pose closed-portrait"
-}
-fi
-
-run_tests() { # run_tests <name> <target> [filter] [latest]: the passing bundle is kept as latest-<latest>.xcresult (default: <name>)
-  local name="$1" target="$2" filter="${3:-}" latest="${4:-$1}"
-  local only="$target" bundle="$RESULTS/$name-$$.xcresult" rc=0 tmo=()
-  [[ "$target" != WorkoutsUITests ]] || read -r -a tmo <<<"$(ui_timeout_args)"
-  # ui-test: the single-simulator run reports progress too (shard 1/1); see ui_progress_tap.
-  local XCB_VERBOSE="" RUN_LOGGED_TAP="" UI_PROG_IDX=1 UI_PROG_OF=1 UI_PROG_SIM="" UI_PROG_TOTAL=""
-  sim_resolve
-  if [[ "$name" == ui-test ]]; then
-    XCB_VERBOSE=1 RUN_LOGGED_TAP=ui_progress_tap UI_PROG_SIM=$(sim_name_by_udid "$SIM_UDID")
-  fi
-  sim_reset_ui "$SIM_UDID"
-  if [[ "$name" != ui-test ]]; then sim_pose_guard "$name" "$SIM_UDID"; elif [[ -n "$UI_POSE" ]]; then ui_pose_apply; else sim_pose_guard "$name" "$SIM_UDID"; fi
-  [[ -n "$filter" ]] && only="$target/$filter"
-  mkdir -p "$RESULTS"
-  find "$RESULTS" -maxdepth 1 -name '*.xcresult' ! -name 'latest-*' -mmin +240 -exec rm -rf {} + 2>/dev/null || true
-  # No parallel testing: it boots a fresh "Clone N of iPhone Duo" per run, and a fresh clone crashed PosterBoard.
-  run_logged "$name" xcb test ${tmo[@]+"${tmo[@]}"} -parallel-testing-enabled NO -enableCodeCoverage YES -collect-test-diagnostics on-failure -only-testing:"$only" -resultBundlePath "$bundle" || rc=$?
-  # Xcode infrastructure flake (no test ran): retry once, never for a real test failure.
-  if ((rc != 0)) && xcrun xcresulttool get test-results summary --path "$bundle" --compact 2>/dev/null |
-    grep -q 'hung before establishing connection'; then
-    # A retry against the same simulator hung again (2026-11-03); a cold boot cleared it.
-    echo "dev: test runner hung before connecting; rebooting the simulator and retrying once" >&2
-    xcrun simctl shutdown "$SIM_UDID" >/dev/null 2>&1 || true
-    if [[ "$name" == ui-test && -n "$UI_POSE" ]]; then sim_reset_ui "$SIM_UDID"; ui_pose_apply; fi # a cold boot comes up closed-portrait
-    rm -rf "$bundle"; rc=0
-    run_logged "$name" xcb test ${tmo[@]+"${tmo[@]}"} -parallel-testing-enabled NO -enableCodeCoverage YES -collect-test-diagnostics on-failure -only-testing:"$only" -resultBundlePath "$bundle" || rc=$?
-  fi
-  if ((rc != 0)); then
-    report_failures "$bundle"
-    return "$rc"
-  fi
-  # Keep only the newest successful bundle per kind, for `./dev coverage`; a bundle that ran nothing is dropped.
-  if test_summary "$name" "$only" "$bundle"; then
-    rm -rf "$RESULTS/latest-$latest.xcresult"
-    mv "$bundle" "$RESULTS/latest-$latest.xcresult"
-  else
-    rm -rf "$bundle"
-    return 1
-  fi
-}
-
-# One-line totals from an xcresult bundle; fails when no test ran (a filter that matched nothing exits 0).
-test_summary() { # test_summary <name> <only> <bundle>
-  local name="$1" only="$2" bundle="$3" json total
-  json=$(xcrun xcresulttool get test-results summary --path "$bundle" --compact 2>/dev/null) || json="{}"
-  total=$(jq '.totalTestCount // 0' <<<"$json" 2>/dev/null) || total=0
-  if ((total == 0)); then
-    echo "FAILED: $name — no tests matched '$only'" >&2
-    return 1
-  fi
-  local line
-  line=$(jq -r --arg n "$name" '"\($n): \(.passedTests // 0) passed, \(.failedTests // 0) failed, \(.skippedTests // 0) skipped"' <<<"$json")
-  echo "$line"
-  [[ "$name" != ui-test ]] || { UI_SKIPPED=$(summary_skipped "$json"); ui_progress_done "$line"; }
-}
-
-# build takes no lock, so it only checks the cap, then stamps its simulator used so parallel builds count each other.
-sim_build_cap() {
-  sim_resolve
-  gate_wait build "$(gate_wait_limit 0)" sim_gate_probe 1 || exit $?
-  sim_stamp "$SIM_UDID"
-}
-cmd_build() { sim_resolve; run_logged build xcb build; }
-cmd_test() {
-  # Snapshot tests (WorkoutsTests/Snapshot) record their references when the runner sees SNAPSHOT_RECORD; xcodebuild only
-  # forwards TEST_RUNNER_-prefixed variables, so map it here. Recording makes the run fail once by design.
-  [[ -n "${SNAPSHOT_RECORD:-}" ]] && export TEST_RUNNER_SNAPSHOT_RECORD="$SNAPSHOT_RECORD"
-  # `|| return`: cmd_check calls this in a `||` context, where errexit is off and a failed run would otherwise reach the stamp.
-  run_tests test WorkoutsTests "${1:-}" || return $?
-  # ./dev coverage reads this stamp; a filtered run replaces the kept bundle, so it drops the stamp that described the old one.
-  if [[ -z "${1:-}" ]]; then
-    local clean=0
-    [[ -z "$(git status --porcelain 2>/dev/null)" ]] && clean=1
-    mkdir -p .build && stamp_write "$TEST_STAMP" "commit=$(git rev-parse HEAD)" "clean=$clean" "when=$(date -u +%FT%TZ)"
-  else
-    rm -f "$TEST_STAMP"
-  fi
-}
-cmd_ui_test() {
-  # HealthKitIntegrationUITests (real Health store, drives the permission sheet) skips itself unless this is set; xcodebuild
-  # forwards TEST_RUNNER_-prefixed variables to the test runner. Naming the suite in the filter opts in; the full suite and
-  # `check` leave it skipped.
-  is_health_filter "${1:-}" && export TEST_RUNNER_HEALTH_INTEGRATION=1
-  local rc=0
-  UI_SKIPPED=""
-  if [[ -z "${1:-}" ]]; then
-    full_run_alone_verdict "$(sim_busy_lines)" >&2 || return $?
-    full_run_claim "$FULL_RUN_DIR" "$(date +%s)" "$PWD" "$(ui_shards_pattern)" || return $?
-  fi
-  ui_progress_begin
-  if [[ -z "${1:-}" ]] && ((${DEV_UI_SHARDS:-3} > 1)); then
-    # Not `ui_test_sharded || rc=$?`: that would disable errexit inside it (see sim_guarded).
-    set +e; ui_test_sharded; rc=$?; set -e
-    if ((rc == 3)); then rc=0; ui_progress_begin; run_tests ui-test WorkoutsUITests "" || rc=$?; fi # fewer than 2 free simulators: one, as before
-    ((rc == 0)) || { ui_progress_done "FAILED (exit $rc)"; return "$rc"; }
-  else
-    # The real-Health run keeps its bundle apart, so the merged bundle of the last full run (`coverage ui-test`) survives it.
-    local latest=ui-test
-    ! is_health_filter "${1:-}" || latest=health
-    run_tests ui-test WorkoutsUITests "${1:-}" "$latest" || { rc=$?; ui_progress_done "FAILED (exit $rc)"; return "$rc"; }
-  fi
-  # The ship gate: only a full, passing run (no filter) vouches for a commit; `testflight --upload` checks this stamp.
-  if [[ -z "${1:-}" ]]; then
-    skip_check "$UI_SKIPPED" "$UI_EXPECTED_SKIPS" || return 1
-    local clean=0
-    [[ -z "$(git status --porcelain 2>/dev/null)" ]] && clean=1
-    mkdir -p .build && printf 'commit=%s\nclean=%s\nflaky=%s\n' "$(git rev-parse HEAD)" "$clean" "${UI_FLAKY:-none}" >"$UI_STAMP"
-  elif is_health_filter "$1"; then
-    health_stamp_write "$HEALTH_STAMP" "$UI_SKIPPED" "$(git rev-parse HEAD)" "$(date -u +%FT%TZ)" || return 1
-  fi
-}
-
-# Pure decisions behind the stamps and gates; take their inputs as arguments so ./dev selftest runs them on fixtures.
-is_health_filter() { [[ "${1:-}" == HealthKitIntegration* ]]; }
-stamp_write() { # stamp_write <file> <key=value>...
-  local f="$1"; shift
-  printf '%s\n' "$@" >"$f"
-}
-stamp_get() { # stamp_get <file> <key>: the value of the first <key>= line, empty when the file or key is missing
-  [[ -f "$1" ]] || return 0
-  sed -n "s/^$2=//p" "$1" | head -n 1
-}
-summary_skipped() { jq -r '.skippedTests // 0' <<<"$1" 2>/dev/null || echo 0; } # summary_skipped <xcresulttool summary json>
-skip_check() { # skip_check <skipped> <expected>: an unfiltered run that skips more or fewer tests than expected vouches for nothing
-  local got="${1:-}" want="$2"
-  [[ "$want" =~ ^[0-9]+$ ]] || { echo "dev: DEV_UI_EXPECTED_SKIPS=$want is not a number" >&2; return 1; }
-  [[ "$got" == "$want" ]] && return 0
-  echo "FAILED: ui-test passed but skipped ${got:-an unknown number of} tests, expected $want (PerfDriver 3, HealthKitIntegration 1, TreeDump 1, OpenPose 9, Evidence 7; DEV_UI_EXPECTED_SKIPS overrides); not writing $UI_STAMP" >&2
-  return 1
-}
-health_stamp_write() { # health_stamp_write <file> <skipped> <commit> <when>: only a run that skipped nothing counts
-  if [[ "$2" != 0 ]]; then
-    echo "FAILED: health-test: ${2:-an unknown number of} test(s) skipped, so the real Health store was not exercised; not writing $1" >&2
-    return 1
-  fi
-  mkdir -p "$(dirname "$1")" && stamp_write "$1" "commit=$3" "when=$4"
-}
-health_gate_verdict() { # health_gate_verdict <stamp> <repo>: succeeds when the Health paths in the working tree (uncommitted and untracked edits included) match the stamped commit; else prints the commit (or none)
-  local commit; commit=$(stamp_get "$1" commit)
+health_gate_verdict() { # health_gate_verdict <result.json> <repo>: succeeds when the Health paths in the working tree (uncommitted and untracked edits included) match the commit of a passing run that skipped nothing; else prints the commit (or none)
+  local commit=""
+  [[ ! -f "$1" ]] || commit=$(jq -r 'select(.exit_code == 0 and .totals.skipped == 0) | .commit // empty' "$1" 2>/dev/null) || commit=""
   if [[ -n "$commit" ]] && git -C "$2" diff --quiet "$commit" -- "${HEALTH_PATHS[@]}" 2>/dev/null &&
     [[ -z "$(git -C "$2" ls-files --others --exclude-standard -- "${HEALTH_PATHS[@]}" 2>/dev/null)" ]]; then return 0; fi
   echo "${commit:-none}"
   return 1
-}
-# Pick the Health clone for a filtered Health run unless the caller chose a simulator; sim_guarded resolves it afterwards.
-health_sim_wanted() { is_health_filter "${1:-}" && [[ -z "${DEV_SIM:-}" && -z "${DEV_SIM_UDID:-}" ]]; } # health_sim_wanted <filter>
-health_sim_require() { # reads SIM_TABLE
-  [[ -n "$(sim_udid_by_name "$HEALTH_SIM")" ]] ||
-    die "ui-test: no simulator named '$HEALTH_SIM' for HealthKitIntegrationUITests; create it: xcrun simctl clone \"$SIM_ORIGINAL\" \"$HEALTH_SIM\""
-}
-# DEV_POSE=<pose> ./dev ui-test <filter>: the Duo is posed (verified by Tools/duo) after sim_reset_ui, under the same lock, and
-# the runner sees TEST_RUNNER_DUO_POSE (DUO_POSE in the test). sim_release, the lock's EXIT trap, puts it back to
-# closed-portrait, so a failure or ^C restores it too. Filtered runs only: the sharded full run borrows unposed pool sims.
-# UI_POSE, not DEV_POSE, is what run_tests reads, so `tree` and `test` ignore an exported DEV_POSE.
-UI_POSE=""
-ui_pose_check() { # ui_pose_check <pose> <filter>: succeeds when a ui-test may run under that DEV_POSE; else prints why not
-  [[ -n "$1" ]] || return 0
-  [[ "$1" =~ ^(closed-portrait|closed-landscape|open-wide|open-tall)$ ]] \
-    || { echo "ui-test: DEV_POSE=$1 is not closed-portrait|closed-landscape|open-wide|open-tall"; return 1; }
-  [[ -n "$2" ]] || { echo "ui-test: DEV_POSE needs a filter (the full run is sharded over unposed sims): DEV_POSE=$1 ./dev ui-test <Suite>"; return 1; }
-}
-ui_pose_init() { # ui_pose_init [filter]: runs before sim_guarded, so UI_POSE is set in the shell whose EXIT trap restores
-  local why
-  why=$(ui_pose_check "${DEV_POSE:-}" "${1:-}") || die "$why"
-  UI_POSE="${DEV_POSE:-}"
-}
-ui_pose_apply() {
-  [[ -n "$UI_POSE" ]] || return 0
-  duo_bin
-  "$DUO_BIN" pose "$UI_POSE" --udid "$SIM_UDID" >/dev/null || die "ui-test: pose $UI_POSE failed"
-  export TEST_RUNNER_DUO_POSE="$UI_POSE"
-}
-ui_pose_restore() {
-  [[ -n "$UI_POSE" && -n "${SIM_UDID:-}" && -x "$DUO_BIN" ]] || return 0
-  "$DUO_BIN" pose closed-portrait --udid "$SIM_UDID" >/dev/null 2>&1 \
-    || echo "dev: warning: closed-portrait not restored after DEV_POSE=$UI_POSE; run ./dev pose closed-portrait" >&2
-  UI_POSE=""
-}
-ui_test_select_sim() { # ui_test_select_sim [filter]: runs before sim_guarded
-  health_sim_wanted "${1:-}" || return 0
-  sim_table_load
-  health_sim_require
-  export DEV_SIM="$HEALTH_SIM"
-}
-
-# The full UI suite is sharded across the simulator pool (DEV_UI_SHARDS, default 3; 1 = the old single-simulator run):
-# one build-for-testing, then each shard runs `test-without-building -only-testing:<suites>` on its own simulator, taken
-# through the normal lock (sim_grab), so other agents and the idle reaper leave it alone. Shard 1 is this command's own
-# simulator (sim_guarded holds its lock and the crash guard covers it and the borrowed ones). Suites are dealt out greedily,
-# longest first, from the durations of the last passing run. Every suite runs, the opt-in ones (PerfDriverUITests,
-# HealthKitIntegrationUITests) included: they skip themselves unless their env flag is set, exactly as in the single run.
-UI_DURATIONS=".build/ui-test-durations.tsv" # <suite> TAB <seconds> from the last passing sharded run
-UI_TOTAL=".build/ui-test-total"             # tests (skipped included) in the last passing sharded run
-UI_FLAKY_LOG="${DEV_UI_FLAKY_LOG:-.build/ui-flaky.log}" # per test that failed, then passed on retry: <utc time> <commit> <test id> <shard sim, spaces as _> <first attempt secs or -> <first failure text>; older lines stop after the id (./dev ui-flaky)
-UI_SHARDS_DIR="$RESULTS/ui-test-shards"
-UI_SIMS=()
-UI_PIDS=()
-UI_N=1  # shards in this run (the "2/3" of the progress lines)
-UI_T0=$SECONDS
-UI_SKIPPED="" # tests skipped in this run (sharded: all shards), for the stamp's expected-skips check
-UI_FLAKY="" # comma-separated ids of the tests that were flaky in this run, for the stamp
-# Progress for ./dev ui-status: $UI_PROGRESS holds one line per shard, then every FAILED test in the order it happened, then a
-# final "done:" line (kept after the run). It is composed from files in $UI_PROGRESS_DIR (shard-N.line, failed, done), because
-# the shards update it from separate processes; pid there is the writer, so ui-status can tell a live run from a dead one.
-ui_progress_render() {
-  local tmp; tmp=$(mktemp "$UI_PROGRESS.XXXXXX") || return 0 # not BASHPID: macOS ships bash 3.2
-  { cat "$UI_PROGRESS_DIR"/shard-*.line "$UI_PROGRESS_DIR/failed" "$UI_PROGRESS_DIR/done"; } 2>/dev/null >"$tmp" || true
-  mv -f "$tmp" "$UI_PROGRESS" 2>/dev/null || true
-}
-ui_progress_set() { # ui_progress_set <shard> <text>
-  local tmp; tmp=$(mktemp "$UI_PROGRESS_DIR/tmp.XXXXXX") || return 0
-  printf '%s\n' "$2" >"$tmp" && mv -f "$tmp" "$UI_PROGRESS_DIR/shard-$1.line"
-  ui_progress_render
-}
-ui_progress_begin() {
-  UI_T0=$SECONDS
-  rm -rf "$UI_PROGRESS_DIR" "$UI_PROGRESS"; mkdir -p "$UI_PROGRESS_DIR"
-  echo $$ >"$UI_PROGRESS_DIR/pid"
-  ui_progress_set 0 "starting (building)"
-}
-ui_progress_done() { # ui_progress_done <totals line>: the last line of the file
-  [[ -d "$UI_PROGRESS_DIR" ]] || return 0
-  printf 'done: %s\n' "$1" >"$UI_PROGRESS_DIR/done"
-  ui_progress_render
-}
-ui_progress_fmt_elapsed() { local s=$((SECONDS - UI_T0)); if ((s >= 60)); then printf '%dm' $((s / 60)); else printf '%ds' "$s"; fi; }
-# A pipeline stage for run_logged (RUN_LOGGED_TAP) around a ui-test xcodebuild: reads the raw, non-quiet stream, keeps this
-# shard's line current (UI_PROG_IDX/OF/SIM/TOTAL) and appends each failure to the file the moment it prints. The per-test and
-# per-step lines are consumed, so the log filter sees roughly what -quiet printed and the failure excerpt reads as before.
-ui_progress_tap() {
-  local line p=0 f=0 k=0 last="" id res of="${UI_PROG_TOTAL:+/$UI_PROG_TOTAL}" skipped
-  rm -f "$UI_PROGRESS_DIR/shard-0.line" # the "starting (building)" placeholder, once a real shard line takes over
-  ui_progress_set "$UI_PROG_IDX" "shard $UI_PROG_IDX/$UI_PROG_OF ($UI_PROG_SIM): 0${of} passed, 0 failed, starting"
-  while IFS= read -r line || [[ -n "$line" ]]; do
-    id=""
-    if [[ "$line" =~ ^Test\ [Cc]ase\ \'-\[([A-Za-z0-9_]+\.)?([A-Za-z0-9_]+)\ ([A-Za-z0-9_]+)\]\'\ (passed|failed|skipped) ]]; then
-      id="${BASH_REMATCH[2]}/${BASH_REMATCH[3]}"; res="${BASH_REMATCH[4]}"
-    elif [[ "$line" =~ ^Test\ [Cc]ase\ \'([A-Za-z0-9_]+/[^\']+)\'\ (passed|failed|skipped) ]]; then
-      id="${BASH_REMATCH[1]}"; res="${BASH_REMATCH[2]}"
-    fi
-    if [[ -n "$id" ]]; then
-      case "$res" in
-        passed) p=$((p + 1)) ;;
-        failed) f=$((f + 1)); printf 'FAILED %s\n' "$id" >>"$UI_PROGRESS_DIR/failed" ;;
-        skipped) k=$((k + 1)) ;;
-      esac
-      last="$id"; skipped=""
-      ((k == 0)) || skipped=", $k skipped"
-      ui_progress_set "$UI_PROG_IDX" "shard $UI_PROG_IDX/$UI_PROG_OF ($UI_PROG_SIM): $p${of} passed, $f failed$skipped, last=$last, $(ui_progress_fmt_elapsed)"
-      continue
-    fi
-    [[ "$line" =~ ^(Test\ Suite|Test\ [Cc]ase|[[:space:]]+t\ =|[[:space:]]+Executed\ ) ]] || printf '%s\n' "$line"
-  done
-}
-ui_suites() { # ui_suites <xctestrun>: the UI test classes the built bundle contains; the source grep is only a fallback
-  local tmp suites; tmp=$(mktemp -d)
-  if xcodebuild test-without-building -xctestrun "$1" -destination "platform=iOS Simulator,id=$SIM_UDID" -enumerate-tests \
-    -test-enumeration-style flat -test-enumeration-format json -test-enumeration-output-path "$tmp/enum.json" \
-    -resultBundlePath "$tmp/enum.xcresult" >/dev/null 2>&1; then
-    suites=$(jq -r '.values[].enabledTests[]?.identifier | select(startswith("WorkoutsUITests/")) | split("/")[1]' "$tmp/enum.json" 2>/dev/null | sort -u || true)
-    # tests per suite, for the progress file's N in "41/45 passed"
-    jq -r '[.values[].enabledTests[]?.identifier | select(startswith("WorkoutsUITests/")) | split("/")[1]] | group_by(.)[] | "\(.[0])\t\(length)"' \
-      "$tmp/enum.json" >"$UI_PROGRESS_DIR/counts.tsv" 2>/dev/null || rm -f "$UI_PROGRESS_DIR/counts.tsv"
-  fi
-  rm -rf "$tmp"
-  if [[ -z "${suites:-}" ]]; then
-    echo "dev: warning: could not enumerate the tests in the built bundle; falling back to grepping the sources" >&2
-    suites=$(find WorkoutsUITests -name '*.swift' -exec sed -nE 's/^(final )?class ([A-Za-z0-9_]+): *XCTestCase.*/\2/p' {} + | sort -u)
-  fi
-  echo "$suites"
-}
-ui_fmt_secs() { if (($1 >= 60)); then printf '%dm%02ds' $(($1 / 60)) $(($1 % 60)); else printf '%ds' "$1"; fi; }
-if [[ "$SIM_SHARED" != 1 ]]; then
-load_over() { # load_over <factor>: prints "<load> <cpus>" and succeeds when the 1-minute load average is above factor x the CPU count
-  local load cpus; load=$(sysctl -n vm.loadavg | awk '{ print $2 }'); cpus=$(sysctl -n hw.ncpu)
-  awk -v l="$load" -v c="$cpus" -v f="$1" 'BEGIN { exit !(l > f * c) }' && echo "$load $cpus"
-}
-fi
-ui_load_high() { load_over 4; } # the sharded run drops to one shard above this
-ui_balance() { # ui_balance <shards> <suite...>: "<shard> <suite>" lines; a suite without history counts as the mean of the known
-  local n="$1" s; shift
-  for s in "$@"; do
-    printf '%s\t%s\n' "$(awk -F'\t' -v s="$s" '$1 == s { print $2; exit }' "$UI_DURATIONS" 2>/dev/null || true)" "$s"
-  done | awk -F'\t' -v n="$n" '
-    { name[NR] = $2; dur[NR] = $1; if ($1 != "") { sum += $1; known++ } }
-    END {
-      avg = known ? sum / known : 1
-      for (i = 1; i <= NR; i++) { if (dur[i] == "") dur[i] = avg; if (dur[i] < 1) dur[i] = 1 }
-      for (k = 1; k <= NR; k++) {
-        b = 0; for (i = 1; i <= NR; i++) if (!used[i] && (b == 0 || dur[i] > dur[b])) b = i
-        used[b] = 1; m = 1; for (j = 2; j <= n; j++) if (load[j] < load[m]) m = j
-        load[m] += dur[b]; print m, name[b]
-      }
-    }'
-}
-ui_pick_sims() { # ui_pick_sims <want>: UI_SIMS = this command's simulator + up to want-1 free pool simulators, locked
-  local want="$1" pass name udid
-  UI_SIMS=("$SIM_UDID")
-  for pass in unclaimed claimed; do # a simulator another checkout has claimed is borrowed only once it has sat idle
-    while IFS= read -r name; do
-      ((${#UI_SIMS[@]} < want)) || break
-      udid=$(sim_udid_by_name "$name"); [[ -n "$udid" && " ${UI_SIMS[*]} " != *" $udid "* ]] || continue
-      if [[ "$pass" == unclaimed ]]; then ! sim_claimed "$udid" || continue; else ! sim_hands_off "$udid" || continue; fi
-      sim_grab "$udid" || continue
-      UI_SIMS+=("$udid"); echo "$udid" >>"$SIM_HELD_FILE"
-    done < <(sim_pool_names)
-  done
-}
-ui_bundle_suites() { # ui_bundle_suites <xcresult>: "<suite> TAB <seconds>" for every suite with at least one test case
-  xcrun xcresulttool get test-results tests --path "$1" --compact 2>/dev/null | jq -r '
-    [.. | objects | select(.nodeType == "Test Case" and .nodeIdentifier != null)]
-    | group_by(.nodeIdentifier | split("/")[0])[]
-    | [(.[0].nodeIdentifier | split("/")[0]), ([.[].durationInSeconds // 0] | add | round)] | @tsv' 2>/dev/null || true
-}
-flaky_text() { # flaky_text <summary-json> <id>: the first failure text of the test, one line, at most 300 chars; - when absent
-  local t
-  t=$(jq -r --arg id "$2" '[(.testFailures // [])[] | select(.testIdentifierString == $id) | .failureText][0] // "" | gsub("\\s+"; " ") | sub("^ "; "") | sub(" $"; "")' <<<"$1" 2>/dev/null | cut -c1-300) || t=""
-  echo "${t:--}"
-}
-flaky_secs() { # flaky_secs <tests-json> <id>: the test's duration in whole seconds; - when absent or not a number
-  local s
-  s=$(jq -r --arg id "$2" '[.. | objects | select(.nodeType == "Test Case" and .nodeIdentifier == $id) | .durationInSeconds][0] | if type == "number" then round else "-" end' <<<"$1" 2>/dev/null) || s="-"
-  echo "${s:--}"
-}
-flaky_tsv_line() { # flaky_tsv_line <id> <secs> <text>: exactly three tab-separated fields; tabs and newlines in a field become spaces
-  local id="${1//[$'\t\n']/ }" secs="${2//[$'\t\n']/ }" text="${3//[$'\t\n']/ }"
-  printf '%s\t%s\t%s\n' "$id" "${secs:--}" "${text:--}"
-}
-retry_verdict() { # retry_verdict <first failure text>: crash when the app crashed on the first attempt (never flaky, even if the retry passed), else flaky
-  if grep -qi 'crashed' <<<"$1"; then echo crash; else echo flaky; fi
-}
-# Re-run a shard's failed tests once, on the same simulator. Succeeds only when exactly those tests ran again and all of
-# them passed; a failure that cannot be named test by test, or a test that was already flaky in the previous full run, is
-# never retried. The retried ids go to shard-N.retried and are reported as flaky.
-ui_shard_retry() { # ui_shard_retry <index> <udid> <xctestrun> <bundle>
-  local idx="$1" udid="$2" xr="$3" bundle="$4" ids=() id only=() json retry rrc=0 failed prev first durs text secs
-  retry="$PWD/$UI_SHARDS_DIR/retry-$idx.xcresult"
-  json=$(xcrun xcresulttool get test-results summary --path "$bundle" --compact 2>/dev/null) || return 1
-  while read -r id; do [[ -z "$id" ]] || ids+=("$id"); done < <(jq -r '(.testFailures // [])[].testIdentifierString' <<<"$json" 2>/dev/null | sort -u)
-  failed=$(jq '.failedTests // 0' <<<"$json" 2>/dev/null) || return 1
-  ((${#ids[@]} > 0 && failed == ${#ids[@]})) || return 1
-  first="$json"; durs=$(xcrun xcresulttool get test-results tests --path "$bundle" --compact 2>/dev/null) || durs="{}"
-  prev=$(sed -n 's/^flaky=//p' "$UI_STAMP" 2>/dev/null || true)
-  for id in "${ids[@]}"; do
-    case ",$prev," in *",$id,"*) echo "dev: $id was flaky in the previous full run too; not retrying it" >&2; return 1 ;; esac
-    only+=(-only-testing:"WorkoutsUITests/$id")
-  done
-  rm -rf "$retry"
-  run_logged "ui-test-shard$idx-retry" xcodebuild test-without-building -xctestrun "$xr" $(ui_timeout_args) \
-    -destination "platform=iOS Simulator,id=$udid" -parallel-testing-enabled NO -enableCodeCoverage YES -collect-test-diagnostics on-failure "${only[@]}" \
-    -resultBundlePath "$retry" -quiet >/dev/null 2>&1 || rrc=$?
-  json=$(xcrun xcresulttool get test-results summary --path "$retry" --compact 2>/dev/null) || return 1
-  ((rrc == 0)) || return 1
-  [[ "$(jq '.totalTestCount // 0' <<<"$json")" == "${#ids[@]}" && "$(jq '.passedTests // 0' <<<"$json")" == "${#ids[@]}" &&
-    "$(jq '.failedTests // 0' <<<"$json")" == 0 ]] || return 1
-  # <id> TAB <first attempt seconds> TAB <first failure text, one line, at most 300 chars> per test, for the flaky log
-  : >"$UI_SHARDS_DIR/shard-$idx.retried"
-  for id in "${ids[@]}"; do
-    text=$(flaky_text "$first" "$id"); secs=$(flaky_secs "$durs" "$id")
-    flaky_tsv_line "$id" "$secs" "$text" >>"$UI_SHARDS_DIR/shard-$idx.retried"
-  done
-}
-ui_shard() { # ui_shard <index> <udid> <xctestrun> <suite...>; runs in a background subshell
-  local idx="$1" udid="$2" xr="$3" bundle only=() s attempt rc=0 t0=$SECONDS
-  shift 3
-  bundle="$PWD/$UI_SHARDS_DIR/shard-$idx.xcresult" # absolute: ui_cleanup finds this checkout's xcodebuilds by it
-  sim_reset_ui "$udid"
-  sim_pose_guard ui-test "$udid"
-  for s in "$@"; do only+=(-only-testing:"WorkoutsUITests/$s"); done
-  # Progress: no -quiet here, so xcodebuild prints each test's result and ui_progress_tap (between it and the log filter)
-  # turns them into this shard's line in the progress file. The planned test count comes from the enumeration, if it worked.
-  local RUN_LOGGED_TAP=ui_progress_tap UI_PROG_IDX="$idx" UI_PROG_OF="$UI_N" UI_PROG_SIM UI_PROG_TOTAL=""
-  UI_PROG_SIM=$(sim_name_by_udid "$udid")
-  if [[ -s "$UI_PROGRESS_DIR/counts.tsv" ]]; then
-    UI_PROG_TOTAL=$(printf '%s\n' "$@" | awk -F'\t' 'NR == FNR { want[$1] = 1; next } $1 in want { n += $2 } END { if (n) print n }' - "$UI_PROGRESS_DIR/counts.tsv")
-  fi
-  for attempt in 1 2; do
-    rm -rf "$bundle"; rc=0
-    run_logged "ui-test-shard$idx" xcodebuild test-without-building -xctestrun "$xr" $(ui_timeout_args) \
-      -destination "platform=iOS Simulator,id=$udid" -parallel-testing-enabled NO -enableCodeCoverage YES -collect-test-diagnostics on-failure \
-      "${only[@]}" -resultBundlePath "$bundle" >/dev/null 2>&1 || rc=$?
-    # Xcode infrastructure flake (no test ran): retry once on a cold boot, as run_tests does.
-    ((rc != 0 && attempt == 1)) || break
-    xcrun xcresulttool get test-results summary --path "$bundle" --compact 2>/dev/null | grep -q 'hung before establishing connection' || break
-    xcrun simctl shutdown "$udid" >/dev/null 2>&1 || true
-  done
-  # Four simulators at once load the machine enough to time out a test that passes alone: one visible retry (DEV_UI_RETRY=0 off).
-  if ((rc != 0 && ${DEV_UI_RETRY:-1} > 0)); then ui_shard_retry "$idx" "$udid" "$xr" "$bundle" && rc=0; fi
-  echo $((SECONDS - t0)) >"$UI_SHARDS_DIR/shard-$idx.secs"
-  return "$rc"
-}
-ui_record_durations() { # per-suite seconds of this passing run into UI_DURATIONS (suites not in the run keep their old value)
-  local tmp b; tmp=$(mktemp)
-  for b in "$UI_SHARDS_DIR"/shard-*.xcresult; do ui_bundle_suites "$b" >>"$tmp"; done
-  if [[ -f "$UI_DURATIONS" ]]; then awk -F'\t' 'NR == FNR { seen[$1] = 1; next } !($1 in seen)' "$tmp" "$UI_DURATIONS" >>"$tmp"; fi
-  mkdir -p .build; sort "$tmp" >"$UI_DURATIONS"; rm -f "$tmp"
-}
-ui_shards_pattern() { echo "xcodebuild test-without-building.*$PWD/$UI_SHARDS_DIR/"; } # also stored in the full-run marker
-# Interrupt or exit: stop this checkout's shard xcodebuilds (matched by their absolute result path) and give the borrowed
-# simulators back. Idempotent.
-ui_cleanup() {
-  local udid
-  ((${#UI_PIDS[@]} == 0)) || kill "${UI_PIDS[@]}" 2>/dev/null || true
-  pkill -f "$(ui_shards_pattern)" 2>/dev/null || true
-  UI_PIDS=()
-  if ((${#UI_SIMS[@]} > 1)); then
-    for udid in "${UI_SIMS[@]:1}"; do sim_drop "$udid"; done
-    UI_SIMS=("${UI_SIMS[0]}")
-  fi
-}
-# Returns 0 when every shard passed, 1 on any failure, 3 when only one shard is possible (the caller runs the single path).
-ui_test_sharded() {
-  local want="${DEV_UI_SHARDS:-3}" suites=() s xr n i plan udid t0=$SECONDS load
-  if [[ -z "${DEV_UI_IGNORE_LOAD:-}" ]] && load=$(ui_load_high); then
-    echo "dev: ui-test: load average ${load% *} is above 4 x ${load#* } CPUs; running 1 shard" >&2
-    return 3
-  fi
-  mkdir -p "$RESULTS"
-  ui_progress_set 0 "building (build-for-testing), then $want shards"
-  run_logged ui-test-build xcb build-for-testing -enableCodeCoverage YES || return 1
-  xr=$(find "$DERIVED/Build/Products" -name '*.xctestrun' -exec stat -f '%m %N' {} + | sort -rn | head -1 | cut -d' ' -f2-)
-  [[ -n "$xr" ]] || die "ui-test: build-for-testing produced no .xctestrun under $DERIVED/Build/Products"
-  while IFS= read -r s; do [[ -z "$s" ]] || suites+=("$s"); done < <(ui_suites "$xr")
-  ((${#suites[@]} > 0)) || die "ui-test: found no UI test classes"
-  if ((want > ${#suites[@]})); then want=${#suites[@]}; fi
-  ui_pick_sims "$want"
-  n=${#UI_SIMS[@]}
-  if ((n < want)); then echo "dev: ui-test: only $n of the $want wanted shards: no more free pool simulators" >&2; fi
-  # errexit must be off when this returns 3, or the caller's shell exits before it can read the status (belt and braces:
-  # run_logged above used to switch it back on).
-  ((n >= 2)) || { ui_cleanup; set +e; return 3; }
-  trap ui_cleanup EXIT
-  trap 'ui_cleanup; ui_progress_done "interrupted"; trap - EXIT; exit 130' INT TERM
-  rm -rf "$UI_SHARDS_DIR"; mkdir -p "$UI_SHARDS_DIR"
-  rm -f "$UI_PROGRESS_DIR/shard-0.line"; UI_N=$n
-  plan=$(ui_balance "$n" "${suites[@]}")
-  local mine
-  for ((i = 1; i <= n; i++)); do
-    mine=(); while read -r s; do mine+=("$s"); done < <(awk -v i="$i" '$1 == i { print $2 }' <<<"$plan")
-    printf '%s\n' "${mine[@]}" >"$UI_SHARDS_DIR/shard-$i.suites"
-    ui_shard "$i" "${UI_SIMS[i - 1]}" "$xr" "${mine[@]}" &
-    UI_PIDS+=($!)
-  done
-  echo "dev: ui-test: ${#suites[@]} suites in $n shards on $(for udid in "${UI_SIMS[@]}"; do printf '%s, ' "$(sim_name_by_udid "$udid")"; done | sed 's/, $//')" >&2
-  local rcs=()
-  for ((i = 0; i < n; i++)); do wait "${UI_PIDS[i]}" && rcs+=(0) || rcs+=($?); done
-  local sims=("${UI_SIMS[@]}")
-  ui_cleanup # give the borrowed simulators back before the crash guard looks
-  trap - EXIT INT TERM
-  local bundle json total p f k rp tp=0 tf=0 tk=0 failed=0 log secs missing flaky=() id
-  for ((i = 1; i <= n; i++)); do
-    bundle="$UI_SHARDS_DIR/shard-$i.xcresult"; log="$LOGS/ui-test-shard$i-$$.log"
-    json=$(xcrun xcresulttool get test-results summary --path "$bundle" --compact 2>/dev/null) || json="{}"
-    total=$(jq '.totalTestCount // 0' <<<"$json" 2>/dev/null) || total=0
-    p=$(jq '.passedTests // 0' <<<"$json" 2>/dev/null) || p=0
-    f=$(jq '.failedTests // 0' <<<"$json" 2>/dev/null) || f=0
-    k=$(jq '.skippedTests // 0' <<<"$json" 2>/dev/null) || k=0
-    secs=$(cat "$UI_SHARDS_DIR/shard-$i.secs" 2>/dev/null || echo 0)
-    if [[ -s "$UI_SHARDS_DIR/shard-$i.retried" ]]; then # failed in the shard, passed on an accepted retry: counts come from both bundles
-      rp=$(xcrun xcresulttool get test-results summary --path "$UI_SHARDS_DIR/retry-$i.xcresult" --compact 2>/dev/null | jq '.passedTests // 0') || rp=0
-      p=$((p + rp)); f=$((f - rp))
-      local fsim fsecs ftext
-      fsim=$(sim_name_by_udid "${sims[i - 1]}"); fsim="${fsim// /_}"
-      while IFS=$'\t' read -r id fsecs ftext; do
-        if [[ "$(retry_verdict "$ftext")" == crash ]]; then
-          local crashrep; crashrep=$(ls -t "$HOME"/Library/Logs/DiagnosticReports/Workouts-*.ips 2>/dev/null | head -1 || true)
-          failed=1
-          echo "FAILED $id: the app crashed on the first attempt (passed on retry); see ${crashrep:-$log}" >&2
-          continue
-        fi
-        flaky+=("$id")
-        printf '%s %s %s %s %s %s\n' "$(date -u +%FT%TZ)" "$(git rev-parse --short HEAD)" "$id" "${fsim:--}" "${fsecs:--}" "${ftext:--}" >>"$UI_FLAKY_LOG"
-        echo "dev: warning: flaky under load, failed then passed on retry: $id" >&2
-      done <"$UI_SHARDS_DIR/shard-$i.retried"
-    fi
-    printf 'shard %d\t%s\t%d suites\t%d tests\t%s\n' "$i" "$(sim_name_by_udid "${sims[i - 1]}")" \
-      "$(wc -l <"$UI_SHARDS_DIR/shard-$i.suites" | tr -d ' ')" "$total" "$(ui_fmt_secs "$secs")" >>"$UI_SHARDS_DIR/summary.tsv"
-    # Every planned suite must have produced test cases: a suite that silently ran nothing is a failure.
-    missing=$(comm -23 <(sort "$UI_SHARDS_DIR/shard-$i.suites") <(ui_bundle_suites "$bundle" | cut -f1 | sort) | tr '\n' ' ')
-    if ((rcs[i - 1] != 0 || total == 0 || f > 0)) || [[ -n "$missing" ]]; then
-      failed=1
-      echo "FAILED: ui-test shard $i on $(sim_name_by_udid "${sims[i - 1]}") ($(tr '\n' ' ' <"$UI_SHARDS_DIR/shard-$i.suites" | sed 's/ $//')), full log: $log" >&2
-      ((total > 0)) || echo "FAILED: ui-test — shard $i ran no tests" >&2
-      [[ -z "$missing" ]] || echo "FAILED: ui-test — planned suites with no test cases in shard $i: $missing" >&2
-      if (($(jq '(.testFailures // []) | length' <<<"$json" 2>/dev/null || echo 0) > 0)); then report_failures "$bundle"; else excerpt "$log" | cap >&2; fi
-    fi
-    tp=$((tp + p)); tf=$((tf + f)); tk=$((tk + k))
-  done
-  ((failed == 0)) || return 1
-  UI_SKIPPED=$tk
-  total=$((tp + tf + tk))
-  local last; last=$(cat "$UI_TOTAL" 2>/dev/null || echo 0)
-  if ((total < last)) && [[ -z "${DEV_UI_ALLOW_FEWER:-}" ]]; then
-    echo "FAILED: ui-test ran $total tests, fewer than the $last of the last passing run (a suite or test went missing; DEV_UI_ALLOW_FEWER=1 accepts it)" >&2
-    return 1
-  fi
-  mkdir -p .build; echo "$total" >"$UI_TOTAL"
-  ui_record_durations
-  UI_FLAKY=""; if ((${#flaky[@]} > 0)); then UI_FLAKY=$(IFS=,; echo "${flaky[*]}"); fi
-  # latest-ui-test.xcresult for `./dev coverage ui-test`: the shards (and accepted retries) merged, coverage included.
-  local bundles=()
-  while IFS= read -r b; do bundles+=("$b"); done < <(find "$UI_SHARDS_DIR" -maxdepth 1 -name '*.xcresult' | sort)
-  rm -rf "$RESULTS/latest-ui-test.xcresult"
-  xcrun xcresulttool merge "${bundles[@]}" --output-path "$RESULTS/latest-ui-test.xcresult" >/dev/null 2>&1 ||
-    { echo "dev: warning: merging the shard bundles failed; coverage reads shard 1" >&2; cp -R "$UI_SHARDS_DIR/shard-1.xcresult" "$RESULTS/latest-ui-test.xcresult"; }
-  [[ -z "${DEV_UI_VERBOSE:-}" ]] || cat "$UI_SHARDS_DIR/summary.tsv" >&2
-  secs=$((SECONDS - t0))
-  local line="ui-test: $tp passed, $tf failed, $tk skipped, ${#flaky[@]} flaky ($n shards, $( ((secs >= 60)) && echo "$(((secs + 30) / 60))m" || echo "${secs}s"))"
-  echo "$line"
-  ui_progress_done "$line"
-}
-
-# Progress of a running (or the last) ui-test, from the file the ui_progress_* functions keep up to date.
-# Per-test summary of $UI_FLAKY_LOG: test, how often it failed-then-passed, when and at which commit last, and that run's first
-# failure text. Fields 4-5 (shard sim, seconds) only exist on newer lines; a 3-field line has no message. Read-only.
-cmd_ui_flaky() {
-  local since="" cutoff="" cols
-  while (($#)); do
-    case "$1" in
-      --since) [[ "${2:-}" =~ ^[0-9]+$ ]] || die "ui-flaky: --since needs a number of days"; since="$2"; shift 2 ;;
-      *) die "usage: ./dev ui-flaky [--since <days>]" ;;
-    esac
-  done
-  [[ -s "$UI_FLAKY_LOG" ]] || { echo "ui-flaky: no flaky tests logged ($UI_FLAKY_LOG)"; return 0; }
-  [[ -z "$since" ]] || cutoff=$(date -u -v-"$since"d +%FT%TZ)
-  cols=$(tput cols 2>/dev/null || true); [[ "$cols" =~ ^[0-9]+$ ]] || cols="${COLUMNS:-120}"
-  awk -v cutoff="$cutoff" '
-    NF >= 3 && $1 >= cutoff {
-      id = $3; n[id]++
-      if ($1 >= last[id]) {
-        last[id] = $1; commit[id] = $2; msg = ""
-        for (i = 6; i <= NF; i++) msg = msg (i > 6 ? " " : "") $i
-        text[id] = msg
-      }
-    }
-    END { for (id in n) printf "%d\t%s\t%s\t%s\t%s\n", n[id], last[id], id, commit[id], (text[id] == "" ? "-" : text[id]) }
-  ' "$UI_FLAKY_LOG" | sort -t"$(printf '\t')" -k1,1nr -k2,2r | awk -F'\t' -v cols="$cols" '
-    { c[NR] = $1; d[NR] = substr($2, 1, 10); id[NR] = $3; sha[NR] = $4; m[NR] = $5; if (length($3) > w) w = length($3) }
-    END {
-      if (NR == 0) { print "ui-flaky: no flaky tests logged in that window"; exit }
-      room = cols - w - 5 - 10 - 7 - 8; if (room < 20) room = 20
-      printf "%-" w "s  %5s  %-10s  %-7s  %s\n", "TEST", "COUNT", "LAST", "COMMIT", "LAST MESSAGE"
-      for (i = 1; i <= NR; i++) {
-        t = m[i]; if (length(t) > room) t = substr(t, 1, room - 3) "..."
-        printf "%-" w "s  %5d  %-10s  %-7s  %s\n", id[i], c[i], d[i], sha[i], t
-      }
-    }'
-}
-
-cmd_ui_status() {
-  local pid=""
-  full_run_line "$FULL_RUN_DIR" "$(date +%s)"
-  pid=$(cat "$UI_PROGRESS_DIR/pid" 2>/dev/null || true)
-  if [[ -s "$UI_PROGRESS" && -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
-    cat "$UI_PROGRESS"
-    return 0
-  fi
-  echo "ui-test: not running"
-  if [[ -f "$UI_STAMP" ]]; then
-    echo "last stamp ($UI_STAMP):"; sed 's/^/  /' "$UI_STAMP"
-  else
-    echo "last stamp: none"
-  fi
-  if [[ -s "$UI_PROGRESS" ]]; then
-    local last; last=$(tail -n 1 "$UI_PROGRESS")
-    [[ "$last" == done:* ]] || last="(no final line: that run was cut off) $last"
-    echo "last run: $last"
-  else
-    echo "last run: no progress file"
-  fi
-}
-
-coverage_stamp_line() { # coverage_stamp_line <stamp>: which commit the kept unit-test bundle came from
-  local commit; commit=$(stamp_get "$1" commit)
-  if [[ -z "$commit" ]]; then echo "coverage: unstamped (a bundle from a filtered run, or from before ./dev test wrote .build/test.stamp)"; return 0; fi
-  echo "coverage: unit tests at ${commit:0:7} ($([[ "$(stamp_get "$1" clean)" == 1 ]] && echo clean || echo dirty) tree), $(stamp_get "$1" when)"
-}
-# Per-target code coverage of the newest passing `test` / `ui-test` run (tests record coverage; see run_tests).
-cmd_coverage() {
-  local kind="${1:-test}"
-  case "$kind" in test | ui-test) ;; *) die "coverage: unknown kind '$kind' (usage: coverage [test|ui-test])" ;; esac
-  local bundle="$RESULTS/latest-$kind.xcresult"
-  [[ -d "$bundle" ]] || die "coverage: no $bundle yet; run ./dev $kind first (a passing run keeps its bundle)"
-  [[ "$kind" != test ]] || coverage_stamp_line "$TEST_STAMP"
-  xcrun xccov view --report --only-targets "$bundle"
 }
 
 cmd_kit() {
@@ -1170,7 +130,7 @@ cmd_kit_coverage() {
 }
 
 # swift test exits 0 when --filter matches nothing; turn that into a failure, else print the totals line.
-swift_test_summary() { # swift_test_summary <label> <filter>; not test_summary, which is the xcodebuild one above
+swift_test_summary() { # swift_test_summary <label> <filter>
   local log="$LAST_LOG" line
   if grep -q 'No matching test cases were run' "$log"; then
     echo "FAILED: $1 — no tests matched filter '$2' (check the suite/test name)" >&2
@@ -1212,552 +172,167 @@ cmd_lint() {
 }
 cmd_format() { swift_format format --in-place; }
 
-find_app() {
-  local app
-  # By name: after a ui-test run the folder also holds WorkoutsUITests-Runner.app, and `find -print -quit` returned it
-  # first, so `run` installed the runner and launched a stale Workouts build (2026-11-03).
-  app="$DERIVED/Build/Products/Debug-iphonesimulator/Workouts.app"
-  [[ -d "$app" ]] || die "no Workouts.app under $DERIVED/Build/Products/Debug-iphonesimulator"
-  echo "$app"
-}
-
-run_prepare() { # boot, build and install; leaves the launch to the caller (cmd_run, or cmd_shot --burst to catch the first frames)
-  local out
-  sim_resolve
-  # Boots headless: no Simulator.app window is opened (with a pool of simulators, windows pile up on Eric's Mac).
-  if out=$(xcrun simctl boot "$SIM_UDID" 2>&1); then
-    COLD_BOOT=1 # a fresh boot (or a new clone) needs longer before its first frame; cmd_shot waits for it
-  else
-    [[ "$out" == *"current state: Booted"* || "$out" == *"already"* ]] || die "boot failed: $out"
-  fi
-  sim_bootstatus "$SIM_UDID"
-  cmd_build
-  xcrun simctl install "$SIM_UDID" "$(find_app)"
-}
-
+# Simulator verbs: each one a call to simkit's `sim`. Whole jobs (test, ui-test, tree, shot, poses) take no lease from here:
+# simkit uses the session's when one is held, else a lease of its own for the job.
+cmd_build() { sim_lease; sim app build; }
 cmd_run() { # cmd_run [-- app launch args...]; args reach the app, e.g. ./dev run -- -preview Swatches
   [[ "${1:-}" == "--" ]] && shift
-  run_prepare
-  xcrun simctl launch --terminate-running-process "$SIM_UDID" "$BUNDLE_ID" "$@"
-  echo "logs: xcrun simctl spawn $SIM_UDID log stream --predicate 'subsystem == \"$BUNDLE_ID\"'"
+  sim_lease
+  if (($# > 0)); then sim app run -- "$@"; else sim app run; fi
+}
+cmd_release() { sim lease release; }
+cmd_sims() { sim status; }
+
+is_health_filter() { [[ "${1:-}" == HealthKitIntegration* ]]; }
+cmd_test() {
+  # Snapshot tests record their references when the runner sees SNAPSHOT_RECORD; simkit maps only TEST_RUNNER_-prefixed variables.
+  [[ -z "${SNAPSHOT_RECORD:-}" ]] || export TEST_RUNNER_SNAPSHOT_RECORD="$SNAPSHOT_RECORD"
+  sim test WorkoutsTests ${1:+"$1"}
+}
+cmd_ui_test() {
+  local extra=()
+  [[ -z "${DEV_POSE:-}" ]] || extra+=(--pose "$DEV_POSE")
+  # The real-Health run keeps its result apart (its simulator, environment and skips come from simkit.json "suites").
+  ! is_health_filter "${1:-}" || extra+=(--out .build/simkit/test/WorkoutsUITests-health)
+  sim test WorkoutsUITests ${1:+"$1"} ${extra[@]+"${extra[@]}"}
+}
+cmd_ui_status() { sim test status; }
+cmd_ui_flaky() {
+  [[ $# -eq 0 || ( "$1" == --since && "${2:-}" =~ ^[0-9]+$ && $# -eq 2 ) ]] || die "usage: ./dev ui-flaky [--since <days>]"
+  sim test flaky WorkoutsUITests "$@"
+}
+cmd_coverage() {
+  local target
+  case "${1:-test}" in
+    test) target=WorkoutsTests ;;
+    ui-test) target=WorkoutsUITests ;;
+    *) die "coverage: unknown kind '$1' (usage: coverage [test|ui-test])" ;;
+  esac
+  sim test coverage ".build/simkit/test/$target"
+}
+# The accessibility tree of a `-preview <Name>` screen: TreeDumpUITests attaches XCUIApplication.debugDescription, which
+# `sim test --attachments` exports; the tree is that attachment's text.
+cmd_tree() {
+  local name="${1:-}" out file text rc=0
+  [[ -n "$name" && "$name" != -* && "$name" != */* ]] || die "usage: tree <PreviewName>"
+  command -v jq >/dev/null 2>&1 || die "tree: jq is required"
+  out=$(mktemp -d "${TMPDIR:-/tmp}/dev-tree.XXXXXX")
+  TEST_RUNNER_TREE_PREVIEW="$name" sim test WorkoutsUITests 'TreeDumpUITests/testDump()' --out .build/simkit/test/tree --attachments "$out" >/dev/null || rc=$?
+  if ((rc != 0)); then rm -rf "${out:?}"; return "$rc"; fi
+  file=$(jq -r '[.[].attachments[]? | select(.suggestedHumanReadableName | startswith("tree-"))][0].exportedFileName // empty' "$out/manifest.json" 2>/dev/null) || file=""
+  [[ -n "$file" && -f "$out/$file" ]] || { rm -rf "${out:?}"; die "tree: the dump attachment is missing from the run (TreeDumpUITests did not run, or skipped itself)"; }
+  text=$(sed -n '/^=== TREE BEGIN ===$/,/^=== TREE END ===$/p' "$out/$file")
+  if [[ -z "$text" ]]; then text=$(<"$out/$file"); fi
+  rm -rf "${out:?}"
+  [[ -n "$text" ]] || die "tree: the dump for '$name' is empty"
+  printf '%s\n' "$text"
 }
 
-cmd_ui_env() { # cmd_ui_env [content_size <size>] [appearance light|dark] | reset: text size / appearance of THIS checkout's sim
-  # The documented `simctl ui booted ...` hits whichever sim is booted (often another run's shard); this targets ours.
-  local arg usage="usage: ui-env [content_size <size>] [appearance light|dark] | reset"
-  xcrun simctl boot "$SIM_UDID" >/dev/null 2>&1 || true
-  sim_bootstatus "$SIM_UDID"
-  if (($# == 0)); then
-    echo "content_size: $(xcrun simctl ui "$SIM_UDID" content_size 2>&1)"
-    echo "appearance: $(xcrun simctl ui "$SIM_UDID" appearance 2>&1)"
-    return
-  fi
-  while (($# > 0)); do
-    arg="$1"
-    case "$arg" in
-      reset)
-        xcrun simctl ui "$SIM_UDID" content_size large || die "ui-env: content_size failed"
-        xcrun simctl ui "$SIM_UDID" appearance light || die "ui-env: appearance failed"
-        shift ;;
-      content_size | appearance)
-        [[ -n "${2:-}" ]] || die "$usage"
-        xcrun simctl ui "$SIM_UDID" "$arg" "$2" || die "ui-env: $arg $2 failed"
-        shift 2 ;;
-      *) die "$usage" ;;
-    esac
-  done
-  cmd_ui_env
-}
-
+cmd_ui_env() { sim_lease; sim app ui "$@"; }
 cmd_screenshot() {
-  local path="${1:-.build/screenshots/$(date +%Y%m%d-%H%M%S).png}"
+  local path="${1:-.build/screenshots/$(date +%Y%m%d-%H%M%S).png}" extra=()
+  [[ -z "${DEV_DISPLAY:-}" ]] || extra=(--display "$DEV_DISPLAY")
   mkdir -p "$(dirname "$path")"
-  # Multi-display devices (iPhone Duo) need --display; DEV_DISPLAY overrides the "primary" fallback.
-  local out
-  if ! out=$(xcrun simctl io "$SIM_UDID" screenshot "$path" 2>&1); then
-    if [[ "$out" == *"--display"* ]]; then
-      out=$(xcrun simctl io "$SIM_UDID" screenshot --display="${DEV_DISPLAY:-primary}" "$path" 2>&1) || die "screenshot failed: $out"
-    else
-      die "screenshot failed: $out"
-    fi
-  fi
-  echo "$path"
+  sim_lease
+  sim screenshot "$path" ${extra[@]+"${extra[@]}"}
 }
-
-cmd_shot() { # cmd_shot <png> [-- app launch args...]: run + settle + screenshot under ONE lock hold
-  # Separate `run` and `screenshot` calls each take the lock, so a parallel worker could install its own build in between
-  # and the shot would show that build (seen 2026-11-03). A cold boot waits 15 s for the first frame; then `duo screenshot
-  # --settle` captures the lit panel every 300 ms until two consecutive captures are byte-identical (timeout
-  # ${DEV_SETTLE_TIMEOUT:-10} s, fails when the app never stops redrawing), and that settled capture is the PNG.
-  # DEV_SETTLE=<s> is an optional extra wait before settling (default 1 s, so a still launch screen is not mistaken
-  # for the settled app).
-  local burst=0 burst_spec=""
+cmd_shot() { # cmd_shot [--burst [<count>x<intervalMs>]] <png> [-- app launch args...]
+  local burst=()
   if [[ "${1:-}" == --burst ]]; then
-    burst=1; shift
-    if [[ "${1:-}" =~ ^[0-9]+x[0-9]+$ ]]; then burst_spec="$1"; shift; fi
+    shift
+    if [[ "${1:-}" =~ ^[0-9]+x[0-9]+$ ]]; then burst=(--burst "$1"); shift; else burst=(--burst 15x100); fi
   fi
   local path="${1:-}"
   [[ -n "$path" && "$path" != -* ]] || die "usage: shot [--burst [<count>x<intervalMs>]] <png> [-- app args...]"
   shift
   [[ "${1:-}" == "--" ]] && shift
-  if ((burst)); then cmd_shot_burst "$path" "$burst_spec" "$@"; return; fi
-  cmd_run -- "$@" >/dev/null
-  sleep "${DEV_SETTLE:-$((COLD_BOOT ? 15 : 1))}"
-  duo_bin
-  mkdir -p "$(dirname "$path")"
-  # The status bar clock and indicators change between runs, so pin them (documented simctl) for the capture only.
-  xcrun simctl status_bar "$SIM_UDID" override --time 9:41 --wifiBars 3 --cellularMode notSupported \
-    --batteryState charged --batteryLevel 100 >/dev/null 2>&1 || true
-  local rc=0
-  "$DUO_BIN" screenshot "$path" --settle --timeout "${DEV_SETTLE_TIMEOUT:-10}" --udid "$SIM_UDID" || rc=$?
-  xcrun simctl status_bar "$SIM_UDID" clear >/dev/null 2>&1 || true
-  ((rc == 0)) || die "shot: no settled screenshot"
-  echo "$path"
+  if (($# > 0)); then sim shot "$path" ${burst[@]+"${burst[@]}"} -- "$@"; else sim shot "$path" ${burst[@]+"${burst[@]}"}; fi
 }
-
-cmd_shot_burst() { # cmd_shot_burst <png> <spec|""> [app launch args...]: capture the lit panel from the moment of launch
-  # A reviewer artifact for transitions (pushed screens, first frames), not a settled proof: duo captures the lit panel
-  # <count> times about <intervalMs> apart (default 15x100) and tiles the frames into <png>, each labelled with its
-  # index and time offset. The app launch runs in the background so the burst's first frames are the launch itself.
-  # No tap injection: Tools/duo has no tap primitive (its HID code only moves the hinge).
-  local path="$1" spec="$2"
-  shift 2
-  run_prepare
-  duo_bin
-  mkdir -p "$(dirname "$path")"
-  ((COLD_BOOT)) && sleep 15 # a fresh boot needs time before its first frame, as for a settled shot
-  xcrun simctl status_bar "$SIM_UDID" override --time 9:41 --wifiBars 3 --cellularMode notSupported \
-    --batteryState charged --batteryLevel 100 >/dev/null 2>&1 || true
-  xcrun simctl launch --terminate-running-process "$SIM_UDID" "$BUNDLE_ID" "$@" >/dev/null &
-  local launch_pid=$! rc=0
-  "$DUO_BIN" screenshot "$path" --burst ${spec:+"$spec"} --udid "$SIM_UDID" || rc=$?
-  wait "$launch_pid" || echo "dev: shot --burst: app launch failed" >&2
-  xcrun simctl status_bar "$SIM_UDID" clear >/dev/null 2>&1 || true
-  ((rc == 0)) || die "shot --burst: no burst captured"
-  echo "$path"
-}
-
-if [[ "$SIM_SHARED" != 1 ]]; then
-# Simulator commands hold the lock of their one simulator (see the pool above), so parallel agents on the same simulator
-# take turns instead of racing it, and fail when any simulator process crashed while they ran. The crash check is global:
-# a crash on any simulator fails the command. Seen 2026-11-03: a SpringBoard crash loop after
-# `simctl io screenConfig --display=N power off` (now forbidden) and a PosterBoard crash while xcodebuild booted a
-# parallel-testing clone. Each crash raises a "quit unexpectedly" dialog on Eric's Mac.
-CRASH_DIR="${DEV_CRASH_DIR:-$HOME/Library/Logs/DiagnosticReports}"
-SIM_LOCK=""
-sim_lock() { # sim_lock <lock-dir>
-  SIM_LOCK="$1"
-  local waited=0 owner
-  until mkdir "$SIM_LOCK" 2>/dev/null; do
-    owner=$(cat "$SIM_LOCK/pid" 2>/dev/null || true)
-    if [[ -n "$owner" ]] && ! kill -0 "$owner" 2>/dev/null; then sim_reclaim "$SIM_LOCK" "$owner"; continue; fi
-    ((waited % 30 == 0)) && echo "dev: waiting for $SIM_NAME (held by pid ${owner:-?})" >&2
-    sleep 2; waited=$((waited + 2))
-    ((waited < 1800)) || die "simulator lock held for 30 min by pid ${owner:-?}; remove $SIM_LOCK if it is stale"
-  done
-  echo $$ >"$SIM_LOCK/pid"
-  trap sim_release EXIT
-}
-# Releasing a lock stamps the simulator as used just now (<lock>.lock -> <lock>.last-used); the idle reaper reads the stamp.
-# The original simulator keeps the pre-pool name (workouts-dev-sim.last-used, no udid in it); an empty udid has no stamp at all.
-sim_stamp_path() { # sim_stamp_path <udid>
-  local lock; [[ -n "$1" ]] || return 1
-  lock=$(sim_lock_path "$1"); echo "${lock%.lock}.last-used"
-}
-sim_release() { full_run_release; [[ -z "$SIM_LOCK" ]] || { ui_pose_restore; [[ -n "${SIM_NO_STAMP:-}" || "$SIM_LOCK" == *..lock ]] || echo $$ >"${SIM_LOCK%.lock}.last-used" 2>/dev/null || true; rm -rf "$SIM_LOCK"; }; }
-sim_unlock() { sim_release; trap - EXIT; }
-
-# Pool housekeeping. These take a simulator's lock without waiting (sim_grab fails when anyone holds it, so a run in
-# progress is never disturbed) and give it back with sim_drop, which stamps it (housekeeping passes "sweep": not use).
-# Remove a lock whose owner is dead. A plain `rm -rf` races: a second waiter could delete the lock a first one has just
-# re-created. mv is atomic, so one waiter wins the dead directory; if what it moved is no longer the dead owner's lock
-# (someone re-took it between our read and our mv), it puts it back.
-sim_reclaim() { # sim_reclaim <lock-dir> <dead-owner-pid>
-  local dead="$1.dead.$$" now
-  mv "$1" "$dead" 2>/dev/null || return 0
-  now=$(cat "$dead/pid" 2>/dev/null || true)
-  if [[ "$now" != "$2" && -n "$now" ]] && kill -0 "$now" 2>/dev/null; then mv -n "$dead" "$1" 2>/dev/null || true; fi
-  rm -rf "$dead"
-}
-sim_grab() { # sim_grab <udid>
-  [[ "$1" == "$SIM_UDID" && -n "$SIM_LOCK" ]] && return 0 # this command already holds it
-  local dir owner; dir=$(sim_lock_path "$1")
-  sim_lock_free "$1" || return 1
-  if [[ -d "$dir" ]]; then owner=$(cat "$dir/pid" 2>/dev/null || true); sim_reclaim "$dir" "$owner"; fi
-  mkdir "$dir" 2>/dev/null || return 1
-  echo $$ >"$dir/pid"
-}
-sim_drop() { # sim_drop <udid> [sweep]: "sweep" = housekeeping (idle sweep, heal/erase), which does not count as use for the cap
-  [[ "$1" == "$SIM_UDID" && -n "$SIM_LOCK" ]] && return 0
-  [[ -n "$1" ]] || return 0
-  sim_stamp "$1" "${2:-}"
-  rm -rf "$(sim_lock_path "$1")"
-}
-sim_is_clone() { # a pool member other than the original (the only simulators dev may erase on its own)
-  local n; n=$(sim_name_by_udid "$1")
-  [[ -n "$n" && "$n" != "$SIM_ORIGINAL" ]] && sim_pool_names | grep -qxF "$n"
-}
-sim_idle_min() { # minutes since a simulator was last used: newest of its last-used stamp, lock dir and claim files
-  local udid="$1" newest=0 f m
-  for f in "$(sim_lock_path "$udid")" "$(sim_stamp_path "$udid")"; do
-    m=$(stat -f %m "$f" 2>/dev/null || echo 0); ((m > newest)) && newest=$m
-  done
-  while IFS= read -r f; do
-    [[ "$(cat "$f" 2>/dev/null || true)" == "$udid" ]] || continue
-    m=$(stat -f %m "$f" 2>/dev/null || echo 0); ((m > newest)) && newest=$m
-  done < <(sim_claim_files)
-  # Never seen in use (booted before stamps existed, or by hand): start its clock now rather than reap it blind.
-  if ((newest == 0)); then touch "$(sim_stamp_path "$udid")" 2>/dev/null || true; echo 0; return; fi
-  echo $((($(date +%s) - newest) / 60))
-}
-# Simulators this command holds: its own plus any shard simulators it borrowed (ui_pick_sims appends to $SIM_HELD_FILE).
-SIM_HELD_FILE=""
-sim_held() { [[ "$1" == "$SIM_UDID" ]] || { [[ -n "$SIM_HELD_FILE" ]] && grep -qxF "$1" "$SIM_HELD_FILE" 2>/dev/null; }; }
-# Another checkout's claim keeps its simulator off limits (to erase, heal or borrow) until that claim has gone $SIM_IDLE_MIN
-# minutes without being refreshed, i.e. the simulator has sat idle. Simulators this command holds are always ours.
-sim_hands_off() { # sim_hands_off <udid>: another checkout's claim on it was refreshed within $SIM_IDLE_MIN minutes
-  sim_held "$1" && return 1
-  local f
-  while IFS= read -r f; do
-    [[ "$f" -ef "$SIM_CLAIM" ]] && continue
-    [[ "$(cat "$f" 2>/dev/null || true)" == "$1" ]] || continue
-    [[ -n "$(find "$f" -mmin "-$SIM_IDLE_MIN" 2>/dev/null)" ]] && return 0
-  done < <(sim_claim_files)
-  return 1
-}
-sim_app_running() { # the app is running on a booted simulator: someone is mid-flow even if no dev command holds the lock
-  local out; out=$(xcrun simctl spawn "$1" launchctl list 2>/dev/null || true)
-  [[ "$out" == *com.ericribeiro.Workouts* ]]
-}
-sim_reap_idle() { # shut down booted pool simulators nobody holds and nobody used for $SIM_IDLE_MIN minutes (never the original)
-  ((SIM_IDLE_MIN > 0)) || return 0
-  local name udid idle
-  while IFS= read -r name; do
-    [[ "$name" != "$SIM_ORIGINAL" ]] || continue
-    udid=$(sim_udid_by_name "$name")
-    [[ -n "$udid" && "$udid" != "$SIM_UDID" && "$(sim_state_by_udid "$udid")" == "Booted" ]] || continue
-    sim_lock_free "$udid" || continue
-    idle=$(sim_idle_min "$udid"); ((idle >= SIM_IDLE_MIN)) || continue
-    sim_app_running "$udid" && continue
-    sim_grab "$udid" || continue
-    xcrun simctl shutdown "$udid" >/dev/null 2>&1 || true
-    sim_drop "$udid" sweep
-    echo "dev: shut down idle $name (idle $idle min)" >&2
-  done < <(sim_pool_names)
-}
-sim_heal() { # sim_heal <udid> <crash-count>: shut down and erase a pool clone whose system processes are crash-looping
-  local name; name=$(sim_name_by_udid "$1")
-  sim_kept "$1" && return 0
-  sim_hands_off "$1" && { echo "dev: $name crashed system processes ($2 reports) but another checkout claims it; not erasing it" >&2; return 0; }
-  sim_grab "$1" || { echo "dev: $name crashed system processes ($2 reports) but is in use; not erasing it" >&2; return 0; }
-  xcrun simctl shutdown "$1" >/dev/null 2>&1 || true
-  xcrun simctl erase "$1" >/dev/null 2>&1 || echo "dev: erase of $name failed" >&2
-  sim_drop "$1" sweep
-  echo "dev: shut down and erased $name after $2 system-process crash reports; it boots clean on the next run" >&2
-}
-sim_crashes() { # sim_crashes <since-epoch>: "<fatal|warn> <report> <udid|-> <process>" per crash report captured after <since-epoch>
-  # Reads each report's own captureTime (files are sometimes re-touched long after the crash) and skips daemons killed
-  # while a simulator shuts down (SIGTERM timeout), which are shutdown noise, not crashes.
-  /usr/bin/python3 -I - "$CRASH_DIR" "$1" <<'PY'
-import datetime, json, os, re, sys
-root, since = sys.argv[1], float(sys.argv[2])
-for name in sorted(os.listdir(root)):
-    path = os.path.join(root, name)
-    if not name.endswith(".ips") or os.path.getmtime(path) < since:
-        continue
-    try:
-        text = open(path, encoding="utf-8", errors="replace").read()
-        body = json.loads(text[text.index("\n") + 1:])
-        captured = datetime.datetime.strptime(body["captureTime"][:19], "%Y-%m-%d %H:%M:%S").timestamp()
-    except Exception:
-        continue
-    if captured < since - 1 or "CoreSimulator.SimDevice" not in body.get("coalitionName", ""):
-        continue
-    if "SIGTERM_TIMEOUT" in json.dumps(body.get("termination", {})):
-        continue
-    proc = body.get("procName", name.split("-")[0])
-    # Fatal: our own processes (a real bug) and the processes whose crash loops flood the Mac with dialogs.
-    fatal = proc in {"Workouts", "WorkoutsLiveActivity", "SpringBoard", "PosterBoard", "backboardd"}
-    # An extension relaunched from the bundle a reinstall just moved to containermanagerd's Dead/ folder crashes in
-    # ExtensionFoundation before any of our code runs (a Live Activity was still up during the install): install noise.
-    if fatal and "/com.apple.containermanagerd/System/Dead/" in body.get("procPath", ""):
-        fatal = False
-    # The coalition name carries the simulator's UDID (com.apple.CoreSimulator.SimDevice.<udid>).
-    udid = re.search(r"SimDevice\.([0-9A-Fa-f-]{36})", body.get("coalitionName", ""))
-    print(("fatal " if fatal else "warn ") + name + " " + (udid.group(1).upper() if udid else "-") + " " + proc)
-PY
-}
-SIM_SIG=""; SIM_RC=0
-sim_wait_child() { # sim_wait_child <pid>: wait for the guarded command's subshell; sets SIM_RC
-  local c="$1" i
-  while :; do
-    wait "$c"; SIM_RC=$?
-    kill -0 "$c" 2>/dev/null || break # it exited; otherwise `wait` was cut short by a trapped signal
-    [[ -n "$SIM_SIG" ]] || continue
-    kill -TERM "$c" 2>/dev/null || true # its own traps (ui_cleanup) stop the shards; give them time, then force
-    for ((i = 0; i < 40; i++)); do kill -0 "$c" 2>/dev/null || break; sleep 0.5; done
-    if kill -0 "$c" 2>/dev/null; then pkill -TERM -P "$c" 2>/dev/null || true; full_run_kill_shards; sleep 3; kill -KILL "$c" 2>/dev/null || true; fi
-    wait "$c" 2>/dev/null || true
-    break
-  done
-  if [[ -n "$SIM_SIG" ]]; then # stopped from outside: leave nothing of the run behind, and no crash verdict
-    full_run_kill_shards
-    case "$SIM_SIG" in INT) SIM_RC=130 ;; HUP) SIM_RC=129 ;; *) SIM_RC=143 ;; esac
-    exit "$SIM_RC" # the EXIT trap (sim_release) drops the marker and the simulator lock
-  fi
-}
-sim_guarded() { # sim_guarded <cmd> [args...]
-  local rc=0 crashes held
-  sim_resolve
-  # An unfiltered ui-test (a full run) checks that it starts alone in cmd_ui_test; every other command stays under the busy cap.
-  local capped=1 label="${1#cmd_}" wait_sec why
-  [[ "$1" == cmd_ui_test && -z "${2:-}" ]] && capped=0
-  # check waits for the gates (its lint, kit and duo-test steps already ran before it got here); the rest refuse unless DEV_GATE_WAIT_SEC is set.
-  if [[ "$1" == cmd_check_sim ]]; then label=check; wait_sec=$(gate_wait_limit 1800); else wait_sec=$(gate_wait_limit 0); fi
-  local load
-  while :; do
-    gate_wait "$label" "$wait_sec" sim_gate_probe "$capped" || exit $?
-    if load=$(load_over 2); then echo "dev: warning: load average ${load% *} is above 2 x ${load#* } CPUs: the machine is busy; expect slow builds and flaky UI tests" >&2; fi
-    sim_lock "$(sim_lock_path "$SIM_UDID")"
-    # The check above ran before the lock, so simultaneous starts all passed it: count again now that this command holds its
-    # simulator (others' locks are visible), and give the lock back without stamping it used (a refusal is not use).
-    ((capped)) || break
-    rc=0; why=$(busy_sims_verdict "${DEV_MAX_BUSY_SIMS:-2}" "$(sim_cap_lines)") || rc=$?
-    ((rc)) || break
-    SIM_NO_STAMP=1; sim_unlock; SIM_NO_STAMP=""
-    gate_step "$label" "$wait_sec" "$why" || exit $?
-  done
-  SIM_HELD_FILE=$(mktemp); echo "$SIM_UDID" >"$SIM_HELD_FILE"
-  local since; since=$(date +%s)
-  # Not `"$@" || rc=$?`: bash disables `set -e` inside anything run in a `||` context, so check kept going past a
-  # failed step and printed "check: ok" (2026-11-03). A subshell with errexit re-enabled stops at the first failure.
-  set +e
-  # The command runs in a background subshell this shell `wait`s on: a foreground subshell would defer a TERM or HUP trap
-  # until it ended, so `kill <pid>` could not reach it. sim_wait_child passes the signal on and stops the shards.
-  SIM_SIG=""
-  trap 'SIM_SIG=TERM' TERM; trap 'SIM_SIG=INT' INT; trap 'SIM_SIG=HUP' HUP
-  (set -e; "$@") <&0 &
-  sim_wait_child $!
-  rc=$SIM_RC
-  trap - TERM INT HUP
-  set -e
-  full_run_release
-  crashes=$(sim_crashes "$since")
-  # Fail only for crashes on the simulators this command held. Everything else (other simulators, which other agents
-  # are running right now, and daemons like assetsd or intelligencetasksd that crash on their own) is a warning.
-  held=" $(tr '\n' ' ' <"$SIM_HELD_FILE") "
-  crashes=$(awk -v held="$held" '$1 == "fatal" && $3 != "-" && index(held, " " $3 " ") == 0 { $1 = "warn" } { print }' <<<"$crashes")
-  grep '^warn ' <<<"$crashes" | awk '{ print "dev: warning: simulator process crashed (not on our simulators, or a daemon): " $2 }' >&2 || true
-  crashes=$(grep '^fatal ' <<<"$crashes" || true)
-  if [[ -n "$crashes" ]]; then
-    echo "dev: a simulator process crashed during this command:" >&2
-    awk '{ print "dev:   " $2 }' <<<"$crashes" >&2
-    # A pool clone whose system processes (PosterBoard, SpringBoard, backboardd) crashed twice is wedged: reset it. The
-    # original is never erased automatically, and a clone someone else is running is left alone.
-    local udid n
-    while read -r udid n; do
-      sim_is_clone "$udid" && sim_heal "$udid" "$n"
-    done < <(awk '$4 ~ /^(PosterBoard|SpringBoard|backboardd)$/ && $3 != "-" { c[$3]++ } END { for (u in c) if (c[u] >= 2) print u, c[u] }' <<<"$crashes")
-    echo "dev: stop and report it; do not keep testing, and never run 'simctl shutdown all' (other agents' simulators). Reports: $CRASH_DIR" >&2
-    rm -f "$SIM_HELD_FILE"
-    exit 1
-  fi
-  rm -f "$SIM_HELD_FILE"
-  return "$rc"
-}
-
-# Duo poses (hinge fold, rotation, Home) come from Tools/duo, our own SwiftPM tool: a vendor HID event, the same one Xcode's
-# Device Hub sends, moves the simulated hinge or orientation from a small helper inside the simulator, and every pose is
-# verified by documented reads (CoreMotion hinge angle, `devicectl` orientation and lit panel) before the command succeeds.
-# Verified with zero SpringBoard crashes, unlike `simctl io screenConfig` display toggling (forbidden). Stateless: no
-# daemon and no session to leak, so the per-simulator lock in sim_guarded is all the serialisation there is.
-# See docs/plan-device-tool.md. SwiftPM keeps its own scratch-path lock, so concurrent builds are safe.
-sim_require_booted() { [[ "$(xcrun simctl list devices booted)" == *"$SIM_UDID"* ]] || die "$SIM_NAME is not booted; ./dev run first"; }
-duo_bin() { # build Tools/duo in release mode unless the binary is newer than every source file under it
-  if [[ "$DUO_SIMKIT" == 1 ]]; then # simkit builds its own tool (and says why on failure)
-    "$SIMKIT_HOME/bin/sim" duo-bin >/dev/null || die "simkit's duo tool failed to build (DEV_DUO_LOCAL=1 uses Tools/duo instead)"
-    return 0
-  fi
-  if [[ -x "$DUO_BIN" ]] && [[ -z "$(find Tools/duo -name .build -prune -o -type f -newer "$DUO_BIN" -print -quit)" ]]; then
-    return 0
-  fi
-  echo "dev: building Tools/duo…" >&2
-  run_logged duo-build swift build -c release --package-path Tools/duo --scratch-path "$DUO_SPM" || die "duo build failed"
-}
-duo_png_ok() { [[ -z "${1:-}" || "$1" != -* ]]; } # an optional png path must not look like an option
-cmd_home() { # go to the Home screen so the Live Activity / notifications show; a png is a capture of it
-  duo_png_ok "${1:-}" || die "usage: home [screenshot.png]"
-  sim_require_booted; duo_bin
-  local extra=(); if [[ -n "${1:-}" ]]; then mkdir -p "$(dirname "$1")"; extra=(--png "$1"); fi
-  "$DUO_BIN" home --udid "$SIM_UDID" ${extra[@]+"${extra[@]}"}
-}
-cmd_fold() {
-  if [[ "${1:-}" == --keyframes ]]; then # timed hinge motion, optionally recorded (docs/plan-device-tool.md C.5)
-    [[ -n "${2:-}" && "$2" != -* ]] || die "usage: fold --keyframes '<json>' [--record <movie.mov>]"
-    local json="$2" extra=()
-    shift 2
-    if [[ "${1:-}" == --record ]]; then
-      [[ -n "${2:-}" && "$2" != -* ]] || die "usage: fold --keyframes '<json>' [--record <movie.mov> [--display lit|outer|inner]]"
-      mkdir -p "$(dirname "$2")"; extra=(--record "$2"); shift 2
-      if [[ "${1:-}" == --display ]]; then
-        [[ "${2:-}" =~ ^(lit|outer|inner)$ ]] || die "usage: fold --keyframes '<json>' [--record <movie.mov> [--display lit|outer|inner]]"
-        extra+=(--display "$2"); shift 2
-      fi
-      [[ $# -eq 0 ]] || die "usage: fold --keyframes '<json>' [--record <movie.mov> [--display lit|outer|inner]]"
-    else
-      [[ $# -eq 0 ]] || die "usage: fold --keyframes '<json>' [--record <movie.mov>]"
-    fi
-    sim_require_booted; duo_bin
-    "$DUO_BIN" fold --keyframes "$json" --udid "$SIM_UDID" ${extra[@]+"${extra[@]}"}
-    return
-  fi
-  [[ "${1:-}" =~ ^(closed|half-open|open)$ ]] && duo_png_ok "${2:-}" || die "usage: fold closed|half-open|open [screenshot.png]"
-  sim_require_booted; duo_bin
-  local extra=(); if [[ -n "${2:-}" ]]; then mkdir -p "$(dirname "$2")"; extra=(--png "$2"); fi
-  "$DUO_BIN" fold "$1" --udid "$SIM_UDID" ${extra[@]+"${extra[@]}"}
-}
-cmd_orient() {
-  [[ "${1:-}" =~ ^(portrait|landscape-left|landscape-right)$ ]] && duo_png_ok "${2:-}" || die "usage: orient portrait|landscape-left|landscape-right [screenshot.png]"
-  sim_require_booted; duo_bin
-  local extra=(); if [[ -n "${2:-}" ]]; then mkdir -p "$(dirname "$2")"; extra=(--png "$2"); fi
-  "$DUO_BIN" orient "$1" --udid "$SIM_UDID" ${extra[@]+"${extra[@]}"}
-}
-cmd_pose() { # fold + orient + verify in one call; the names are the layouts verify-ui checks (docs/plan-device-tool.md C.1)
-  [[ "${1:-}" =~ ^(closed-portrait|closed-landscape|open-wide|open-tall)$ ]] && duo_png_ok "${2:-}" \
-    || die "usage: pose closed-portrait|closed-landscape|open-wide|open-tall [screenshot.png]"
-  sim_require_booted; duo_bin
-  local extra=(); if [[ -n "${2:-}" ]]; then mkdir -p "$(dirname "$2")"; extra=(--png "$2" --settle); fi
-  "$DUO_BIN" pose "$1" --udid "$SIM_UDID" ${extra[@]+"${extra[@]}"}
-}
-fi
-cmd_poses() { # cmd_poses <dir> [-- app launch args...]: run + the four poses as settled PNGs, ONE lock hold (plan C.3)
-  # Like cmd_shot, run and capture share one lock hold so no parallel worker installs its build in between. `duo poses`
-  # writes <dir>/closed-portrait.png, closed-landscape.png, open-wide.png and open-tall.png (each settled; timeout
-  # ${DEV_SETTLE_TIMEOUT:-10} s per capture) and always ends with the hinge closed and the device portrait, even after a
-  # failure midway (it then exits non-zero). DEV_SETTLE is the same optional extra wait before the first capture as for shot.
+cmd_poses() { # cmd_poses <dir> [-- app launch args...]
   local dir="${1:-}"
   [[ -n "$dir" && "$dir" != -* ]] || die "usage: poses <dir> [-- app args...]"
   shift
-  cmd_run "$@" >/dev/null
-  sleep "${DEV_SETTLE:-$((COLD_BOOT ? 15 : 1))}"
-  sim_require_booted; duo_bin
-  mkdir -p "$dir"
-  # The status bar clock and indicators change between runs, so pin them (documented simctl) for the captures only.
-  xcrun simctl status_bar "$SIM_UDID" override --time 9:41 --wifiBars 3 --cellularMode notSupported \
-    --batteryState charged --batteryLevel 100 >/dev/null 2>&1 || true
-  local rc=0
-  "$DUO_BIN" poses "$dir" --timeout "${DEV_SETTLE_TIMEOUT:-10}" --udid "$SIM_UDID" || rc=$?
-  xcrun simctl status_bar "$SIM_UDID" clear >/dev/null 2>&1 || true
-  ((rc == 0)) || die "poses: the set failed (closed-portrait was restored)"
+  [[ "${1:-}" == "--" ]] && shift
+  if (($# > 0)); then sim poses "$dir" -- "$@"; else sim poses "$dir"; fi
 }
-if [[ "$SIM_SHARED" != 1 ]]; then
-cmd_duo() { # pass-through to the tool; adds --udid for the verbs that act on a simulator
-  duo_bin
-  local args=("$@") verb="${1:-}" a has_udid=0
-  for a in "$@"; do [[ "$a" == --udid || "$a" == --udid=* ]] && has_udid=1; done
-  case "$verb" in
-    panels | screenshot | settle | hinge | fold | orient | pose | poses | home)
-      ((has_udid == 0)) || die "pass the simulator as DEV_SIM_UDID=<udid> ./dev duo ..., not --udid (the lock and crash guard follow DEV_SIM/DEV_SIM_UDID)"
-      sim_require_booted; args+=(--udid "$SIM_UDID") ;;
-  esac
-  if duo_needs_subsystem "$DUO_SIMKIT" "$@"; then args+=(--subsystem "$BUNDLE_ID"); fi
-  "$DUO_BIN" ${args[@]+"${args[@]}"}
+png_ok() { [[ -z "${1:-}" || "$1" != -* ]]; } # an optional png path must not look like an option
+cmd_home() {
+  png_ok "${1:-}" || die "usage: home [screenshot.png]"
+  sim_lease
+  if [[ -n "${1:-}" ]]; then sim home --png "$1"; else sim home; fi
 }
-fi
-cmd_duo_test() { # Tools/duo's own tests (host-only, sub-second); quiet on success with one totals line
-  run_logged duo-test swift test --package-path Tools/duo --scratch-path "$DUO_SPM" || return
-  swift_test_summary duo ""
-}
-
-if [[ "$SIM_SHARED" != 1 ]]; then
-# PosterBoard crash-looped on a clone whose PosterKit temp folder had grown to thousands of entries (2026-11-05). Erase such a
-# shut-down clone; the original is only reported, never erased automatically.
-sim_erase_poster_buildup() {
-  local name udid dir n
-  while IFS= read -r name; do
-    udid=$(sim_udid_by_name "$name"); [[ -n "$udid" && "$(sim_state_by_udid "$udid")" == "Shutdown" ]] || continue
-    dir="$HOME/Library/Developer/CoreSimulator/Devices/$udid/data/Library/Application Support/com.apple.PosterKit/temp"
-    n=$( { find "$dir" -mindepth 1 -maxdepth 1 2>/dev/null || true; } | wc -l | tr -d ' ')
-    ((n > SIM_POSTER_MAX)) || continue
-    sim_kept "$udid" && continue
-    if ! sim_is_clone "$udid"; then
-      echo "dev: warning: $name has $n PosterKit temp entries (limit $SIM_POSTER_MAX); it is the original, so it is not erased." >&2
-      echo "dev:   by hand, with no run using it (clones are copies of it): xcrun simctl erase $udid" >&2
-      continue
-    fi
-    sim_hands_off "$udid" && continue
-    sim_grab "$udid" || continue
-    xcrun simctl erase "$udid" >/dev/null 2>&1 || echo "dev: erase of $name failed" >&2
-    sim_drop "$udid" sweep
-    echo "dev: erased $name ($n PosterKit temp entries, limit $SIM_POSTER_MAX)" >&2
-  done < <(sim_pool_names)
-}
-
-cmd_sims() { # create any missing pool clone, then list the pool; --prune also reaps idle sims and erases poster build-up
-  [[ "${1:-}" == "" || "$1" == "--prune" ]] || die "usage: sims [--prune]"
-  sim_table_load
-  local orig name need=()
-  orig=$(sim_udid_by_name "$SIM_ORIGINAL"); [[ -n "$orig" ]] || die "no simulator named '$SIM_ORIGINAL' to clone"
-  while IFS= read -r name; do
-    [[ -n "$(sim_udid_by_name "$name")" ]] || need+=("$name")
-  done < <(sim_pool_names)
-  if ((${#need[@]} > 0)); then
-    SIM_NAME="$SIM_ORIGINAL" # clone needs the original shut down: hold its lock so nobody is mid-run on it
-    sim_lock "$(sim_lock_path "$orig")"
-    xcrun simctl shutdown "$orig" >/dev/null 2>&1 || true # errors when it is already shut down
-    for name in "${need[@]}"; do
-      echo "dev: cloning $SIM_ORIGINAL -> $name" >&2
-      xcrun simctl clone "$orig" "$name" >/dev/null || die "clone to '$name' failed"
-    done
-    sim_unlock
-    sim_table_load
+cmd_fold() {
+  if [[ "${1:-}" == --keyframes ]]; then # timed hinge motion: [{"atMs":0,"angle":0},{"atMs":3000,"angle":180}], optionally recorded
+    [[ -n "${2:-}" && "$2" != -* ]] || die "usage: fold --keyframes '<json>' [--record <movie.mov> [--display lit|outer|inner]]"
+    sim_lease
+    sim fold "$@"
+    return
   fi
-  if [[ "${1:-}" == "--prune" ]]; then sim_reap_idle; sim_erase_poster_buildup; fi
-  local mine; mine=$(cat "$SIM_CLAIM" 2>/dev/null || true)
-  printf '%-14s %-36s %-9s %-5s %s\n' NAME UDID STATE LOCK THIS-CHECKOUT
-  while IFS= read -r name; do
-    local udid; udid=$(sim_udid_by_name "$name")
-    if [[ -z "$udid" ]]; then printf '%-14s %s\n' "$name" "(missing; run ./dev sims)"; continue; fi
-    printf '%-14s %-36s %-9s %-5s %s\n' "$name" "$udid" "$(sim_state_by_udid "$udid")" "$(sim_lock_holder "$udid")" \
-      "$([[ "$udid" == "$mine" ]] && echo yes || echo -)"
-  done < <(sim_pool_names)
-  full_run_line "$FULL_RUN_DIR" "$(date +%s)"
+  [[ "${1:-}" =~ ^(closed|half-open|open)$ ]] && png_ok "${2:-}" || die "usage: fold closed|half-open|open [screenshot.png]"
+  sim_lease
+  if [[ -n "${2:-}" ]]; then sim fold "$1" --png "$2"; else sim fold "$1"; fi
 }
-fi
+cmd_orient() {
+  [[ "${1:-}" =~ ^(portrait|landscape-left|landscape-right)$ ]] && png_ok "${2:-}" || die "usage: orient portrait|landscape-left|landscape-right [screenshot.png]"
+  sim_lease
+  if [[ -n "${2:-}" ]]; then sim orient "$1" --png "$2"; else sim orient "$1"; fi
+}
+cmd_pose() { # fold + orient + verify in one call; the names are the layouts verify-ui checks
+  [[ "${1:-}" =~ ^(closed-portrait|closed-landscape|open-wide|open-tall)$ ]] && png_ok "${2:-}" \
+    || die "usage: pose closed-portrait|closed-landscape|open-wide|open-tall [screenshot.png]"
+  sim_lease
+  sim pose "$1" ${2:+"$2"}
+}
+cmd_duo() { # pass-through to simkit's verbs of the same name, on this session's lease
+  local verb="${1:-}" a app=0 sub=0
+  case "$verb" in
+    panels | screenshot | settle | hinge | fold | orient | pose | home) ;;
+    *) die "usage: duo panels|screenshot|settle|hinge|fold|orient|pose|home [args] (simkit's verbs, on this session's lease)" ;;
+  esac
+  local args=("$@")
+  for a in "$@"; do
+    case "$a" in --app) app=1 ;; --subsystem | --subsystem=*) sub=1 ;; esac
+  done
+  if [[ "$verb" == hinge ]] && ((app == 1 && sub == 0)); then args+=(--subsystem "$BUNDLE_ID"); fi
+  sim_lease
+  sim "${args[@]}"
+}
+cmd_probe() { # cmd_probe [dir]: launch the app for the UI tests' in-memory store, then answer sim/probes.json into <dir>
+  local dir="${1:-.build/probe}"
+  sim_lease
+  sim app run -- -uiTesting
+  sim probe sim/probes.json "$dir"
+}
+
 
 # Signed App Store Connect export (TestFlight). Needs the App Store Connect API key in 1Password (read with `op`, which
 # works headless through the service account). The key is streamed from `op read` straight into a 0600 file in a private
 # temp directory under $TMPDIR: never into a shell variable, an environment variable, a command-line argument or a log.
 # Only the file PATH reaches xcodebuild. A trap deletes the directory on EXIT, INT, TERM and HUP. Does not use the
-# simulator, so no sim_guarded.
+# simulator.
 TF_DIR=".build/testflight"
 TF_TEAM="S8Y5FT7937"
 TF_TMP=""
-# `testflight --upload` ships only a commit whose full ./dev ui-test passed (stamp written by cmd_ui_test).
-tf_ui_gate() {
+# `testflight --upload` ships only a commit whose full ./dev ui-test passed (simkit's result.json, read by ui_gate_verdict).
+tf_ui_gate() { # tf_ui_gate [result.json] [head]
   if [[ "${DEV_SKIP_UI_GATE:-}" == 1 ]]; then
     echo "dev: WARNING: DEV_SKIP_UI_GATE=1, uploading without a passing ./dev ui-test on this commit" >&2
     return 0
   fi
-  local head stamp_commit="" stamp_clean=""
-  head=$(git rev-parse HEAD)
-  if [[ -f "$UI_STAMP" ]]; then
-    stamp_commit=$(sed -n 's/^commit=//p' "$UI_STAMP")
-    stamp_clean=$(sed -n 's/^clean=//p' "$UI_STAMP")
-  fi
-  [[ "$stamp_commit" == "$head" && "$stamp_clean" == 1 ]] ||
-    die "testflight: refusing to upload: run ./dev ui-test on this commit first (full suite, clean tree; stamp: ${stamp_commit:-none}${stamp_commit:+, clean=$stamp_clean}, HEAD: $head). DEV_SKIP_UI_GATE=1 overrides."
-  local stamp_flaky; stamp_flaky=$(sed -n 's/^flaky=//p' "$UI_STAMP" | head -1)
-  echo "dev: testflight: the ui-test stamp's flaky tests: ${stamp_flaky:-none recorded}" >&2
+  local head why
+  head="${2:-$(git rev-parse HEAD)}"
+  why=$(ui_gate_verdict "${1:-$UI_RESULT}" "$head") ||
+    die "testflight: refusing to upload: run ./dev ui-test on this commit first (full suite, clean tree; $why, HEAD: $head). DEV_SKIP_UI_GATE=1 overrides."
+  echo "dev: testflight: the full ui-test's flaky tests: $why" >&2
 }
 # Independent of the ui-test gate and its DEV_SKIP_UI_GATE: the full run skips the real-Health test, so it never vouches for the reader.
-tf_health_gate() { # tf_health_gate [stamp] [repo]
+tf_health_gate() { # tf_health_gate [result.json] [repo]
   if [[ "${DEV_SKIP_HEALTH_GATE:-}" == 1 ]]; then
     echo "dev: WARNING: DEV_SKIP_HEALTH_GATE=1, uploading without a real-Health-store pass on the current Health reader" >&2
     return 0
   fi
   local since
-  since=$(health_gate_verdict "${1:-$HEALTH_STAMP}" "${2:-.}") && return 0
+  since=$(health_gate_verdict "${1:-$HEALTH_RESULT}" "${2:-.}") && return 0
   die "testflight: the Health code (reader, kit mapping, entitlements or test) changed since the last real-store pass ($since; uncommitted edits count): ./dev ui-test HealthKitIntegrationUITests first; DEV_SKIP_HEALTH_GATE=1 overrides"
 }
 tf_cleanup() { [[ -z "$TF_TMP" ]] || rm -rf "$TF_TMP"; TF_TMP=""; }
@@ -1851,7 +426,7 @@ PLIST
 # Uploads exercise videos to CloudKit's public database (Web Services, server-to-server key; docs/port/media.md). The key
 # handling mirrors cmd_testflight: streamed from `op read` into a 0600 file in a private temp directory a trap deletes,
 # never into a variable, environment variable, argument or log. Only the key FILE path reaches the Python script, which
-# signs by running `openssl dgst -sha256 -sign <file>`. Does not use the simulator, so no sim_guarded.
+# signs by running `openssl dgst -sha256 -sign <file>`. Does not use the simulator.
 MU_TMP=""
 mu_cleanup() { [[ -z "$MU_TMP" ]] || rm -rf "$MU_TMP"; MU_TMP=""; }
 
@@ -1914,7 +489,7 @@ cmd_media_upload() {
 
 # Exports, validates and deploys the CloudKit schema with `xcrun cktool`. The management token lives only in 1Password:
 # `op run` resolves the op:// reference in the environment it hands cktool, so the token never reaches a variable,
-# argument, file or log here. Does not use the simulator, so no sim_guarded.
+# argument, file or log here. Does not use the simulator.
 CK_TOKEN_REF="op://Homelab/Apple Cloud Kit for Workouts Duo/management token"
 ck_tool() { CLOUDKIT_MANAGEMENT_TOKEN="$CK_TOKEN_REF" op run -- xcrun cktool "$@"; }
 
@@ -2014,7 +589,7 @@ cmd_ck_schema() {
 
 cmd_clean() { rm -rf .build; }
 
-# The parsing and decisions behind the stamps, gates and keep list, run on fixture files in a temp directory: no simulator,
+# The parsing and decisions behind the gates and keep list, run on fixture files in a temp directory: no simulator,
 # no xcodebuild, nothing under .build is read or written. Not part of `check`.
 ST_DIR=""
 ST_PASS=0
@@ -2033,6 +608,12 @@ st_out_has() { local r=0; [[ "$ST_OUT" == *"$2"* ]] || r=1; st_ok "$1 (output ha
 st_out_lacks() { local r=0; [[ "$ST_OUT" != *"$2"* ]] || r=1; st_ok "$1 (output lacks '$2': $ST_OUT)" "$r"; }
 st_git() { GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 git -C "$ST_DIR/repo" -c user.name=selftest -c user.email=selftest@example.com "$@"; }
 st_commit() { st_git add -A && st_git commit -q -m "$1"; } # st_commit <message>
+# st_result <file> <filter|null> <exit_code> <commit|null> <clean true|false|null> <skipped> <flaky json list>: a result.json fixture
+st_result() {
+  jq -n --argjson filter "$(jq -n --arg v "$2" 'if $v == "null" then null else $v end')" --argjson exit_code "$3" \
+    --argjson commit "$(jq -n --arg v "$4" 'if $v == "null" then null else $v end')" --argjson clean "$5" --argjson skipped "$6" --argjson flaky "$7" \
+    '{version: 1, filter: $filter, commit: $commit, clean: $clean, exit_code: $exit_code, totals: {total: 4, passed: 4, failed: 0, skipped: $skipped, expected_failures: 0}, flaky: $flaky}' >"$1"
+}
 
 cmd_selftest() {
   command -v jq >/dev/null 2>&1 || die "selftest: jq is required"
@@ -2040,17 +621,6 @@ cmd_selftest() {
   ST_DIR=$(mktemp -d "${TMPDIR:-/tmp}/dev-selftest.XXXXXX") || die "selftest: mktemp failed"
   trap 'rm -rf "${ST_DIR:?}"' EXIT
   local p
-
-  # Skipped-test count: summary JSON -> number -> the unfiltered-run check.
-  st_eq "summary_skipped reads skippedTests" 5 "$(summary_skipped '{"totalTestCount":200,"passedTests":195,"skippedTests":5}')"
-  st_eq "summary_skipped defaults to 0" 0 "$(summary_skipped '{"totalTestCount":3}')"
-  st_eq "summary_skipped survives bad json" 0 "$(summary_skipped 'not json')"
-  st_run skip_check 5 5; st_rc "skip_check 5 of 5" 0
-  st_run skip_check 4 5; st_rc "skip_check 4 of 5" 1; st_out_has "skip_check 4 of 5" "skipped 4 tests, expected 5"
-  st_run skip_check 6 5; st_rc "skip_check 6 of 5" 1
-  st_run skip_check "" 5; st_rc "skip_check unknown count" 1; st_out_has "skip_check unknown count" "an unknown number"
-  st_run skip_check 3 3; st_rc "skip_check with an overridden expectation" 0
-  st_run skip_check 5 five; st_rc "skip_check with a non-numeric expectation" 1
 
   # swift test totals: a failed run is a failure even when swift test exited 0; no totals line is never "ok".
   p="$ST_DIR/kit.log"
@@ -2063,91 +633,7 @@ cmd_selftest() {
   printf '%s\n' "No matching test cases were run" >"$p"
   LAST_LOG="$p" st_run swift_test_summary kit Nope; st_rc "swift_test_summary with an empty filter match" 1
 
-  # ui-flaky: a three-field (old) line, and newer lines with shard, seconds and failure text.
-  p="$ST_DIR/ui-flaky.log"
-  {
-    echo "2026-11-01T10:00:00Z aaaaaaa SuiteA/testOne()"
-    echo "2026-11-05T10:00:00Z bbbbbbb SuiteA/testOne() iPhone_Duo_2 12 boom one"
-    echo "2026-11-08T10:00:00Z ccccccc SuiteA/testOne() iPhone_Duo_3 9 boom two"
-    echo "2026-11-07T10:00:00Z ddddddd SuiteB/testTwo() iPhone_Duo - -"
-  } >"$p"
-  UI_FLAKY_LOG="$p" st_run cmd_ui_flaky; st_rc "ui-flaky" 0
-  st_out_has "ui-flaky header" "LAST MESSAGE"
-  st_ok "ui-flaky counts SuiteA/testOne() 3 times, last on 2026-11-08 at ccccccc with the newest message" "$(grep -Eq '^SuiteA/testOne\(\) +3 +2026-11-08 +ccccccc +boom two$' <<<"$ST_OUT" && echo 0 || echo 1)"
-  st_ok "ui-flaky shows a message-less test with '-'" "$(grep -Eq '^SuiteB/testTwo\(\) +1 +2026-11-07 +ddddddd +-$' <<<"$ST_OUT" && echo 0 || echo 1)"
-  st_ok "ui-flaky sorts the most frequent test first" "$(awk '/^Suite/ { print $1; exit }' <<<"$ST_OUT" | grep -q '^SuiteA' && echo 0 || echo 1)"
-  UI_FLAKY_LOG="$p" st_run cmd_ui_flaky --since 0; st_out_has "ui-flaky --since 0 window" "no flaky tests logged in that window"
-  UI_FLAKY_LOG="$p" st_run cmd_ui_flaky --since x; st_rc "ui-flaky --since x" 1
-  : >"$ST_DIR/empty.log"
-  UI_FLAKY_LOG="$ST_DIR/empty.log" st_run cmd_ui_flaky; st_out_has "ui-flaky empty log" "no flaky tests logged"
-
-  # duo tool choice: simkit's when installed and not opted out; --subsystem only for `hinge --app` with simkit's tool.
-  p="$ST_DIR/simkit"; mkdir -p "$p/bin" "$p/duo"
-  st_eq "duo_use_simkit without bin/sim" 0 "$(duo_use_simkit "$p" "" "")"
-  : >"$p/bin/sim"; : >"$p/duo/Package.swift"
-  st_eq "duo_use_simkit with a non-executable bin/sim" 0 "$(duo_use_simkit "$p" "" "")"
-  chmod +x "$p/bin/sim"
-  st_eq "duo_use_simkit installed" 1 "$(duo_use_simkit "$p" "" "")"
-  st_eq "duo_use_simkit DEV_DUO_LOCAL=1" 0 "$(duo_use_simkit "$p" "" 1)"
-  st_eq "duo_use_simkit DEV_DUO_LOCAL=0" 1 "$(duo_use_simkit "$p" "" 0)"
-  rm "$p/duo/Package.swift"
-  st_eq "duo_use_simkit without duo/Package.swift" 0 "$(duo_use_simkit "$p" "" "")"
-  st_eq "duo_use_simkit missing home" 0 "$(duo_use_simkit "$ST_DIR/none" "" "")"
-  st_run duo_needs_subsystem 1 hinge --app; st_rc "duo_needs_subsystem hinge --app" 0
-  st_run duo_needs_subsystem 1 hinge --app --udid X; st_rc "duo_needs_subsystem hinge --app --udid" 0
-  st_run duo_needs_subsystem 0 hinge --app; st_rc "duo_needs_subsystem with Tools/duo" 1
-  st_run duo_needs_subsystem 1 hinge; st_rc "duo_needs_subsystem plain hinge" 1
-  st_run duo_needs_subsystem 1 panels --app; st_rc "duo_needs_subsystem other verb" 1
-  st_run duo_needs_subsystem 1 hinge --app --subsystem x.y; st_rc "duo_needs_subsystem already given" 1
-  st_run duo_needs_subsystem 1 hinge --app --subsystem=x.y; st_rc "duo_needs_subsystem already given with =" 1
-
-  # Stamps: key lookup, the Health stamp written only by a run that skipped nothing, the unit-test coverage line.
-  p="$ST_DIR/stamp"
-  stamp_write "$p" commit=abc123 clean=1 when=2026-11-09T00:00:00Z
-  st_eq "stamp_get commit" abc123 "$(stamp_get "$p" commit)"
-  st_eq "stamp_get missing key" "" "$(stamp_get "$p" flaky)"
-  st_eq "stamp_get missing file" "" "$(stamp_get "$ST_DIR/none" commit)"
-  st_eq "coverage_stamp_line" "coverage: unit tests at abc123 (clean tree), 2026-11-09T00:00:00Z" "$(coverage_stamp_line "$p")"
-  st_run coverage_stamp_line "$ST_DIR/none"; st_out_has "coverage_stamp_line without a stamp" "unstamped"
-  st_run health_stamp_write "$ST_DIR/h.stamp" 0 deadbeef 2026-11-09T01:02:03Z; st_rc "health_stamp_write 0 skipped" 0
-  st_eq "health stamp commit" deadbeef "$(stamp_get "$ST_DIR/h.stamp" commit)"
-  st_eq "health stamp when" 2026-11-09T01:02:03Z "$(stamp_get "$ST_DIR/h.stamp" when)"
-  st_run health_stamp_write "$ST_DIR/h2.stamp" 1 deadbeef 2026-11-09T01:02:03Z; st_rc "health_stamp_write 1 skipped" 1
-  st_ok "health_stamp_write writes nothing for a skipped run" "$([[ ! -e "$ST_DIR/h2.stamp" ]] && echo 0 || echo 1)"
-  st_out_has "health_stamp_write says why" "1 test(s) skipped"
-  st_run health_stamp_write "$ST_DIR/h3.stamp" "" deadbeef now; st_rc "health_stamp_write unknown count" 1
-
-  # Flaky-log writers: the failure text and duration extraction and the TSV line, on fixture JSON.
-  local fj long
-  long=$(printf 'word%.0s ' {1..120})
-  fj=$(jq -n --arg t "  first line"$'\n'"	second   line $long" '{testFailures: [{testIdentifierString: "S/a()", failureText: $t}, {testIdentifierString: "S/a()", failureText: "later"}, {testIdentifierString: "S/b()", failureText: "B"}]}')
-  st_run flaky_text "$fj" "S/a()"; st_rc "flaky_text" 0
-  st_ok "flaky_text is one line" "$([[ "$ST_OUT" != *$'\n'* ]] && echo 0 || echo 1)"
-  st_eq "flaky_text is 300 chars" 300 "${#ST_OUT}"
-  st_ok "flaky_text collapses whitespace and keeps the first failure" "$([[ "$ST_OUT" == "first line second line word word"* && "$ST_OUT" != *"later"* ]] && echo 0 || echo 1)"
-  st_eq "flaky_text of another id" B "$(flaky_text "$fj" "S/b()")"
-  st_eq "flaky_text of an id missing from the failures" - "$(flaky_text "$fj" "S/c()")"
-  st_eq "flaky_text without testFailures" - "$(flaky_text '{}' "S/a()")"
-  st_eq "flaky_text of invalid json" - "$(flaky_text 'not json' "S/a()")"
-  local tj='{"testNodes":[{"nodeType":"Test Suite","children":[{"nodeType":"Test Case","nodeIdentifier":"S/a()","durationInSeconds":41.7},{"nodeType":"Test Case","nodeIdentifier":"S/n()","durationInSeconds":"fast"},{"nodeType":"Test Case","nodeIdentifier":"S/z()"}]}]}'
-  st_eq "flaky_secs rounds 41.7" 42 "$(flaky_secs "$tj" "S/a()")"
-  st_eq "flaky_secs of an empty tests tree" - "$(flaky_secs '{}' "S/a()")"
-  st_eq "flaky_secs of an id missing from the tree" - "$(flaky_secs "$tj" "S/c()")"
-  st_eq "flaky_secs of a non-numeric duration" - "$(flaky_secs "$tj" "S/n()")"
-  st_eq "flaky_secs of a test without a duration" - "$(flaky_secs "$tj" "S/z()")"
-  st_eq "flaky_secs of invalid json" - "$(flaky_secs 'not json' "S/a()")"
-  local tsv; tsv=$(flaky_tsv_line "S/a()" 42 $'has\ta tab\nand a newline')
-  st_eq "flaky_tsv_line has three tab-separated fields" 3 "$(awk -F'\t' 'END { print NF }' <<<"$tsv")"
-  st_eq "flaky_tsv_line collapses tabs and newlines in the text to spaces" $'S/a()\t42\thas a tab and a newline' "$tsv"
-  st_eq "flaky_tsv_line fills empty fields with -" $'S/a()\t-\t-' "$(flaky_tsv_line "S/a()" "" "")"
-
-  st_eq "retry_verdict: a crash text fails the run" crash "$(retry_verdict 'Failed to launch: com.ericribeiro.Workouts crashed')"
-  st_eq "retry_verdict: a lowercase or embedded crash is a crash" crash "$(retry_verdict 'The app Workouts Crashed unexpectedly')"
-  st_eq "retry_verdict: an execution time allowance stays flaky" flaky "$(retry_verdict 'Test exceeded execution time allowance')"
-  st_eq "retry_verdict: an audit failure stays flaky" flaky "$(retry_verdict 'Accessibility audit found 1 issue: Element has no label')"
-  st_eq "retry_verdict: the '-' of a missing text stays flaky" flaky "$(retry_verdict -)"
-
-  # Health gate: a fake repo whose Health files change, and the stamp pointing at earlier and later commits.
+  # Health gate: a fake repo whose Health files change, and the result.json pointing at earlier and later commits.
   local kit_health=Packages/WorkoutsKit/Sources/WorkoutsKit/Health
   mkdir -p "$ST_DIR/repo/Workouts/Features/Health" "$ST_DIR/repo/$kit_health" "$ST_DIR/repo/WorkoutsUITests" "$ST_DIR/repo/Other"
   st_git init -q
@@ -2158,78 +644,80 @@ cmd_selftest() {
   : >"$ST_DIR/repo/WorkoutsUITests/HealthKitIntegrationUITests.swift"
   : >"$ST_DIR/repo/Other/a.swift"
   st_commit one
-  local c1 c2 c3 gate_stamp="$ST_DIR/gate.stamp"
+  local c1 c2 c3 gate_result="$ST_DIR/gate-result.json"
   c1=$(st_git rev-parse HEAD)
-  st_run health_gate_verdict "$gate_stamp" "$ST_DIR/repo"; st_rc "gate without a stamp" 1; st_eq "gate without a stamp names none" none "$ST_OUT"
-  stamp_write "$gate_stamp" "commit=$c1" "when=now"
-  st_run health_gate_verdict "$gate_stamp" "$ST_DIR/repo"; st_rc "gate at the stamped commit" 0
+  st_run health_gate_verdict "$gate_result" "$ST_DIR/repo"; st_rc "gate without a result" 1; st_eq "gate without a result names none" none "$ST_OUT"
+  st_result "$gate_result" null 0 "$c1" true 0 '[]'
+  st_run health_gate_verdict "$gate_result" "$ST_DIR/repo"; st_rc "gate at the result's commit" 0
   echo x >"$ST_DIR/repo/Other/a.swift"; st_commit two; c2=$(st_git rev-parse HEAD)
-  st_run health_gate_verdict "$gate_stamp" "$ST_DIR/repo"; st_rc "gate after an unrelated change" 0
+  st_run health_gate_verdict "$gate_result" "$ST_DIR/repo"; st_rc "gate after an unrelated change" 0
   for p in Workouts/Features/Health/HealthKitSource.swift Workouts/Features/Health/HealthSeeder.swift "$kit_health/HealthEnrichment.swift" Workouts/Workouts.entitlements WorkoutsUITests/HealthKitIntegrationUITests.swift; do
     echo x >>"$ST_DIR/repo/$p"; st_commit "touch $p"
-    st_run health_gate_verdict "$gate_stamp" "$ST_DIR/repo"; st_rc "gate after a change to $p" 1; st_eq "gate names the stamped commit for $p" "$c1" "$ST_OUT"
+    st_run health_gate_verdict "$gate_result" "$ST_DIR/repo"; st_rc "gate after a change to $p" 1; st_eq "gate names the result's commit for $p" "$c1" "$ST_OUT"
     st_git reset -q --hard "$c2"
   done
   # Uncommitted work counts: a modified tracked file, and a new untracked file under a Health directory.
-  stamp_write "$gate_stamp" "commit=$c2"
+  st_result "$gate_result" null 0 "$c2" true 0 '[]'
   echo x >>"$ST_DIR/repo/Workouts/Features/Health/HealthSeeder.swift"
-  st_run health_gate_verdict "$gate_stamp" "$ST_DIR/repo"; st_rc "gate with an uncommitted edit to a Health file" 1; st_eq "gate names the stamped commit for an uncommitted edit" "$c2" "$ST_OUT"
+  st_run health_gate_verdict "$gate_result" "$ST_DIR/repo"; st_rc "gate with an uncommitted edit to a Health file" 1; st_eq "gate names the result's commit for an uncommitted edit" "$c2" "$ST_OUT"
   st_git checkout -q -- Workouts/Features/Health/HealthSeeder.swift
-  st_run health_gate_verdict "$gate_stamp" "$ST_DIR/repo"; st_rc "gate after the uncommitted edit is reverted" 0
+  st_run health_gate_verdict "$gate_result" "$ST_DIR/repo"; st_rc "gate after the uncommitted edit is reverted" 0
   : >"$ST_DIR/repo/$kit_health/NewFile.swift"
-  st_run health_gate_verdict "$gate_stamp" "$ST_DIR/repo"; st_rc "gate with an untracked file under the kit Health directory" 1
+  st_run health_gate_verdict "$gate_result" "$ST_DIR/repo"; st_rc "gate with an untracked file under the kit Health directory" 1
   rm -f "$ST_DIR/repo/$kit_health/NewFile.swift"
   echo x >>"$ST_DIR/repo/Other/a.swift"
-  st_run health_gate_verdict "$gate_stamp" "$ST_DIR/repo"; st_rc "gate with an uncommitted unrelated edit" 0
+  st_run health_gate_verdict "$gate_result" "$ST_DIR/repo"; st_rc "gate with an uncommitted unrelated edit" 0
   st_git checkout -q -- Other/a.swift
   echo x >>"$ST_DIR/repo/WorkoutsUITests/HealthKitIntegrationUITests.swift"; st_commit three; c3=$(st_git rev-parse HEAD)
-  stamp_write "$gate_stamp" "commit=$c3"
-  st_run health_gate_verdict "$gate_stamp" "$ST_DIR/repo"; st_rc "gate with a stamp on the newest commit" 0
-  stamp_write "$gate_stamp" "commit=0000000000000000000000000000000000000000"
-  st_run health_gate_verdict "$gate_stamp" "$ST_DIR/repo"; st_rc "gate with a stamp on an unknown commit" 1
+  st_result "$gate_result" null 0 "$c3" true 0 '[]'
+  st_run health_gate_verdict "$gate_result" "$ST_DIR/repo"; st_rc "gate with a result on the newest commit" 0
+  st_result "$gate_result" null 0 0000000000000000000000000000000000000000 true 0 '[]'
+  st_run health_gate_verdict "$gate_result" "$ST_DIR/repo"; st_rc "gate with a result on an unknown commit" 1
   # tf_health_gate on top of it: the die message, and the override.
-  rm -f "$gate_stamp"
-  st_run tf_health_gate "$gate_stamp" "$ST_DIR/repo"; st_rc "tf_health_gate without a stamp" 1
+  rm -f "$gate_result"
+  st_run tf_health_gate "$gate_result" "$ST_DIR/repo"; st_rc "tf_health_gate without a result" 1
   st_out_has "tf_health_gate message" "changed since the last real-store pass (none; uncommitted edits count): ./dev ui-test HealthKitIntegrationUITests first; DEV_SKIP_HEALTH_GATE=1 overrides"
-  DEV_SKIP_HEALTH_GATE=1 st_run tf_health_gate "$gate_stamp" "$ST_DIR/repo"; st_rc "tf_health_gate with the override" 0
+  DEV_SKIP_HEALTH_GATE=1 st_run tf_health_gate "$gate_result" "$ST_DIR/repo"; st_rc "tf_health_gate with the override" 0
   st_out_has "tf_health_gate override" "WARNING: DEV_SKIP_HEALTH_GATE=1"
-  stamp_write "$gate_stamp" "commit=$c3"
-  st_run tf_health_gate "$gate_stamp" "$ST_DIR/repo"; st_rc "tf_health_gate with a current stamp" 0; st_eq "tf_health_gate prints nothing when it passes" "" "$ST_OUT"
-  DEV_SKIP_UI_GATE=1 st_run tf_health_gate "$gate_stamp" "$ST_DIR/repo"; st_rc "tf_health_gate ignores DEV_SKIP_UI_GATE" 0
-  rm -f "$gate_stamp"
-  DEV_SKIP_UI_GATE=1 st_run tf_health_gate "$gate_stamp" "$ST_DIR/repo"; st_rc "tf_health_gate is not skipped by DEV_SKIP_UI_GATE" 1
+  st_result "$gate_result" null 0 "$c3" true 0 '[]'
+  st_run tf_health_gate "$gate_result" "$ST_DIR/repo"; st_rc "tf_health_gate with a current result" 0; st_eq "tf_health_gate prints nothing when it passes" "" "$ST_OUT"
+  DEV_SKIP_UI_GATE=1 st_run tf_health_gate "$gate_result" "$ST_DIR/repo"; st_rc "tf_health_gate ignores DEV_SKIP_UI_GATE" 0
+  rm -f "$gate_result"
+  DEV_SKIP_UI_GATE=1 st_run tf_health_gate "$gate_result" "$ST_DIR/repo"; st_rc "tf_health_gate is not skipped by DEV_SKIP_UI_GATE" 1
 
-  # DEV_SIM_KEEP: matching, the default list, and sim_heal / the prune path leaving a kept simulator alone.
-  st_run keep_match "iPhone Duo 2" "iPhone Duo 2,iPhone Duo Health"; st_rc "keep_match first entry" 0
-  st_run keep_match "iPhone Duo Health" "iPhone Duo 2,iPhone Duo Health"; st_rc "keep_match last entry" 0
-  st_run keep_match "iPhone Duo" "iPhone Duo 2,iPhone Duo Health"; st_rc "keep_match is exact, not a prefix" 1
-  st_run keep_match "iPhone Duo 3" "iPhone Duo 2, iPhone Duo 3 ,x"; st_rc "keep_match ignores blanks around commas" 0
-  st_run keep_match "iPhone Duo 2" ""; st_rc "keep_match with an empty list" 1
-  st_run keep_match "" ","; st_rc "keep_match never matches an empty name" 1
-  st_eq "sim_keep_list default" "iPhone Duo 2,iPhone Duo Health" "$(unset DEV_SIM_KEEP; sim_keep_list)"
-  st_eq "sim_keep_list override" "a,b" "$(DEV_SIM_KEEP="a,b" sim_keep_list)"
-  st_eq "sim_keep_list empty override" "" "$(DEV_SIM_KEEP="" sim_keep_list)"
+  # The run must have passed and skipped nothing to vouch for a commit.
+  st_result "$gate_result" null 1 "$c3" true 0 '[]'
+  st_run health_gate_verdict "$gate_result" "$ST_DIR/repo"; st_rc "gate with a failed run" 1; st_eq "gate with a failed run names none" none "$ST_OUT"
+  st_result "$gate_result" null 0 "$c3" true 3 '[]'
+  st_run health_gate_verdict "$gate_result" "$ST_DIR/repo"; st_rc "gate with a run that skipped tests" 1; st_eq "gate with a run that skipped tests names none" none "$ST_OUT"
+  printf 'not json' >"$gate_result"
+  st_run health_gate_verdict "$gate_result" "$ST_DIR/repo"; st_rc "gate with an unreadable result" 1; st_eq "gate with an unreadable result names none" none "$ST_OUT"
+
+  # ui_gate_verdict: the full run's result.json against HEAD.
+  local ui="$ST_DIR/ui-result.json" head=1111111111111111111111111111111111111111
+  st_result "$ui" null 0 "$head" true 0 '[]'
+  st_run ui_gate_verdict "$ui" "$head"; st_rc "ui gate passes" 0; st_eq "ui gate prints none for no flaky tests" none "$ST_OUT"
+  st_result "$ui" null 0 "$head" true 0 '["HistoryUITests/a()","SetLoggingUITests/b()"]'
+  st_run ui_gate_verdict "$ui" "$head"; st_rc "ui gate passes with flaky tests" 0; st_eq "ui gate lists the flaky tests" "HistoryUITests/a(), SetLoggingUITests/b()" "$ST_OUT"
+  st_run ui_gate_verdict "$ST_DIR/none.json" "$head"; st_rc "ui gate without a result" 1; st_out_has "ui gate without a result" "no result at"
+  st_result "$ui" HistoryUITests 0 "$head" true 0 '[]'
+  st_run ui_gate_verdict "$ui" "$head"; st_rc "ui gate with a filtered run" 1; st_out_has "ui gate with a filtered run" "filtered to HistoryUITests"
+  st_result "$ui" null 1 "$head" true 0 '[]'
+  st_run ui_gate_verdict "$ui" "$head"; st_rc "ui gate with a failed run" 1; st_out_has "ui gate with a failed run" "failed"
+  st_result "$ui" null 0 2222222222222222222222222222222222222222 true 0 '[]'
+  st_run ui_gate_verdict "$ui" "$head"; st_rc "ui gate with another commit" 1; st_out_has "ui gate with another commit" "commit 2222222"
+  st_result "$ui" null 0 "$head" false 0 '[]'
+  st_run ui_gate_verdict "$ui" "$head"; st_rc "ui gate with a dirty tree" 1; st_out_has "ui gate with a dirty tree" "dirty tree"
+  st_result "$ui" null 0 "$head" null 0 '[]'
+  st_run ui_gate_verdict "$ui" "$head"; st_rc "ui gate with an unknown tree state" 1; st_out_has "ui gate with an unknown tree state" "dirty tree"
+  # tf_ui_gate on top of it: the die message, the flaky line, and the override.
+  st_result "$ui" null 0 "$head" true 0 '["HistoryUITests/a()"]'
+  st_run tf_ui_gate "$ui" "$head"; st_rc "tf_ui_gate with a passing run" 0; st_out_has "tf_ui_gate flaky line" "dev: testflight: the full ui-test's flaky tests: HistoryUITests/a()"
+  st_run tf_ui_gate "$ui" 3333333333333333333333333333333333333333; st_rc "tf_ui_gate with another HEAD" 1
+  st_out_has "tf_ui_gate message" "refusing to upload: run ./dev ui-test on this commit first (full suite, clean tree; the last run was on commit 1111111, HEAD: 3333333333333333333333333333333333333333). DEV_SKIP_UI_GATE=1 overrides."
+  DEV_SKIP_UI_GATE=1 st_run tf_ui_gate "$ST_DIR/none.json" "$head"; st_rc "tf_ui_gate with the override" 0; st_out_has "tf_ui_gate override" "WARNING: DEV_SKIP_UI_GATE=1"
+
   local nl=$'\n' tab=$'\t'
-  SIM_TABLE="iPhone Duo${tab}AAAAAAAA-0000-0000-0000-000000000001${tab}Shutdown${nl}iPhone Duo 2${tab}AAAAAAAA-0000-0000-0000-000000000002${tab}Shutdown${nl}iPhone Duo 3${tab}AAAAAAAA-0000-0000-0000-000000000003${tab}Shutdown"
-  st_run sim_kept AAAAAAAA-0000-0000-0000-000000000002; st_rc "sim_kept iPhone Duo 2" 0; st_out_has "sim_kept warning" "dev: iPhone Duo 2 is in DEV_SIM_KEEP; not erasing it"
-  st_run sim_kept AAAAAAAA-0000-0000-0000-000000000003; st_rc "sim_kept iPhone Duo 3" 1; st_eq "sim_kept is silent for a simulator not on the list" "" "$ST_OUT"
-  st_run sim_heal AAAAAAAA-0000-0000-0000-000000000002 2; st_rc "sim_heal on a kept simulator" 0
-  st_out_has "sim_heal skips a kept simulator" "iPhone Duo 2 is in DEV_SIM_KEEP; not erasing it"
-  st_out_lacks "sim_heal on a kept simulator erased nothing" "erased"
-  DEV_SIM_KEEP="" st_run sim_kept AAAAAAAA-0000-0000-0000-000000000002; st_rc "sim_kept with an emptied list" 1
-
-  # The Health simulator: chosen only for a Health filter without a caller's override, and a missing one is a clear error.
-  st_run health_sim_wanted HealthKitIntegrationUITests; st_rc "health_sim_wanted for the Health suite" 0
-  st_run health_sim_wanted HealthKitIntegrationUITests/testX; st_rc "health_sim_wanted for one Health test" 0
-  st_run health_sim_wanted SmokeUITests; st_rc "health_sim_wanted for another suite" 1
-  st_run health_sim_wanted ""; st_rc "health_sim_wanted for the full suite" 1
-  DEV_SIM="iPhone Duo 4" st_run health_sim_wanted HealthKitIntegrationUITests; st_rc "health_sim_wanted honours DEV_SIM" 1
-  DEV_SIM_UDID="X" st_run health_sim_wanted HealthKitIntegrationUITests; st_rc "health_sim_wanted honours DEV_SIM_UDID" 1
-  st_run health_sim_require; st_rc "health_sim_require without the clone" 1
-  st_out_has "health_sim_require names the fix" 'xcrun simctl clone "iPhone Duo" "iPhone Duo Health"'
-  SIM_TABLE="$SIM_TABLE${nl}iPhone Duo Health${tab}AAAAAAAA-0000-0000-0000-0000000000H1${tab}Shutdown"
-  st_run health_sim_require; st_rc "health_sim_require with the clone" 0
-
   # ck-schema field diff: two .ckdb fixtures in cktool's export format (RECORD TYPE <name> ( <field> <TYPE> [modifiers], …
   # GRANT … );), Production missing one field, with another retyped and another present only there.
   mkdir -p "$ST_DIR/ck"
@@ -2272,284 +760,71 @@ CKDB
   st_out_has "ck-schema fields prints type field type" "CD_Template CD_name STRING"
   st_run cmd_ck_schema fields "$ST_DIR/ck/missing.ckdb"; st_rc "ck-schema fields on a missing file" 1
 
-  # DEV_POSE: valid names on a filtered ui-test only.
-  st_run ui_pose_check "" ""; st_rc "ui_pose_check without DEV_POSE" 0
-  st_run ui_pose_check open-wide "OpenPoseUITests"; st_rc "ui_pose_check open-wide filtered" 0
-  st_run ui_pose_check closed-portrait "SmokeUITests/testX()"; st_rc "ui_pose_check closed-portrait filtered" 0
-  st_run ui_pose_check open-wide ""; st_rc "ui_pose_check open-wide unfiltered" 1; st_out_has "ui_pose_check open-wide unfiltered" "needs a filter"
-  st_run ui_pose_check open "OpenPoseUITests"; st_rc "ui_pose_check bad name" 1; st_out_has "ui_pose_check bad name" "is not closed-portrait"
-  ui_pose_init_rc() { DEV_POSE="$1"; ui_pose_init "$2"; echo "UI_POSE=$UI_POSE"; }
-  st_run ui_pose_init_rc open-tall OpenPoseUITests; st_out_has "ui_pose_init sets UI_POSE" "UI_POSE=open-tall"
-  st_run ui_pose_init_rc open-tall ""; st_rc "ui_pose_init dies unfiltered" 1
-  # pose guard: pose_describe reads `duo hinge` + `duo panels` text, pose_verdict says whether closed-portrait must be restored.
-  pg_panels() { printf 'LCD    %s   1398x2034 px  466x678 pt  rot%s\nLCD-1  %s   2007x2853 px  669x951 pt  rot%s\n' "$1" "$2" "$3" "$4"; }
-  pg_hinge() { echo "angleDegrees: $1, angleValid: true, pose: $2, litPanel: $3"; }
-  st_eq "pose_describe closed portrait" closed-portrait "$(pose_describe "$(pg_hinge 0 closed LCD)" "$(pg_panels lit 0 dark 0)")"
-  st_eq "pose_describe open wide" open-wide "$(pose_describe "$(pg_hinge 180 open LCD-1)" "$(pg_panels dark 0 lit 90)")"
-  st_eq "pose_describe open tall" open-tall "$(pose_describe "$(pg_hinge 180 open LCD-1)" "$(pg_panels dark 0 lit 0)")"
-  st_eq "pose_describe closed landscape" closed-landscape "$(pose_describe "$(pg_hinge 0 closed LCD)" "$(pg_panels lit 90 dark 0)")"
-  st_eq "pose_describe half-open" half-open "$(pose_describe "$(pg_hinge 123.3 half-open LCD-1)" "$(pg_panels dark 0 lit 0)")"
-  st_eq "pose_describe unreadable" unknown "$(pose_describe "" "")"
-  st_eq "pose_verdict closed-portrait" ok "$(pose_verdict closed-portrait)"
-  st_eq "pose_verdict open-wide" restore "$(pose_verdict open-wide)"
-  st_eq "pose_verdict open-tall" restore "$(pose_verdict open-tall)"
-  st_eq "pose_verdict closed-landscape" restore "$(pose_verdict closed-landscape)"
-  st_eq "pose_verdict half-open" restore "$(pose_verdict half-open)"
-  st_eq "pose_verdict unknown" restore "$(pose_verdict unknown)"
-
-  # Full-run marker: no marker, stale, live other, own, ancestor, override, claim and release. pid_alive/pid_parent are stubbed
-  # (alive: 555 and this shell; ancestors of this shell: 800, then 700).
-  ST_ALIVE=" 555 $$ 800 700 "
-  pid_alive() { [[ "$ST_ALIVE" == *" $1 "* ]]; }
-  pid_parent() { case "$1" in "$$") echo 800 ;; 800) echo 700 ;; *) echo 1 ;; esac; }
-  local fr="$ST_DIR/full-ui.lock" now; now=$(date +%s)
-  unset DEV_ALLOW_BESIDE_FULL_RUN
-  FULL_RUN_DIR="$fr"
-  st_marker() { rm -rf "$fr"; mkdir "$fr"; [[ -z "${1:-}" ]] || { echo "$1" >"$fr/pid"; echo "/some/checkout" >"$fr/checkout"; echo "$2" >"$fr/started"; }; } # st_marker [pid started]
-  rm -rf "$fr"
-  st_run full_run_verdict "$fr" "$now"; st_rc "full_run_verdict with no marker" 0; st_eq "full_run_verdict with no marker is silent" "" "$ST_OUT"
-  st_marker 999 "$now"
-  st_run full_run_verdict "$fr" "$now"; st_rc "full_run_verdict with a stale marker" 0
-  [[ ! -d "$fr" ]]; st_ok "a stale marker is cleared" $?
-  st_marker 555 $((now - 720))
-  st_run full_run_verdict "$fr" "$now"; st_rc "full_run_verdict with a live marker held by another pid" 75
-  st_out_has "full_run_verdict names the pid" "pid 555"; st_out_has "full_run_verdict names the checkout" "/some/checkout"
-  st_out_has "full_run_verdict says how long" "12 min so far"; st_out_has "full_run_verdict names the override" "DEV_ALLOW_BESIDE_FULL_RUN=1"
-  DEV_ALLOW_BESIDE_FULL_RUN=1 st_run full_run_verdict "$fr" "$now"; st_rc "full_run_verdict with the override" 0
-  st_marker "$$" "$now"
-  st_run full_run_verdict "$fr" "$now"; st_rc "full_run_verdict with this pid's own marker" 0
-  st_marker 800 "$now"
-  st_run full_run_verdict "$fr" "$now"; st_rc "full_run_verdict with an ancestor's marker" 0
-  st_marker 555 "$now"; st_run full_run_gate; st_rc "full_run_gate exits 75 on a live other marker" 75
-  rm -rf "$fr"; st_run full_run_gate; st_rc "full_run_gate with no marker" 0
-  st_marker "" ""; st_run full_run_verdict "$fr" "$now"; st_rc "full_run_verdict while a claim is in progress" 75
-  touch -t 202001010000 "$fr"; st_run full_run_verdict "$fr" "$now"; st_rc "full_run_verdict with an abandoned claim" 0
-  rm -rf "$fr"
-  st_run full_run_claim "$fr" "$now" "/my/checkout"; st_rc "full_run_claim on a free marker" 0
-  st_eq "full_run_claim writes pid" "$$" "$(cat "$fr/pid")"; st_eq "full_run_claim writes checkout" "/my/checkout" "$(cat "$fr/checkout")"
-  st_eq "full_run_claim writes started" "$now" "$(cat "$fr/started")"
-  st_run full_run_release; [[ ! -d "$fr" ]]; st_ok "full_run_release removes this pid's marker" $?
-  st_marker 555 "$now"
-  st_run full_run_claim "$fr" "$now" "/my/checkout"; st_rc "full_run_claim beside another full run" 75
-  st_eq "full_run_claim leaves the other marker" 555 "$(cat "$fr/pid")"
-  st_run full_run_release; st_eq "full_run_release leaves another pid's marker" 555 "$(cat "$fr/pid")"
-  # Liveness beyond the pid: shard processes (procs_match stubbed), the age limit, and the move-aside reclaim.
-  ST_PROCS=""; procs_match() { [[ -n "$ST_PROCS" && "$1" == "$ST_PROCS" ]]; }
-  st_marker 999 "$now"; echo "shard-pattern" >"$fr/shards"
-  st_run full_run_verdict "$fr" "$now"; st_rc "full_run_verdict with a stale marker and no shard processes" 0
-  st_marker 999 "$now"; echo "shard-pattern" >"$fr/shards"; ST_PROCS="shard-pattern"
-  st_run full_run_verdict "$fr" "$now"; st_rc "full_run_verdict with a dead pid but live shard processes" 75
-  st_out_has "full_run_verdict names the dead pid" "pid 999"
-  st_run full_run_state "$fr" "$now"; st_out_has "full_run_state keeps a marker with live shard processes" "live"; [[ -d "$fr" ]]; st_ok "a marker with live shard processes is not removed" $?
-  st_marker 999 $((now - 7200)); echo "shard-pattern" >"$fr/shards"
-  st_run full_run_verdict "$fr" "$now"; st_rc "full_run_verdict with an expired marker and live shard processes" 75
-  ST_PROCS=""
-  st_marker 555 $((now - 5400 - 60)); echo "shard-pattern" >"$fr/shards"
-  st_run full_run_verdict "$fr" "$now"; st_rc "full_run_verdict with an expired marker and an unrelated live pid" 0
-  [[ ! -d "$fr" ]]; st_ok "an expired marker is cleared" $?
-  st_marker 555 $((now - 5400 + 60)); st_run full_run_verdict "$fr" "$now"; st_rc "full_run_verdict with a marker inside the age limit" 75
-  st_marker 555 $((now - 7200)); DEV_FULL_RUN_MAX_MIN=0 st_run full_run_verdict "$fr" "$now"; st_rc "full_run_verdict with the age limit off" 75
-  st_marker 555 $((now - 7200)); DEV_FULL_RUN_MAX_MIN=180 st_run full_run_verdict "$fr" "$now"; st_rc "full_run_verdict with a raised age limit" 75
-  # The reclaim race: a command judged the old marker stale, but a new claim replaced it before the move-aside.
-  st_marker 555 "$now"; st_run full_run_reclaim "$fr" "$now"
-  [[ "$(cat "$fr/pid" 2>/dev/null)" == 555 ]]; st_ok "full_run_reclaim puts back a live marker" $?
-  [[ -z "$(ls -d "$fr".dead.* 2>/dev/null)" ]]; st_ok "full_run_reclaim leaves no dead directory" $?
-  st_marker 999 "$now"; st_run full_run_reclaim "$fr" "$now"; [[ ! -d "$fr" ]]; st_ok "full_run_reclaim removes a stale marker" $?
-  st_marker 555 "$now"; echo "shard-pattern" >"$fr/shards"
-  st_run full_run_kill_shards; st_rc "full_run_kill_shards leaves another pid's marker alone" 0
-  st_marker "$$" "$now"; echo "" >"$fr/shards"; st_run full_run_kill_shards; st_rc "full_run_kill_shards with no pattern" 0
-  st_marker 999 "$now"
-  st_run full_run_claim "$fr" "$now" "/my/checkout" "pat"; st_rc "full_run_claim over a stale marker" 0; st_eq "full_run_claim over a stale marker takes it" "$$" "$(cat "$fr/pid")"
-  st_eq "full_run_claim writes the shard pattern" "pat" "$(cat "$fr/shards")"
-  rm -rf "$fr"
-
-  # Busy simulators: pid_alive/pid_parent are still stubbed (alive 555, this shell, ancestors 800 and 700).
-  local one=$'iPhone Duo\t555' two=$'iPhone Duo\t555\niPhone Duo 2\t556' own=$'iPhone Duo\t'"$$"$'\niPhone Duo 2\t'"$$"$'\niPhone Duo 3\t'"$$"
-  st_run busy_sims_verdict 2 ""; st_rc "busy_sims_verdict with none busy" 0; st_eq "busy_sims_verdict with none busy is silent" "" "$ST_OUT"
-  st_run busy_sims_verdict 2 "$one"; st_rc "busy_sims_verdict with 1 busy" 0
-  st_run busy_sims_verdict 2 "$two"; st_rc "busy_sims_verdict with 2 busy" 75
-  st_out_has "busy_sims_verdict names the first" "iPhone Duo (pid 555)"; st_out_has "busy_sims_verdict names the second" "iPhone Duo 2 (pid 556)"
-  st_out_has "busy_sims_verdict names the override" "DEV_MAX_BUSY_SIMS=0"
-  st_run busy_sims_verdict 0 "$two"; st_rc "busy_sims_verdict with the cap off" 0
-  st_run busy_sims_verdict 1 "$one"; st_rc "busy_sims_verdict with a cap of 1 and 1 busy" 75
-  st_run busy_sims_verdict abc "$two"; st_rc "busy_sims_verdict with a bad cap falls back to 2" 75
-  st_run busy_sims_verdict 2 "$own"; st_rc "busy_sims_verdict ignores this run's own shards" 0
-  st_run busy_sims_verdict 2 "$own"$'\n'"$one"; st_rc "busy_sims_verdict counts only the other holder" 0
-  st_run busy_sims_verdict 2 $'iPhone Duo\t800\niPhone Duo 2\t700'; st_rc "busy_sims_verdict ignores an ancestor's locks" 0
-  unset DEV_ALLOW_BESIDE_FULL_RUN
-  st_run full_run_alone_verdict ""; st_rc "full_run_alone_verdict with none busy" 0
-  st_run full_run_alone_verdict "$own"; st_rc "full_run_alone_verdict with only its own locks" 0
-  st_run full_run_alone_verdict "$one"; st_rc "full_run_alone_verdict with 1 busy" 75
-  st_out_has "full_run_alone_verdict names the simulator" "iPhone Duo (pid 555)"; st_out_has "full_run_alone_verdict names the override" "DEV_ALLOW_BESIDE_FULL_RUN=1"
-  DEV_ALLOW_BESIDE_FULL_RUN=1 st_run full_run_alone_verdict "$one"; st_rc "full_run_alone_verdict with the override" 0
-  # Recent use: rows are "<name><TAB><udid><TAB><seconds since use><TAB><last user pid>"; the window is 120 s unless overridden.
-  local rows=$'iPhone Duo\tU1\t30\t555\niPhone Duo 2\tU2\t300\t555\niPhone Duo 3\tU3\t10\t'"$$"$'\niPhone Duo 4\tU4\t20\t800\niPhone Duo 5\tU5\t5\t-'
-  st_run sim_recent_lines 120 U9 "$rows"
-  st_out_has "sim_recent_lines counts a simulator used 30 s ago" "iPhone Duo"$'\t'"ago:30"
-  [[ "$ST_OUT" != *"iPhone Duo 2"* ]]; st_ok "sim_recent_lines skips one used 300 s ago" $?
-  [[ "$ST_OUT" != *"iPhone Duo 3"* && "$ST_OUT" != *"iPhone Duo 4"* ]]; st_ok "sim_recent_lines skips ones this shell or an ancestor used" $?
-  st_out_has "sim_recent_lines counts one with an unknown last user" "iPhone Duo 5"$'\t'"ago:5"
-  st_run sim_recent_lines 120 U1 "$rows"; [[ "$ST_OUT" != *"ago:30"* ]]; st_ok "sim_recent_lines never counts this command's own simulator" $?
-  st_run sim_recent_lines 20 U9 "$rows"; [[ "$ST_OUT" != *"ago:30"* ]]; st_ok "sim_recent_lines honours a shorter window" $?
-  st_run sim_recent_lines abc U9 "$rows"; st_out_has "sim_recent_lines with a bad window falls back to 120" "ago:30"
-  st_run sim_recent_lines 120 U9 $'iPhone Duo 2\tU2\t5\tsweep'; st_eq "sim_recent_lines ignores a housekeeping (sweep) stamp 5 s old" "" "$ST_OUT"
-  st_run sim_recent_lines 120 U9 $'iPhone Duo 2\tU2\t5\t555'; st_out_has "sim_recent_lines counts another process's stamp 5 s old" "iPhone Duo 2"$'\t'"ago:5"
-  # Stamps: the sweep word and the pid are read back by sim_recent_rows; an empty udid writes nothing.
-  local sd; sd=$(mktemp -d)
-  CACHE_DIR="$sd" st_run sim_stamp ""; st_eq "sim_stamp with an empty udid writes no file" "" "$(ls -A "$sd")"
-  CACHE_DIR="$sd" st_run sim_drop ""; st_eq "sim_drop with an empty udid writes no file" "" "$(ls -A "$sd")"
-  CACHE_DIR="$sd" st_run sim_stamp_path ""; st_rc "sim_stamp_path refuses an empty udid" 1
-  CACHE_DIR="$sd" st_run sim_stamp UX; st_eq "sim_stamp writes this shell's pid" "$$" "$(cat "$sd/workouts-dev-sim.UX.last-used")"
-  CACHE_DIR="$sd" st_run sim_stamp UX sweep; st_eq "sim_stamp can mark housekeeping" "sweep" "$(cat "$sd/workouts-dev-sim.UX.last-used")"
-  rm -rf "${sd:?}"
-  local ago=$'iPhone Duo\tago:30\niPhone Duo 2\tago:60'
-  st_run busy_sims_verdict 2 "$ago"; st_rc "busy_sims_verdict with 2 recently used" 75
-  st_out_has "busy_sims_verdict says used recently" "iPhone Duo (used 30s ago)"; st_out_has "busy_sims_verdict names the window" "in the last 2 min"
-  st_run busy_sims_verdict 2 "$one"$'\niPhone Duo 2\tago:60'; st_rc "busy_sims_verdict counts a holder and a recent use together" 75
-  st_run busy_sims_verdict 2 $'iPhone Duo\tago:30'; st_rc "busy_sims_verdict with 1 recently used" 0
-  DEV_BUSY_WINDOW_SEC=90 st_run busy_sims_verdict 2 "$ago"; st_out_has "busy_sims_verdict names a window that is not whole minutes" "in the last 90s"
-  st_marker 555 "$now"; st_run full_run_line "$fr" "$((now + 720))"
-  st_out_has "full_run_line names the pid" "pid 555"; st_out_has "full_run_line names the checkout" "/some/checkout"; st_out_has "full_run_line says how long" "(12 min)"
-  rm -rf "$fr"; st_run full_run_line "$fr" "$now"; st_eq "full_run_line with no marker is silent" "" "$ST_OUT"
-
-  # Gate waiting: probe stubs keep their state in files (a probe runs in a command substitution); gate_sleep is stubbed.
-  gate_sleep() { echo "$1" >>"$ST_DIR/gate-sleeps"; }
-  st_probe_clears_2nd() { local n; n=$(cat "$ST_DIR/gate-n" 2>/dev/null || echo 0); echo $((n + 1)) >"$ST_DIR/gate-n"; ((n >= 1)) || { echo "dev: simulators busy: iPhone Duo (pid 555)"; return 75; }; }
-  st_probe_never() { echo "dev: simulators busy: iPhone Duo (pid 555)"; return 75; }
-  st_gate_reset() { rm -f "$ST_DIR/gate-n" "$ST_DIR/gate-sleeps"; }
-  st_gate_sleeps() { if [[ -f "$ST_DIR/gate-sleeps" ]]; then grep -c . "$ST_DIR/gate-sleeps"; else echo 0; fi; }
-  st_gate_reset; st_run gate_wait check 60 st_probe_clears_2nd; st_rc "gate_wait proceeds when the gate clears on the second look" 0
-  st_out_has "gate_wait says what it waits for" "check waits for a gate (up to 60s"; st_out_has "gate_wait names the holder" "iPhone Duo (pid 555)"
-  st_out_has "gate_wait says when it proceeds" "gate cleared after 20s: check continues"; st_eq "gate_wait slept once" 1 "$(st_gate_sleeps)"
-  st_gate_reset; st_run gate_wait check 60 st_probe_never; st_rc "gate_wait gives up with 75 when the gate never clears" 75
-  st_out_has "gate_wait gives up with the reason" "iPhone Duo (pid 555)"; st_out_has "gate_wait gives up saying how long it waited" "waited 60s"
-  st_eq "gate_wait slept 3 x 20s" 3 "$(st_gate_sleeps)"; st_out_lacks "gate_wait never says it cleared" "gate cleared"
-  st_gate_reset; st_run gate_wait check 0 st_probe_never; st_rc "gate_wait with a wait of 0 refuses at once" 75
-  st_eq "gate_wait with a wait of 0 never sleeps" 0 "$(st_gate_sleeps)"; st_out_lacks "gate_wait with a wait of 0 prints no waiting line" "waits for a gate"
-  st_out_has "gate_wait with a wait of 0 prints the usual message" "dev: simulators busy"; st_out_lacks "gate_wait with a wait of 0 adds no waited note" "waited"
-  st_gate_reset; st_run gate_wait build 30 st_probe_never; st_rc "gate_wait with a budget below two steps" 75
-  st_eq "gate_wait's last step is the remainder" $'20\n10' "$(cat "$ST_DIR/gate-sleeps")"
-  st_gate_reset; st_run gate_wait check 60 true; st_rc "gate_wait with an open gate" 0; st_eq "gate_wait with an open gate is silent" "" "$ST_OUT"
-  st_eq "gate_wait_limit default" 1800 "$(unset DEV_GATE_WAIT_SEC; gate_wait_limit 1800)"; st_eq "gate_wait_limit default 0" 0 "$(unset DEV_GATE_WAIT_SEC; gate_wait_limit 0)"
-  st_eq "gate_wait_limit honours an explicit value" 45 "$(DEV_GATE_WAIT_SEC=45 gate_wait_limit 0)"; st_eq "gate_wait_limit honours an explicit 0 over a default" 0 "$(DEV_GATE_WAIT_SEC=0 gate_wait_limit 1800)"
-  st_eq "gate_wait_limit with a bad value falls back" 1800 "$(DEV_GATE_WAIT_SEC=abc gate_wait_limit 1800)"
-  st_gate_reset; DEV_GATE_POLL_SEC=5 st_run gate_wait check 10 st_probe_never; st_eq "gate_wait honours DEV_GATE_POLL_SEC" 2 "$(st_gate_sleeps)"
-  unset -f gate_sleep
-
   echo "selftest: $ST_PASS passed, $ST_FAIL failed"
   ((ST_FAIL == 0))
 }
 
-# lint, kit and duo-test need no simulator, so they run first and ungated; only build and the app tests go through
-# sim_guarded, where check waits (DEV_GATE_WAIT_SEC, default 1800) instead of refusing.
+# lint and kit need no simulator, so they run first; `test` builds the app (build-for-testing) and waits its turn in simkit's queue.
 cmd_check() {
   cmd_lint || return
   cmd_kit || return
-  cmd_duo_test || return
-  sim_guarded cmd_check_sim
-}
-cmd_check_sim() {
-  cmd_build || return
   cmd_test || return
   # The PreToolUse hook that gates `git commit` compares this stamp's mtime against changed files.
   mkdir -p .build && touch .build/check.stamp
   echo "check: ok"
 }
 
-# The accessibility tree of a `-preview <Name>` screen (PLAN device-tool C.6): WorkoutsUITests/TreeDumpUITests dumps
-# XCUIApplication.debugDescription as a kept attachment (the test's stdout does not reach the quiet log), read back from the
-# run's xcresult (latest-tree.xcresult). Reuses run_tests, so the build, the simulator lock and the crash guard are the usual ones.
-cmd_tree() {
-  local name="${1:-}"
-  [[ -n "$name" && "$name" != -* && "$name" != */* ]] || die "usage: tree <PreviewName>"
-  command -v jq >/dev/null 2>&1 || die "tree: jq is required"
-  # Its own bundle name (latest-tree.xcresult), so the merged bundle of the last full ui-test, which `coverage ui-test` reads, is untouched.
-  # The totals line is noise here: the tree is the output. Failures still reach stderr.
-  rm -rf "$RESULTS/latest-tree.xcresult"
-  TEST_RUNNER_TREE_PREVIEW="$name" run_tests tree WorkoutsUITests 'TreeDumpUITests/testDump()' >/dev/null
-  local bundle="$RESULTS/latest-tree.xcresult" out
-  [[ -d "$bundle" ]] || die "tree: no result bundle at $bundle"
-  out=$(mktemp -d "${TMPDIR:-/tmp}/dev-tree.XXXXXX")
-  xcrun xcresulttool export attachments --path "$bundle" --output-path "$out" >/dev/null 2>&1 || true
-  local file text
-  file=$(jq -r '[.[].attachments[]? | select(.suggestedHumanReadableName | startswith("tree-"))][0].exportedFileName // empty' "$out/manifest.json" 2>/dev/null) || file=""
-  [[ -n "$file" && -f "$out/$file" ]] || { rm -rf "$out"; die "tree: the dump attachment is missing from $bundle (TreeDumpUITests did not run, or skipped itself)"; }
-  text=$(sed -n '/^=== TREE BEGIN ===$/,/^=== TREE END ===$/p' "$out/$file")
-  if [[ -z "$text" ]]; then text=$(<"$out/$file"); fi
-  rm -rf "$out"
-  [[ -n "$text" ]] || die "tree: the dump for '$name' is empty"
-  printf '%s\n' "$text"
-}
-
 cmd_help() {
   cat <<'USAGE'
-(the simulator pool, lock, crash guard and Duo poses come from simkit's shared library at $SIMKIT_HOME/lib/sim.sh, default ~/Projects/simkit;
-DEV_SIM_LOCAL=1, or a missing library, uses the copy in this file)
-sims [--prune]     create the missing simulator clones (iPhone Duo 2..$DEV_SIM_POOL, default 5) and list the pool; --prune also shuts down idle pool sims and erases clones with PosterKit build-up
-                   (never erased, here or by the crash guard: names in DEV_SIM_KEEP, comma-separated, default "iPhone Duo 2,iPhone Duo Health"; a warning line instead)
-                   (simulator commands use this checkout's own simulator, kept in .build/dev-sim-udid; DEV_SIM=<name>
-                   or DEV_SIM_UDID=<udid> overrides)
-build              build the app for this checkout's simulator
-                   (every command that uses a simulator, build included, exits 75 while an unfiltered ui-test runs: it keeps a marker in ~/Library/Caches/workouts-dev-full-ui.lock
-                   with its pid, checkout and start time, cleared when it ends (a TERM/HUP/INT to the dev shell stops the shards first) or when its pid is dead and no shard process is left; a marker older than DEV_FULL_RUN_MAX_MIN (90, 0 = off) with no shard process is stale whatever its pid; DEV_ALLOW_BESIDE_FULL_RUN=1 overrides. kit, lint, format, duo-test, selftest, sims, ui-status, ui-flaky, testflight and help are never gated;
-                   an unfiltered ui-test also refuses to start while any pool simulator is held by another live process, DEV_ALLOW_BESIDE_FULL_RUN=1 overrides)
-                   (outside a full run, a simulator command, build included, exits 75 when DEV_MAX_BUSY_SIMS (default 2; 0 = off) other pool simulators are held by live processes or were used in the last DEV_BUSY_WINDOW_SEC (default 120) seconds (a command's own simulator and ones its ancestors used do not count), checked again once the lock is taken, and prints a warning
-                   when the 1-minute load average is above twice the CPU count; sims and ui-status show a running full run's pid, checkout and start time)
-                   (DEV_GATE_WAIT_SEC: how long a gated command waits, looking again every DEV_GATE_POLL_SEC (20) seconds, before it exits 75; default 1800 for check, whose lint, kit and duo-test steps run first and never wait, 0 (refuse at once) for every other command; an explicit value applies to any gated command)
-test [filter]      run WorkoutsTests (filter = suite or suite/test); first restores closed-portrait if the Duo was left posed; prints totals, fails if none ran; an unfiltered pass writes .build/test.stamp (commit, clean, when), which `coverage` prints
-ui-test [filter]   run WorkoutsUITests (without DEV_POSE the Duo is first restored to closed-portrait if it was left posed; an unfiltered pass is sharded over DEV_UI_SHARDS pool sims and stamps HEAD, with its flaky tests, for the testflight --upload gate); prints totals, fails if none ran. A test whose first attempt crashed the app fails the run even when its retry passes (not flaky; no stamp). An unfiltered run that does not skip exactly 21 tests (DEV_UI_EXPECTED_SKIPS) writes no stamp
-                   and fails. A test running longer than DEV_UI_TEST_ALLOWANCE seconds (default 240) fails with a spindump (xcodebuild -test-timeouts-enabled). Filter HealthKitIntegrationUITests opts in to the real-Health test: it runs on the 'iPhone Duo Health' clone
-                   (create it: xcrun simctl clone "iPhone Duo" "iPhone Duo Health"; DEV_SIM / DEV_SIM_UDID override), keeps its bundle as
-                   latest-health.xcresult, and a pass with nothing skipped writes .build/health-test.stamp (commit, when)
-                   DEV_POSE=closed-portrait|closed-landscape|open-wide|open-tall (filtered runs only) poses the Duo first and restores closed-portrait
-                   when the lock is released, also after a failure; the runner sees DUO_POSE (OpenPoseUITests skips without DUO_POSE=open-wide)
-tree <Name>        print the accessibility tree (XCUIApplication.debugDescription) of the `-preview <Name>` screen via TreeDumpUITests; no private AX bridge
-ui-flaky [--since <days>]  per-test summary of .build/ui-flaky.log (tests that failed, then passed on retry): count, last date and commit, last failure text; read-only
-ui-status          progress of a running ui-test (one line per shard: passed/total, failures, last test, elapsed), else the last stamp and the last run's final line (.build/ui-test.progress)
-coverage [test|ui-test]  per-target code coverage of the last passing test (default) or ui-test run (xccov); fails if none kept; test prints the stamped commit and time first ("unstamped" for a filtered or older bundle)
+Simulator verbs run through simkit ($SIMKIT_HOME/bin/sim, default ~/Projects/simkit; its AGENTS.md "The loop" is the manual).
+A verb marked (leased) takes this worktree's session lease first (idempotent); ./dev release ends it, and simkit drops it after
+ten minutes with no verb. test, ui-test, tree, shot and poses are whole jobs: they use the session lease when one is held, else
+queue for one of their own. Exit 75 = the queue says wait; never retry in a loop. Workers, retries, skips and the Health suite
+are in simkit.json.
+build              (leased) build the app
+run [-- args]      (leased) build, install, launch; args go to the app (-- -preview <Name>)
+test [filter]      WorkoutsTests on the simulator (filter = Suite or Suite/test()); one totals line, fails if none ran; SNAPSHOT_RECORD=1 re-records the snapshots
+ui-test [filter]   WorkoutsUITests; no filter = the full suite as one job; filter HealthKitIntegration... = the real-Health run; DEV_POSE=<pose> poses the Duo (filtered runs)
+tree <Name>        accessibility tree of the `-preview <Name>` screen via TreeDumpUITests
+ui-status          where the running ui-test stands, else the last run's final line
+ui-flaky [--since <days>]  tests that failed, then passed on retry
+coverage [test|ui-test]    per-target coverage of the last passing run
+shot [--burst [CxMS]] <png> [-- args]  run + settled screenshot; --burst = the first frames as one PNG grid (default 15x100)
+poses <dir> [-- args]      run, then the four Duo poses as PNGs <dir>/<pose>.png
+pose <name> [png]  (leased) closed-portrait|closed-landscape|open-wide|open-tall, verified
+fold <x> [png]     (leased) closed|half-open|open; fold --keyframes '<json>' [--record <mov> [--display lit|outer|inner]]
+orient <o> [png]   (leased) portrait|landscape-left|landscape-right
+screenshot [path]  (leased) picture of the simulator (default .build/screenshots/<timestamp>.png; DEV_DISPLAY=<display>)
+home [png]         (leased) the Home screen
+duo <verb> [args]  (leased) simkit's panels|screenshot|settle|hinge|fold|orient|pose|home; `hinge --app` gets --subsystem
+ui-env [content_size <size>] [appearance light|dark] | reset   (leased) text size / appearance of the simulator
+probe [dir]        (leased) launch with -uiTesting, then answer sim/probes.json into <dir> (default .build/probe)
+sims               the pool: slots, who holds which simulator, who waits (sim status)
+release            end this session's simulator lease
 kit [filter]       swift test in Packages/WorkoutsKit; prints summary line, fails if filter matched nothing
 kit-coverage       swift test with coverage; prints the whole-package line coverage (llvm-cov TOTAL)
 kit-build          swift build in Packages/WorkoutsKit
 thumb-crops        regenerate Resources/Library/thumbs/thumb-crops.json (per-exercise figure crop rectangle, from Tools/thumb-crops.swift); deterministic, run by hand and commit the result
 lint               swift-format lint --strict
 format             swift-format in place
-run [-- args]      boot sim, build, install, launch; args go to the app (-- -preview <Name>); prints log command
-shot <png> [-- args]  run + settle (identical consecutive captures) + screenshot in one lock hold (use this for proofs; parallel-safe)
-shot --burst [<count>x<intervalMs>] <png> [-- args]  launch and capture the lit panel from the first moment (default 15x100), tiled into one
-                   labelled PNG grid: a reviewer artifact for transitions, not a settled proof (no tap injection)
-ui-env [content_size <size>] [appearance light|dark] | reset   text size / appearance of THIS checkout's sim (no args = print current;
-                   reset = large + light; sizes e.g. large, accessibility-extra-large). test, ui-test and tree reset it to large/light
-                   first, so re-apply before ./dev shot. Use this, never `simctl ui booted`
-screenshot [path]  simulator screenshot (default .build/screenshots/<timestamp>.png)
-home [png]         go to the Home screen (the app keeps running in the background); png = capture of it
-fold <pose> [png]  Duo hinge: closed|half-open|open, verified by hinge reads and the lit panel; png = capture of the lit panel
-fold --keyframes '<json>' [--record <mov> [--display lit|outer|inner]]  timed hinge motion: [{"atMs":0,"angle":0},{"atMs":3000,"angle":180}] (2-64 keyframes, <= 60 s,
-                   linear, 60 Hz on absolute deadlines), final pose verified like fold; --record = simctl io recordVideo around it (one panel, default the lit one). Leave the sim closed
-orient <o> [png]   portrait|landscape-left|landscape-right, verified by devicectl orientation and the lit panel; png as for fold
-pose <name> [png]  Duo layout in one verified step: closed-portrait|closed-landscape|open-wide (951x669 pt)|open-tall (669x951 pt);
-                   the png is a settled capture (two identical consecutive captures, 10 s timeout)
-poses <dir> [-- args]  run (install + launch with args) then all four poses as settled PNGs <dir>/closed-portrait.png … open-tall.png,
-                   under one simulator lock with the status bar pinned; always ends closed-portrait, also after a failure midway
-duo <verb> [args]  duo pass-through (simkit's tool from $SIMKIT_HOME, default ~/Projects/simkit, when it is installed; DEV_DUO_LOCAL=1 uses Tools/duo; `hinge --app` gets --subsystem) (panels, hinge, settle [--timeout s], screenshot [--display lit|outer|inner] [--settle | --burst [CxMS]], fold <degrees>, guest-build,
-                   --help); adds --udid for this checkout's simulator when the verb needs one; Tools/duo is built into .build/duo/spm
-duo-test           swift test for Tools/duo (host-only, ~1s); also part of check
 testflight [--upload]  signed App Store archive + export to .build/testflight/export (no upload unless --upload;
-                   --upload refuses unless a full ./dev ui-test passed on HEAD with a clean tree, DEV_SKIP_UI_GATE=1 skips, and unless
-                   the Health code (Workouts/Features/Health, the kit's Health directory, entitlements, HealthKitIntegrationUITests) is
-                   unchanged in the working tree since the .build/health-test.stamp commit, DEV_SKIP_HEALTH_GATE=1 skips that one);
-                   key from 1Password via op, build number = UTC yyyymmddHHMM; no simulator lock
+                   --upload reads two result.json files (.build/simkit/test/WorkoutsUITests/ and .../WorkoutsUITests-health/) and refuses
+                   unless the full ./dev ui-test passed on HEAD with a clean tree, DEV_SKIP_UI_GATE=1 skips, and unless the Health code
+                   (Workouts/Features/Health, the kit's Health directory, entitlements, HealthKitIntegrationUITests) is unchanged in the
+                   working tree since the last passing real-Health run that skipped nothing, DEV_SKIP_HEALTH_GATE=1 skips that one);
+                   key from 1Password via op, build number = UTC yyyymmddHHMM; no simulator
 media-upload [--env development|production] [--limit N] [--only <sourceId>]
                    upload exercise videos to CloudKit's public database (Web Services, server-to-server key via op);
-                   re-runs skip records that already hold both assets; no simulator lock
+                   re-runs skip records that already hold both assets; no simulator
 ck-schema export [--env development|production] | diff | fields <ckdb file>
                    CloudKit schema via cktool, management token from 1Password via op run: export writes .build/cloudkit/schema-<env>.ckdb
                    and lists its record types; diff exports both and names the record types Production still lacks and, per shared record
                    type, the fields (type.field) added, removed or retyped between Development and Production (exit 1 until the
                    Console's Deploy Schema Changes… has run: cktool cannot write to Production); fields prints `type field type` lines of
-                   a .ckdb file offline (no token); no simulator lock
+                   a .ckdb file offline (no token); no simulator
 clean              rm -rf .build
-check             lint, kit, duo-test, build, test; stops at first failure; on success touches .build/check.stamp
-selftest           the stamp, gate, skipped-count, ui-flaky and DEV_SIM_KEEP logic on fixture files in a temp dir; no simulator, no xcodebuild, not part of check
+check             lint, kit, test; stops at first failure; on success touches .build/check.stamp and prints `check: ok`
+selftest           the upload gates (on result.json fixtures), the swift test totals and the ck-schema logic, on fixture files in a temp dir; no simulator, not part of check
 help               this list
 USAGE
 }
@@ -2557,35 +832,36 @@ USAGE
 sub="${1:-help}"
 [[ $# -gt 0 ]] && shift
 case "$sub" in
-  build) sim_build_cap; cmd_build ;;
-  test) sim_guarded cmd_test "$@" ;;
-  ui-test) ui_test_select_sim "$@"; ui_pose_init "$@"; sim_guarded cmd_ui_test "$@" ;;
-  selftest) cmd_selftest ;;
+  build) cmd_build ;;
+  run) cmd_run "$@" ;;
+  test) cmd_test "$@" ;;
+  ui-test) cmd_ui_test "$@" ;;
+  tree) cmd_tree "$@" ;;
   ui-status) cmd_ui_status ;;
   ui-flaky) cmd_ui_flaky "$@" ;;
-  tree) sim_guarded cmd_tree "$@" ;;
+  coverage) cmd_coverage "$@" ;;
+  shot) cmd_shot "$@" ;;
+  poses) cmd_poses "$@" ;;
+  pose) cmd_pose "$@" ;;
+  fold) cmd_fold "$@" ;;
+  orient) cmd_orient "$@" ;;
+  screenshot) cmd_screenshot "$@" ;;
+  home) cmd_home "$@" ;;
+  duo) cmd_duo "$@" ;;
+  ui-env) cmd_ui_env "$@" ;;
+  probe) cmd_probe "$@" ;;
+  sims) cmd_sims ;;
+  release) cmd_release ;;
   kit) cmd_kit "$@" ;;
   kit-build) cmd_kit_build ;;
   kit-coverage) cmd_kit_coverage ;;
   thumb-crops) cmd_thumb_crops ;;
-  coverage) cmd_coverage "$@" ;;
   lint) cmd_lint ;;
   format) cmd_format ;;
-  run) sim_guarded cmd_run "$@" ;;
-  screenshot) sim_guarded cmd_screenshot "$@" ;;
-  shot) sim_guarded cmd_shot "$@" ;;
-  home) sim_guarded cmd_home "$@" ;;
-  ui-env) sim_guarded cmd_ui_env "$@" ;;
-  fold) sim_guarded cmd_fold "$@" ;;
-  orient) sim_guarded cmd_orient "$@" ;;
-  pose) sim_guarded cmd_pose "$@" ;;
-  poses) sim_guarded cmd_poses "$@" ;;
-  duo) case "${1:-}" in panels | screenshot | settle | hinge | fold | orient | pose | poses | home) sim_guarded cmd_duo "$@" ;; *) cmd_duo "$@" ;; esac ;;
-  duo-test) cmd_duo_test ;;
-  sims) cmd_sims "$@" ;;
   testflight) cmd_testflight "$@" ;;
   media-upload) cmd_media_upload "$@" ;;
   ck-schema) cmd_ck_schema "$@" ;;
+  selftest) cmd_selftest ;;
   clean) cmd_clean ;;
   check) cmd_check ;;
   help | -h | --help) cmd_help ;;
