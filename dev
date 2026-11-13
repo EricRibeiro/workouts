@@ -23,8 +23,13 @@ UI_PROGRESS_DIR=".build/ui-test.progress.d" # per-shard state behind it, plus pi
 KIT="Packages/WorkoutsKit"
 LINT_PATHS=(Workouts WorkoutsLiveActivity Shared WorkoutsTests WorkoutsUITests Packages Tools/duo)
 DUO_SPM=".build/duo/spm"
-# simkit's duo tool when it is installed (decided once, here, so the EXIT trap in ui_pose_restore sees the same DUO_BIN);
-# DEV_DUO_LOCAL=1 or a missing simkit keeps Tools/duo.
+NOISE='IDERunDestination|IDESchemeActionDeviceRecord|IDETestOperationsObserverDebug'
+MAX_LINES=80
+
+die() { echo "dev: $*" >&2; exit 1; }
+
+# The simulator code (pool, lock, crash guard, Duo poses) comes from simkit's shared library when it is installed; the copy in
+# this file is the fallback (DEV_SIM_LOCAL=1 or no library at $SIMKIT_HOME/lib/sim.sh) and is deleted in a later step.
 SIMKIT_HOME="${SIMKIT_HOME:-$HOME/Projects/simkit}"
 duo_use_simkit() { [[ "${3:-}" != 1 && -x "$1/bin/sim" && -f "$1/duo/Package.swift" ]] && echo 1 || echo 0; } # <simkit home> _ <DEV_DUO_LOCAL>: 1 when simkit's tool is used
 duo_needs_subsystem() { # <simkit 0|1> <duo args...>: 0 when `hinge --app` still lacks the --subsystem simkit's tool requires
@@ -35,13 +40,23 @@ duo_needs_subsystem() { # <simkit 0|1> <duo args...>: 0 when `hinge --app` still
   done
   ((hinge && app))
 }
+if [[ "${DEV_SIM_LOCAL:-}" != 1 && -r "$SIMKIT_HOME/lib/sim.sh" ]]; then
+  SIM_TOOL=dev SIM_CMD=./dev SIM_BOOT_HINT="./dev run first" SIM_APP_ID="$BUNDLE_ID" SIM_FATAL_APPS="Workouts WorkoutsLiveActivity"
+  # shellcheck source=/dev/null
+  source "$SIMKIT_HOME/lib/sim.sh"
+  sim_release_hook() { ui_pose_restore; }
+  SIM_SHARED=1
+else
+  SIM_SHARED=0
+fi
+# The fallback uses simkit's duo tool when only the library is missing, decided once here so the EXIT trap in ui_pose_restore
+# sees the same DUO_BIN; DEV_DUO_LOCAL=1 or no simkit keeps Tools/duo.
+if [[ "$SIM_SHARED" != 1 ]]; then
 DUO_SIMKIT=$(duo_use_simkit "$SIMKIT_HOME" "" "${DEV_DUO_LOCAL:-}")
 if [[ "$DUO_SIMKIT" == 1 ]]; then DUO_BIN="$SIMKIT_HOME/.build/duo/spm/release/duo"; else DUO_BIN="$DUO_SPM/release/duo"; fi
-NOISE='IDERunDestination|IDESchemeActionDeviceRecord|IDETestOperationsObserverDebug'
-MAX_LINES=80
+fi
 
-die() { echo "dev: $*" >&2; exit 1; }
-
+if [[ "$SIM_SHARED" != 1 ]]; then
 # Simulator pool. The original "iPhone Duo" plus clones "iPhone Duo 2".."iPhone Duo $DEV_SIM_POOL" (made by `./dev sims`),
 # so parallel agents each get their own simulator instead of queueing on one. Every simulator has its own lock; a checkout
 # remembers its simulator in .build/dev-sim-udid, so run -> screenshot -> fold hit one device and its fold pose sticks.
@@ -399,6 +414,7 @@ sim_resolve() {
   echo "dev: simulator $SIM_NAME ($SIM_UDID)" >&2
   sim_reap_idle
 }
+fi
 
 # Print at most MAX_LINES of stdin, noting truncation.
 cap() {
@@ -475,6 +491,7 @@ report_failures() {
   fi
 }
 
+if [[ "$SIM_SHARED" != 1 ]]; then
 # A pool simulator keeps whatever text size and appearance an earlier session left it at (an accessibility size once
 # failed UI tests that pass at Large). Reset both before a test run; `simctl ui` needs a booted device, so boot it headless
 # first. Not display toggles: these are the same settings as Settings > Display & Brightness / Display Size.
@@ -528,6 +545,7 @@ sim_pose_guard() { # sim_pose_guard <label> <udid>: the simulator must be booted
   echo "dev: $1: the simulator was left ${now/unknown/in an unknown pose}; restoring closed-portrait (snapshots and UI tests need it)" >&2
   "$DUO_BIN" pose closed-portrait --udid "$2" >/dev/null || die "$1: restoring closed-portrait failed (see the duo message above); run ./dev pose closed-portrait"
 }
+fi
 
 run_tests() { # run_tests <name> <target> [filter] [latest]: the passing bundle is kept as latest-<latest>.xcresult (default: <name>)
   local name="$1" target="$2" filter="${3:-}" latest="${4:-$1}"
@@ -801,10 +819,12 @@ ui_suites() { # ui_suites <xctestrun>: the UI test classes the built bundle cont
   echo "$suites"
 }
 ui_fmt_secs() { if (($1 >= 60)); then printf '%dm%02ds' $(($1 / 60)) $(($1 % 60)); else printf '%ds' "$1"; fi; }
+if [[ "$SIM_SHARED" != 1 ]]; then
 load_over() { # load_over <factor>: prints "<load> <cpus>" and succeeds when the 1-minute load average is above factor x the CPU count
   local load cpus; load=$(sysctl -n vm.loadavg | awk '{ print $2 }'); cpus=$(sysctl -n hw.ncpu)
   awk -v l="$load" -v c="$cpus" -v f="$1" 'BEGIN { exit !(l > f * c) }' && echo "$load $cpus"
 }
+fi
 ui_load_high() { load_over 4; } # the sharded run drops to one shard above this
 ui_balance() { # ui_balance <shards> <suite...>: "<shard> <suite>" lines; a suite without history counts as the mean of the known
   local n="$1" s; shift
@@ -1317,6 +1337,7 @@ cmd_shot_burst() { # cmd_shot_burst <png> <spec|""> [app launch args...]: captur
   echo "$path"
 }
 
+if [[ "$SIM_SHARED" != 1 ]]; then
 # Simulator commands hold the lock of their one simulator (see the pool above), so parallel agents on the same simulator
 # take turns instead of racing it, and fail when any simulator process crashed while they ran. The crash check is global:
 # a crash on any simulator fails the command. Seen 2026-11-03: a SpringBoard crash loop after
@@ -1608,6 +1629,7 @@ cmd_pose() { # fold + orient + verify in one call; the names are the layouts ver
   local extra=(); if [[ -n "${2:-}" ]]; then mkdir -p "$(dirname "$2")"; extra=(--png "$2" --settle); fi
   "$DUO_BIN" pose "$1" --udid "$SIM_UDID" ${extra[@]+"${extra[@]}"}
 }
+fi
 cmd_poses() { # cmd_poses <dir> [-- app launch args...]: run + the four poses as settled PNGs, ONE lock hold (plan C.3)
   # Like cmd_shot, run and capture share one lock hold so no parallel worker installs its build in between. `duo poses`
   # writes <dir>/closed-portrait.png, closed-landscape.png, open-wide.png and open-tall.png (each settled; timeout
@@ -1628,6 +1650,7 @@ cmd_poses() { # cmd_poses <dir> [-- app launch args...]: run + the four poses as
   xcrun simctl status_bar "$SIM_UDID" clear >/dev/null 2>&1 || true
   ((rc == 0)) || die "poses: the set failed (closed-portrait was restored)"
 }
+if [[ "$SIM_SHARED" != 1 ]]; then
 cmd_duo() { # pass-through to the tool; adds --udid for the verbs that act on a simulator
   duo_bin
   local args=("$@") verb="${1:-}" a has_udid=0
@@ -1640,11 +1663,13 @@ cmd_duo() { # pass-through to the tool; adds --udid for the verbs that act on a 
   if duo_needs_subsystem "$DUO_SIMKIT" "$@"; then args+=(--subsystem "$BUNDLE_ID"); fi
   "$DUO_BIN" ${args[@]+"${args[@]}"}
 }
+fi
 cmd_duo_test() { # Tools/duo's own tests (host-only, sub-second); quiet on success with one totals line
   run_logged duo-test swift test --package-path Tools/duo --scratch-path "$DUO_SPM" || return
   swift_test_summary duo ""
 }
 
+if [[ "$SIM_SHARED" != 1 ]]; then
 # PosterBoard crash-looped on a clone whose PosterKit temp folder had grown to thousands of entries (2026-11-05). Erase such a
 # shut-down clone; the original is only reported, never erased automatically.
 sim_erase_poster_buildup() {
@@ -1698,6 +1723,7 @@ cmd_sims() { # create any missing pool clone, then list the pool; --prune also r
   done < <(sim_pool_names)
   full_run_line "$FULL_RUN_DIR" "$(date +%s)"
 }
+fi
 
 # Signed App Store Connect export (TestFlight). Needs the App Store Connect API key in 1Password (read with `op`, which
 # works headless through the service account). The key is streamed from `op read` straight into a 0600 file in a private
@@ -2457,6 +2483,8 @@ cmd_tree() {
 
 cmd_help() {
   cat <<'USAGE'
+(the simulator pool, lock, crash guard and Duo poses come from simkit's shared library at $SIMKIT_HOME/lib/sim.sh, default ~/Projects/simkit;
+DEV_SIM_LOCAL=1, or a missing library, uses the copy in this file)
 sims [--prune]     create the missing simulator clones (iPhone Duo 2..$DEV_SIM_POOL, default 5) and list the pool; --prune also shuts down idle pool sims and erases clones with PosterKit build-up
                    (never erased, here or by the crash guard: names in DEV_SIM_KEEP, comma-separated, default "iPhone Duo 2,iPhone Duo Health"; a warning line instead)
                    (simulator commands use this checkout's own simulator, kept in .build/dev-sim-udid; DEV_SIM=<name>

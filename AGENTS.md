@@ -91,6 +91,7 @@ DEV_POSE=open-wide ./dev ui-test OpenPoseUITests   a filtered ui-test with the D
 ./dev sims [--prune]    create missing simulator clones and list the pool (who holds which lock, which is yours); read-only otherwise.
                         --prune also erases a clone whose PosterKit temp holds > DEV_SIM_POSTER_MAX (1000) entries and shuts down idle sims.
                         Every sim command shuts down other pool clones that are idle > DEV_SIM_IDLE_MIN (30) min with no app running (never the original)
+                        The pool, lock, crash guard and Duo poses live in simkit's shared library ($SIMKIT_HOME/lib/sim.sh, default ~/Projects/simkit); `DEV_SIM_LOCAL=1` (or no library) uses the copy in `dev`
 ```
 
 Every test command prints one totals line on success (`kit: Test run with 100 tests …`, `test: 2 passed, …`) and
