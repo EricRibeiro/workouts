@@ -53,7 +53,7 @@ retry, per-test allowance and expected skips of `WorkoutsUITests` and the Health
 
 ```
 ./dev kit [filter]      swift test for WorkoutsKit        — ~1s; use this first and most
-./dev build             xcodebuild for the simulator       — ~2s warm (leased)
+./dev build             xcodebuild for the simulator       — ~2s warm (no lease, boots nothing)
 ./dev test [filter]     unit tests on the simulator        — ~25s; filter = Suite or Suite/test(); a simkit job (`sim test WorkoutsTests`)
 SNAPSHOT_RECORD=1 ./dev test SnapshotTests   re-record the visual references (WorkoutsTests/__Snapshots__); fails once on purpose
 ./dev lint | format     swift-format lint --strict / format --in-place
@@ -204,7 +204,7 @@ test per worker multiplies fast (2026-11-11: a full `./dev ui-test` beside four 
 past 140; workers crawled for an hour or stalled, and audit tests fail with `-902` under that load). simkit's queue
 enforces the count (its `AGENTS.md`, "Rules" and "The loop"); what stays here is how to plan around it.
 - **Leases.** A simulator is used only under a lease. Every `./dev` call in a checkout shares one session lease (the session is
-  the git worktree root); the leased verbs (`build`, `run`, `pose`, `fold`, `orient`, `screenshot`, `home`, `duo`, `ui-env`, `probe`)
+  the git worktree root); the leased verbs (`run`, `pose`, `fold`, `orient`, `screenshot`, `home`, `duo`, `ui-env`, `probe`)
   take it on first use, and simkit drops it after ten minutes with no verb. `./dev release` ends it at once: run it when
   you are done with the simulator. `test`, `ui-test`, `tree`, `shot` and `poses` are whole jobs that use the session's lease
   when one is held and otherwise take a lease of their own for the job. Workers do not pick a simulator.
@@ -261,7 +261,7 @@ HEAD, `clean` true; it prints the run's flaky list). `DEV_SKIP_UI_GATE=1` overri
 its touched UI suites green, then `DEV_SKIP_UI_GATE=1 ./dev testflight --upload` right away; do not hold an upload for a full
 run, and batch nothing just to save uploads. The full run still gates milestones (a PLAN phase, a review round's batch)
 and runs in the background; the `docs/testflight.md` row says which gate it passed (`Gated (full …)` or `Touched suites: …`).
-The Health suite has its own gate: `.build/simkit/test/WorkoutsUITests-health/result.json` with exit code 0 and nothing
+The Health suite has its own gate: `.build/simkit/test/WorkoutsUITests-health/result.json` with exit code 0, a clean tree and nothing
 skipped (`DEV_SKIP_HEALTH_GATE=1` overrides).
 
 ## Secrets

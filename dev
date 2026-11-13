@@ -85,9 +85,9 @@ ui_gate_verdict() { # ui_gate_verdict <result.json> <head>: succeeds (printing t
   [[ "$clean" == true ]] || { echo "the last run had a dirty tree"; return 1; }
   jq -r '(.flaky // []) | if length == 0 then "none" else join(", ") end' "$f"
 }
-health_gate_verdict() { # health_gate_verdict <result.json> <repo>: succeeds when the Health paths in the working tree (uncommitted and untracked edits included) match the commit of a passing run that skipped nothing; else prints the commit (or none)
+health_gate_verdict() { # health_gate_verdict <result.json> <repo>: succeeds when the Health paths in the working tree (uncommitted and untracked edits included) match the commit of a passing run on a clean tree that skipped nothing; else prints the commit (or none)
   local commit=""
-  [[ ! -f "$1" ]] || commit=$(jq -r 'select(.exit_code == 0 and .totals.skipped == 0) | .commit // empty' "$1" 2>/dev/null) || commit=""
+  [[ ! -f "$1" ]] || commit=$(jq -r 'select(.exit_code == 0 and .totals.skipped == 0 and .clean == true) | .commit // empty' "$1" 2>/dev/null) || commit=""
   if [[ -n "$commit" ]] && git -C "$2" diff --quiet "$commit" -- "${HEALTH_PATHS[@]}" 2>/dev/null &&
     [[ -z "$(git -C "$2" ls-files --others --exclude-standard -- "${HEALTH_PATHS[@]}" 2>/dev/null)" ]]; then return 0; fi
   echo "${commit:-none}"
@@ -174,7 +174,7 @@ cmd_format() { swift_format format --in-place; }
 
 # Simulator verbs: each one a call to simkit's `sim`. Whole jobs (test, ui-test, tree, shot, poses) take no lease from here:
 # simkit uses the session's when one is held, else a lease of its own for the job.
-cmd_build() { sim_lease; sim app build; }
+cmd_build() { sim app build; } # takes no lease and boots nothing: it builds for a pool simulator's id
 cmd_run() { # cmd_run [-- app launch args...]; args reach the app, e.g. ./dev run -- -preview Swatches
   [[ "${1:-}" == "--" ]] && shift
   sim_lease
@@ -685,11 +685,15 @@ cmd_selftest() {
   rm -f "$gate_result"
   DEV_SKIP_UI_GATE=1 st_run tf_health_gate "$gate_result" "$ST_DIR/repo"; st_rc "tf_health_gate is not skipped by DEV_SKIP_UI_GATE" 1
 
-  # The run must have passed and skipped nothing to vouch for a commit.
+  # The run must have passed on a clean tree and skipped nothing to vouch for a commit.
   st_result "$gate_result" null 1 "$c3" true 0 '[]'
   st_run health_gate_verdict "$gate_result" "$ST_DIR/repo"; st_rc "gate with a failed run" 1; st_eq "gate with a failed run names none" none "$ST_OUT"
   st_result "$gate_result" null 0 "$c3" true 3 '[]'
   st_run health_gate_verdict "$gate_result" "$ST_DIR/repo"; st_rc "gate with a run that skipped tests" 1; st_eq "gate with a run that skipped tests names none" none "$ST_OUT"
+  st_result "$gate_result" null 0 "$c3" false 0 '[]'
+  st_run health_gate_verdict "$gate_result" "$ST_DIR/repo"; st_rc "gate with a run on a dirty tree" 1; st_eq "gate with a run on a dirty tree names none" none "$ST_OUT"
+  st_result "$gate_result" null 0 "$c3" null 0 '[]'
+  st_run health_gate_verdict "$gate_result" "$ST_DIR/repo"; st_rc "gate with a run whose tree state is unknown" 1; st_eq "gate with a run whose tree state is unknown names none" none "$ST_OUT"
   printf 'not json' >"$gate_result"
   st_run health_gate_verdict "$gate_result" "$ST_DIR/repo"; st_rc "gate with an unreadable result" 1; st_eq "gate with an unreadable result names none" none "$ST_OUT"
 
@@ -781,7 +785,7 @@ A verb marked (leased) takes this worktree's session lease first (idempotent); .
 ten minutes with no verb. test, ui-test, tree, shot and poses are whole jobs: they use the session lease when one is held, else
 queue for one of their own. Exit 75 = the queue says wait; never retry in a loop. Workers, retries, skips and the Health suite
 are in simkit.json.
-build              (leased) build the app
+build              build the app (no lease, nothing booted)
 run [-- args]      (leased) build, install, launch; args go to the app (-- -preview <Name>)
 test [filter]      WorkoutsTests on the simulator (filter = Suite or Suite/test()); one totals line, fails if none ran; SNAPSHOT_RECORD=1 re-records the snapshots
 ui-test [filter]   WorkoutsUITests; no filter = the full suite as one job; filter HealthKitIntegration... = the real-Health run; DEV_POSE=<pose> poses the Duo (filtered runs)
@@ -811,7 +815,7 @@ testflight [--upload]  signed App Store archive + export to .build/testflight/ex
                    --upload reads two result.json files (.build/simkit/test/WorkoutsUITests/ and .../WorkoutsUITests-health/) and refuses
                    unless the full ./dev ui-test passed on HEAD with a clean tree, DEV_SKIP_UI_GATE=1 skips, and unless the Health code
                    (Workouts/Features/Health, the kit's Health directory, entitlements, HealthKitIntegrationUITests) is unchanged in the
-                   working tree since the last passing real-Health run that skipped nothing, DEV_SKIP_HEALTH_GATE=1 skips that one);
+                   working tree since the last passing real-Health run (clean tree, nothing skipped), DEV_SKIP_HEALTH_GATE=1 skips that one);
                    key from 1Password via op, build number = UTC yyyymmddHHMM; no simulator
 media-upload [--env development|production] [--limit N] [--only <sourceId>]
                    upload exercise videos to CloudKit's public database (Web Services, server-to-server key via op);
