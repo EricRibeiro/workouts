@@ -13,8 +13,11 @@
 #                with Core Animation Commits hit a fatal modeler error).
 # out-dir        where the .trace goes (default: .build/perf).
 #
-# Environment: PERF_SIM_UDID (default: "iPhone Duo 4" of `./dev sims`), PERF_WORKOUTS (default 600),
-#              PERF_EXTRA_INSTRUMENTS (comma-separated, "-" for none), PERF_TAG (suffix for the trace name).
+# Environment: PERF_SIM (a simulator name for `sim run --simulator`; default: any generic simulator),
+#              PERF_WORKOUTS (default 600), PERF_EXTRA_INSTRUMENTS (comma-separated, "-" for none),
+#              PERF_TAG (suffix for the trace name). The simulator comes from `sim run`.
+#
+# The script re-runs itself under simkit's `sim run`, so the simulator is leased, booted and shut down by simkit.
 #
 # Why an optimised *Debug* build: the harness (-uiTesting, -sampleWorkouts, in-memory store) is #if DEBUG, so a Release
 # build cannot be driven. Overriding SWIFT_OPTIMIZATION_LEVEL=-O on the command line optimises the app and the statically
@@ -26,33 +29,30 @@
 # and relaunches it). So the script attaches to the app the test launched, writes its load address (vmmap) next to the
 # trace, and perf-analyze.py resolves the app's own frames with atos against the dSYM. System frames stay addresses.
 set -euo pipefail
+SELF="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
 cd "$(dirname "$0")/.."
 
+ORIG_ARGS=("$@")
 BUILD=0
 [[ "${1:-}" == "--build" ]] && { BUILD=1; shift; }
 SCENARIO="${1:?usage: perf-record.sh [--build] <exercises|detail|history> [template] [out-dir]}"
 TEMPLATE="${2:-Time Profiler}"
 OUT="${3:-.build/perf}"
 DERIVED=".build/PerfDerivedData"
-UDID="${PERF_SIM_UDID:-$(xcrun simctl list devices available -j | jq -r '.devices[][] | select(.name == "iPhone Duo 4") | .udid')}"
-[[ -n "$UDID" ]] || { echo "perf: no simulator" >&2; exit 1; }
+
+if [[ -z "${SIMKIT_UDID:-}" ]]; then
+  SIM="${SIMKIT_HOME:-$HOME/Projects/simkit}/bin/sim"
+  [[ -x "$SIM" ]] || { echo "perf: simkit's sim not found at $SIM (set SIMKIT_HOME)" >&2; exit 1; }
+  exec "$SIM" run ${PERF_SIM:+--simulator "$PERF_SIM"} --note "perf-record $SCENARIO" -- "$SELF" "${ORIG_ARGS[@]}"
+fi
+UDID="$SIMKIT_UDID"
 
 if ((BUILD)); then
-  xcrun simctl boot "$UDID" 2>/dev/null || true
   xcodebuild build-for-testing -scheme Workouts -destination "platform=iOS Simulator,id=$UDID" \
     -derivedDataPath "$DERIVED" -quiet \
     SWIFT_OPTIMIZATION_LEVEL=-O GCC_OPTIMIZATION_LEVEL=s ENABLE_PREVIEWS=NO ENABLE_DEBUG_DYLIB=NO \
     DEBUG_INFORMATION_FORMAT=dwarf-with-dsym 2>&1 | grep -E "error:|BUILD" | grep -v "exit code 0" || true
 fi
-
-# Same lock convention as ./dev, so other agents' ./dev commands keep off this simulator while we record.
-LOCK="$HOME/Library/Caches/workouts-dev-sim.$UDID.lock"
-until mkdir "$LOCK" 2>/dev/null; do
-  owner=$(cat "$LOCK/pid" 2>/dev/null || true)
-  if [[ -n "$owner" ]] && ! kill -0 "$owner" 2>/dev/null; then rm -rf "$LOCK"; continue; fi
-  echo "perf: waiting for simulator lock (held by ${owner:-?})" >&2; sleep 5
-done
-echo $$ >"$LOCK/pid"
 
 mkdir -p "$OUT"
 SAFE_TEMPLATE="${TEMPLATE// /-}"
@@ -64,7 +64,7 @@ XCT="" TEST=""
 cleanup() {
   [[ -z "$XCT" ]] || kill -INT "$XCT" 2>/dev/null || true
   [[ -z "$TEST" ]] || kill "$TEST" 2>/dev/null || true
-  rm -f "$GO"; rm -rf "$LOCK"
+  rm -f "$GO"
 }
 trap cleanup EXIT
 
@@ -75,8 +75,6 @@ case "$SCENARIO" in
   *) echo "perf: unknown scenario $SCENARIO" >&2; exit 1 ;;
 esac
 
-xcrun simctl boot "$UDID" 2>/dev/null || true
-xcrun simctl bootstatus "$UDID" -b >/dev/null 2>&1 || true
 xcrun simctl terminate "$UDID" com.ericribeiro.Workouts 2>/dev/null || true
 
 # The test launches the app, then waits for $GO before driving it.
