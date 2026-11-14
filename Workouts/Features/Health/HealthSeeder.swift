@@ -11,7 +11,8 @@
 
     /// `-seedHealth`: writes one Functional Strength workout (last 50 minutes, ~300 kcal, ~40 heart-rate samples) into the
     /// simulator's Health store so the real `HealthKitSource` has something to read (docs/port/healthkit.md section 3).
-    /// Everything it writes carries `metadataKey`, and earlier seeds are deleted first, so runs do not accumulate.
+    /// Everything it writes carries `metadataKey`, and earlier seeds are deleted first, so runs do not accumulate;
+    /// `removeSeeds()` deletes them again once the real-store read is done (pool simulators are shared and never erased).
     /// Debug builds only: the app never writes to Health in Release.
     enum HealthSeeder {
         static let metadataKey = "WorkoutsDuoSeed"
@@ -37,6 +38,18 @@
             }
         }
 
+        /// Deletes everything a seed wrote. Needs the share authorization the seed asked for.
+        static func removeSeeds(from store: HKHealthStore = HKHealthStore()) async throws {
+            let seeds = HKQuery.predicateForObjects(withMetadataKey: metadataKey)
+            let types: [HKObjectType] = [
+                HKObjectType.workoutType(), HKQuantityType(.heartRate), HKQuantityType(.activeEnergyBurned),
+                HKQuantityType(.workoutEffortScore),
+            ]
+            for type in types {
+                _ = try await store.deleteObjects(of: type, predicate: seeds)
+            }
+        }
+
         private static func seed() async throws -> String {
             let store = HKHealthStore()
             let heartRateType = HKQuantityType(.heartRate)
@@ -48,10 +61,7 @@
                 read: HealthKitSource.readTypes
             )
 
-            let seeds = HKQuery.predicateForObjects(withMetadataKey: metadataKey)
-            for type in [workoutType, heartRateType, energyType, effortType] as [HKObjectType] {
-                _ = try await store.deleteObjects(of: type, predicate: seeds)
-            }
+            try await removeSeeds(from: store)
 
             let end = Date.now
             let start = end.addingTimeInterval(-50 * 60)

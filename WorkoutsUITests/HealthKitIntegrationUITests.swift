@@ -1,7 +1,8 @@
 import XCTest
 
 /// The real-store proof for the Health enrichment (PLAN 7.1b-d): seeds a Functional Strength workout into the simulator's
-/// Health store, reads it back through `HealthKitSource` and checks the numbers in the workout detail's header. It drives the Health Access
+/// Health store, reads it back through `HealthKitSource` and checks the numbers in the workout detail's header. The app deletes the seed
+/// after reading it and before it shows the values, so a passing run leaves no seeded workout on the simulator. It drives the Health Access
 /// sheet(s), so it is out of the normal suites: it skips itself unless `HEALTH_INTEGRATION` is set, which
 /// `./dev ui-test HealthKitIntegrationUITests` does (via `TEST_RUNNER_HEALTH_INTEGRATION`). See docs/port/healthkit.md.
 final class HealthKitIntegrationUITests: XCTestCase {

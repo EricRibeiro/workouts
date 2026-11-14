@@ -153,5 +153,5 @@ in the app target behind a small adapter.
 ## Spike hygiene
 
 All spike code (a `HealthSpike.swift` driven by a `-healthSpike` launch arg, a temporary XCUITest, a
-`com.apple.developer.healthkit` entitlement and Info.plist keys) was reverted; `git status` is clean apart from this file. The
-simulator "iPhone Duo 3" retains one seeded Functional Strength workout in its Health store (harmless; `simctl erase` clears it).
+`com.apple.developer.healthkit` entitlement and Info.plist keys) was reverted; `git status` is clean apart from this file. No
+seeded workout stays on a simulator: `HealthKitIntegrationUITests` deletes its seed once the app has read it.

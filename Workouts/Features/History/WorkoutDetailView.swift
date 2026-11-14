@@ -768,6 +768,11 @@ struct SaveTemplateSheet: View {
             let end = Date.now
             let summary = try? await HealthEnrichment(source: source)
                 .enrich(workoutStart: end.addingTimeInterval(-60 * 60), workoutEnd: end)
+            // The seed is read: delete it before showing the values, so the test that waits for them leaves no seeded
+            // workout on a shared pool simulator. A failed delete shows nothing, and that test fails.
+            if HealthSeeder.isRequested {
+                do { try await HealthSeeder.removeSeeds() } catch { return }
+            }
             workout.applyHealth(summary, checkedAt: .now)
         }
     }
