@@ -15,7 +15,7 @@ feature spec extracted from the web app.
 | Deployment target | iOS 27.2 (Duo layout needs the 27.1+ SDK) |
 | Project | `Workouts.xcodeproj` — Xcode 27 **folder-based `project.xcproj`** format (JSON-like, no pbxproj) |
 | Scheme | `Workouts` |
-| Simulator | simkit's pool of `iPhone Duo` simulators (iOS 27.2), shared with every other project by simkit's queue (`./dev sims` = `sim status`; `simkit.json` names the app, its own processes and the test targets) |
+| Simulator | simkit's pool of `iPhone Duo` clones (iOS 27.2), every one signed in to the test iCloud account and able to run any suite, shared with every other project by simkit's queue (`./dev sims` = `sim status`; `simkit.json` names the app, its own processes and the test targets) |
 | Bundle id | `com.ericribeiro.Workouts` |
 | Tests | Swift Testing (`import Testing`, `@Test`, `#expect`) everywhere; XCUITest only in `WorkoutsUITests` |
 | Formatter | `xcrun swift-format` (bundled), config in `.swift-format` |
@@ -49,7 +49,7 @@ one line naming that path when it is missing, and passes simkit's exit code on u
 leases, the crash guard, the Duo poses and the test jobs: its `AGENTS.md` ("The loop"), `docs/project-file.md` (`simkit.json`) and
 `docs/test-result.md` (`result.json`) are the manual, and the `simkit:simulator` skill covers touches and pictures. `simkit.json`
 holds what is Workouts': the scheme and bundle id, `own_processes` (a crash of one fails the run), and per test target the workers,
-retry, per-test allowance and expected skips of `WorkoutsUITests` and the Health suite's own simulator and environment.
+retry, per-test allowance and expected skips of `WorkoutsUITests` and the Health suite's environment and expected skips.
 
 ```
 ./dev kit [filter]      swift test for WorkoutsKit        — ~1s; use this first and most
@@ -61,8 +61,9 @@ SNAPSHOT_RECORD=1 ./dev test SnapshotTests   re-record the visual references (Wo
                         retry, allowance and expected skips that `simkit.json` sets for `WorkoutsUITests` (one combined totals line; the run's
                         files under `.build/simkit/test/WorkoutsUITests/`; a filtered run goes to `filtered/` there and never replaces the full
                         run's `result.json`). A test that fails and passes alone on retry is reported as flaky; a test whose first attempt
-                        crashed the app fails the run even when its retry passes. A filter starting `HealthKitIntegration` runs on the Health
-                        simulator with its environment and writes to `.build/simkit/test/WorkoutsUITests-health/` (`simkit.json` `suites`).
+                        crashed the app fails the run even when its retry passes. A filter starting `HealthKitIntegration` runs with the Health
+                        suite's environment (`simkit.json` `suites`) on any pool simulator and writes to `.build/simkit/test/WorkoutsUITests-health/`;
+                        a simulator that never granted Health access gets its sheets answered by the suite itself.
                         The queue decides when it starts: exit 75 = wait (see "Keep the machine usable")
 DEV_POSE=open-wide ./dev ui-test OpenPoseUITests   a filtered ui-test with the Duo posed first (closed-portrait|closed-landscape|open-wide|open-tall,
                         verified); closed-portrait restored afterwards, also on failure; the runner sees DUO_POSE. Opt-in, before a phase's TestFlight.

@@ -13,18 +13,20 @@ account, the schema deployed to Production); this file is the runbook for repeat
   every field (JC127). Production never creates types on its own: a TestFlight build syncs nothing until the schema is
   deployed there by hand. Deploying is additive and does not touch the public-database media type already in both
   environments (`docs/port/media.md`).
-- Simulators have no iCloud account by default; with none, the mirror logs `CKAccountStatusNoAccount` (code 134400) at
-  launch and the store works locally. That is the expected state of the pool today.
+- Every simulator of simkit's pool is a clone of the template `iPhone Duo`, which is signed in to the test Apple Account, so
+  every pool simulator syncs with that account. A boot answers a clone's iCloud password prompt by itself; `sim account status`
+  says where a simulator stands. A simulator with no account at all would log `CKAccountStatusNoAccount` (code 134400) at
+  launch and keep the store local.
 
 ## Steps (Eric, server screen)
 
-1. **Sign two simulators into iCloud** with the same Apple Account, a test account rather than Eric's own (a signed-in
-   sim is a live session on the server's disk): Settings → Sign in, on `iPhone Duo` and `iPhone Duo 2`. Xcode 27 has no
-   Simulator.app; the window comes from DeviceHub (Xcode.app → Contents → Applications). Done 2026-11-08.
+1. **Sign the simulators into iCloud** with a test Apple Account rather than Eric's own (a signed-in sim is a live session
+   on the server's disk). The account is signed in once, on simkit's template `iPhone Duo` (Settings → Sign in, through
+   DeviceHub: Xcode.app → Contents → Applications), and every pool clone carries it. Done 2026-11-08.
 2. **Create the Development schema** (done 2026-11-08; repeat after every model change):
 
    ```
-   DEV_SIM="iPhone Duo" ./dev run -- -initializeCloudKitSchema
+   ./dev run -- -initializeCloudKitSchema
    ```
 
    The log (`log show --predicate 'process == "Workouts"'`) ends with `CloudKit schema initialized in Development`; the
@@ -42,9 +44,10 @@ account, the schema deployed to Production); this file is the runbook for repeat
    exports both environments to `.build/cloudkit/` and names the record types Production still lacks (exit 1 until the
    deploy has run). `./dev ck-schema export [--env …]` writes one environment and lists its record types.
 
-4. **Two-simulator proof** (passed 2026-11-08, Development): `DEV_SIM="iPhone Duo" ./dev run -- -seedSampleData`, then
-   `DEV_SIM="iPhone Duo 2" ./dev run` on a sim that never held data; within about a minute B's Workout tab showed A's
-   folders and templates. `log show` on B prints `Finished importing applying changes`; the
+4. **Two-simulator proof** (passed 2026-11-08, Development), on any two pool clones: hold both in this checkout's session
+   (`sim lease acquire --simulator "iPhone Duo 2"` and again with `"iPhone Duo 3"`), then
+   `sim app run --simulator "iPhone Duo 2" -- -seedSampleData` and `sim app run --simulator "iPhone Duo 3"` on the one that
+   never held data; within about a minute B's Workout tab shows A's folders and templates. `./dev release` ends both leases. `log show` on B prints `Finished importing applying changes`; the
    `134417 already a pending request of type NSCloudKitMirroringExportRequest` lines beside it are the mirror
    coalescing its own export requests, not failures. Leave both sims closed-portrait afterwards.
 5. **Upload** (orchestrator): `./dev testflight --upload` from the main checkout, logged in `docs/testflight.md`. Uploads
@@ -71,7 +74,8 @@ the same rule applies.
   never see the phone's data. A two-simulator pass (2026-11-09: a custom exercise saved on `iPhone Duo` was in `iPhone Duo 2`'s
   store after a relaunch) proves export and import; the silent push that would wake the second simulator while it runs was not
   observed within 3 minutes, so relaunch the reader instead of waiting. The simulators' test-account session can lapse
-  (`accountStatus=Temporarily Unavailable`, the row reads Unavailable); re-enter the password in the simulator's Settings app.
+  (`accountStatus=Temporarily Unavailable`, the row reads Unavailable); `sim account sign-in` answers the password prompt on
+  the leased simulator (a boot does it by itself).
 
 ## Migrations from now on
 

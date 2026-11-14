@@ -192,7 +192,7 @@ cmd_test() {
 cmd_ui_test() {
   local extra=()
   [[ -z "${DEV_POSE:-}" ]] || extra+=(--pose "$DEV_POSE")
-  # The real-Health run keeps its result apart (its simulator, environment and skips come from simkit.json "suites").
+  # The real-Health run keeps its result apart (its environment and skips come from simkit.json "suites").
   ! is_health_filter "${1:-}" || extra+=(--out .build/simkit/test/WorkoutsUITests-health)
   sim test WorkoutsUITests ${1:+"$1"} ${extra[@]+"${extra[@]}"}
 }

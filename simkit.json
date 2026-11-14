@@ -4,7 +4,10 @@
     "scheme": "Workouts",
     "app": "com.ericribeiro.Workouts",
     "container": "Workouts.xcodeproj",
-    "own_processes": ["Workouts", "WorkoutsLiveActivity"],
+    "own_processes": [
+      "Workouts",
+      "WorkoutsLiveActivity"
+    ],
     "tests": {
       "WorkoutsTests": {
         "retry": 0
@@ -17,8 +20,9 @@
         "piece_timeout_sec": 1200,
         "suites": {
           "HealthKitIntegrationUITests": {
-            "simulator": "iPhone Duo Health",
-            "environment": { "HEALTH_INTEGRATION": "1" },
+            "environment": {
+              "HEALTH_INTEGRATION": "1"
+            },
             "expected_skips": 0
           }
         }

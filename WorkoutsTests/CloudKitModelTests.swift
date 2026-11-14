@@ -103,9 +103,10 @@ struct CloudKitModelTests {
 
         switch outcome {
         case .success?:
+            // Pool simulators are signed in, so this is the normal path: returning without a throw is the proof.
             break
         case .failure(let error)?:
-            // The simulator has no iCloud account; the dry run cannot reach CloudKit, so it proves nothing there.
+            // No account, or a lapsed session: the dry run cannot reach CloudKit, so it proves nothing there.
             withKnownIssue("initializeCloudKitSchema(.dryRun) needs an iCloud account: \(error)") {
                 throw error
             }

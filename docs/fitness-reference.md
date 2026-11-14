@@ -2,14 +2,14 @@
 
 Apple's Fitness app ships in the iOS 27.2 simulator and reads the simulator's Health store. A debug seeder fills that
 store with months of history, and the Xcode MCP's device-interaction tools drive Fitness, so an agent can study its
-screens without anyone's phone. First done 2026-11-10 on `iPhone Duo 4`; the screenshots in `docs/fitness-reference/`
+screens without anyone's phone. First done 2026-11-10; the screenshots in `docs/fitness-reference/`
 are from that run (1x; re-run for full resolution).
 
 ## Populate a simulator (about 3 minutes)
 
-1. Pick a pool clone, not the original `iPhone Duo` (it is signed in to iCloud and can show account alerts):
-   `DEV_SIM="iPhone Duo 4"` in front of every `./dev` command below.
-2. Seed: `DEV_SIM="iPhone Duo 4" ./dev run -- -seedHealthHistory 200`
+1. Any pool simulator will do: the `./dev` commands below take this checkout's session lease and keep using that one
+   simulator (`./dev sims` names it), until `./dev release` or ten idle minutes.
+2. Seed: `./dev run -- -seedHealthHistory 200`
    - `Workouts/Features/Health/HealthHistorySeeder.swift`, DEBUG only. The day count is optional (default 200, 1...400).
    - It writes, per day: hourly steps, walking distance and active energy, one resting-energy sample; weekly VO2 max;
      and a weekday routine (Mon/Wed/Fri Functional Strength, Tue Indoor Cycle, Sat Outdoor Run and Sun Outdoor Walk with
@@ -32,7 +32,7 @@ are from that run (1x; re-run for full resolution).
 - `DeviceInteractionStartSession` with the simulator's UDID (no workspace needed), then `DeviceInteractionSynthesize`:
   `t x y` taps, `t x1 y1 f x2 y2 0.3` swipes, `w 2` waits; coordinates are points (the closed Duo is 466 x 678). Each call
   returns a 1x screenshot and an accessibility hierarchy with hit points. End with `DeviceInteractionEndSession`.
-- For a 3x screenshot of the current screen: `DEV_SIM="iPhone Duo 4" ./dev screenshot <path>`.
+- For a 3x screenshot of the current screen: `./dev screenshot <path>`.
 - The trailing strip holds the back button (417, 198) and the tabs: Summary (417, 472), Fitness+ (417, 522),
   Workout (417, 572), Sharing (417, 622).
 - A Summary card opens its detail when tapped; the Sessions list is behind the chevron in the Sessions card's header.
